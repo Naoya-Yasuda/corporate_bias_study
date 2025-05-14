@@ -21,6 +21,12 @@ from scipy.stats import kendalltau
 from dotenv import load_dotenv
 import boto3
 
+# 共通ユーティリティをインポート
+from src.utils.s3_utils import get_s3_client, upload_to_s3, put_json_to_s3
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.rank_utils import compute_tau
+from src.utils.plot_utils import set_plot_style
+
 # 環境変数の読み込み
 load_dotenv()
 
@@ -52,18 +58,6 @@ MARKET_SHARES = {
 # -----------------------------
 # S3操作ユーティリティ
 # -----------------------------
-def get_s3_client():
-    """S3クライアントを取得"""
-    if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY]):
-        raise ValueError("AWS認証情報が設定されていません。.envファイルを確認してください。")
-
-    return boto3.client(
-        "s3",
-        aws_access_key_id=AWS_ACCESS_KEY,
-        aws_secret_access_key=AWS_SECRET_KEY,
-        region_name=AWS_REGION
-    )
-
 def list_s3_files(prefix="results/perplexity_rankings/"):
     """S3バケット内のファイル一覧を取得"""
     s3_client = get_s3_client()
@@ -96,27 +90,6 @@ def download_from_s3(s3_key):
     except Exception as e:
         print(f"S3ダウンロードエラー ({s3_key}): {e}")
         return None
-
-def upload_to_s3(local_path, s3_key, content_type=None):
-    """ファイルをS3にアップロード"""
-    s3_client = get_s3_client()
-
-    extra_args = {}
-    if content_type:
-        extra_args['ContentType'] = content_type
-
-    try:
-        with open(local_path, 'rb') as file_data:
-            s3_client.upload_fileobj(
-                file_data,
-                S3_BUCKET_NAME,
-                s3_key,
-                ExtraArgs=extra_args
-            )
-        return True
-    except Exception as e:
-        print(f"S3アップロードエラー ({local_path} -> {s3_key}): {e}")
-        return False
 
 def get_latest_ranking_file(date_str=None, prefix="results/perplexity_rankings/"):
     """

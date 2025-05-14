@@ -10,6 +10,11 @@ import datetime
 import os
 import re
 from dotenv import load_dotenv
+import argparse
+import csv
+import random
+import numpy as np
+import pandas as pd
 
 from openai import OpenAI
 
@@ -181,19 +186,20 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
 
     return results
 
+# 共通ユーティリティをインポート
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.s3_utils import save_to_s3, put_json_to_s3
+
 def save_results(result_data, run_type="single", num_runs=1):
     """結果を保存する関数"""
     # AWS認証情報を環境変数から取得
     aws_access_key = os.environ.get("AWS_ACCESS_KEY")
     aws_secret_key = os.environ.get("AWS_SECRET_KEY")
-    aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")  # 環境変数から取得、ない場合はデフォルト値を使用
+    aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")
+    s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
 
     # 日付を取得
-    today_date = datetime.datetime.now().strftime("%Y%m%d")
-
-    # ローカルに保存
-    output_dir = "results"
-    os.makedirs(output_dir, exist_ok=True)
+    today_date = get_today_str()
 
     # ファイル名の生成
     if run_type == "multiple":
@@ -202,47 +208,28 @@ def save_results(result_data, run_type="single", num_runs=1):
         file_name = f"{today_date}_openai_results.json"
 
     # ローカルに保存
-    with open(f"{output_dir}/{file_name}", 'w', encoding='utf-8') as f:
-        json.dump(result_data, f, ensure_ascii=False, indent=4)
+    output_dir = "results"
+    ensure_dir(output_dir)
+    local_file = f"{output_dir}/{file_name}"
 
-    print(f"ローカルに保存しました: {output_dir}/{file_name}")
+    # JSONを保存
+    save_json(result_data, local_file)
+    print(f"ローカルに保存しました: {local_file}")
 
     # S3に保存（認証情報がある場合のみ）
-    if aws_access_key and aws_secret_key:
-        try:
-            # S3クライアントを作成
-            s3_client = boto3.client(
-                "s3",
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_key,
-                region_name=aws_region
-            )
+    if aws_access_key and aws_secret_key and s3_bucket_name:
+        # S3のパスを設定 (results/openai/日付/ファイル名)
+        s3_key = f"results/openai/{today_date}/{file_name}"
 
-            # S3バケット名を環境変数から取得（ない場合はデフォルト値を使用）
-            s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
-
-            # JSONデータを文字列に変換
-            json_data = json.dumps(result_data, ensure_ascii=False, indent=4)
-
-            # S3のパスを設定 (results/openai/日付/ファイル名)
-            s3_key = f"results/openai/{today_date}/{file_name}"
-
-            # S3にアップロード
-            s3_client.put_object(
-                Bucket=s3_bucket_name,
-                Key=s3_key,
-                Body=json_data,
-                ContentType="application/json"
-            )
-
+        # S3にアップロード
+        if put_json_to_s3(result_data, s3_key):
             print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")
-        except Exception as e:
-            print(f"S3へのアップロードエラー: {e}")
+
+    return local_file
 
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
-    import argparse
     parser = argparse.ArgumentParser(description='OpenAIを使用して企業バイアスデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')

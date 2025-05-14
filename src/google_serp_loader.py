@@ -2,11 +2,12 @@
 # coding: utf-8
 
 """
-Google SERP API を使用して検索結果を取得し、
-Perplexity API の結果と比較するためのモジュール
+Google SERP Loader モジュール
+SerpAPIを使ってGoogle検索結果を取得し、Perplexityの結果と比較分析するためのモジュール
 """
 
 import os
+import sys
 import json
 import datetime
 import requests
@@ -17,7 +18,15 @@ import numpy as np
 from dotenv import load_dotenv
 from tqdm import tqdm
 from urllib.parse import urlparse
-from src.categories import load_categories
+import tldextract
+
+# 共通ユーティリティをインポート
+from src.utils.text_utils import extract_domain, is_negative
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.s3_utils import save_to_s3
+
+# プロジェクト固有のモジュール
+from src.categories import get_categories
 from src.analysis.serp_metrics import compare_with_perplexity, analyze_serp_results
 
 # 環境変数の読み込み
@@ -34,52 +43,36 @@ AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 # カテゴリ・サービスの定義読み込み
-categories = load_categories()
+categories = get_categories()
 
 # -------------------------------------------------------------------
 # ユーティリティ関数
 # -------------------------------------------------------------------
 def save_results(results, type_str, local_path="results"):
     """結果を保存する（ローカルとS3）"""
-    today = datetime.datetime.now().strftime("%Y%m%d")
+    today = get_today_str()
 
     # ディレクトリがなければ作成
-    os.makedirs(f"{local_path}", exist_ok=True)
+    ensure_dir(local_path)
 
     # ローカルに保存
     filename = f"{today}_google_serp_{type_str}.json"
     local_file = f"{local_path}/{filename}"
 
-    with open(local_file, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-
+    # JSONを保存
+    save_json(results, local_file)
     print(f"結果を {local_file} に保存しました")
 
     # S3に保存
-    if AWS_ACCESS_KEY and AWS_SECRET_KEY:
-        try:
-            import boto3
+    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
+        # S3のパス
+        s3_path = f"results/google_serp/{today}/{filename}"
 
-            s3_client = boto3.client(
-                "s3",
-                aws_access_key_id=AWS_ACCESS_KEY,
-                aws_secret_access_key=AWS_SECRET_KEY,
-                region_name=AWS_REGION
-            )
-
-            # S3のパス
-            s3_path = f"results/google_serp/{today}/{filename}"
-
-            # アップロード
-            s3_client.upload_file(
-                local_file,
-                S3_BUCKET_NAME,
-                s3_path
-            )
-
+        # アップロード
+        if save_to_s3(local_file, s3_path):
             print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
-        except Exception as e:
-            print(f"S3へのアップロードに失敗しました: {e}")
+
+    return local_file
 
 def get_perplexity_results(date_str=None, local_path="results"):
     """指定した日付のPerplexityランキング結果を取得"""
@@ -135,17 +128,6 @@ def get_perplexity_results(date_str=None, local_path="results"):
             print(f"S3からのPerplexity結果読み込みに失敗: {e}")
 
     return None, None
-
-def extract_domain(url):
-    """URLからドメインを抽出"""
-    try:
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        if domain.startswith('www.'):
-            domain = domain[4:]
-        return domain
-    except:
-        return ""
 
 def classify_domain(domain, company):
     """ドメインが公式か非公式かを判定"""

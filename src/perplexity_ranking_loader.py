@@ -17,6 +17,10 @@ from src.categories import get_categories, get_all_categories
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
 from src.perplexity_bias_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
 
+# 共通ユーティリティをインポート
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.s3_utils import save_to_s3, put_json_to_s3
+
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
@@ -121,13 +125,14 @@ def save_results(result_data, run_type="single", num_runs=1):
     aws_access_key = os.environ.get("AWS_ACCESS_KEY")
     aws_secret_key = os.environ.get("AWS_SECRET_KEY")
     aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")
+    s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
 
     # 日付を取得
-    today_date = datetime.datetime.now().strftime("%Y%m%d")
+    today_date = get_today_str()
 
     # ローカルに保存
     output_dir = "results"
-    os.makedirs(output_dir, exist_ok=True)
+    ensure_dir(output_dir)
 
     # ファイル名の生成
     if run_type == "multiple":
@@ -136,42 +141,20 @@ def save_results(result_data, run_type="single", num_runs=1):
         file_name = f"{today_date}_perplexity_rankings.json"
 
     # ローカルに保存
-    with open(f"{output_dir}/{file_name}", 'w', encoding='utf-8') as f:
-        json.dump(result_data, f, ensure_ascii=False, indent=4)
-
-    print(f"ローカルに保存しました: {output_dir}/{file_name}")
+    local_file = f"{output_dir}/{file_name}"
+    save_json(result_data, local_file)
+    print(f"ローカルに保存しました: {local_file}")
 
     # S3に保存（認証情報がある場合のみ）
-    if aws_access_key and aws_secret_key:
-        try:
-            # S3クライアントを作成
-            s3_client = boto3.client(
-                "s3",
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_key,
-                region_name=aws_region
-            )
+    if aws_access_key and aws_secret_key and s3_bucket_name:
+        # S3のパスを設定 (results/perplexity_rankings/日付/ファイル名)
+        s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
 
-            # S3バケット名を環境変数から取得
-            s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
-
-            # JSONデータを文字列に変換
-            json_data = json.dumps(result_data, ensure_ascii=False, indent=4)
-
-            # S3のパスを設定 (results/perplexity_rankings/日付/ファイル名)
-            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
-
-            # S3にアップロード
-            s3_client.put_object(
-                Bucket=s3_bucket_name,
-                Key=s3_key,
-                Body=json_data,
-                ContentType="application/json"
-            )
-
+        # S3にアップロード
+        if put_json_to_s3(result_data, s3_key):
             print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")
-        except Exception as e:
-            print(f"S3へのアップロードエラー: {e}")
+
+    return local_file
 
 def main():
     """メイン関数"""

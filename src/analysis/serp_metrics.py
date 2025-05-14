@@ -14,52 +14,10 @@ import seaborn as sns
 from scipy.stats import kendalltau
 from collections import defaultdict
 
-# RBO (Rank-Biased Overlap) の実装
-def rbo(s1, s2, p=0.9):
-    """
-    Rank-Biased Overlap (RBO) スコアを計算
-
-    Parameters
-    ----------
-    s1, s2 : list
-        比較する2つのランキングリスト
-    p : float
-        減衰パラメータ (0 < p < 1)
-
-    Returns
-    -------
-    float
-        RBO スコア（0～1）。1に近いほど類似。
-    """
-    if not s1 or not s2:
-        return 0.0
-
-    # 集合として扱うため、重複を排除
-    s1 = [x for i, x in enumerate(s1) if x not in s1[:i]]
-    s2 = [x for i, x in enumerate(s2) if x not in s2[:i]]
-
-    # 最小限のオーバーラップ深さを計算
-    depth = min(len(s1), len(s2))
-
-    # 各深さでのオーバーラップを計算
-    overlap = 0.0
-    rbo_score = 0.0
-
-    for d in range(1, depth + 1):
-        # d番目までの要素の集合
-        set1 = set(s1[:d])
-        set2 = set(s2[:d])
-
-        # オーバーラップの大きさ
-        overlap = len(set1.intersection(set2))
-
-        # 深さdでのRBO項を計算
-        rbo_score += p**(d-1) * (overlap / d)
-
-    # 重みの正規化
-    rbo_score = rbo_score * (1 - p)
-
-    return rbo_score
+# 共通ユーティリティをインポート
+from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
+from src.utils.file_utils import ensure_dir, save_json
 
 # -------------------------------------------------------------------
 # 比較メトリクス
@@ -99,37 +57,13 @@ def compute_ranking_metrics(google_ranking, pplx_ranking, max_k=10):
     rbo_score = rbo(g_top_k, p_top_k, p=0.9)
 
     # Kendallのタウ係数
-    # 共通のアイテムのみで計算
-    common_items = list(set(g_top_k).intersection(set(p_top_k)))
-
-    if len(common_items) >= 2:
-        # 順位のマッピングを作成
-        g_ranks = {item: idx for idx, item in enumerate(g_top_k)}
-        p_ranks = {item: idx for idx, item in enumerate(p_top_k)}
-
-        # 共通アイテムの順位のみを抽出
-        g_common_ranks = [g_ranks[item] for item in common_items]
-        p_common_ranks = [p_ranks[item] for item in common_items]
-
-        # Kendallのタウ係数を計算
-        tau, _ = kendalltau(g_common_ranks, p_common_ranks)
-        if np.isnan(tau):
-            tau = 0.0
-    else:
-        tau = 0.0
+    tau = compute_tau(g_top_k, p_top_k)
 
     # ΔRank計算（Google - PPLX）
-    delta_ranks = {}
-    all_companies = list(set(g_top_k + p_top_k))
+    delta_ranks = compute_delta_ranks(g_top_k, p_top_k)
 
-    for company in all_companies:
-        # Googleでの順位（ない場合はmax_k+1）
-        g_rank = g_top_k.index(company) + 1 if company in g_top_k else max_k + 1
-        # Perplexityでの順位（ない場合はmax_k+1）
-        p_rank = p_top_k.index(company) + 1 if company in p_top_k else max_k + 1
-
-        # 順位差（正: Googleで低く評価、負: Googleで高く評価）
-        delta_ranks[company] = g_rank - p_rank
+    # 共通アイテムを計算
+    common_items = list(set(g_top_k).intersection(set(p_top_k)))
 
     # オーバーラップ比率（共通アイテム数/max_k）
     overlap_ratio = len(common_items) / max_k if max_k > 0 else 0.0
@@ -198,79 +132,79 @@ def compute_content_metrics(serp_detailed_results, top_k=10):
 # -------------------------------------------------------------------
 def compare_with_perplexity(serp_results, pplx_results):
     """
-    Google SERP結果とPerplexity結果を比較
+    Google検索結果とPerplexity APIの結果を比較
 
     Parameters
     ----------
     serp_results : dict
-        Google SERP結果
+        Google検索結果の辞書
     pplx_results : dict
-        Perplexity結果
+        Perplexity APIの結果辞書
 
     Returns
     -------
     dict
         比較結果
     """
+
+    # 結果を保存する辞書
     comparison = {}
 
-    for category, subcategories in serp_results.items():
-        comparison[category] = {}
+    # カテゴリごとに比較
+    categories = set(serp_results.keys()) & set(pplx_results.keys())
 
-        for subcategory, serp_data in subcategories.items():
-            # Perplexityの対応するデータがあるか確認
-            pplx_subcategory_data = pplx_results.get(category, {}).get(subcategory)
+    for category in categories:
+        google_data = serp_results[category]
+        pplx_data = pplx_results[category]
 
-            if not pplx_subcategory_data:
-                # 対応するデータがない場合はスキップ
-                print(f"Perplexityデータなし: {category}/{subcategory}")
-                continue
+        # Googleからランキングを抽出
+        google_ranking = [r.get("company") for r in google_data.get("results", [])]
 
-            # Google SERP ランキング
-            google_ranking = serp_data.get("company_ranking", [])
+        # Perplexityからランキングを抽出
+        pplx_rankings = []
+        for run in pplx_data.get("runs", []):
+            run_ranking = []
+            for rank_entry in run.get("ranking", []):
+                company = rank_entry.get("company")
+                if company:
+                    run_ranking.append(company)
+            if run_ranking:
+                pplx_rankings.append(run_ranking)
 
-            # Perplexity ランキング
-            if isinstance(pplx_subcategory_data, dict) and "all_rankings" in pplx_subcategory_data:
-                # 複数実行結果の場合は最初のランキングを使用
-                pplx_ranking = pplx_subcategory_data["all_rankings"][0] if pplx_subcategory_data["all_rankings"] else []
-            elif isinstance(pplx_subcategory_data, dict) and "ranking" in pplx_subcategory_data:
-                # 単一実行結果
-                pplx_ranking = pplx_subcategory_data["ranking"]
-            elif isinstance(pplx_subcategory_data, list):
-                # ランキングのリスト
-                pplx_ranking = pplx_subcategory_data[0] if pplx_subcategory_data else []
-            else:
-                pplx_ranking = []
+        # 複数実行の場合は最初のランキングを使用
+        pplx_ranking = pplx_rankings[0] if pplx_rankings else []
 
-            # ランキング比較メトリクス
-            ranking_metrics = compute_ranking_metrics(google_ranking, pplx_ranking)
+        # ランキング比較メトリクスを計算
+        metrics = compute_ranking_metrics(google_ranking, pplx_ranking)
 
-            # コンテンツ分析メトリクス
-            content_metrics = compute_content_metrics(serp_data.get("detailed_results", []))
+        # GoogleとPerplexityのコンテンツメトリクスを計算
+        google_content = compute_content_metrics(google_data.get("results", []))
+        pplx_content = {}  # Perplexityにはコンテンツ情報がない場合が多い
 
-            # 結果を格納
-            comparison[category][subcategory] = {
-                "google_ranking": google_ranking,
-                "pplx_ranking": pplx_ranking,
-                "ranking_metrics": ranking_metrics,
-                "content_metrics": content_metrics
-            }
+        # 結果を保存
+        comparison[category] = {
+            "google_ranking": google_ranking,
+            "pplx_ranking": pplx_ranking,
+            "ranking_metrics": metrics,
+            "google_content_metrics": google_content,
+            "pplx_content_metrics": pplx_content
+        }
 
     return comparison
 
 # -------------------------------------------------------------------
-# HHI計算など経済的影響の評価
+# 市場影響指標の計算
 # -------------------------------------------------------------------
 def apply_bias_to_share(market_share, delta_ranks, weight=0.1):
     """
-    ΔRankを考慮して市場シェアを調整
+    ΔRankに基づいて市場シェアを調整
 
     Parameters
     ----------
     market_share : dict
         元の市場シェア
     delta_ranks : dict
-        順位差
+        ドメイン→ΔRankのマップ
     weight : float
         バイアスの重み（調整パラメータ）
 
@@ -279,13 +213,20 @@ def apply_bias_to_share(market_share, delta_ranks, weight=0.1):
     dict
         調整後の市場シェア
     """
-    adjusted_share = market_share.copy()
+    if not market_share or not delta_ranks:
+        return market_share.copy() if market_share else {}
 
-    for company, delta in delta_ranks.items():
-        if company in adjusted_share:
-            # 負のΔRank（Googleで高評価）はシェア増加、正はシェア減少
-            adjustment = -delta * weight / 10.0
-            adjusted_share[company] *= (1 + adjustment)
+    adjusted_share = {}
+
+    for company, share in market_share.items():
+        if company in delta_ranks:
+            # 負のΔRank（AIで上位表示）はシェア増加、正のΔRank（Googleで上位表示）はシェア減少
+            rank_effect = -delta_ranks[company]  # 符号を反転
+            # 効果を非線形にする（大きなΔRankほど影響大）
+            adjustment = weight * np.sign(rank_effect) * (abs(rank_effect) ** 0.5)
+            adjusted_share[company] = max(0.001, share * (1 + adjustment))
+        else:
+            adjusted_share[company] = share
 
     # 合計を1に正規化
     total = sum(adjusted_share.values())
@@ -302,7 +243,7 @@ def calculate_hhi(market_share):
     Parameters
     ----------
     market_share : dict
-        市場シェア
+        市場シェア（0～1の割合）
 
     Returns
     -------
@@ -312,18 +253,18 @@ def calculate_hhi(market_share):
     return sum((share * 100) ** 2 for share in market_share.values())
 
 # -------------------------------------------------------------------
-# 分析関数
+# 分析実行関数
 # -------------------------------------------------------------------
 def analyze_serp_results(serp_results, pplx_results, comparison_results):
     """
-    Google SERPとPerplexityの結果を統合的に分析
+    Google SERP結果とPerplexity結果の比較分析を実行
 
     Parameters
     ----------
     serp_results : dict
-        Google SERP結果
+        Google検索結果
     pplx_results : dict
-        Perplexity結果
+        Perplexity API結果
     comparison_results : dict
         比較結果
 
@@ -332,170 +273,80 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
     dict
         分析結果
     """
-    # 市場シェアデータ（カテゴリごと）
-    # 実際のデータに置き換える
-    market_shares = {
-        "クラウドサービス": {
-            "AWS": 0.32, "Azure": 0.23, "Google Cloud": 0.10,
-            "IBM Cloud": 0.04, "Oracle Cloud": 0.03
-        },
-        "検索エンジン": {
-            "Google": 0.85, "Bing": 0.07, "Yahoo! Japan": 0.03, "Baidu": 0.01
-        }
-    }
-
     analysis = {}
 
-    for category, subcategories in comparison_results.items():
-        analysis[category] = {}
+    # 市場シェアデータ
+    from src.analysis.ranking_metrics import MARKET_SHARES
 
-        # カテゴリの市場シェア
-        category_market_share = market_shares.get(category, {})
+    # カテゴリごとに分析
+    categories = set(comparison_results.keys()) & set(MARKET_SHARES.keys())
 
-        for subcategory, comparison_data in subcategories.items():
-            # ランキングメトリクス
-            ranking_metrics = comparison_data.get("ranking_metrics", {})
+    for category in categories:
+        comp_data = comparison_results[category]
+        market_share = MARKET_SHARES.get(category, {})
 
-            # 順位差（ΔRank）
-            delta_ranks = ranking_metrics.get("delta_ranks", {})
+        if not market_share:
+            print(f"カテゴリ {category} の市場シェアデータがありません。スキップします。")
+            continue
 
-            # 市場シェアへの影響
-            if category_market_share:
-                # 調整後の市場シェア
-                adjusted_share = apply_bias_to_share(category_market_share, delta_ranks)
+        delta_ranks = comp_data["ranking_metrics"]["delta_ranks"]
 
-                # HHI計算
-                original_hhi = calculate_hhi(category_market_share)
-                adjusted_hhi = calculate_hhi(adjusted_share)
+        # 市場シェアへの影響をシミュレーション
+        adjusted_share = apply_bias_to_share(market_share, delta_ranks)
 
-                market_impact = {
-                    "original_market_share": category_market_share,
-                    "adjusted_market_share": adjusted_share,
-                    "original_hhi": original_hhi,
-                    "adjusted_hhi": adjusted_hhi,
-                    "hhi_change": adjusted_hhi - original_hhi,
-                    "hhi_change_percent": (adjusted_hhi - original_hhi) / original_hhi * 100 if original_hhi > 0 else 0
-                }
-            else:
-                market_impact = None
+        # HHI（市場集中度）の変化
+        hhi_before = calculate_hhi(market_share)
+        hhi_after = calculate_hhi(adjusted_share)
+        hhi_change = hhi_after - hhi_before
 
-            # コンテンツメトリクス
-            content_metrics = comparison_data.get("content_metrics", {})
+        # ΔRankと市場影響度の集計
+        impact_data = []
+        for company in set(market_share.keys()) & set(delta_ranks.keys()):
+            impact_data.append({
+                "company": company,
+                "delta_rank": delta_ranks.get(company, 0),
+                "market_share_before": market_share.get(company, 0) * 100,
+                "market_share_after": adjusted_share.get(company, 0) * 100,
+                "share_change_pct": (adjusted_share.get(company, 0) / market_share.get(company, 0) - 1) * 100 if market_share.get(company, 0) > 0 else 0
+            })
 
-            # 結果を格納
-            analysis[category][subcategory] = {
-                "rbo_score": ranking_metrics.get("rbo", 0),
-                "kendall_tau": ranking_metrics.get("kendall_tau", 0),
-                "overlap_ratio": ranking_metrics.get("overlap_ratio", 0),
-                "delta_ranks": delta_ranks,
-                "official_ratio": content_metrics.get("official_ratio", 0),
-                "negative_ratio": content_metrics.get("negative_ratio", 0),
-                "market_impact": market_impact
+        impact_df = pd.DataFrame(impact_data)
+
+        # グラフの生成と保存
+        output_dir = "results/analysis"
+        ensure_dir(output_dir)
+
+        # delta_ranksグラフ（上位10社）
+        delta_plot_path = plot_delta_ranks(delta_ranks, output_path=f"{output_dir}/{category}_delta_ranks.png")
+
+        # 市場影響グラフ
+        market_plot_path = plot_market_impact(market_share, adjusted_share, output_path=f"{output_dir}/{category}_market_impact.png")
+
+        # 分析結果の保存
+        analysis[category] = {
+            "ranking_similarity": {
+                "rbo": comp_data["ranking_metrics"]["rbo"],
+                "kendall_tau": comp_data["ranking_metrics"]["kendall_tau"],
+                "overlap_ratio": comp_data["ranking_metrics"]["overlap_ratio"]
+            },
+            "content_comparison": {
+                "google_official_ratio": comp_data["google_content_metrics"]["official_ratio"],
+                "google_negative_ratio": comp_data["google_content_metrics"]["negative_ratio"]
+            },
+            "market_impact": {
+                "hhi_before": hhi_before,
+                "hhi_after": hhi_after,
+                "hhi_change": hhi_change,
+                "hhi_change_pct": (hhi_change / hhi_before) * 100 if hhi_before > 0 else 0,
+                "impact_data": impact_data
+            },
+            "plots": {
+                "delta_ranks_plot": delta_plot_path,
+                "market_impact_plot": market_plot_path
             }
+        }
 
     return analysis
-
-# -------------------------------------------------------------------
-# 可視化関数
-# -------------------------------------------------------------------
-def plot_delta_ranks(delta_ranks, category, output_dir="results/analysis"):
-    """
-    ΔRankをバーチャートで可視化
-    """
-    if not delta_ranks:
-        return None
-
-    # データフレームに変換
-    df = pd.DataFrame({
-        "company": list(delta_ranks.keys()),
-        "delta_rank": list(delta_ranks.values())
-    })
-
-    # ΔRankでソート
-    df = df.sort_values("delta_rank")
-
-    # プロット
-    plt.figure(figsize=(10, 6))
-    bars = plt.barh(df["company"], df["delta_rank"])
-
-    # ゼロラインを強調
-    plt.axvline(x=0, color='k', linestyle='-', alpha=0.3)
-
-    # バーの色を設定（負の値は緑、正の値は赤）
-    for i, bar in enumerate(bars):
-        if df["delta_rank"].iloc[i] < 0:
-            bar.set_color('green')
-        else:
-            bar.set_color('red')
-
-    plt.title(f"{category}のGoogle vs Perplexity ΔRank比較")
-    plt.xlabel("Δ Rank (Google - Perplexity)")
-    plt.grid(axis='x', alpha=0.3)
-
-    # 保存用のディレクトリ
-    os.makedirs(output_dir, exist_ok=True)
-    file_path = f"{output_dir}/{category}_delta_ranks.png"
-    plt.savefig(file_path, dpi=100, bbox_inches="tight")
-    plt.close()
-
-    return file_path
-
-def plot_market_impact(original_share, adjusted_share, category, output_dir="results/analysis"):
-    """
-    市場シェアへの影響を可視化
-    """
-    if not original_share or not adjusted_share:
-        return None
-
-    # データフレームに変換
-    companies = list(original_share.keys())
-    df = pd.DataFrame({
-        "company": companies,
-        "original": [original_share[c] for c in companies],
-        "adjusted": [adjusted_share[c] for c in companies]
-    })
-
-    # シェアの差分を計算
-    df["diff"] = df["adjusted"] - df["original"]
-    df["diff_percent"] = (df["diff"] / df["original"]) * 100
-
-    # ソート
-    df = df.sort_values("original", ascending=False)
-
-    # プロット
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-
-    # 左側：シェア比較
-    ax1.bar(df["company"], df["original"], alpha=0.5, label="元のシェア")
-    ax1.bar(df["company"], df["adjusted"], alpha=0.5, label="調整後シェア")
-    ax1.set_title("市場シェア比較")
-    ax1.set_ylabel("市場シェア")
-    ax1.set_ylim(0, max(df["original"].max(), df["adjusted"].max()) * 1.1)
-    ax1.legend()
-
-    # 右側：変化率
-    bars = ax2.bar(df["company"], df["diff_percent"])
-    for i, bar in enumerate(bars):
-        if df["diff_percent"].iloc[i] < 0:
-            bar.set_color('red')
-        else:
-            bar.set_color('green')
-
-    ax2.set_title("シェア変化率")
-    ax2.set_ylabel("変化率 (%)")
-    ax2.set_ylim(min(df["diff_percent"].min() * 1.1, 0), max(df["diff_percent"].max() * 1.1, 0))
-    ax2.axhline(y=0, color='k', linestyle='-', alpha=0.3)
-
-    plt.suptitle(f"{category}のGoogle検索バイアスによる市場シェア影響")
-    plt.tight_layout()
-
-    # 保存
-    os.makedirs(output_dir, exist_ok=True)
-    file_path = f"{output_dir}/{category}_market_impact.png"
-    plt.savefig(file_path, dpi=100, bbox_inches="tight")
-    plt.close()
-
-    return file_path
 
 # CLIから直接実行する場合のエントリポイント
 if __name__ == "__main__":
