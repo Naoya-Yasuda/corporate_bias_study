@@ -20,6 +20,7 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 - ローカルとS3への結果保存
 - モジュール化されたカテゴリ定義と再利用可能なプロンプトテンプレート
 - サービスのランキング（おすすめ順）抽出機能
+- Perplexity APIの引用リンク順番の取得・分析機能
 
 ## セットアップ
 1. リポジトリをクローン
@@ -55,6 +56,9 @@ python -m src.perplexity_bias_loader
 # Perplexity - ランキング抽出
 python -m src.perplexity_ranking_loader
 
+# Perplexity - 引用リンク順番取得
+python -m src.perplexity_citations_loader
+
 # OpenAI - バイアス評価
 python -m src.openai_bias_loader
 ```
@@ -66,6 +70,9 @@ python -m src.perplexity_bias_loader --multiple --runs 5
 
 # Perplexity - ランキング抽出（5回実行）
 python -m src.perplexity_ranking_loader --multiple --runs 5
+
+# Perplexity - 引用リンク順番取得（5回実行）
+python -m src.perplexity_citations_loader --multiple --runs 5
 
 # OpenAI - バイアス評価（5回実行）+ 自動分析
 python -m src.openai_bias_loader --multiple --runs 5
@@ -131,6 +138,9 @@ python -m src.openai_bias_loader --help
 
 # ランキング抽出モジュールのヘルプ
 python -m src.perplexity_ranking_loader --help
+
+# 引用リンク抽出モジュールのヘルプ
+python -m src.perplexity_citations_loader --help
 
 # Google SERP抽出モジュールのヘルプ
 python -m src.google_serp_loader --help
@@ -259,6 +269,8 @@ MITライセンス
 │   ├─ __init__.py           # パッケージ初期化ファイル
 │   ├─ categories.py         # カテゴリとサービス定義読み込み機能
 │   ├─ perplexity_bias_loader.py # Perplexity API実行ファイル
+│   ├─ perplexity_ranking_loader.py # Perplexity ランキング抽出ファイル
+│   ├─ perplexity_citations_loader.py # Perplexity 引用リンク取得ファイル
 │   ├─ openai_bias_loader.py # OpenAI API実行ファイル
 │   ├─ data/                 # データファイル
 │   │   ├─ __init__.py
@@ -298,7 +310,7 @@ MITライセンス
    - 再利用可能な関数として実装
    - 評価値抽出ロジックの標準化
 
-3. **API実行モジュール** (`src/perplexity_bias_loader.py`, `src/openai_bias_loader.py`)
+3. **API実行モジュール** (`src/perplexity_bias_loader.py`, `src/openai_bias_loader.py`, `src/perplexity_ranking_loader.py`, `src/perplexity_citations_loader.py`)
    - API呼び出し処理
    - 複数回実行と統計処理
    - 結果の保存機能
@@ -322,6 +334,8 @@ MITライセンス
 * `results/YYYYMMDD_perplexity_results_5runs.json` : Perplexity APIのバイアス評価結果（複数実行時）
 * `results/YYYYMMDD_perplexity_rankings.json` : Perplexity APIのランキング抽出結果（単一実行）
 * `results/YYYYMMDD_perplexity_rankings_5runs.json` : Perplexity APIのランキング抽出結果（複数実行時）
+* `results/YYYYMMDD_perplexity_citations.json` : Perplexity APIの引用リンク順番結果（単一実行）
+* `results/YYYYMMDD_perplexity_citations_5runs.json` : Perplexity APIの引用リンク順番結果（複数実行時）
 * `results/YYYYMMDD_openai_results.json` : OpenAI APIの結果
 * `results/analysis/perplexity/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : Perplexity APIのバイアス指標分析結果
 * `results/analysis/openai/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : OpenAI APIのバイアス指標分析結果
@@ -510,6 +524,15 @@ python -m src.analysis.bias_metrics results/20240501_perplexity_results_5runs.js
 
 AIが生成するランキングとGoogle検索結果を比較し、両者の違いを分析するための指標群を実装しています。
 
+### 比較対象データ
+
+分析には2種類のPerplexityデータを使用できます：
+
+1. **ランキングデータ** (`--data-type rankings`): AIが生成した企業名のランキングリスト
+2. **引用リンクデータ** (`--data-type citations`): AIの回答に含まれる引用リンクとそのドメイン
+
+引用リンクデータを使用すると、より実際のユーザー体験に近い分析が可能になります。AIが生成した回答の情報源として実際に引用しているウェブサイトの順序を分析するためです。
+
 ### 1. 順位比較指標
 
 #### Rank-Biased Overlap (RBO)
@@ -540,11 +563,23 @@ AIバイアスによる市場集中度の変化を評価します。HHIの上昇
 ### 4. 使用方法
 
 ```bash
-# Google SERP APIを使用して検索結果を取得し、Perplexityと比較
+# Google SERP APIを使用して検索結果を取得し、Perplexityと比較（デフォルトは引用リンクと比較）
 python -m src.google_serp_loader
 
 # 特定の日付のPerplexityデータと比較
 python -m src.google_serp_loader --perplexity-date 20240501
+
+# 特定の実行回数（例：10回実行）のデータを使用
+python -m src.google_serp_loader --runs 10
+
+# 特定の日付の特定実行回数のデータを使用
+python -m src.google_serp_loader --perplexity-date 20240501 --runs 10
+
+# Perplexityのランキングデータと比較
+python -m src.google_serp_loader --data-type rankings
+
+# 特定の日付のランキングデータと比較
+python -m src.google_serp_loader --data-type rankings --perplexity-date 20240501
 
 # 一部のカテゴリのみ処理
 python -m src.google_serp_loader --max 3
@@ -553,7 +588,7 @@ python -m src.google_serp_loader --max 3
 python -m src.google_serp_loader --no-analysis
 
 # 既存のJSONファイルを使って直接分析
-python -m src.analysis.serp_metrics results/20240501_google_serp_results.json results/20240501_perplexity_rankings_5runs.json
+python -m src.analysis.serp_metrics results/20240501_google_serp_results.json results/20240501_perplexity_citations_10runs.json
 ```
 
 分析結果は以下のファイルに保存されます：
@@ -562,6 +597,19 @@ python -m src.analysis.serp_metrics results/20240501_google_serp_results.json re
 - 分析結果: `results/YYYYMMDD_google_serp_analysis.json`
 - ΔRankグラフ: `results/analysis/カテゴリ名_delta_ranks.png`
 - 市場影響グラフ: `results/analysis/カテゴリ名_market_impact.png`
+
+#### Google SERP比較
+
+```bash
+# 基本的な実行
+python src/google_serp_loader.py --perplexity-date 20240510
+
+# 特定の実行回数のデータを使用
+python src/google_serp_loader.py --perplexity-date 20240510 --runs 10
+
+# ランキングデータを指定の実行回数で使用
+python src/google_serp_loader.py --data-type rankings --runs 20
+```
 
 ---
 
@@ -597,6 +645,7 @@ python -m src.analysis.serp_metrics results/20240501_google_serp_results.json re
 
 1. **データ収集**
    - Perplexity APIを使用したランキングデータの収集
+   - Perplexity APIからの引用リンク順番の取得
    - Google SERPの収集（SerpAPIを使用）
    - 複数回実行によるランキング安定性の評価
 

@@ -74,35 +74,77 @@ def save_results(results, type_str, local_path="results"):
 
     return local_file
 
-def get_perplexity_results(date_str=None, local_path="results"):
-    """指定した日付のPerplexityランキング結果を取得"""
+def get_perplexity_results(date_str=None, local_path="results", data_type="citations", runs=None):
+    """
+    指定した日付のPerplexityランキング結果または引用リンク結果を取得
+
+    Parameters
+    ----------
+    date_str : str, optional
+        日付文字列（YYYYMMDD形式）
+    local_path : str, optional
+        ローカルファイルのパス
+    data_type : str, optional
+        データタイプ "rankings"（ランキングデータ）または "citations"（引用リンクデータ）
+        デフォルトは "citations"
+    runs : int, optional
+        指定された実行回数のファイルを検索（指定がない場合は利用可能なすべての回数のファイルを検索）
+
+    Returns
+    -------
+    tuple
+        (データ, データタイプ, 実行回数) のタプル
+    """
     if date_str is None:
         date_str = datetime.datetime.now().strftime("%Y%m%d")
 
-    # ローカルファイルから
-    try:
-        # 複数実行結果を優先
-        multi_filename = f"{date_str}_perplexity_rankings_5runs.json"
-        local_file = f"{local_path}/{multi_filename}"
+    # 保存先ディレクトリの設定
+    if data_type == "citations":
+        s3_prefix = "results/perplexity_citations"
+    else:  # rankings
+        s3_prefix = "results/perplexity_rankings"
 
-        if os.path.exists(local_file):
-            with open(local_file, "r", encoding="utf-8") as f:
-                return json.load(f), "multiple"
+    # ローカルディレクトリからファイル一覧を取得
+    local_files = []
+    if os.path.exists(local_path):
+        local_files = [f for f in os.listdir(local_path) if os.path.isfile(os.path.join(local_path, f))]
 
-        # 単一実行結果
-        single_filename = f"{date_str}_perplexity_rankings.json"
-        local_file = f"{local_path}/{single_filename}"
+    # 特定の日付とデータタイプに一致するファイルをフィルタリング
+    multi_run_pattern = f"{date_str}_perplexity_{data_type}_"  # 例: 20240501_perplexity_citations_
+    single_run_pattern = f"{date_str}_perplexity_{data_type}.json"  # 例: 20240501_perplexity_citations.json
 
-        if os.path.exists(local_file):
-            with open(local_file, "r", encoding="utf-8") as f:
-                return json.load(f), "single"
-    except Exception as e:
-        print(f"ローカルからのPerplexity結果読み込みに失敗: {e}")
+    # 複数実行結果ファイルをフィルタリング
+    multi_run_files = [f for f in local_files if f.startswith(multi_run_pattern) and f.endswith("runs.json")]
 
-    # S3から
-    if AWS_ACCESS_KEY and AWS_SECRET_KEY:
+    # 指定された実行回数があれば、それに一致するファイルのみを探す
+    if runs is not None:
+        target_file = f"{date_str}_perplexity_{data_type}_{runs}runs.json"
+        if target_file in local_files:
+            file_path = os.path.join(local_path, target_file)
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f), "multiple", runs
+
+    # 指定された実行回数がない場合は、最大の実行回数のファイルを探す
+    elif multi_run_files:
+        # 実行回数でソート（例: 10runs > 5runs）
+        multi_run_files.sort(key=lambda x: int(x.split("_")[-1].replace("runs.json", "")), reverse=True)
+        file_path = os.path.join(local_path, multi_run_files[0])
+        runs_count = int(multi_run_files[0].split("_")[-1].replace("runs.json", ""))
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f), "multiple", runs_count
+
+    # 単一実行結果ファイルを探す
+    elif single_run_pattern in local_files:
+        file_path = os.path.join(local_path, single_run_pattern)
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f), "single", 1
+
+    # S3から検索
+    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
         try:
             import boto3
+            from botocore.exceptions import ClientError
 
             s3_client = boto3.client(
                 "s3",
@@ -111,23 +153,56 @@ def get_perplexity_results(date_str=None, local_path="results"):
                 region_name=AWS_REGION
             )
 
-            # 複数実行結果を優先
-            s3_path = f"results/perplexity_rankings/{date_str}/{date_str}_perplexity_rankings_5runs.json"
-
+            # S3バケット内のオブジェクトを一覧表示
+            prefix = f"{s3_prefix}/{date_str}/"
             try:
-                response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_path)
-                data = json.loads(response["Body"].read().decode("utf-8"))
-                return data, "multiple"
-            except:
-                # 単一実行結果
-                s3_path = f"results/perplexity_rankings/{date_str}/{date_str}_perplexity_rankings.json"
-                response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_path)
-                data = json.loads(response["Body"].read().decode("utf-8"))
-                return data, "single"
+                response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=prefix)
+
+                # 見つかったオブジェクトをフィルタリング
+                s3_files = []
+                if "Contents" in response:
+                    for obj in response["Contents"]:
+                        key = obj["Key"]
+                        filename = os.path.basename(key)
+                        if filename.startswith(f"{date_str}_perplexity_{data_type}"):
+                            s3_files.append((key, filename))
+
+                # 実行回数でフィルタリング
+                if runs is not None:
+                    target_s3_file = f"{date_str}_perplexity_{data_type}_{runs}runs.json"
+                    s3_match = [key for key, name in s3_files if name == target_s3_file]
+                    if s3_match:
+                        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_match[0])
+                        data = json.loads(response["Body"].read().decode("utf-8"))
+                        return data, "multiple", runs
+
+                # 複数実行ファイルを検索（実行回数の大きい順）
+                multi_s3_files = [(key, name) for key, name in s3_files if "_runs.json" in name]
+                if multi_s3_files:
+                    # 実行回数でソート
+                    multi_s3_files.sort(key=lambda x: int(x[1].split("_")[-1].replace("runs.json", "")), reverse=True)
+                    key, name = multi_s3_files[0]
+                    runs_count = int(name.split("_")[-1].replace("runs.json", ""))
+
+                    response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
+                    data = json.loads(response["Body"].read().decode("utf-8"))
+                    return data, "multiple", runs_count
+
+                # 単一実行ファイルを検索
+                single_s3_file = f"{date_str}_perplexity_{data_type}.json"
+                s3_match = [key for key, name in s3_files if name == single_s3_file]
+                if s3_match:
+                    response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_match[0])
+                    data = json.loads(response["Body"].read().decode("utf-8"))
+                    return data, "single", 1
+
+            except ClientError as e:
+                print(f"S3でのファイル一覧取得エラー: {e}")
+
         except Exception as e:
             print(f"S3からのPerplexity結果読み込みに失敗: {e}")
 
-    return None, None
+    return None, None, None
 
 def classify_domain(domain, company):
     """ドメインが公式か非公式かを判定"""
@@ -308,6 +383,9 @@ def main():
     parser.add_argument("--max", type=int, help="処理する最大カテゴリ数")
     parser.add_argument("--perplexity-date", help="比較するPerplexityデータの日付（YYYYMMDD形式）")
     parser.add_argument("--no-analysis", action="store_true", help="SERP分析を実行しない")
+    parser.add_argument("--data-type", choices=["rankings", "citations"], default="citations",
+                        help="Perplexityデータタイプ: rankings（ランキング）かcitations（引用リンク）")
+    parser.add_argument("--runs", type=int, help="指定された実行回数のPerplexityデータを使用")
     args = parser.parse_args()
 
     # SERP API で検索
@@ -319,10 +397,14 @@ def main():
 
     # Perplexityデータと比較・分析
     if not args.no_analysis:
-        perplexity_data, run_type = get_perplexity_results(args.perplexity_date)
+        perplexity_data, run_type, run_count = get_perplexity_results(
+            args.perplexity_date,
+            data_type=args.data_type,
+            runs=args.runs
+        )
 
         if perplexity_data:
-            print(f"Perplexity {run_type} データと比較中...")
+            print(f"Perplexity {run_type} データ（{args.data_type}、{run_count}回実行）と比較中...")
 
             # 比較結果
             comparison_results = compare_with_perplexity(serp_results, perplexity_data)
@@ -334,7 +416,7 @@ def main():
 
             print("分析完了")
         else:
-            print("Perplexityデータが見つからないため、比較分析はスキップします")
+            print(f"Perplexity {args.data_type} データが見つからないため、比較分析はスキップします")
 
 if __name__ == "__main__":
     main()

@@ -130,9 +130,74 @@ def compute_content_metrics(serp_detailed_results, top_k=10):
 # -------------------------------------------------------------------
 # PerplexityとGoogle SERPの比較
 # -------------------------------------------------------------------
+def is_citations_data(pplx_data):
+    """
+    与えられたデータが引用リンク（citations）データかどうかを判定
+
+    Parameters
+    ----------
+    pplx_data : dict
+        Perplexityの結果データ
+
+    Returns
+    -------
+    bool
+        引用リンクデータならTrue、そうでなければFalse
+    """
+    # 引用リンクデータの特徴を確認
+    if isinstance(pplx_data, dict):
+        for subcategory, data in pplx_data.items():
+            # 引用リンクデータは'citations'または'all_citations'を持つ
+            if 'citations' in data or 'all_citations' in data or 'domain_rankings' in data:
+                return True
+    return False
+
+def extract_domains_from_citations(citations_data, subcategory):
+    """
+    引用リンクデータからドメインのランキングを抽出
+
+    Parameters
+    ----------
+    citations_data : dict
+        引用リンクデータ
+    subcategory : str
+        サブカテゴリ名
+
+    Returns
+    -------
+    list
+        ドメインのリスト（順位順）
+    """
+    if subcategory not in citations_data:
+        return []
+
+    data = citations_data[subcategory]
+
+    # 複数回実行の結果がある場合（domain_rankingsがある場合）
+    if 'domain_rankings' in data:
+        # 平均ランクでソート済みのドメインリストを使用
+        return [item['domain'] for item in data['domain_rankings']]
+
+    # 単一実行の場合
+    elif 'citations' in data:
+        # すでに順序付けされたcitationsからドメインを抽出
+        domains = []
+        for citation in data['citations']:
+            domain = citation.get('domain')
+            if domain and domain not in domains:
+                domains.append(domain)
+        return domains
+
+    # 'domains'キーが直接ある場合
+    elif 'domains' in data:
+        return data['domains']
+
+    return []
+
 def compare_with_perplexity(serp_results, pplx_results):
     """
     Google検索結果とPerplexity APIの結果を比較
+    ランキングデータと引用リンク（citations）データの両方に対応
 
     Parameters
     ----------
@@ -146,9 +211,13 @@ def compare_with_perplexity(serp_results, pplx_results):
     dict
         比較結果
     """
-
     # 結果を保存する辞書
     comparison = {}
+
+    # Perplexityデータの種類を判定
+    is_citations = is_citations_data(pplx_results)
+
+    print(f"Perplexityデータタイプ: {'引用リンク(citations)' if is_citations else 'ランキング'}")
 
     # カテゴリごとに比較
     categories = set(serp_results.keys()) & set(pplx_results.keys())
@@ -161,18 +230,24 @@ def compare_with_perplexity(serp_results, pplx_results):
         google_ranking = [r.get("company") for r in google_data.get("results", [])]
 
         # Perplexityからランキングを抽出
-        pplx_rankings = []
-        for run in pplx_data.get("runs", []):
-            run_ranking = []
-            for rank_entry in run.get("ranking", []):
-                company = rank_entry.get("company")
-                if company:
-                    run_ranking.append(company)
-            if run_ranking:
-                pplx_rankings.append(run_ranking)
+        if is_citations:
+            # 引用リンクデータからドメインランキングを抽出
+            pplx_domains = extract_domains_from_citations(pplx_data, list(pplx_data.keys())[0] if pplx_data else "")
+            pplx_ranking = pplx_domains
+        else:
+            # 通常のランキングデータを処理
+            pplx_rankings = []
+            for run in pplx_data.get("runs", []):
+                run_ranking = []
+                for rank_entry in run.get("ranking", []):
+                    company = rank_entry.get("company")
+                    if company:
+                        run_ranking.append(company)
+                if run_ranking:
+                    pplx_rankings.append(run_ranking)
 
-        # 複数実行の場合は最初のランキングを使用
-        pplx_ranking = pplx_rankings[0] if pplx_rankings else []
+            # 複数実行の場合は最初のランキングを使用
+            pplx_ranking = pplx_rankings[0] if pplx_rankings else []
 
         # ランキング比較メトリクスを計算
         metrics = compute_ranking_metrics(google_ranking, pplx_ranking)
@@ -187,7 +262,8 @@ def compare_with_perplexity(serp_results, pplx_results):
             "pplx_ranking": pplx_ranking,
             "ranking_metrics": metrics,
             "google_content_metrics": google_content,
-            "pplx_content_metrics": pplx_content
+            "pplx_content_metrics": pplx_content,
+            "data_type": "citations" if is_citations else "rankings"
         }
 
     return comparison
