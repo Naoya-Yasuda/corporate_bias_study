@@ -20,6 +20,7 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 - 複数回実行による平均値と標準偏差の計算
 - ローカルとS3への結果保存
 - モジュール化されたカテゴリ定義と再利用可能なプロンプトテンプレート
+- サービスのランキング（おすすめ順）抽出機能
 
 ## セットアップ
 1. リポジトリをクローン
@@ -48,20 +49,38 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 
 ### 単一実行
 ```bash
-# Perplexity
+# Perplexity - バイアス評価
 python -m src.perplexity_bias_loader
 
-# OpenAI
+# Perplexity - ランキング抽出
+python -m src.perplexity_ranking_loader
+
+# OpenAI - バイアス評価
 python -m src.openai_bias_loader
 ```
 
 ### 複数回実行（平均値を計算）
 ```bash
-# Perplexity（5回実行）
+# Perplexity - バイアス評価（5回実行）
 python -m src.perplexity_bias_loader --multiple --runs 5
 
-# OpenAI（5回実行）
+# Perplexity - ランキング抽出（3回実行）
+python -m src.perplexity_ranking_loader --multiple --runs 3
+
+# OpenAI - バイアス評価（5回実行）
 python -m src.openai_bias_loader --multiple --runs 5
+```
+
+### プロンプトテンプレートのテスト
+```bash
+# ランキングプロンプトの生成と抽出テスト
+python -m src.prompts.ranking_prompts "クラウドサービス" "AWS,Azure,Google Cloud,IBM Cloud"
+
+# テキストからのランキング抽出
+python -m src.prompts.ranking_prompts "検索エンジン" "Google,Bing,Yahoo! Japan,Baidu" --response "1. Google 2. Bing 3. Yahoo! Japan 4. Baidu"
+
+# ファイルからのランキング抽出
+python -m src.prompts.ranking_prompts "検索エンジン" "Google,Bing,Yahoo! Japan,Baidu" --file response.txt
 ```
 
 ### カテゴリ/サービスのカスタマイズ
@@ -196,8 +215,10 @@ MITライセンス
 
 ## 7. 実行結果
 
-* `results/YYYYMMDD_perplexity_results.json` : Perplexity APIの結果（単一実行）
-* `results/YYYYMMDD_perplexity_results_5runs.json` : Perplexity APIの結果（複数実行時）
+* `results/YYYYMMDD_perplexity_results.json` : Perplexity APIのバイアス評価結果（単一実行）
+* `results/YYYYMMDD_perplexity_results_5runs.json` : Perplexity APIのバイアス評価結果（複数実行時）
+* `results/YYYYMMDD_perplexity_rankings.json` : Perplexity APIのランキング抽出結果（単一実行）
+* `results/YYYYMMDD_perplexity_rankings_3runs.json` : Perplexity APIのランキング抽出結果（複数実行時）
 * `results/YYYYMMDD_openai_results.json` : OpenAI APIの結果
 * 同様の結果がS3バケットにも保存されます
 
