@@ -193,7 +193,14 @@ MITライセンス
 │   │   ├─ __init__.py
 │   │   ├─ perplexity_prompts.py # Perplexity用プロンプト
 │   │   └─ openai_prompts.py # OpenAI用プロンプト（未実装）
-│   └─ analysis/             # 分析・可視化ツール（今後追加予定）
+│   ├─ utils/                # 共通ユーティリティ
+│   │   ├─ __init__.py       # 共通ユーティリティの初期化ファイル
+│   │   ├─ s3_utils.py       # S3操作のユーティリティ
+│   │   ├─ file_utils.py     # ファイル操作のユーティリティ
+│   │   ├─ text_utils.py     # テキスト処理のユーティリティ
+│   │   ├─ rank_utils.py     # ランキング処理のユーティリティ
+│   │   └─ plot_utils.py     # 可視化のユーティリティ
+│   └─ analysis/             # 分析・可視化ツール
 ├─ results/                  # 結果保存先（自動生成）
 ├─ .env                      # 環境変数（gitignore対象）
 ├─ .github/
@@ -221,6 +228,19 @@ MITライセンス
    - API呼び出し処理
    - 複数回実行と統計処理
    - 結果の保存機能
+
+4. **分析モジュール** (`src/analysis/`)
+   - `ranking_metrics.py`: ランキング指標の計算（露出度、公平性ギャップ等）
+   - `bias_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率等）
+   - `serp_metrics.py`: Google検索とPerplexity結果の比較分析
+   - `bias_ranking_pipeline.py`: 統合されたバイアス評価パイプライン
+
+5. **共通ユーティリティ** (`src/utils/`)
+   - `s3_utils.py`: S3へのデータ保存・アップロード機能
+   - `file_utils.py`: ファイル操作とJSON読み書き機能
+   - `text_utils.py`: URLからのドメイン抽出、ネガティブ判定機能
+   - `rank_utils.py`: ランキング操作とRBO、Kendallのタウ係数計算
+   - `plot_utils.py`: データ可視化と標準グラフ生成
 
 ## 7. 実行結果
 

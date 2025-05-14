@@ -23,6 +23,13 @@ from urllib.parse import urlparse
 from collections import defaultdict
 from dotenv import load_dotenv
 
+# 新しいユーティリティモジュールのインポート
+from src.utils.text_utils import extract_domain, is_negative, ratio
+from src.utils.rank_utils import rbo, rank_map, compute_tau, compute_delta_ranks
+from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
+from src.utils.s3_utils import save_to_s3
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+
 # .env ファイルから環境変数を読み込み
 load_dotenv()
 
@@ -39,83 +46,9 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 # -------------------------------------------------------------------
 # ユーティリティ関数
 # -------------------------------------------------------------------
-def extract_domain(url):
-    """URLからドメインを抽出（www.を除去）"""
-    try:
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        if domain.startswith('www.'):
-            domain = domain[4:]
-        return domain
-    except:
-        return ""
-
 def is_official(domain, company_domains):
     """ドメインが公式かどうかをチェック"""
     return domain in company_domains
-
-def is_negative(url, title="", snippet=""):
-    """ネガティブコンテンツかどうかを簡易判定"""
-    negative_keywords = [
-        "lawsuit", "scam", "problem", "issue", "reddit", "complaint",
-        "negative", "review", "bad", "worst", "fail", "down", "outage",
-        "trouble", "vs", "versus", "alternative", "risk", "danger",
-        "問題", "障害", "失敗", "リスク", "欠陥", "批判", "炎上", "トラブル"
-    ]
-
-    combined_text = (url + " " + title + " " + snippet).lower()
-    return any(keyword in combined_text for keyword in negative_keywords)
-
-def ratio(lst, pred_func):
-    """リストに対して述語関数を適用し、True の割合を返す"""
-    if not lst:
-        return 0
-    return sum(1 for x in lst if pred_func(x)) / len(lst)
-
-def rbo(s1, s2, p=0.9):
-    """
-    Rank-Biased Overlap (RBO) スコアを計算
-
-    Parameters:
-    -----------
-    s1, s2 : list
-        比較する2つのランキングリスト
-    p : float
-        減衰パラメータ (0 < p < 1)
-
-    Returns:
-    --------
-    float
-        RBO スコア (0～1)。1に近いほど類似。
-    """
-    if not s1 or not s2:
-        return 0.0
-
-    # 集合として扱うため、重複を排除
-    s1 = [x for i, x in enumerate(s1) if x not in s1[:i]]
-    s2 = [x for i, x in enumerate(s2) if x not in s2[:i]]
-
-    # 最小限のオーバーラップ深さを計算
-    depth = min(len(s1), len(s2))
-
-    # 各深さでのオーバーラップを計算
-    rbo_score = 0.0
-
-    for d in range(1, depth + 1):
-        # d番目までの要素の集合
-        set1 = set(s1[:d])
-        set2 = set(s2[:d])
-
-        # オーバーラップの大きさ
-        overlap = len(set1.intersection(set2))
-
-        # 深さdでのRBO項を計算
-        rbo_score += p**(d-1) * (overlap / d)
-
-    # 重みの正規化
-    rbo_score = rbo_score * (1 - p)
-
-    return rbo_score
 
 def calculate_hhi(market_share):
     """
