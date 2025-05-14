@@ -17,6 +17,9 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
       TODAY_DATE: $(date +%Y%m%d)
+      # GitHubアクションのログ詳細度設定
+      PYTHONUNBUFFERED: 1  # Pythonの出力バッファリングを無効化（リアルタイムログ出力）
+      ACTIONS_STEP_DEBUG: true  # GitHubアクション詳細ログを有効化
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,58 +29,178 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # CloudWatch連携用のAWS SDKをインストール
+          pip install boto3 watchtower
 
       # 日付文字列の取得
       - name: Set today's date
         run: echo "TODAY_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
 
+      # ログファイルの初期設定
+      - name: Setup logging
+        run: |
+          mkdir -p logs
+          echo "開始時刻: $(date)" > logs/execution.log
+          echo "実行環境: GitHub Actions" >> logs/execution.log
+          echo "日付: ${{ env.TODAY_DATE }}" >> logs/execution.log
+          echo "----------------------------------------" >> logs/execution.log
+
       # Perplexity APIによるデータ収集とバイアス分析
       - name: Run Perplexity bias analysis (10 runs)
         run: |
-          python -m src.perplexity_bias_loader --multiple --runs 10
+          echo "開始: Perplexity バイアス分析 ($(date))" | tee -a logs/execution.log
+          python -m src.perplexity_bias_loader --multiple --runs 10 --verbose | tee -a logs/perplexity_bias.log
+          echo "完了: Perplexity バイアス分析 ($(date))" | tee -a logs/execution.log
 
       # Perplexity APIによるランキング抽出
       - name: Run Perplexity ranking extraction (10 runs)
         run: |
-          python -m src.perplexity_ranking_loader --multiple --runs 10
+          echo "開始: Perplexity ランキング抽出 ($(date))" | tee -a logs/execution.log
+          python -m src.perplexity_ranking_loader --multiple --runs 10 --verbose | tee -a logs/perplexity_ranking.log
+          echo "完了: Perplexity ランキング抽出 ($(date))" | tee -a logs/execution.log
 
       # Perplexity APIによる引用リンク抽出
       - name: Run Perplexity citations extraction (10 runs)
         run: |
-          python -m src.perplexity_citations_loader --multiple --runs 10
+          echo "開始: Perplexity 引用リンク抽出 ($(date))" | tee -a logs/execution.log
+          python -m src.perplexity_citations_loader --multiple --runs 10 --verbose | tee -a logs/perplexity_citations.log
+          echo "完了: Perplexity 引用リンク抽出 ($(date))" | tee -a logs/execution.log
 
       # Google SERP APIによる検索結果収集と比較分析
       - name: Run Google SERP analysis
         run: |
-          python -m src.google_serp_loader --runs 10
+          echo "開始: Google SERP 分析 ($(date))" | tee -a logs/execution.log
+          python -m src.google_serp_loader --runs 10 --verbose | tee -a logs/google_serp.log
+          echo "完了: Google SERP 分析 ($(date))" | tee -a logs/execution.log
 
       # OpenAI APIによるバイアス分析（条件付き）
       - name: Run OpenAI bias analysis (10 runs)
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: |
-          python -m src.openai_bias_loader --multiple --runs 10
+          echo "開始: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
+          python -m src.openai_bias_loader --multiple --runs 10 --verbose | tee -a logs/openai_bias.log
+          echo "完了: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
 
       # 追加分析モジュールの実行
       # ランキング指標分析（Perplexityのランキング）
       - name: Run ranking metrics analysis
         run: |
-          python -m src.analysis.ranking_metrics --date ${{ env.TODAY_DATE }} --api perplexity
+          echo "開始: ランキング指標分析 ($(date))" | tee -a logs/execution.log
+          python -m src.analysis.ranking_metrics --date ${{ env.TODAY_DATE }} --api perplexity --verbose | tee -a logs/ranking_metrics.log
+          echo "完了: ランキング指標分析 ($(date))" | tee -a logs/execution.log
 
       # バイアス指標分析（Perplexityのバイアス）
       - name: Run bias metrics analysis
         run: |
-          python -m src.analysis.bias_metrics --json-path results/${{ env.TODAY_DATE }}_perplexity_results_10runs.json --rankings
+          echo "開始: Perplexity バイアス指標分析 ($(date))" | tee -a logs/execution.log
+          python -m src.analysis.bias_metrics --json-path results/${{ env.TODAY_DATE }}_perplexity_results_10runs.json --rankings --verbose | tee -a logs/bias_metrics_perplexity.log
+          echo "完了: Perplexity バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
       # バイアス指標分析（OpenAIのバイアス - APIキーが設定されている場合のみ）
       - name: Run OpenAI bias metrics analysis
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: |
-          python -m src.analysis.bias_metrics --json-path results/${{ env.TODAY_DATE }}_openai_results_10runs.json
+          echo "開始: OpenAI バイアス指標分析 ($(date))" | tee -a logs/execution.log
+          python -m src.analysis.bias_metrics --json-path results/${{ env.TODAY_DATE }}_openai_results_10runs.json --verbose | tee -a logs/bias_metrics_openai.log
+          echo "完了: OpenAI バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
       # 統合バイアス評価パイプライン
       - name: Run bias ranking pipeline
         run: |
-          python -m src.analysis.bias_ranking_pipeline --perplexity-date ${{ env.TODAY_DATE }} --data-type citations
+          echo "開始: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
+          python -m src.analysis.bias_ranking_pipeline --perplexity-date ${{ env.TODAY_DATE }} --data-type citations --verbose | tee -a logs/bias_ranking_pipeline.log
+          echo "完了: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
+          echo "全プロセス完了: $(date)" | tee -a logs/execution.log
+
+      # ログをCloudWatchにアップロード
+      - name: Upload logs to CloudWatch
+        if: ${{ env.AWS_ACCESS_KEY != '' && env.AWS_SECRET_KEY != '' }}
+        run: |
+          python -c "
+          import boto3
+          import os
+          from datetime import datetime
+
+          # AWS認証情報
+          aws_region = os.environ.get('AWS_REGION', 'ap-northeast-1')
+          aws_access_key = os.environ.get('AWS_ACCESS_KEY')
+          aws_secret_key = os.environ.get('AWS_SECRET_KEY')
+
+          # CloudWatchクライアント
+          logs_client = boto3.client(
+              'logs',
+              region_name=aws_region,
+              aws_access_key_id=aws_access_key,
+              aws_secret_access_key=aws_secret_key
+          )
+
+          # ログループとストリームの設定
+          log_group_name = '/corporate-bias-study/github-actions'
+          log_stream_name = f'run-{datetime.now().strftime(\"%Y%m%d-%H%M%S\")}'
+
+          # ログストリームの作成（存在しない場合）
+          try:
+              logs_client.create_log_group(logGroupName=log_group_name)
+              print(f'作成したロググループ: {log_group_name}')
+          except logs_client.exceptions.ResourceAlreadyExistsException:
+              print(f'ロググループは既に存在: {log_group_name}')
+
+          # ログストリームの作成
+          try:
+              logs_client.create_log_stream(
+                  logGroupName=log_group_name,
+                  logStreamName=log_stream_name
+              )
+              print(f'作成したログストリーム: {log_stream_name}')
+          except Exception as e:
+              print(f'ログストリーム作成エラー: {e}')
+              exit(1)
+
+          # ログファイル一覧
+          log_files = [f for f in os.listdir('logs') if f.endswith('.log')]
+
+          # ログをCloudWatchにアップロード
+          sequence_token = None
+          for log_file in log_files:
+              with open(f'logs/{log_file}', 'r') as f:
+                  log_content = f.read()
+
+                  events = [{
+                      'timestamp': int(datetime.now().timestamp() * 1000),
+                      'message': f'=== {log_file} ===\\n{log_content}'
+                  }]
+
+                  try:
+                      if sequence_token:
+                          response = logs_client.put_log_events(
+                              logGroupName=log_group_name,
+                              logStreamName=log_stream_name,
+                              logEvents=events,
+                              sequenceToken=sequence_token
+                          )
+                      else:
+                          response = logs_client.put_log_events(
+                              logGroupName=log_group_name,
+                              logStreamName=log_stream_name,
+                              logEvents=events
+                          )
+
+                      sequence_token = response.get('nextSequenceToken')
+                      print(f'アップロード成功: {log_file}')
+
+                  except Exception as e:
+                      print(f'ログアップロードエラー: {e}')
+
+          print('CloudWatchへのログアップロード完了')
+          "
+
+      # ログファイルもアーティファクトとして保存
+      - name: Upload logs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: execution_logs
+          path: logs/
+          retention-days: 7
 
       # 結果をアーティファクトとしてアップロード
       - name: Upload results as artifact
