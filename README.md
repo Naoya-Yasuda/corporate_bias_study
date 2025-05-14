@@ -38,6 +38,7 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
    ```
    PERPLEXITY_API_KEY=your_perplexity_api_key
    OPENAI_API_KEY=your_openai_api_key
+   SERP_API_KEY=your_serp_api_key
    AWS_ACCESS_KEY=your_aws_access_key
    AWS_SECRET_KEY=your_aws_secret_key
    AWS_REGION=your_aws_region
@@ -411,6 +412,63 @@ python -m src.analysis.bias_metrics results/20240501_perplexity_results_5runs.js
 - 市場シェアと露出度の散布図: `results/ranking_analysis/YYYYMMDD/カテゴリ名_exposure_market.png`
 - 全カテゴリの指標サマリー: `results/ranking_analysis/YYYYMMDD/YYYYMMDD_perplexity_rank_summary.csv`
 
+## 7.7 Google検索比較指標
+
+AIが生成するランキングとGoogle検索結果を比較し、両者の違いを分析するための指標群を実装しています。
+
+### 1. 順位比較指標
+
+#### Rank-Biased Overlap (RBO)
+Google検索結果とAI検索結果の上位k位の一致度を0〜1のスコアで表します。1に近いほど結果が類似していることを示します。重み付けにより、上位の順位ほど重要視されます。
+
+#### Kendallのタウ係数
+2つのランキングの順序の一致度を測る指標。-1〜1の範囲を取り、1は完全に同じ順序、-1は完全に逆順、0はランダムな関係を示します。
+
+#### ΔRank
+`Google順位 - Perplexity順位`で計算される各企業の順位差。負の値は「AIによる押し上げ効果」（Googleより上位表示）を、正の値は「AIによる押し下げ効果」（Googleより下位表示）を示します。
+
+### 2. コンテンツ比較指標
+
+#### 公式/非公式比率
+検索結果に含まれる公式サイトの比率を比較し、AIとGoogleがどのように情報源を選択するかの違いを可視化します。
+
+#### ポジティブ/ネガティブ比率
+検索結果に含まれるネガティブなコンテンツの比率を比較し、AIとGoogleのセンチメントバイアスの違いを評価します。
+
+### 3. 経済的影響評価
+
+#### 調整後市場シェア
+ΔRankに基づいて、各企業の市場シェアがAIによってどのように影響を受ける可能性があるかをシミュレーションします。
+
+#### HHI (Herfindahl-Hirschman Index) 変化
+AIバイアスによる市場集中度の変化を評価します。HHIの上昇は市場集中（独占・寡占）の強化を、減少は競争の促進を示唆します。
+
+### 4. 使用方法
+
+```bash
+# Google SERP APIを使用して検索結果を取得し、Perplexityと比較
+python -m src.google_serp_loader
+
+# 特定の日付のPerplexityデータと比較
+python -m src.google_serp_loader --perplexity-date 20240501
+
+# 一部のカテゴリのみ処理
+python -m src.google_serp_loader --max 3
+
+# 取得のみ（分析なし）
+python -m src.google_serp_loader --no-analysis
+
+# 既存のJSONファイルを使って直接分析
+python -m src.analysis.serp_metrics results/20240501_google_serp_results.json results/20240501_perplexity_rankings_5runs.json
+```
+
+分析結果は以下のファイルに保存されます：
+- Google検索結果: `results/YYYYMMDD_google_serp_results.json`
+- 比較結果: `results/YYYYMMDD_google_serp_comparison.json`
+- 分析結果: `results/YYYYMMDD_google_serp_analysis.json`
+- ΔRankグラフ: `results/analysis/カテゴリ名_delta_ranks.png`
+- 市場影響グラフ: `results/analysis/カテゴリ名_market_impact.png`
+
 ---
 
 ## 8. ロードマップ
@@ -436,3 +494,99 @@ python -m src.analysis.bias_metrics results/20240501_perplexity_results_5runs.js
 > **Supervisor:** Prof. Yorito Tanaka
 >
 > 本リポジトリおよび成果物は学術目的で公開しており、ソースコードは MIT License、レポート類は CC‑BY‑NC‑SA 4.0 で配布予定です.
+
+## 企業バイアス研究プロジェクト
+
+このリポジトリは、検索エンジンやAIアシスタントが企業に対して示す潜在的なバイアスを研究するためのツールキットを提供します。
+
+### 機能
+
+1. **データ収集**
+   - Perplexity APIを使用したランキングデータの収集
+   - Google SERPの収集（SerpAPIを使用）
+   - 複数回実行によるランキング安定性の評価
+
+2. **分析モジュール**
+   - `ranking_metrics.py`: ランキング指標の計算（露出度、公平性ギャップなど）
+   - `bias_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率など）
+   - `serp_metrics.py`: Google検索結果とPerplexity結果の比較分析
+   - `bias_ranking_pipeline.py`: 高速バイアス評価パイプライン
+
+3. **可視化機能**
+   - ヒートマップによるランキング分布の可視化
+   - 散布図による市場シェアと露出度の関係分析
+   - バイアスによる市場シェア変化の可視化
+
+### バイアス指標
+
+#### ランキング評価指標
+- **Statistical Parity Gap (SP Gap)**: 最大露出確率と最小露出確率の差。0に近いほど公平。
+- **Equal Opportunity Ratio (EO比率)**: 市場シェアと上位出現確率の比率。1に近いほど公平。
+- **Kendallのタウ係数**: ランキングと市場シェアの順位相関。1に近いほど市場シェアに一致。
+- **RBO (Rank-Biased Overlap)**: 異なるランキング間の類似度。1に近いほど類似。
+
+#### 安定性指標
+- **ランキング安定性スコア**: 複数回の検索結果のランキング一貫性（-1〜1）。
+  - 0.8以上: 非常に安定
+  - 0.6-0.8: 安定
+  - 0.4-0.6: やや安定
+  - 0.2-0.4: やや不安定
+  - 0.0-0.2: 不安定
+  - 0.0未満: 非常に不安定（逆相関）
+
+#### Google検索比較指標
+- **ΔRank**: Googleと他のプラットフォームとの順位差。負の値はGoogleで高く評価。
+- **公式/非公式比率**: 検索結果における公式ドメインの比率の差。
+- **ポジ/ネガ比率**: 検索結果における肯定的/否定的コンテンツの比率の差。
+- **HHI変化率**: バイアスによる市場集中度（HHI）の変化率。
+
+### 使用方法
+
+#### バイアス評価パイプライン
+
+バイアス評価パイプラインは、Google検索とPerplexity APIを同時に呼び出し、結果を比較して企業バイアスを総合的に分析します。以下のように使用できます：
+
+```bash
+python src/analysis/bias_ranking_pipeline.py --query "best cloud providers 2025" --output results/cloud
+```
+
+このコマンドは以下のアクションを実行します：
+1. 指定されたクエリでGoogle検索とPerplexity APIを呼び出し
+2. ドメインごとのランキングと公式/非公式、ポジ/ネガ比率を計算
+3. ランキングの類似度（RBO、Kendallのタウ係数）を計算
+4. Equal Opportunity比率とHHI変化を分析
+5. 結果のCSVとJSONファイル、可視化グラフを出力ディレクトリに保存
+
+オプション:
+- `--query`: 分析する検索クエリ（必須）
+- `--market-share`: 市場シェアデータのJSONファイルパス
+- `--top-k`: 分析する検索結果の数（デフォルト: 10）
+- `--output`: 結果の出力ディレクトリ（デフォルト: results）
+- `--language`: 検索言語（デフォルト: en）
+- `--country`: 検索国（デフォルト: us）
+
+出力ファイル:
+- `rank_comparison.csv`: 各ドメインのGoogle検索とPerplexityのランキング比較表
+- `bias_analysis.json`: バイアス指標とサマリー情報
+- `delta_ranks.png`: Googleとの順位差（ΔRank）のグラフ
+- `market_impact.png`: バイアスによる市場シェア影響のグラフ
+
+```bash
+# 日本語のクエリと日本向け結果で実行する例
+python src/analysis/bias_ranking_pipeline.py --query "おすすめのクラウドサービス比較" --language ja --country jp --output results/cloud_jp
+
+# カスタム市場シェアデータを使用する例
+python src/analysis/bias_ranking_pipeline.py --query "best smartphones 2025" --market-share data/smartphone_market.json --output results/smartphone
+```
+
+#### ランキング指標分析
+
+```bash
+python src/analysis/ranking_metrics.py --date 20240510 --api perplexity
+```
+
+#### Google SERP比較
+
+```bash
+python src/google_serp_loader.py --perplexity-date 20240510
+```
