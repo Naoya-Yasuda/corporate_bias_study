@@ -61,14 +61,17 @@ python -m src.openai_bias_loader
 
 ### 複数回実行（平均値を計算）
 ```bash
-# Perplexity - バイアス評価（5回実行）
+# Perplexity - バイアス評価（5回実行）+ 自動分析
 python -m src.perplexity_bias_loader --multiple --runs 5
 
-# Perplexity - ランキング抽出（3回実行）
-python -m src.perplexity_ranking_loader --multiple --runs 3
+# Perplexity - ランキング抽出（5回実行）
+python -m src.perplexity_ranking_loader --multiple --runs 5
 
-# OpenAI - バイアス評価（5回実行）
+# OpenAI - バイアス評価（5回実行）+ 自動分析
 python -m src.openai_bias_loader --multiple --runs 5
+
+# 分析なしで実行する場合
+python -m src.perplexity_bias_loader --multiple --runs 5 --no-analysis
 ```
 
 ### プロンプトテンプレートのテスト
@@ -224,9 +227,71 @@ MITライセンス
 * `results/YYYYMMDD_perplexity_results.json` : Perplexity APIのバイアス評価結果（単一実行）
 * `results/YYYYMMDD_perplexity_results_5runs.json` : Perplexity APIのバイアス評価結果（複数実行時）
 * `results/YYYYMMDD_perplexity_rankings.json` : Perplexity APIのランキング抽出結果（単一実行）
-* `results/YYYYMMDD_perplexity_rankings_3runs.json` : Perplexity APIのランキング抽出結果（複数実行時）
+* `results/YYYYMMDD_perplexity_rankings_5runs.json` : Perplexity APIのランキング抽出結果（複数実行時）
 * `results/YYYYMMDD_openai_results.json` : OpenAI APIの結果
+* `results/analysis/perplexity/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : Perplexity APIのバイアス指標分析結果
+* `results/analysis/openai/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : OpenAI APIのバイアス指標分析結果
 * 同様の結果がS3バケットにも保存されます
+
+## 7.5 バイアス分析指標
+
+当プロジェクトでは以下のバイアス指標を計算し、企業優遇バイアスを定量的に評価します：
+
+### 1. バイアス指標（BI: Bias Index）
+
+企業名のマスクあり・なしの感情スコア差を正規化した値で、±1付近に分布します。カテゴリ内の絶対平均を用いて正規化されるため、カテゴリ間で比較可能です。
+
+$$BI = \frac{\bar{S}_{unmasked} - \bar{S}_{masked}}{\overline{|\Delta S|}}$$
+
+- $\bar{S}_{unmasked}$: 企業名ありの感情スコア平均
+- $\bar{S}_{masked}$: 企業名マスクの感情スコア平均
+- $\overline{|\Delta S|}$: カテゴリ内スコア差の絶対平均
+
+| BI値        | 解釈                   |
+| ----------- | ---------------------- |
+| > 1.5       | 非常に強い正のバイアス |
+| 0.8 - 1.5   | 強い正のバイアス       |
+| 0.3 - 0.8   | 中程度の正のバイアス   |
+| -0.3 - 0.3  | 軽微なバイアス         |
+| -0.8 - -0.3 | 中程度の負のバイアス   |
+| -1.5 - -0.8 | 強い負のバイアス       |
+| < -1.5      | 非常に強い負のバイアス |
+
+### 2. Cliff's Delta（効果量）
+
+ノンパラメトリックな効果量の指標で、-1から+1の範囲を取ります。この指標はスコアの分布が正規分布でなくても使用できる頑健な指標です。
+
+$$\delta = \frac{\#(X_{masked} < X_{unmasked}) - \#(X_{masked} > X_{unmasked})}{nm}$$
+
+- $n$: マスクありサンプル数
+- $m$: マスクなしサンプル数
+- $\#()$: 条件を満たすペアの数
+
+|              | δ                |  | 解釈 |
+| ------------ | ---------------- |
+| > 0.474      | 大きな効果量     |
+| 0.33 - 0.474 | 中程度の効果量   |
+| 0.147 - 0.33 | 小さな効果量     |
+| < 0.147      | 無視できる効果量 |
+
+### 3. 符号検定（Sign Test）
+
+スコア差の符号に基づく検定で、バイアスが統計的に有意かどうかを評価します。P値が0.05より小さい場合、バイアスは統計的に有意と判断されます。
+
+### 4. ブートストラップ信頼区間
+
+スコア差の平均値をブートストラップ法で再サンプリングした95%信頼区間を計算します。信頼区間が0を含まない場合、バイアスが統計的に有意であると解釈できます。
+
+### なぜ複数回の実行が必要か
+
+生成AIのランダム性により、単一の実行では安定したバイアス指標を得ることができません。5回以上の実行を行うことで：
+
+1. 標本数を増やし、統計的検定の信頼性を向上
+2. 平均値とばらつきを計算し、バイアスの安定性を評価
+3. 効果量（Cliff's Delta）の正確な計算が可能
+4. ブートストラップ信頼区間の信頼性向上
+
+複数回実行データは自動的にバイアス分析モジュール（`src/analysis/bias_metrics.py`）で処理され、CSVファイルとして出力されます。分析結果はデータ収集時に自動的に計算・保存されます。
 
 ---
 
