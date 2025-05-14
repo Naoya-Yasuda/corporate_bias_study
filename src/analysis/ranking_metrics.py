@@ -268,6 +268,90 @@ def hhi_index(market_shares: dict[str, float]):
     """HHI (Herfindahl-Hirschman Index) の計算（市場集中度）"""
     return sum(share ** 2 for share in market_shares.values())
 
+def calculate_ranking_stability(rankings):
+    """
+    ランキング結果の安定性を評価
+
+    Parameters
+    ----------
+    rankings : list[list[str]]
+        複数回のランキング結果
+
+    Returns
+    -------
+    dict
+        stability_score: 平均安定性スコア（-1〜1）
+        pairwise_stability: ペアごとの安定性スコア
+        stability_matrix: 全ペア間の安定性行列
+    """
+    if len(rankings) <= 1:
+        return {
+            "stability_score": 1.0,
+            "pairwise_stability": [],
+            "stability_matrix": None
+        }
+
+    # 全てのランキングに登場するサービス名を収集
+    all_services = set()
+    for ranking in rankings:
+        all_services.update(ranking)
+
+    # 各ランキングをサービス→順位のマップに変換
+    rank_maps = []
+    for ranking in rankings:
+        rank_map = {service: idx for idx, service in enumerate(ranking)}
+        # ランキングに含まれていないサービスには大きな順位を割り当て
+        for service in all_services:
+            if service not in rank_map:
+                rank_map[service] = len(ranking)
+        rank_maps.append(rank_map)
+
+    # すべてのペア間の安定性を計算
+    n = len(rankings)
+    stability_matrix = np.ones((n, n))
+    pairwise_stability = []
+
+    for i in range(n):
+        for j in range(i+1, n):
+            # 共通のサービス名のみを抽出
+            common_services = set(rank_maps[i].keys()) & set(rank_maps[j].keys())
+            if len(common_services) < 2:
+                tau = 0.0  # 共通サービスが1つ以下の場合は相関を計算できない
+            else:
+                ranks_i = [rank_maps[i][s] for s in common_services]
+                ranks_j = [rank_maps[j][s] for s in common_services]
+                tau, _ = kendalltau(ranks_i, ranks_j)
+                if np.isnan(tau):  # NANの場合は0として扱う
+                    tau = 0.0
+
+            stability_matrix[i, j] = tau
+            stability_matrix[j, i] = tau
+            pairwise_stability.append(tau)
+
+    # 平均安定性スコア
+    avg_stability = np.mean(pairwise_stability) if pairwise_stability else 1.0
+
+    return {
+        "stability_score": avg_stability,
+        "pairwise_stability": pairwise_stability,
+        "stability_matrix": stability_matrix
+    }
+
+def interpret_stability(score):
+    """安定性スコアの解釈"""
+    if score >= 0.8:
+        return "非常に安定"
+    elif score >= 0.6:
+        return "安定"
+    elif score >= 0.4:
+        return "やや安定"
+    elif score >= 0.2:
+        return "やや不安定"
+    elif score >= 0:
+        return "不安定"
+    else:
+        return "非常に不安定（逆相関）"
+
 # -----------------------------
 # 3. 集約＋保存
 # -----------------------------
@@ -317,6 +401,11 @@ def compute_rank_metrics(category: str,
     # 結果をソート
     df = df.sort_values("exposure_idx", ascending=False).reset_index(drop=True)
 
+    # 安定性を計算
+    stability_data = calculate_ranking_stability(ranked_runs)
+    stability_score = stability_data["stability_score"]
+    stability_interp = interpret_stability(stability_score)
+
     # 統計概要を作成
     summary = {
         "category": category,
@@ -328,7 +417,9 @@ def compute_rank_metrics(category: str,
         "gini_coef": gini,
         "market_hhi": market_hhi,
         "exposure_hhi": expo_hhi,
-        "hhi_ratio": expo_hhi / market_hhi if market_hhi else float('inf')
+        "hhi_ratio": expo_hhi / market_hhi if market_hhi else float('inf'),
+        "stability_score": stability_score,
+        "stability_interpretation": stability_interp
     }
 
     return df, summary
@@ -385,6 +476,27 @@ def plot_exposure_vs_market(df: pd.DataFrame, category: str, output_dir: str):
 
     # 保存
     file_name = f"{category}_exposure_market.png"
+    save_path = os.path.join(output_dir, file_name)
+    plt.savefig(save_path, dpi=100)
+    plt.close()
+
+    return file_name
+
+def plot_stability_matrix(stability_matrix, category, output_dir):
+    """安定性行列のヒートマップをプロット"""
+    if stability_matrix is None or len(stability_matrix) <= 1:
+        return None
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(stability_matrix, annot=True, cmap="YlGnBu", vmin=-1, vmax=1,
+                fmt=".2f", square=True)
+    plt.title(f"{category}のランキング安定性行列")
+    plt.xlabel("実行回数")
+    plt.ylabel("実行回数")
+    plt.tight_layout()
+
+    # 保存
+    file_name = f"{category}_stability_matrix.png"
     save_path = os.path.join(output_dir, file_name)
     plt.savefig(save_path, dpi=100)
     plt.close()
@@ -493,6 +605,18 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
                 "image/png"
             ))
 
+        # 安定性行列のプロット（2回以上実行された場合のみ）
+        if len(runs) > 1:
+            stability_data = calculate_ranking_stability(runs)
+            stability_matrix = stability_data["stability_matrix"]
+            stability_file = plot_stability_matrix(stability_matrix, category, output_dir)
+            if stability_file:
+                uploaded_files.append((
+                    os.path.join(output_dir, stability_file),
+                    f"results/ranking_analysis/{date_str}/{stability_file}",
+                    "image/png"
+                ))
+
         # 概要を集計
         summaries.append(summary)
 
@@ -519,7 +643,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
 
     # 概要を表示
     print("\n=== ランキング分析の概要 ===")
-    display_cols = ['category', 'SP_gap', 'EO_gap', 'kendall_tau', 'gini_coef', 'hhi_ratio']
+    display_cols = ['category', 'SP_gap', 'EO_gap', 'kendall_tau', 'gini_coef', 'stability_score', 'stability_interpretation']
     display_cols = [col for col in display_cols if col in summary_df.columns]
     print(summary_df[display_cols])
 
