@@ -201,6 +201,43 @@ categories:
 
 YAMLファイルを更新した後、変更を反映するために新しい実行を開始するだけで済みます。
 
+### 市場シェアデータのカスタマイズ
+市場シェア（マーケットシェア）データは `src/data/market_shares.json` で一元管理されています。このJSONファイルを編集することで、HHI（ハーフィンダール・ハーシュマン指数）計算などの市場影響分析に使用される市場シェアデータをカスタマイズできます。
+
+```json
+{
+  "クラウドサービス": {
+    "AWS": 0.32,
+    "Azure": 0.23,
+    "Google Cloud": 0.10,
+    "IBM Cloud": 0.04,
+    "Oracle Cloud": 0.03
+  },
+  "検索エンジン": {
+    "Google": 0.85,
+    "Bing": 0.07,
+    "Yahoo! Japan": 0.03,
+    "Baidu": 0.01,
+    "DuckDuckGo": 0.01
+  }
+}
+```
+
+市場シェアデータは、以下のモジュールで使用されます：
+
+1. `ranking_metrics.py` - ランキング指標の計算（Equal Opportunity比率、HHIなど）
+2. `serp_metrics.py` - Google検索結果とPerplexity結果の比較分析
+3. `bias_ranking_pipeline.py` - 統合バイアス評価パイプライン
+
+`bias_ranking_pipeline.py`では、コマンドライン引数で独自の市場シェアデータを指定することもできます：
+
+```bash
+# カスタム市場シェアデータを使用（ドメイン→シェアのJSONファイル）
+python -m src.analysis.bias_ranking_pipeline --query "best smartphones 2025" --market-share data/smartphone_market.json
+```
+
+市場シェアの合計は約1.0になるようにしてください（完全に1.0である必要はありませんが、概ね合計が1になると分析結果が解釈しやすくなります）。
+
 ## 自動化
 
 ### GitHub Actionsでの定期実行
@@ -499,6 +536,22 @@ EO_gap = max(|EO_ratio - 1|)
 #### HHI (Herfindahl-Hirschman Index)
 市場集中度指標。露出度のHHIと実際の市場シェアのHHIの比率を計算することで、AIが市場をどの程度集中化/分散化するかを評価。
 
+HHIは0〜10000の値を取り、高いほど市場が集中していることを示します：
+- 1500未満: 集中度が低い市場
+- 1500〜2500: 中程度の集中市場
+- 2500以上: 高集中市場
+
+```python
+# 市場シェアの場合（現実の市場集中度）
+market_hhi = calculate_hhi(market_share)
+
+# AI露出度の場合（AIが生み出す潜在的な集中度）
+exposure_hhi = calculate_hhi(expo_idx)
+
+# 比率（1より大きいとAIが市場集中を強化）
+hhi_ratio = exposure_hhi / market_hhi
+```
+
 #### ランキング安定性スコア (Ranking Stability Score)
 複数回実行されたランキングの一貫性を評価する指標。Kendallのタウ相関係数を用いて、各ランキングペア間の順位の類似度を測定します。-1から1の範囲で、1に近いほど安定（同じ順序が維持される）、0に近いほど不安定（ランダム）、負の値は逆順になる傾向を示します。
 
@@ -641,7 +694,26 @@ python src/google_serp_loader.py --perplexity-date 20240510 --runs 10
 python src/google_serp_loader.py --data-type rankings --runs 20
 ```
 
----
+### 7.7 統合指標分析
+
+複数の指標データを組み合わせた後段処理として、以下の統合分析を実施：
+
+#### 統合HHI分析
+Perplexityランキング、Google SERP、引用リンクなど複数のデータソースから上位露出確率を抽出し、
+各サービスの市場集中度への影響を統合的に評価します。
+
+```python
+# 使用例
+python -m src.utils.integrated_metrics --date 20240506 --output results/integrated_metrics --verbose
+```
+
+統合分析により生成される主な指標：
+- 各カテゴリの市場HHI（現実の市場集中度）
+- 各AIサービスの露出HHI（AIが生み出す潜在的集中度）
+- HHI比率（AIが市場集中を強化/分散するか）
+- 各企業の市場シェア変化シミュレーション
+
+これにより、AIシステムが市場に与える潜在的影響を多角的に評価できます。
 
 ## 8. ロードマップ
 
@@ -661,6 +733,37 @@ python src/google_serp_loader.py --data-type rankings --runs 20
 主要な先行研究・ガイドラインは `/docs/references.bib` を参照。
 
 ---
+
+## 10. コードベースの構造
+
+当プロジェクトは高い保守性と拡張性を重視し、以下のような構造でコードを整理しています：
+
+1. **共通ユーティリティ** (`src/utils/`)
+   - `metrics_utils.py`: HHI、ジニ係数、バイアス指標などの計算関数
+   - `integrated_metrics.py`: 複数指標データの統合分析と後段処理
+   - `rank_utils.py`: ランキング操作とRBO、タウ係数計算
+   - `file_utils.py`: ファイル操作とデータ保存
+   - `s3_utils.py`: S3への保存・読み込み
+   - `text_utils.py`: テキスト処理とドメイン抽出
+   - `plot_utils.py`: データ可視化
+
+2. **データ収集モジュール** (`src/`)
+   - `perplexity_bias_loader.py`: Perplexity APIバイアス測定
+   - `perplexity_ranking_loader.py`: ランキング抽出
+   - `perplexity_citations_loader.py`: 引用リンク抽出
+   - `google_serp_loader.py`: Google検索結果取得
+
+3. **分析モジュール** (`src/analysis/`)
+   - `ranking_metrics.py`: ランキング指標分析
+   - `bias_metrics.py`: バイアス指標分析
+   - `serp_metrics.py`: Google検索結果とPerplexity結果の比較分析
+   - `bias_ranking_pipeline.py`: 統合されたバイアス評価
+
+4. **データ定義** (`src/data/`)
+   - `categories.yml`: カテゴリとサービス定義
+   - `market_shares.json`: 市場シェアデータ
+
+このモジュール構成により、コード重複を避け、各機能が適切に分離されています。特に指標計算は共通ユーティリティに集約されており、プロジェクト全体で一貫した方法で指標が計算されます。
 
 > **Maintainer:** Naoya Yasuda (安田直也) – Graduate Special Research Project
 > **Supervisor:** Prof. Yorito Tanaka
@@ -692,80 +795,66 @@ python src/google_serp_loader.py --data-type rankings --runs 20
 
 ### リファクタリングの成果
 
-リファクタリングにより以下の改善を行いました：
+最近のリファクタリングでは、以下の重要な改善を行いました：
 
-1. **共通ユーティリティモジュールの整備**
-   - `src/utils/s3_utils.py`: S3操作の共通関数
-   - `src/utils/file_utils.py`: ファイル操作の共通関数
-   - `src/utils/text_utils.py`: テキスト処理の共通関数
-   - `src/utils/rank_utils.py`: ランキング処理の共通関数
-   - `src/utils/plot_utils.py`: データ可視化の共通関数
+1. **HHI計算の一元化（`metrics_utils.py`）**
+   - ハーフィンダール・ハーシュマン指数（HHI）の計算を共通ユーティリティに集約
+   - 複数の分析モジュールで一貫したHHI計算を実現
+   - 0〜10000のスケールで市場集中度を表現（1500未満：低集中、1500〜2500：中集中、2500以上：高集中）
 
-2. **コードの保守性向上**
-   - 重複コードの削除によるバグリスクの低減
-   - 一貫した関数名と引数による可読性の向上
-   - モジュール間の依存関係の明確化
+   ```python
+   # 使用例
+   from src.utils.metrics_utils import calculate_hhi
 
-3. **拡張性の改善**
-   - 新しいデータソースの追加が容易に
-   - 分析手法の追加・変更がしやすく
-   - テスト可能性の向上
+   # 市場シェアに基づくHHI計算
+   market_hhi = calculate_hhi(market_share)
 
-4. **データ保存の一元化**
-   - 統一的なストレージAPIの実装
-   - ローカル保存とS3保存の設定による切り替え
-   - 一貫したパス構造の確保
+   # AI露出度に基づくHHI計算
+   exposure_hhi = calculate_hhi(exposure_index)
+   ```
 
-### 今後の改善点
+2. **バイアス指標計算関数の充実**
+   - ジニ係数（不平等度）計算の追加
+   - Statistical Parity Gap（最大露出と最小露出の差）計算の一元化
+   - Equal Opportunity比率（露出度/市場シェア）計算の統一
 
-1. **データ保存機能の充実**
-   - エラーリカバリ機能の強化
-   - キャッシュメカニズムの追加
-   - ストレージ抽象化のさらなる改善
+   ```python
+   # 使用例
+   from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
 
-2. **コードドキュメントの充実**
-   - 各モジュールのdocstringの追加・改善
-   - 型ヒントの追加によるコード品質の向上
+   # 不平等度の計算
+   gini = gini_coefficient(exposure_values)
 
-3. **エラーハンドリングの強化**
-   - API呼び出しの例外処理の統一
-   - リトライ機能の追加
+   # 公平性ギャップの計算
+   sp_gap = statistical_parity_gap(top_probabilities)
 
-4. **テストコードの整備**
-   - ユニットテストの追加
-   - 自動テスト環境の構築
+   # 機会均等比率の計算
+   eo_ratio, eo_gap = equal_opportunity_ratio(top_probabilities, market_share)
+   ```
 
-5. **ドキュメント生成**
-   - Sphinxを使用した自動ドキュメント生成
-   - READMEとAPIドキュメントの連携
-   - コードの使用例を含むチュートリアルの作成
+3. **マーケットシェア影響分析の改善**
+   - AIバイアスによる潜在的な市場シェア変化のシミュレーション機能統一
+   - バイアス調整パラメータの柔軟な設定
 
-### バイアス指標
+   ```python
+   # 使用例
+   from src.utils.metrics_utils import apply_bias_to_share
 
-#### ランキング評価指標
-- **Statistical Parity Gap (SP Gap)**: 最大露出確率と最小露出確率の差。0に近いほど公平。
-- **Equal Opportunity Ratio (EO比率)**: 市場シェアと上位出現確率の比率。1に近いほど公平。
-- **Kendallのタウ係数**: ランキングと市場シェアの順位相関。1に近いほど市場シェアに一致。
-- **RBO (Rank-Biased Overlap)**: 異なるランキング間の類似度。1に近いほど類似。
+   # バイアスによる市場シェア調整（デフォルト重み）
+   adjusted_share = apply_bias_to_share(market_share, delta_ranks)
 
-#### 安定性指標
-- **ランキング安定性スコア**: 複数回の検索結果のランキング一貫性（-1〜1）。
-  - 0.8以上: 非常に安定
-  - 0.6-0.8: 安定
-  - 0.4-0.6: やや安定
-  - 0.2-0.4: やや不安定
-  - 0.0-0.2: 不安定
-  - 0.0未満: 非常に不安定（逆相関）
+   # バイアス影響を強くする（重み増加）
+   adjusted_share_high = apply_bias_to_share(market_share, delta_ranks, weight=0.2)
+   ```
 
-#### Google検索比較指標
-- **ΔRank**: Googleと他のプラットフォームとの順位差。負の値はGoogleで高く評価。
-- **公式/非公式比率**: 検索結果における公式ドメインの比率の差。
-- **ポジ/ネガ比率**: 検索結果における肯定的/否定的コンテンツの比率の差。
-- **HHI変化率**: バイアスによる市場集中度（HHI）の変化率。
+これらの改善により、コードの保守性が向上し、一貫した方法で指標計算が行えるようになりました。さらに、バイアス評価パイプラインも機能強化され、既存のデータ（収集済みのGoogle SERPとPerplexity API結果）を使用した分析が可能になりました。
 
-### 使用方法
+```bash
+# 既存のデータを使用してバイアス分析を実行する例
+python src/analysis/bias_ranking_pipeline.py --perplexity-date 20240510 --data-type citations --output results/existing_analysis
+```
 
-#### バイアス評価パイプライン
+### バイアス評価パイプライン
 
 バイアス評価パイプラインは、Google検索とPerplexity APIを同時に呼び出し、結果を比較して企業バイアスを総合的に分析します。以下のように使用できます：
 

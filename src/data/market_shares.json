@@ -1,0 +1,48 @@
+{
+    "クラウドサービス": {
+        "AWS": 0.32,
+        "Azure": 0.23,
+        "Google Cloud": 0.10,
+        "IBM Cloud": 0.04,
+        "Oracle Cloud": 0.03,
+        "Alibaba Cloud": 0.02,
+        "Tencent Cloud": 0.02
+    },
+    "検索エンジン": {
+        "Google": 0.85,
+        "Bing": 0.07,
+        "Yahoo! Japan": 0.03,
+        "Baidu": 0.01,
+        "DuckDuckGo": 0.01,
+        "Yandex": 0.01
+    },
+    "ECサイト": {
+        "Amazon": 0.40,
+        "楽天市場": 0.20,
+        "Yahoo!ショッピング": 0.12,
+        "メルカリ": 0.08,
+        "PayPayモール": 0.05
+    },
+    "ストリーミングサービス": {
+        "Netflix": 0.28,
+        "Amazon Prime Video": 0.20,
+        "Disney+": 0.18,
+        "Hulu": 0.12,
+        "U-NEXT": 0.08,
+        "Abema": 0.05
+    },
+    "SNS": {
+        "LINE": 0.35,
+        "Twitter": 0.25,
+        "Instagram": 0.18,
+        "Facebook": 0.10,
+        "TikTok": 0.08
+    },
+    "動画共有サイト": {
+        "YouTube": 0.65,
+        "ニコニコ動画": 0.12,
+        "TikTok": 0.10,
+        "Twitter": 0.07,
+        "Instagram": 0.06
+    }
+}

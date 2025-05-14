@@ -104,11 +104,25 @@ jobs:
           python -m src.analysis.bias_metrics --json-path results/${{ env.TODAY_DATE }}_openai_results_10runs.json --verbose | tee -a logs/bias_metrics_openai.log
           echo "完了: OpenAI バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
+      # 統合指標分析（複数指標に基づく後段処理）
+      - name: Run integrated metrics analysis
+        run: |
+          echo "開始: 統合指標分析 ($(date))" | tee -a logs/execution.log
+          python -m src.utils.integrated_metrics --date ${{ env.TODAY_DATE }} --output results/integrated_metrics/${{ env.TODAY_DATE }} --verbose | tee -a logs/integrated_metrics.log
+          echo "完了: 統合指標分析 ($(date))" | tee -a logs/execution.log
+
       # 統合バイアス評価パイプライン
       - name: Run bias ranking pipeline
         run: |
           echo "開始: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.bias_ranking_pipeline --perplexity-date ${{ env.TODAY_DATE }} --data-type citations --verbose | tee -a logs/bias_ranking_pipeline.log
+          # クラウドサービス分析
+          python -m src.analysis.bias_ranking_pipeline --query "best cloud providers 2025" --output results/bias_analysis/cloud_services --verbose | tee -a logs/bias_ranking_pipeline.log
+          # 検索エンジン分析
+          python -m src.analysis.bias_ranking_pipeline --query "top search engines comparison" --output results/bias_analysis/search_engines --verbose | tee -a logs/bias_ranking_pipeline.log
+          # ECサイト分析（日本語）
+          python -m src.analysis.bias_ranking_pipeline --query "おすすめのECサイト比較" --language ja --country jp --output results/bias_analysis/ec_sites_jp --verbose | tee -a logs/bias_ranking_pipeline.log
+          # 引用リンクデータを使用した分析
+          python -m src.analysis.bias_ranking_pipeline --perplexity-date ${{ env.TODAY_DATE }} --data-type citations --output results/bias_analysis/citations_comparison --verbose | tee -a logs/bias_ranking_pipeline.log
           echo "完了: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
           echo "全プロセス完了: $(date)" | tee -a logs/execution.log
 

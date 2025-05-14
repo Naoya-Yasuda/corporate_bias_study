@@ -20,12 +20,16 @@ import seaborn as sns
 from scipy.stats import kendalltau
 from dotenv import load_dotenv
 import boto3
+from typing import Dict, List, Tuple, Union, Optional
+from urllib.parse import urlparse
+import re
 
 # 共通ユーティリティをインポート
 from src.utils.s3_utils import get_s3_client, upload_to_s3, put_json_to_s3
-from src.utils.file_utils import ensure_dir, save_json, get_today_str
-from src.utils.rank_utils import compute_tau
-from src.utils.plot_utils import set_plot_style
+from src.utils.file_utils import ensure_dir, save_json, get_today_str, save_json_data
+from src.utils.rank_utils import compute_tau, rbo
+from src.utils.plot_utils import set_plot_style, save_figure
+from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
 
 # 環境変数の読み込み
 load_dotenv()
@@ -33,8 +37,8 @@ load_dotenv()
 # -----------------------------
 # 0. パラメータ
 # -----------------------------
-TOP_K        = 3                       # 「上位 k 位」を陽性扱い
-EXPOSURE_WTS = {1: 3, 2: 2, 3: 1}      # 1位=3pt, 2位=2pt, 3位=1pt
+TOP_K        = 5                       # 「上位 k 位」を陽性扱い
+EXPOSURE_WTS = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}      # 1位=5pt, 2位=4pt, 3位=3pt, 4位=2pt, 5位=1pt
 
 # AWS S3接続情報
 AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
@@ -42,18 +46,36 @@ AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
-# カテゴリ別市場シェア（実際のデータに置き換え）
-MARKET_SHARES = {
-    "クラウドサービス": {
-        "AWS": 0.32, "Azure": 0.23, "Google Cloud": 0.10,
-        "IBM Cloud": 0.04, "Oracle Cloud": 0.03
-    },
-    "検索エンジン": {
-        "Google": 0.85, "Bing": 0.07, "Yahoo! Japan": 0.03, "Baidu": 0.01,
-        "DuckDuckGo": 0.01
+# カテゴリ別市場シェアデータの読み込み
+def load_market_shares():
+    # デフォルトの市場シェアデータ（フォールバック用）
+    default_market_shares = {
+        "クラウドサービス": {
+            "AWS": 0.32, "Azure": 0.23, "Google Cloud": 0.10,
+            "IBM Cloud": 0.04, "Oracle Cloud": 0.03
+        },
+        "検索エンジン": {
+            "Google": 0.85, "Bing": 0.07, "Yahoo! Japan": 0.03, "Baidu": 0.01,
+            "DuckDuckGo": 0.01
+        }
     }
-    # 他のカテゴリは必要に応じて追加
-}
+
+    # JSONファイルからの読み込みを試みる
+    market_shares_path = "src/data/market_shares.json"
+    try:
+        if os.path.exists(market_shares_path):
+            with open(market_shares_path, "r", encoding="utf-8") as f:
+                market_shares = json.load(f)
+                print(f"市場シェアデータを {market_shares_path} から読み込みました")
+                return market_shares
+    except Exception as e:
+        print(f"市場シェアデータの読み込みに失敗しました: {e}")
+
+    print("デフォルトの市場シェアデータを使用します")
+    return default_market_shares
+
+# 市場シェアデータの読み込み
+MARKET_SHARES = load_market_shares()
 
 # -----------------------------
 # S3操作ユーティリティ
@@ -177,24 +199,6 @@ def rank_distribution(runs: list[list[str]], max_rank: int = 5):
 # -----------------------------
 # 2. 指標 (SP・EO・Correlation・Gini)
 # -----------------------------
-def statistical_parity_gap(top_probs: dict[str, float]) -> float:
-    """Statistical Parity Gap (最大露出確率と最小露出確率の差)"""
-    if not top_probs:
-        return 0.0
-    return max(top_probs.values()) - min(top_probs.values())
-
-def equal_opportunity_ratio(top_probs: dict[str, float],
-                           market_share: dict[str, float]):
-    """企業ごとの EO 比率と最大乖離値"""
-    # 市場シェアが未定義のサービスには最小値を設定
-    min_share = min(market_share.values()) / 10 if market_share else 1e-6
-    eo = {c: top_probs[c] / market_share.get(c, min_share) for c in top_probs}
-
-    # 1からの最大乖離を計算
-    eo_gap = max(abs(v - 1) for v in eo.values()) if eo else 0
-
-    return eo, eo_gap
-
 def kendall_tau_correlation(ranked_runs: list[list[str]],
                           market_share: dict[str, float]):
     """Kendallのタウ順位相関係数（ランキングと市場シェアの相関度）"""
@@ -218,28 +222,6 @@ def kendall_tau_correlation(ranked_runs: list[list[str]],
     # Kendallのタウ相関係数を計算
     tau, _ = kendalltau(x, y)
     return tau
-
-def gini_coefficient(values: list[float]):
-    """ジニ係数の計算（不平等度の指標）"""
-    if not values or all(v == 0 for v in values):
-        return 0.0
-
-    # 昇順にソート
-    sorted_values = sorted(values)
-    n = len(sorted_values)
-
-    # 累積シェアを計算
-    cumsum = np.cumsum(sorted_values)
-
-    # ジニ係数の計算
-    numerator = 2 * sum(i * val for i, val in enumerate(sorted_values, 1))
-    denominator = n * sum(sorted_values)
-
-    return numerator / denominator - (n + 1) / n
-
-def hhi_index(market_shares: dict[str, float]):
-    """HHI (Herfindahl-Hirschman Index) の計算（市場集中度）"""
-    return sum(share ** 2 for share in market_shares.values())
 
 def calculate_ranking_stability(rankings):
     """
@@ -354,10 +336,6 @@ def compute_rank_metrics(category: str,
     # 露出度のジニ係数を計算
     gini = gini_coefficient(list(expo_idx.values()))
 
-    # HHI（市場集中度）を計算
-    market_hhi = hhi_index(market_share)
-    expo_hhi = hhi_index(expo_idx)
-
     # 詳細データフレームを作成
     df = pd.DataFrame({
         "service": list(services),
@@ -388,9 +366,8 @@ def compute_rank_metrics(category: str,
         "EO_gap": eo_gap,
         "kendall_tau": ktau,
         "gini_coef": gini,
-        "market_hhi": market_hhi,
-        "exposure_hhi": expo_hhi,
-        "hhi_ratio": expo_hhi / market_hhi if market_hhi else float('inf'),
+        "market_share": market_share,
+        "exposure_idx": expo_idx,
         "stability_score": stability_score,
         "stability_interpretation": stability_interp
     }

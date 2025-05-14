@@ -18,6 +18,7 @@ from collections import defaultdict
 from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
 from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
 from src.utils.file_utils import ensure_dir, save_json
+from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 
 # -------------------------------------------------------------------
 # 比較メトリクス
@@ -269,66 +270,6 @@ def compare_with_perplexity(serp_results, pplx_results):
     return comparison
 
 # -------------------------------------------------------------------
-# 市場影響指標の計算
-# -------------------------------------------------------------------
-def apply_bias_to_share(market_share, delta_ranks, weight=0.1):
-    """
-    ΔRankに基づいて市場シェアを調整
-
-    Parameters
-    ----------
-    market_share : dict
-        元の市場シェア
-    delta_ranks : dict
-        ドメイン→ΔRankのマップ
-    weight : float
-        バイアスの重み（調整パラメータ）
-
-    Returns
-    -------
-    dict
-        調整後の市場シェア
-    """
-    if not market_share or not delta_ranks:
-        return market_share.copy() if market_share else {}
-
-    adjusted_share = {}
-
-    for company, share in market_share.items():
-        if company in delta_ranks:
-            # 負のΔRank（AIで上位表示）はシェア増加、正のΔRank（Googleで上位表示）はシェア減少
-            rank_effect = -delta_ranks[company]  # 符号を反転
-            # 効果を非線形にする（大きなΔRankほど影響大）
-            adjustment = weight * np.sign(rank_effect) * (abs(rank_effect) ** 0.5)
-            adjusted_share[company] = max(0.001, share * (1 + adjustment))
-        else:
-            adjusted_share[company] = share
-
-    # 合計を1に正規化
-    total = sum(adjusted_share.values())
-    if total > 0:
-        for company in adjusted_share:
-            adjusted_share[company] /= total
-
-    return adjusted_share
-
-def calculate_hhi(market_share):
-    """
-    HHI（ハーフィンダール・ハーシュマン指数）を計算
-
-    Parameters
-    ----------
-    market_share : dict
-        市場シェア（0～1の割合）
-
-    Returns
-    -------
-    float
-        HHI値（0～10000）
-    """
-    return sum((share * 100) ** 2 for share in market_share.values())
-
-# -------------------------------------------------------------------
 # 分析実行関数
 # -------------------------------------------------------------------
 def analyze_serp_results(serp_results, pplx_results, comparison_results):
@@ -351,8 +292,22 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
     """
     analysis = {}
 
-    # 市場シェアデータ
-    from src.analysis.ranking_metrics import MARKET_SHARES
+    # 市場シェアデータの読み込み
+    try:
+        market_shares_path = "src/data/market_shares.json"
+        if os.path.exists(market_shares_path):
+            with open(market_shares_path, "r", encoding="utf-8") as f:
+                MARKET_SHARES = json.load(f)
+                print(f"市場シェアデータを {market_shares_path} から読み込みました")
+        else:
+            # ranking_metrics.pyからインポート（フォールバック）
+            from src.analysis.ranking_metrics import MARKET_SHARES
+            print("ranking_metrics.pyから市場シェアデータを使用します")
+    except Exception as e:
+        print(f"市場シェアデータの読み込みに失敗しました: {e}")
+        # ranking_metrics.pyからインポート（フォールバック）
+        from src.analysis.ranking_metrics import MARKET_SHARES
+        print("エラーのため、ranking_metrics.pyから市場シェアデータを使用します")
 
     # カテゴリごとに分析
     categories = set(comparison_results.keys()) & set(MARKET_SHARES.keys())
@@ -369,11 +324,6 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
 
         # 市場シェアへの影響をシミュレーション
         adjusted_share = apply_bias_to_share(market_share, delta_ranks)
-
-        # HHI（市場集中度）の変化
-        hhi_before = calculate_hhi(market_share)
-        hhi_after = calculate_hhi(adjusted_share)
-        hhi_change = hhi_after - hhi_before
 
         # ΔRankと市場影響度の集計
         impact_data = []
@@ -410,10 +360,9 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
                 "google_negative_ratio": comp_data["google_content_metrics"]["negative_ratio"]
             },
             "market_impact": {
-                "hhi_before": hhi_before,
-                "hhi_after": hhi_after,
-                "hhi_change": hhi_change,
-                "hhi_change_pct": (hhi_change / hhi_before) * 100 if hhi_before > 0 else 0,
+                "market_share": market_share,
+                "adjusted_share": adjusted_share,
+                "delta_ranks": delta_ranks,
                 "impact_data": impact_data
             },
             "plots": {
