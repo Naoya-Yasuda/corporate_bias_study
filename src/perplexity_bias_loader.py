@@ -256,18 +256,74 @@ def main():
     parser = argparse.ArgumentParser(description='Perplexityを使用して企業バイアスデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
+    parser.add_argument('--no-analysis', action='store_true', help='バイアス分析を実行しない')
     args = parser.parse_args()
 
+    # 結果を保存するファイルパス
+    today_date = datetime.datetime.now().strftime("%Y%m%d")
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
         result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, args.runs)
+        result_file = f"results/{today_date}_perplexity_results_{args.runs}runs.json"
         save_results(result, "multiple", args.runs)
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
         result = process_categories(PERPLEXITY_API_KEY, categories)
+        result_file = f"results/{today_date}_perplexity_results.json"
         save_results(result)
 
-    print("処理が完了しました")
+    print("データ取得処理が完了しました")
+
+    # バイアス分析を実行（--no-analysisオプションが指定されていない場合）
+    if not args.no_analysis:
+        try:
+            from src.analysis.bias_metrics import analyze_bias_from_file
+            print("\n=== バイアス分析を開始します ===")
+
+            # 分析出力ディレクトリ
+            analysis_dir = f"results/analysis/perplexity/{today_date}"
+
+            # 分析実行
+            metrics = analyze_bias_from_file(result_file, analysis_dir)
+
+            # S3へのアップロード
+            try:
+                # AWS認証情報を環境変数から取得
+                aws_access_key = os.environ.get("AWS_ACCESS_KEY")
+                aws_secret_key = os.environ.get("AWS_SECRET_KEY")
+                aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")
+                s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
+
+                if aws_access_key and aws_secret_key and s3_bucket_name:
+                    # S3クライアントを作成
+                    import boto3
+                    s3_client = boto3.client(
+                        "s3",
+                        aws_access_key_id=aws_access_key,
+                        aws_secret_access_key=aws_secret_key,
+                        region_name=aws_region
+                    )
+
+                    # 分析ディレクトリ内のCSVファイルをアップロード
+                    for filename in os.listdir(analysis_dir):
+                        if filename.endswith('.csv'):
+                            local_path = os.path.join(analysis_dir, filename)
+                            s3_key = f"results/analysis/perplexity/{today_date}/{filename}"
+
+                            with open(local_path, 'rb') as file_data:
+                                s3_client.upload_fileobj(
+                                    file_data,
+                                    s3_bucket_name,
+                                    s3_key,
+                                    ExtraArgs={'ContentType': 'text/csv'}
+                                )
+                            print(f"分析結果をS3にアップロードしました: s3://{s3_bucket_name}/{s3_key}")
+            except Exception as e:
+                print(f"分析結果のS3アップロードエラー: {e}")
+
+            print("バイアス分析が完了しました")
+        except Exception as e:
+            print(f"バイアス分析中にエラーが発生しました: {e}")
 
 if __name__ == "__main__":
     main()

@@ -175,25 +175,36 @@ def save_results(result_data, run_type="single", num_runs=1):
 
 def main():
     """メイン関数"""
-    # 引数処理
-    parser = argparse.ArgumentParser(description='Perplexityを使用してサービスランキングを取得')
+    # 引数処理（コマンドライン引数があれば使用）
+    parser = argparse.ArgumentParser(description='Perplexityを使用してサービスランキングデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
-    parser.add_argument('--runs', type=int, default=3, help='実行回数（--multipleオプション使用時）')
+    parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
+    parser.add_argument('--no-analysis', action='store_true', help='将来的なランキング分析を実行しない')
     args = parser.parse_args()
 
     # カテゴリとサービスの取得
     categories = get_categories()
 
+    # 結果を保存するファイルパス
+    today_date = datetime.datetime.now().strftime("%Y%m%d")
     if args.multiple:
-        print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
+        print(f"Perplexity APIを使用して{args.runs}回のランキング取得を実行します")
         result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
+        result_file = f"results/{today_date}_perplexity_rankings_{args.runs}runs.json"
         save_results(result, "multiple", args.runs)
     else:
-        print("Perplexity APIを使用して単一実行データを取得します")
+        print("Perplexity APIを使用して単一実行ランキング取得を実行します")
         result = collect_rankings(PERPLEXITY_API_KEY, categories)
+        result_file = f"results/{today_date}_perplexity_rankings.json"
         save_results(result)
 
-    print("ランキング処理が完了しました")
+    print("ランキングデータ取得処理が完了しました")
+
+    # 将来的にはランキングデータの分析もここに実装予定
+    # ランキングデータはバイアス指標とは異なる分析が必要なため、現在は実装されていません
+    if not args.no_analysis:
+        print("\n注: 現在のバージョンではランキングデータの自動分析は実装されていません。")
+        print("将来のバージョンで、市場シェアとの相関分析やランキングバイアス指標の計算が追加される予定です。")
 
 if __name__ == "__main__":
     main()

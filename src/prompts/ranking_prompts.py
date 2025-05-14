@@ -112,7 +112,7 @@ def call_perplexity_api(prompt, api_key=None):
         print(f"エラー（Perplexity API）: {e}")
         return f"エラー: {e}"
 
-def multi_run_ranking(subcategory, services, num_runs=3):
+def multi_run_ranking(subcategory, services, num_runs=5):
     """複数回実行してランキングの平均を計算"""
     print(f"{subcategory}の{num_runs}回ランキング取得を開始します...")
 
@@ -206,7 +206,7 @@ def main():
     parser.add_argument('--response', help='Perplexityの応答テキスト（指定しない場合はプロンプトのみ出力）')
     parser.add_argument('--file', help='Perplexityの応答テキストが含まれるファイルパス')
     parser.add_argument('--api', action='store_true', help='Perplexity APIを使用して実際に問い合わせる')
-    parser.add_argument('--runs', type=int, default=3, help='API使用時の実行回数（デフォルト: 3）')
+    parser.add_argument('--runs', type=int, default=5, help='API使用時の実行回数（デフォルト: 5）')
     parser.add_argument('--output', help='結果を保存するJSONファイルパス')
     args = parser.parse_args()
 
