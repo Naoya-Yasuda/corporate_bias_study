@@ -204,9 +204,34 @@ YAMLファイルを更新した後、変更を反映するために新しい実�
 ## 自動化
 
 ### GitHub Actionsでの定期実行
-このプロジェクトは、GitHub Actionsを使用して毎日自動的にPerplexityとOpenAIのバイアス分析を実行します。結果はS3バケットに保存され、GitHubのアーティファクトとしても7日間保存されます。
+このプロジェクトは、GitHub Actionsを使用して毎週自動的にデータ収集と分析を実行します。以下のモジュールが一括実行され、結果はS3バケットに保存され、GitHubのアーティファクトとしても7日間保存されます。
 
-実行時間: 毎日 06:00 JST (21:00 UTC)
+実行時間: 毎週月曜日 06:00 JST (21:00 UTC)
+
+実行されるモジュール:
+1. `perplexity_bias_loader` - Perplexity APIのバイアス評価 (10回実行)
+2. `perplexity_ranking_loader` - Perplexity APIのランキング抽出 (10回実行)
+3. `perplexity_citations_loader` - Perplexity APIの引用リンク抽出 (10回実行)
+4. `google_serp_loader` - Google検索結果の取得と比較分析
+5. `openai_bias_loader` - OpenAI APIのバイアス評価 (10回実行) - APIキーがある場合のみ
+6. `ranking_metrics` - ランキング指標の分析
+7. `bias_metrics` - バイアス指標の分析 (Perplexityと条件付きでOpenAI)
+8. `bias_ranking_pipeline` - 統合バイアス評価パイプライン (引用リンクデータ使用)
+
+これにより、単なるデータ収集だけでなく、詳細な分析結果も自動的に生成され、企業バイアスの時系列的な変化も追跡できます。
+
+### 実行頻度のカスタマイズ
+実行頻度は `.github/workflows/perplexity_bias_analysis.yml` ファイルのcron設定で変更できます。
+```yaml
+# 週次実行（毎週月曜）
+cron: '0 21 * * 1'
+
+# 日次実行
+# cron: '0 21 * * *'
+
+# 月次実行（毎月1日）
+# cron: '0 21 1 * *'
+```
 
 ## 分析結果の保存先
 - ローカル: `results/YYYYMMDD_*_results.json`
@@ -331,14 +356,19 @@ MITライセンス
 ## 7. 実行結果
 
 * `results/YYYYMMDD_perplexity_results.json` : Perplexity APIのバイアス評価結果（単一実行）
-* `results/YYYYMMDD_perplexity_results_5runs.json` : Perplexity APIのバイアス評価結果（複数実行時）
+* `results/YYYYMMDD_perplexity_results_10runs.json` : Perplexity APIのバイアス評価結果（複数実行時）
 * `results/YYYYMMDD_perplexity_rankings.json` : Perplexity APIのランキング抽出結果（単一実行）
-* `results/YYYYMMDD_perplexity_rankings_5runs.json` : Perplexity APIのランキング抽出結果（複数実行時）
+* `results/YYYYMMDD_perplexity_rankings_10runs.json` : Perplexity APIのランキング抽出結果（複数実行時）
 * `results/YYYYMMDD_perplexity_citations.json` : Perplexity APIの引用リンク順番結果（単一実行）
-* `results/YYYYMMDD_perplexity_citations_5runs.json` : Perplexity APIの引用リンク順番結果（複数実行時）
-* `results/YYYYMMDD_openai_results.json` : OpenAI APIの結果
+* `results/YYYYMMDD_perplexity_citations_10runs.json` : Perplexity APIの引用リンク順番結果（複数実行時）
+* `results/YYYYMMDD_openai_results.json` : OpenAI APIの結果（単一実行）
+* `results/YYYYMMDD_openai_results_10runs.json` : OpenAI APIの結果（複数実行時）
+* `results/YYYYMMDD_google_serp_results.json` : Google検索結果
+* `results/YYYYMMDD_google_serp_comparison.json` : Google検索とPerplexityの比較結果
+* `results/YYYYMMDD_google_serp_analysis.json` : Google検索の分析結果
 * `results/analysis/perplexity/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : Perplexity APIのバイアス指標分析結果
 * `results/analysis/openai/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : OpenAI APIのバイアス指標分析結果
+* `results/ranking_analysis/YYYYMMDD/` : ランキング分析の結果
 * 同様の結果がS3バケットにも保存されます
 
 ## 7.5 バイアス分析指標
@@ -501,17 +531,17 @@ python -m src.analysis.ranking_metrics --api openai
 python -m src.analysis.ranking_metrics --output results/my_analysis
 
 # ローカルのJSONファイルを直接分析
-python -m src.analysis.ranking_metrics --json-path results/20240501_perplexity_rankings_5runs.json
+python -m src.analysis.ranking_metrics --json-path results/20240501_perplexity_rankings_10runs.json
 ```
 
 バイアス分析と一緒に実行する場合：
 
 ```bash
 # バイアス分析とランキング分析を同時実行
-python -m src.analysis.bias_metrics results/20240501_perplexity_results_5runs.json --rankings
+python -m src.analysis.bias_metrics results/20240501_perplexity_results_10runs.json --rankings
 
 # 別日のランキングを指定して分析
-python -m src.analysis.bias_metrics results/20240501_perplexity_results_5runs.json --rankings --rankings-date 20240502
+python -m src.analysis.bias_metrics results/20240501_perplexity_results_10runs.json --rankings --rankings-date 20240502
 ```
 
 分析結果は以下のファイルに保存されます：
