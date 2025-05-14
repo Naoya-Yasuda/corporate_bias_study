@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import binom_test
 from tqdm import trange, tqdm
+from src.analysis.ranking_metrics import analyze_s3_rankings
 
 # -------------------------------------------------------------------
 # 効果量 & 検定ユーティリティ
@@ -247,9 +248,53 @@ def main():
     parser = argparse.ArgumentParser(description='感情スコアからバイアス指標を計算')
     parser.add_argument('input_file', help='分析対象のJSONファイルパス')
     parser.add_argument('--output', default='results/analysis', help='出力ディレクトリ（デフォルト: results/analysis）')
+    parser.add_argument('--rankings', action='store_true', help='ランキング分析も実行する')
+    parser.add_argument('--rankings-date', help='ランキング分析の日付（YYYYMMDD形式、デフォルト: 同日）')
+    parser.add_argument('--api-type', default='perplexity', choices=['perplexity', 'openai'],
+                        help='APIタイプ（デフォルト: perplexity）')
     args = parser.parse_args()
 
-    analyze_bias_from_file(args.input_file, args.output)
+    # バイアス分析を実行
+    bias_metrics = analyze_bias_from_file(args.input_file, args.output)
+
+    # ランキング分析も実行するオプションが指定されている場合
+    if args.rankings:
+        print("\n=== ランキング分析を実行します ===")
+        # 入力ファイル名から日付を抽出（例: 20240425_perplexity_results.json）
+        date_from_file = None
+        try:
+            import re
+            date_match = re.search(r'(\d{8})_', os.path.basename(args.input_file))
+            if date_match:
+                date_from_file = date_match.group(1)
+        except:
+            pass
+
+        # 日付の指定順位: コマンドライン引数 > ファイル名から抽出 > 今日の日付
+        date_str = args.rankings_date or date_from_file or datetime.datetime.now().strftime("%Y%m%d")
+
+        # S3からランキングデータを取得して分析
+        ranking_summary = analyze_s3_rankings(
+            date_str=date_str,
+            api_type=args.api_type,
+            output_dir=f"{args.output}/rankings/{date_str}",
+            upload_results=True
+        )
+
+        if ranking_summary is not None:
+            print("\n✅ バイアス分析とランキング分析が完了しました")
+        else:
+            print("\n⚠️ ランキング分析は失敗しましたが、バイアス分析は完了しています")
 
 if __name__ == "__main__":
     main()
+
+# S3からランキングデータを取得して分析する例
+# 例1: 最新の Perplexity ランキングを分析
+# summary = analyze_s3_rankings()
+
+# 例2: 特定日付の OpenAI ランキングを分析
+# summary = analyze_s3_rankings(
+#     date_str="20230501",
+#     api_type="openai"
+# )

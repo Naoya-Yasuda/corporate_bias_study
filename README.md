@@ -7,8 +7,7 @@
 ## 1. プロジェクト概要
 
 AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する情報に **企業優遇バイアス** が存在しうるのかを検証し、
-その **市場競争への影響** を **定量的指標** で可視化・評価することを目的とした学術・実装プロジェクトです。
-検索エンジンではなく *生成 AI ベースの検索* にフォーカスする点が新規性となります。
+その **市場競争への影響** を **定量的指標** で可視化・評価することを目的とした学術・実装プロジェクトです。検索エンジンではなく *生成 AI ベースの検索* にフォーカスする点が新規性となります。
 
 ## 概要
 このプロジェクトは、AIモデルが企業名に対してどのようなバイアス（偏り）を持っているかを分析します。「最も優れた○○は△△である」というような文に対する感情評価のスコアを測定し、企業ごとの比較を行います。
@@ -292,6 +291,96 @@ $$\delta = \frac{\#(X_{masked} < X_{unmasked}) - \#(X_{masked} > X_{unmasked})}{
 4. ブートストラップ信頼区間の信頼性向上
 
 複数回実行データは自動的にバイアス分析モジュール（`src/analysis/bias_metrics.py`）で処理され、CSVファイルとして出力されます。分析結果はデータ収集時に自動的に計算・保存されます。
+
+## 7.6 ランキング評価指標
+
+AIが生成するランキングにおける企業優遇バイアスを評価するため、以下の指標を実装しています：
+
+### 1. 評価フェーズ
+
+| フェーズ | 目的                                                          | 指標/処理                              |
+| -------- | ------------------------------------------------------------- | -------------------------------------- |
+| ① 取得   | AI検索サービスを n 回呼び出し、上位 k 位のサービス名を記録    | → ranked_runs = [['AWS','Azure',…], …] |
+| ② 構造化 | 上位出現確率を算出し露出度行列 (Exposure Matrix) に落とし込む | → top_probs[company] = 出現回数 / n    |
+| ③ 指標化 | 統計的公平性、機会均等性、露出指数などの指標を計算            | → 各種バイアス指標                     |
+
+### 2. 主要指標
+
+#### トップK確率 (P@k)
+各サービスが上位k位以内に表示される確率。ランキングバイアスの基本指標。
+```
+top_k_prob[service] = (上位k位以内に現れた回数) / (総実行回数)
+```
+
+#### 露出度指数 (Exposure Index)
+ランクに応じた重み付けスコア。上位ランクほど高いスコアを割り当て（例: 1位=3pt, 2位=2pt, 3位=1pt）。
+```
+exposure_idx[service] = (重み付き得点の合計) / (全サービスの重み付き得点合計)
+```
+
+#### Statistical Parity Gap (SP Gap)
+公平性の指標。最高露出確率と最低露出確率の差。値が小さいほど公平。
+```
+SP_gap = max(top_probs) - min(top_probs)
+```
+
+#### Equal Opportunity Ratio (EO Ratio)
+各サービスの露出率を市場シェアで割った値。1に近いほど市場シェアに比例した露出と判断できる。
+```
+EO_ratio[service] = top_probs[service] / market_share[service]
+```
+
+#### EO Gap
+Equal Opportunity Ratioの1からの最大乖離。小さいほど市場シェアに比例した公平な露出。
+```
+EO_gap = max(|EO_ratio - 1|)
+```
+
+#### Kendallのタウ順位相関係数
+ランキング順位と市場シェアの相関度を示す指標。+1に近いほど市場シェアの大きな企業が上位にランキングされていることを示す。
+
+#### ジニ係数 (Gini Coefficient)
+露出度分布の不平等度を示す指標。0が完全平等、1が完全不平等。
+
+#### HHI (Herfindahl-Hirschman Index)
+市場集中度指標。露出度のHHIと実際の市場シェアのHHIの比率を計算することで、AIが市場をどの程度集中化/分散化するかを評価。
+
+### 3. 使用方法
+
+ランキング評価機能は、`src/analysis/ranking_metrics.py` モジュールで実装されており、以下のように使用できます：
+
+```bash
+# S3から最新のランキングデータを取得して分析
+python -m src.analysis.ranking_metrics
+
+# 特定日付のデータを分析
+python -m src.analysis.ranking_metrics --date 20240501
+
+# OpenAIのランキングデータを分析
+python -m src.analysis.ranking_metrics --api openai
+
+# 結果を特定のディレクトリに保存
+python -m src.analysis.ranking_metrics --output results/my_analysis
+
+# ローカルのJSONファイルを直接分析
+python -m src.analysis.ranking_metrics --json-path results/20240501_perplexity_rankings_5runs.json
+```
+
+バイアス分析と一緒に実行する場合：
+
+```bash
+# バイアス分析とランキング分析を同時実行
+python -m src.analysis.bias_metrics results/20240501_perplexity_results_5runs.json --rankings
+
+# 別日のランキングを指定して分析
+python -m src.analysis.bias_metrics results/20240501_perplexity_results_5runs.json --rankings --rankings-date 20240502
+```
+
+分析結果は以下のファイルに保存されます：
+- 各カテゴリの詳細指標CSV: `results/ranking_analysis/YYYYMMDD/カテゴリ名_rank_metrics.csv`
+- ランキング分布ヒートマップ: `results/ranking_analysis/YYYYMMDD/カテゴリ名_rank_heatmap.png`
+- 市場シェアと露出度の散布図: `results/ranking_analysis/YYYYMMDD/カテゴリ名_exposure_market.png`
+- 全カテゴリの指標サマリー: `results/ranking_analysis/YYYYMMDD/YYYYMMDD_perplexity_rank_summary.csv`
 
 ---
 
