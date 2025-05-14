@@ -74,6 +74,80 @@ python -m src.openai_bias_loader --multiple --runs 5
 python -m src.perplexity_bias_loader --multiple --runs 5 --no-analysis
 ```
 
+#### ストレージ設定のカスタマイズ
+`.env`ファイルの`STORAGE_MODE`で保存方法を指定できます。
+
+```
+# ローカルのみに保存
+STORAGE_MODE=local_only
+
+# S3のみに保存
+STORAGE_MODE=s3_only
+
+# 両方に保存（デフォルト）
+STORAGE_MODE=both
+```
+
+保存ディレクトリやS3プレフィックスのカスタマイズ：
+
+```
+# ローカル保存先のカスタマイズ
+LOCAL_RESULTS_DIR=custom_results
+
+# S3プレフィックスのカスタマイズ
+S3_RESULTS_PREFIX=project/results
+```
+
+#### 新しいストレージAPIの使用例
+```python
+# JSONデータの保存
+from src.utils import save_json_data
+results = {"data": [...], "metadata": {...}}
+save_json_data(results, "results/analysis.json")
+
+# テキストデータの保存
+from src.utils import save_text_data
+text = "分析レポートの内容..."
+save_text_data(text, "results/report.txt")
+
+# 図の保存
+from src.utils import save_figure
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
+ax.plot([1, 2, 3], [4, 5, 6])
+save_figure(fig, "results/graph.png")
+
+# 明示的なS3パスの指定
+save_json_data(results, "results/analysis.json", "custom/path/analysis.json")
+```
+
+#### 各モジュールのヘルプ
+各モジュールのコマンドラインオプションと使用方法を確認するには、`--help`オプションを使用します：
+
+```bash
+# バイアス評価モジュールのヘルプ
+python -m src.perplexity_bias_loader --help
+python -m src.openai_bias_loader --help
+
+# ランキング抽出モジュールのヘルプ
+python -m src.perplexity_ranking_loader --help
+
+# Google SERP抽出モジュールのヘルプ
+python -m src.google_serp_loader --help
+
+# 分析モジュールのヘルプ
+python -m src.analysis.ranking_metrics --help
+python -m src.analysis.bias_metrics --help
+python -m src.analysis.serp_metrics --help
+python -m src.analysis.bias_ranking_pipeline --help
+```
+
+ヘルプでは各モジュールの以下の情報が表示されます：
+- 機能の概要説明
+- 使用可能なコマンドラインオプション
+- デフォルト値
+- 使用例
+
 ### プロンプトテンプレートのテスト
 ```bash
 # ランキングプロンプトの生成のみ
@@ -536,6 +610,56 @@ python -m src.analysis.serp_metrics results/20240501_google_serp_results.json re
    - ヒートマップによるランキング分布の可視化
    - 散布図による市場シェアと露出度の関係分析
    - バイアスによる市場シェア変化の可視化
+
+### リファクタリングの成果
+
+リファクタリングにより以下の改善を行いました：
+
+1. **共通ユーティリティモジュールの整備**
+   - `src/utils/s3_utils.py`: S3操作の共通関数
+   - `src/utils/file_utils.py`: ファイル操作の共通関数
+   - `src/utils/text_utils.py`: テキスト処理の共通関数
+   - `src/utils/rank_utils.py`: ランキング処理の共通関数
+   - `src/utils/plot_utils.py`: データ可視化の共通関数
+
+2. **コードの保守性向上**
+   - 重複コードの削除によるバグリスクの低減
+   - 一貫した関数名と引数による可読性の向上
+   - モジュール間の依存関係の明確化
+
+3. **拡張性の改善**
+   - 新しいデータソースの追加が容易に
+   - 分析手法の追加・変更がしやすく
+   - テスト可能性の向上
+
+4. **データ保存の一元化**
+   - 統一的なストレージAPIの実装
+   - ローカル保存とS3保存の設定による切り替え
+   - 一貫したパス構造の確保
+
+### 今後の改善点
+
+1. **データ保存機能の充実**
+   - エラーリカバリ機能の強化
+   - キャッシュメカニズムの追加
+   - ストレージ抽象化のさらなる改善
+
+2. **コードドキュメントの充実**
+   - 各モジュールのdocstringの追加・改善
+   - 型ヒントの追加によるコード品質の向上
+
+3. **エラーハンドリングの強化**
+   - API呼び出しの例外処理の統一
+   - リトライ機能の追加
+
+4. **テストコードの整備**
+   - ユニットテストの追加
+   - 自動テスト環境の構築
+
+5. **ドキュメント生成**
+   - Sphinxを使用した自動ドキュメント生成
+   - READMEとAPIドキュメントの連携
+   - コードの使用例を含むチュートリアルの作成
 
 ### バイアス指標
 

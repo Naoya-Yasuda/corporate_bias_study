@@ -23,12 +23,12 @@ from urllib.parse import urlparse
 from collections import defaultdict
 from dotenv import load_dotenv
 
-# 新しいユーティリティモジュールのインポート
+# 新しいストレージAPIのインポート
 from src.utils import extract_domain, is_negative, ratio
 from src.utils import rbo, rank_map, compute_tau, compute_delta_ranks
 from src.utils import plot_delta_ranks, plot_market_impact
-from src.utils import save_to_s3, put_json_to_s3
-from src.utils import ensure_dir, save_json, get_today_str
+from src.utils import save_json_data, save_text_data, save_figure
+from src.utils import get_today_str
 
 # .env ファイルから環境変数を読み込み
 load_dotenv()
@@ -36,12 +36,6 @@ load_dotenv()
 # API キーの取得
 SERP_API_KEY = os.getenv("SERP_API_KEY")
 PPLX_API_KEY = os.getenv("PPLX_API_KEY")
-
-# S3 設定情報
-AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
-AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
-AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-1")
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 # -------------------------------------------------------------------
 # ユーティリティ関数
@@ -103,42 +97,6 @@ def apply_bias_to_share(market_share, eo_ratio, weight=0.1):
 
     return adjusted_share
 
-def rank_map(domain_list):
-    """
-    ドメインリストから順位マップを作成（同じドメインは最初の出現位置を使用）
-
-    Parameters:
-    -----------
-    domain_list : list
-        ドメインのリスト
-
-    Returns:
-    --------
-    dict
-        ドメイン→順位のマップ
-    """
-    rank_dict = {}
-    for idx, domain in enumerate(domain_list, 1):
-        if domain not in rank_dict:
-            rank_dict[domain] = idx
-    return rank_dict
-
-def create_company_domain_map(market_share):
-    """
-    ドメイン→企業名のマッピングを作成
-
-    Parameters:
-    -----------
-    market_share : dict
-        ドメイン→市場シェアのマップ
-
-    Returns:
-    --------
-    dict
-        ドメイン→企業名のマップ
-    """
-    return {domain: re.sub(r"\..*$", "", domain).upper() for domain in market_share}
-
 def compute_top_probability(domain_rank, market_domains, top_k):
     """
     ドメインがtop_k位以内に出現する確率を計算
@@ -167,167 +125,6 @@ def compute_top_probability(domain_rank, market_domains, top_k):
             top_prob[domain] = 0.0
 
     return top_prob
-
-def plot_delta_ranks(delta_ranks, output_path):
-    """
-    ΔRankをバーチャートで可視化
-
-    Parameters:
-    -----------
-    delta_ranks : dict
-        ドメイン→Δランクのマップ
-    output_path : str
-        出力ファイルパス
-    """
-    if not delta_ranks:
-        return None
-
-    # データフレームに変換
-    df = pd.DataFrame({
-        "domain": list(delta_ranks.keys()),
-        "delta_rank": list(delta_ranks.values())
-    })
-
-    # 欠損値を除外
-    df = df.dropna()
-
-    if df.empty:
-        return None
-
-    # ΔRankでソート
-    df = df.sort_values("delta_rank")
-
-    # プロット
-    plt.figure(figsize=(10, 6))
-    bars = plt.barh(df["domain"], df["delta_rank"])
-
-    # ゼロラインを強調
-    plt.axvline(x=0, color='k', linestyle='-', alpha=0.3)
-
-    # バーの色を設定（負の値は緑、正の値は赤）
-    for i, bar in enumerate(bars):
-        if df["delta_rank"].iloc[i] < 0:
-            bar.set_color('green')
-        else:
-            bar.set_color('red')
-
-    plt.title("Google vs Perplexity ΔRank比較")
-    plt.xlabel("Δ Rank (Perplexity - Google)")
-    plt.grid(axis='x', alpha=0.3)
-
-    # 保存
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=100, bbox_inches="tight")
-    plt.close()
-
-    return output_path
-
-def plot_market_impact(original_share, adjusted_share, output_path):
-    """
-    市場シェアへの影響を可視化
-
-    Parameters:
-    -----------
-    original_share : dict
-        元の市場シェア
-    adjusted_share : dict
-        調整後の市場シェア
-    output_path : str
-        出力ファイルパス
-    """
-    if not original_share or not adjusted_share:
-        return None
-
-    # データフレームに変換
-    companies = list(original_share.keys())
-    df = pd.DataFrame({
-        "domain": companies,
-        "original": [original_share[c] for c in companies],
-        "adjusted": [adjusted_share[c] for c in companies]
-    })
-
-    # シェアの差分を計算
-    df["diff"] = df["adjusted"] - df["original"]
-    df["diff_percent"] = (df["diff"] / df["original"]) * 100
-
-    # ソート
-    df = df.sort_values("original", ascending=False)
-
-    # プロット
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-
-    # 左側：シェア比較
-    ax1.bar(df["domain"], df["original"], alpha=0.5, label="元のシェア")
-    ax1.bar(df["domain"], df["adjusted"], alpha=0.5, label="調整後シェア")
-    ax1.set_title("市場シェア比較")
-    ax1.set_ylabel("市場シェア")
-    ax1.set_ylim(0, max(df["original"].max(), df["adjusted"].max()) * 1.1)
-    ax1.legend()
-
-    # 右側：変化率
-    bars = ax2.bar(df["domain"], df["diff_percent"])
-    for i, bar in enumerate(bars):
-        if df["diff_percent"].iloc[i] < 0:
-            bar.set_color('red')
-        else:
-            bar.set_color('green')
-
-    ax2.set_title("シェア変化率")
-    ax2.set_ylabel("変化率 (%)")
-    ax2.set_ylim(min(df["diff_percent"].min() * 1.1, 0), max(df["diff_percent"].max() * 1.1, 0))
-    ax2.axhline(y=0, color='k', linestyle='-', alpha=0.3)
-
-    plt.suptitle("検索バイアスによる市場シェア影響")
-    plt.tight_layout()
-
-    # 保存
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=100, bbox_inches="tight")
-    plt.close()
-
-    return output_path
-
-def save_to_s3(local_path, s3_path):
-    """
-    ファイルをS3にアップロード
-
-    Parameters:
-    -----------
-    local_path : str
-        ローカルファイルパス
-    s3_path : str
-        S3上のパス
-
-    Returns:
-    --------
-    bool
-        成功したかどうか
-    """
-    if not (AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME):
-        print("S3認証情報が設定されていないため、S3への保存をスキップします")
-        return False
-
-    try:
-        import boto3
-
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=AWS_ACCESS_KEY,
-            aws_secret_access_key=AWS_SECRET_KEY,
-            region_name=AWS_REGION
-        )
-
-        s3_client.upload_file(
-            local_path,
-            S3_BUCKET_NAME,
-            s3_path
-        )
-
-        print(f"ファイルを S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
-        return True
-    except Exception as e:
-        print(f"S3へのアップロードに失敗しました: {e}")
-        return False
 
 # -------------------------------------------------------------------
 # API呼び出し関数
@@ -601,40 +398,51 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
 
     # 9. 結果の保存
     # 現在の日付を取得（ファイル名用）
-    today = datetime.datetime.now().strftime("%Y%m%d")
+    today = get_today_str()
 
     # DataFrameをCSVに保存
     csv_path = os.path.join(output_dir, "rank_comparison.csv")
     result_df.to_csv(csv_path, index=False, encoding="utf-8")
 
-    # サマリーをJSONに保存
+    # サマリーをJSONに保存（新しいAPIを使用）
     json_path = os.path.join(output_dir, "bias_analysis.json")
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(summary, f, ensure_ascii=False, indent=2)
+    save_json_data(summary, json_path)
 
-    # ΔRankグラフ
+    # ΔRankグラフ（プロット後、新しいAPIで保存）
     plot_path = os.path.join(output_dir, "delta_ranks.png")
-    plot_delta_ranks(delta_rank, plot_path)
+    # 以前のプロット関数は図を保存するのではなく、図を返すように変更が必要
+    fig_delta = plot_delta_ranks(delta_rank, None)  # Noneを渡してファイル保存をスキップ
+    if fig_delta:
+        save_figure(fig_delta, plot_path)
 
     # 市場影響グラフ
     market_path = os.path.join(output_dir, "market_impact.png")
-    plot_market_impact(market_share, adjusted_share_p, market_path)
+    fig_market = plot_market_impact(market_share, adjusted_share_p, None)  # Noneを渡してファイル保存をスキップ
+    if fig_market:
+        save_figure(fig_market, market_path)
 
-    # S3に保存
-    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
-        print("結果をS3にアップロードしています...")
-        # S3のベースパス
-        s3_base_path = f"results/bias_analysis/{today}/{os.path.basename(output_dir)}"
+    # S3のベースパス
+    s3_base_path = f"results/bias_analysis/{today}/{os.path.basename(output_dir)}"
 
-        # CSVをアップロード
-        save_to_s3(csv_path, f"{s3_base_path}/rank_comparison.csv")
+    # 結果ファイルのS3パスを構築
+    s3_csv_path = f"{s3_base_path}/rank_comparison.csv"
+    s3_json_path = f"{s3_base_path}/bias_analysis.json"
+    s3_plot_path = f"{s3_base_path}/delta_ranks.png"
+    s3_market_path = f"{s3_base_path}/market_impact.png"
 
-        # JSONをアップロード
-        save_to_s3(json_path, f"{s3_base_path}/bias_analysis.json")
+    # CSVファイルをテキストとして保存（新しいAPIを使用）
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        csv_content = f.read()
+    save_text_data(csv_content, csv_path, s3_csv_path)
 
-        # 画像をアップロード
-        save_to_s3(plot_path, f"{s3_base_path}/delta_ranks.png")
-        save_to_s3(market_path, f"{s3_base_path}/market_impact.png")
+    # JSONデータを保存（再度保存、S3パスを明示的に指定）
+    save_json_data(summary, json_path, s3_json_path)
+
+    # 図の保存（再度保存、S3パスを明示的に指定）
+    if fig_delta:
+        save_figure(fig_delta, plot_path, s3_plot_path)
+    if fig_market:
+        save_figure(fig_market, market_path, s3_market_path)
 
     print(f"分析が完了しました。結果は {output_dir} に保存されました。")
 
