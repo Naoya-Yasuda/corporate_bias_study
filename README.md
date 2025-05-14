@@ -19,6 +19,7 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 - マスクあり・マスクなしの評価値比較
 - 複数回実行による平均値と標準偏差の計算
 - ローカルとS3への結果保存
+- モジュール化されたカテゴリ定義と再利用可能なプロンプトテンプレート
 
 ## セットアップ
 1. リポジトリをクローン
@@ -26,6 +27,13 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
    ```
    pip install -r requirements.txt
    ```
+
+   または以下のコマンドでconda環境を作成
+   ```
+   conda env create -f environment.yml
+   conda activate cu_study
+   ```
+
 3. 必要な環境変数を設定した`.env`ファイルを作成
    ```
    PERPLEXITY_API_KEY=your_perplexity_api_key
@@ -41,19 +49,34 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 ### 単一実行
 ```bash
 # Perplexity
-python src/perplexity_bias_loader.py
+python -m src.perplexity_bias_loader
 
 # OpenAI
-python src/openai_bias_loader.py
+python -m src.openai_bias_loader
 ```
 
 ### 複数回実行（平均値を計算）
 ```bash
 # Perplexity（5回実行）
-python src/perplexity_bias_loader.py --multiple --runs 5
+python -m src.perplexity_bias_loader --multiple --runs 5
 
 # OpenAI（5回実行）
-python src/openai_bias_loader.py --multiple --runs 5
+python -m src.openai_bias_loader --multiple --runs 5
+```
+
+### カテゴリ/サービスのカスタマイズ
+カテゴリとサービスは `src/categories.py` で一元管理されています。このファイルを編集することで、評価対象のカテゴリとサービスをカスタマイズできます。
+
+```python
+# カテゴリとサービスの例
+categories = {
+    "デジタルサービス": {
+        "クラウドサービス": ["AWS", "Azure", "Google Cloud", "IBM Cloud"],
+        "検索エンジン": ["Google", "Bing", "Yahoo! Japan", "Baidu"],
+        # コメントアウトされたカテゴリは評価されません
+        # "ストリーミングサービス": ["Netflix", "Amazon Prime Video", "Disney+", "Hulu"],
+    }
+}
 ```
 
 ## 自動化
@@ -120,37 +143,67 @@ MITライセンス
 
 ```text
 .
-├─ src/
-│   ├─ api_clients/          # Perplexity, OpenAI などラッパ
-│   ├─ prompts/              # json / yaml 形式テンプレート
-│   ├─ analysis/             # 指標計算 & 可視化スクリプト
-│   └─ reports/              # 自動生成される CSV / Markdown
-├─ data/                     # 収集データ (gitignore 済)
+├─ src/                      # ソースコード
+│   ├─ __init__.py           # パッケージ初期化ファイル
+│   ├─ categories.py         # カテゴリとサービス定義（一元管理）
+│   ├─ perplexity_bias_loader.py # Perplexity API実行ファイル
+│   ├─ openai_bias_loader.py # OpenAI API実行ファイル
+│   ├─ prompts/              # プロンプトテンプレート
+│   │   ├─ __init__.py
+│   │   ├─ perplexity_prompts.py # Perplexity用プロンプト
+│   │   └─ openai_prompts.py # OpenAI用プロンプト（未実装）
+│   └─ analysis/             # 分析・可視化ツール（今後追加予定）
+├─ results/                  # 結果保存先（自動生成）
+├─ .env                      # 環境変数（gitignore対象）
 ├─ .github/
-│   └─ workflows/            # GitHub Actions 定義ファイル
-└─ README.md                 # ← 本ファイル
+│   └─ workflows/            # GitHub Actions定義ファイル
+├─ requirements.txt          # 依存パッケージリスト
+├─ environment.yml           # Conda環境定義ファイル
+└─ README.md                 # 本ファイル
 ```
 
+## 6. モジュール設計
 
-## 8. 実行結果
+本プロジェクトは以下のようにモジュール化されています：
 
-* `src/reports/YYYYMMDD_bias_report.md` : 定量評価まとめ
-* `src/reports/YYYYMMDD_bias_metrics.csv` : 指標値 (CSV)
-* 成果物は Action 成功時に artefact としてダウンロード可能です。
+1. **カテゴリとサービス定義** (`src/categories.py`)
+   - すべてのカテゴリとサービスの定義を一元管理
+   - 評価観点（viewpoints）の定義
+   - カウント・集計機能
+
+2. **プロンプトテンプレート** (`src/prompts/`)
+   - 各APIごとにプロンプトを分離
+   - 再利用可能な関数として実装
+   - 評価値抽出ロジックの標準化
+
+3. **API実行モジュール** (`src/perplexity_bias_loader.py`, `src/openai_bias_loader.py`)
+   - API呼び出し処理
+   - 複数回実行と統計処理
+   - 結果の保存機能
+
+## 7. 実行結果
+
+* `results/YYYYMMDD_perplexity_results.json` : Perplexity APIの結果（単一実行）
+* `results/YYYYMMDD_perplexity_results_5runs.json` : Perplexity APIの結果（複数実行時）
+* `results/YYYYMMDD_openai_results.json` : OpenAI APIの結果
+* 同様の結果がS3バケットにも保存されます
 
 ---
 
-## 9. ロードマップ
+## 8. ロードマップ
 
 * ✅ Python スクリプト化 & Poetry / Actions テンプレート
-* ✅ 感情評価バイアス検証スクリプト (`sentiment_bias.py`)
+* ✅ 感情評価バイアス検証スクリプト
+* ✅ モジュール分割とコード整理
+* ✅ 複数回実行による統計処理
+* ☐ コスト最適化（バッチ処理等）
 * ☐ Google 検索スクレイピング & 比較モジュール
 * ☐ ダッシュボード統合 (Streamlit 予定)
 * ☐ 論文化 & 研究会発表
 
 ---
 
-## 10. 引用・参考文献
+## 9. 引用・参考文献
 
 主要な先行研究・ガイドラインは `/docs/references.bib` を参照。
 

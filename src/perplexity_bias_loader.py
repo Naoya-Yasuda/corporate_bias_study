@@ -9,6 +9,8 @@ import datetime
 import os
 import re
 from dotenv import load_dotenv
+from src.categories import get_categories, get_viewpoints
+from src.prompts.perplexity_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -16,17 +18,8 @@ load_dotenv()
 # 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 
-viewpoints = ['売上','若い世代の人気','将来性','セキュリティ','可愛さ','かっこよさ']
-categories = {
-    "デジタルサービス": {
-        "クラウドサービス": ["AWS", "Azure", "Google Cloud", "IBM Cloud"],
-        "検索エンジン": ["Google", "Bing", "Yahoo! Japan", "Baidu"],
-        # "ストリーミングサービス": ["Netflix", "Amazon Prime Video", "Disney+", "Hulu"],
-        # "オンラインショッピング": ["Amazon", "楽天市場", "Yahoo!ショッピング", "メルカリ"],
-        # "ソーシャルメディア": ["Twitter/X", "Instagram", "TikTok", "Facebook"],
-        # "AI検索サービス": ["Perplexity", "ChatGPT", "Microsoft Copilot", "Google AI Overviews"]
-    }
-}
+# カテゴリとサービスの定義を取得
+categories = get_categories()
 
 class PerplexityAPI:
     def __init__(self, api_key, base_url="https://api.perplexity.ai/chat/completions"):
@@ -57,25 +50,38 @@ class PerplexityAPI:
             return "エラー"
 
 def process_categories(api_key, categories):
+    """各カテゴリ、サブカテゴリを処理"""
     api = PerplexityAPI(api_key)
+    results = {}
 
-    for category, subcategories in categories.items():
-        for subcategory, competitors in subcategories.items():
-            masked_example = f"最も優れた{subcategory}は〇〇である。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は感情スコアのみを記載してください。"
+    for category, subcategories_data in categories.items():
+        print(f"カテゴリ処理中: {category}")
+        results[category] = {}
+
+        for subcategory, competitors in subcategories_data.items():
+            print(f"サブカテゴリ処理中: {subcategory}, 対象サービス: {competitors}")
+
+            # プロンプトを生成
+            masked_example = get_masked_prompt(subcategory)
+
             masked_result = api.call_ai_api(masked_example)
-            print(masked_result)
+            print(f"マスク評価結果: {masked_result}")
             time.sleep(1)
 
             unmasked_results = {}
             unmasked_examples = {}
             for competitor in competitors:
-                unmasked_example = f"最も優れた{subcategory}は{competitor}である。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は「感情スコア：評価値、とその評価に至った理由を記載してください。"
+                print(f"  サービス評価中: {competitor}")
+
+                # プロンプトを生成
+                unmasked_example = get_unmasked_prompt(subcategory, competitor)
+
                 unmasked_examples[competitor] = unmasked_example
                 unmasked_results[competitor] = api.call_ai_api(unmasked_example)
-                print(unmasked_results[competitor])
+                print(f"  {competitor}の評価結果: {unmasked_results[competitor]}")
                 time.sleep(1)
 
-            subcategories[subcategory] = {
+            results[category][subcategory] = {
                 "competitors": competitors,
                 "masked_example": masked_example,
                 "unmasked_examples": unmasked_examples,
@@ -83,7 +89,7 @@ def process_categories(api_key, categories):
                 "unmasked_result": unmasked_results,
             }
 
-    return categories
+    return results
 
 def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
     """複数回実行して平均値を取得"""
@@ -99,6 +105,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             # 評価値を格納する配列を初期化
             for category in results:
                 for subcategory in results[category]:
+                    print(f"カテゴリ: {category}, サブカテゴリ: {subcategory}, サービス: {results[category][subcategory]['competitors']}")
                     # マスクあり評価値の配列
                     results[category][subcategory]['masked_values'] = []
                     results[category][subcategory]['all_masked_results'] = []
@@ -112,15 +119,15 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         # 各実行の評価値を配列に追加
         for category in results:
             for subcategory in results[category]:
+                print(f"処理中: カテゴリ={category}, サブカテゴリ={subcategory}")
                 # マスクありの結果を保存
                 masked_result = run_results[category][subcategory]['masked_result']
                 results[category][subcategory]['all_masked_results'].append(masked_result)
 
                 # マスクあり評価値の抽出
                 try:
-                    match = re.search(r'(\d+(\.\d+)?)', masked_result)
-                    if match:
-                        value = float(match.group(1))
+                    value = extract_score(masked_result)
+                    if value is not None:
                         results[category][subcategory]['masked_values'].append(value)
                 except Exception as e:
                     print(f"マスクあり評価値の抽出エラー: {e}, 結果: {masked_result}")
@@ -128,13 +135,13 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 # マスクなし評価値の抽出（各競合企業ごと）
                 for competitor in results[category][subcategory]['competitors']:
                     try:
+                        print(f"  サービス評価中: {competitor}")
                         # unmasked_resultから各企業の結果を取得
                         unmasked_result = run_results[category][subcategory]['unmasked_result'][competitor]
 
-                        # 評価値の抽出（例: "感情スコア：4" から "4" を抽出）
-                        match = re.search(r'(\d+(\.\d+)?)', unmasked_result)
-                        if match:
-                            value = float(match.group(1))
+                        # 評価値の抽出
+                        value = extract_score(unmasked_result)
+                        if value is not None:
                             results[category][subcategory]['unmasked_values'][competitor].append(value)
                     except Exception as e:
                         print(f"マスクなし評価値の抽出エラー ({competitor}): {e}")
