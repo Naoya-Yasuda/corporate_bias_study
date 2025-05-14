@@ -73,7 +73,7 @@ python -m src.openai_bias_loader --multiple --runs 5
 
 ### プロンプトテンプレートのテスト
 ```bash
-# ランキングプロンプトの生成と抽出テスト
+# ランキングプロンプトの生成のみ
 python -m src.prompts.ranking_prompts "クラウドサービス" "AWS,Azure,Google Cloud,IBM Cloud"
 
 # テキストからのランキング抽出
@@ -81,6 +81,12 @@ python -m src.prompts.ranking_prompts "検索エンジン" "Google,Bing,Yahoo! J
 
 # ファイルからのランキング抽出
 python -m src.prompts.ranking_prompts "検索エンジン" "Google,Bing,Yahoo! Japan,Baidu" --file response.txt
+
+# Perplexity APIを使用した複数回ランキング取得（3回実行）
+python -m src.prompts.ranking_prompts "クラウドサービス" "AWS,Azure,Google Cloud,IBM Cloud" --api --runs 3
+
+# 結果をJSONファイルに保存
+python -m src.prompts.ranking_prompts "クラウドサービス" "AWS,Azure,Google Cloud,IBM Cloud" --api --output results/cloud_ranks.json
 ```
 
 ### カテゴリ/サービスのカスタマイズ
