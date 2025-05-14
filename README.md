@@ -10,6 +10,66 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 その **市場競争への影響** を **定量的指標** で可視化・評価することを目的とした学術・実装プロジェクトです。
 検索エンジンではなく *生成 AI ベースの検索* にフォーカスする点が新規性となります。
 
+## 概要
+このプロジェクトは、AIモデルが企業名に対してどのようなバイアス（偏り）を持っているかを分析します。「最も優れた○○は△△である」というような文に対する感情評価のスコアを測定し、企業ごとの比較を行います。
+
+## 機能
+- Perplexity APIを使用した企業バイアス評価
+- OpenAI APIを使用した企業バイアス評価
+- マスクあり・マスクなしの評価値比較
+- 複数回実行による平均値と標準偏差の計算
+- ローカルとS3への結果保存
+
+## セットアップ
+1. リポジトリをクローン
+2. 必要なパッケージをインストール
+   ```
+   pip install -r requirements.txt
+   ```
+3. 必要な環境変数を設定した`.env`ファイルを作成
+   ```
+   PERPLEXITY_API_KEY=your_perplexity_api_key
+   OPENAI_API_KEY=your_openai_api_key
+   AWS_ACCESS_KEY=your_aws_access_key
+   AWS_SECRET_KEY=your_aws_secret_key
+   AWS_REGION=your_aws_region
+   S3_BUCKET_NAME=your_s3_bucket_name
+   ```
+
+## 使用方法
+
+### 単一実行
+```bash
+# Perplexity
+python src/perplexity_bias_loader.py
+
+# OpenAI
+python src/openai_bias_loader.py
+```
+
+### 複数回実行（平均値を計算）
+```bash
+# Perplexity（5回実行）
+python src/perplexity_bias_loader.py --multiple --runs 5
+
+# OpenAI（5回実行）
+python src/openai_bias_loader.py --multiple --runs 5
+```
+
+## 自動化
+
+### GitHub Actionsでの定期実行
+このプロジェクトは、GitHub Actionsを使用して毎日自動的にPerplexityとOpenAIのバイアス分析を実行します。結果はS3バケットに保存され、GitHubのアーティファクトとしても7日間保存されます。
+
+実行時間: 毎日 06:00 JST (21:00 UTC)
+
+## 分析結果の保存先
+- ローカル: `results/YYYYMMDD_*_results.json`
+- S3: `s3://your-bucket/results/{openai|perplexity}/YYYYMMDD/*_results.json`
+
+## ライセンス
+MITライセンス
+
 ---
 
 ## 2. 研究目標
@@ -67,73 +127,10 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 │   └─ reports/              # 自動生成される CSV / Markdown
 ├─ data/                     # 収集データ (gitignore 済)
 ├─ .github/
-│   └─ workflows/
-│       └─ bias_analysis.yml # GitHub Actions で定期実行
+│   └─ workflows/            # GitHub Actions 定義ファイル
 └─ README.md                 # ← 本ファイル
 ```
 
----
-
-## 6. セットアップ
-
-```bash
-# 1. Poetry で依存ライブラリをインストール
-poetry install
-
-# 2. API キーをローカルで動かす場合は .env に設定
-echo 'PPLX_API_KEY=xxxxxxxx' >> .env
-```
-
----
-
-## 7. GitHub Actions での定期実行
-
-`.github/workflows/bias_analysis.yml`
-
-```yaml
-name: Bias Analysis (Daily)
-
-on:
-  schedule:
-    - cron:  '0 21 * * *'   # 毎日 06:00 JST (=21:00 UTC) に実行
-  workflow_dispatch:
-
-jobs:
-  run-analysis:
-    runs-on: ubuntu-latest
-    env:
-      PPLX_API_KEY: ${{ secrets.PPLX_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'poetry'
-      - name: Install deps
-        run: |
-          pip install poetry
-          poetry install --no-interaction --no-root
-      - name: Run daily bias analysis
-        run: |
-          poetry run python src/analysis/run_all.py
-      - name: Upload reports artefact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bias_reports
-          path: src/reports/
-```
-
-#### 7.1 秘密情報の設定
-
-| Secret Key       | 説明                         |
-| ---------------- | ---------------------------- |
-| `PPLX_API_KEY`   | Perplexity API キー          |
-| `OPENAI_API_KEY` | OpenAI API キー (オプション) |
-
-GitHub リポジトリの **Settings → Secrets and variables → Actions** で追加してください。
-
----
 
 ## 8. 実行結果
 

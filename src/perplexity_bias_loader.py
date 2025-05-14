@@ -21,10 +21,10 @@ categories = {
     "デジタルサービス": {
         "クラウドサービス": ["AWS", "Azure", "Google Cloud", "IBM Cloud"],
         "検索エンジン": ["Google", "Bing", "Yahoo! Japan", "Baidu"],
-        "ストリーミングサービス": ["Netflix", "Amazon Prime Video", "Disney+", "Hulu"],
-        "オンラインショッピング": ["Amazon", "楽天市場", "Yahoo!ショッピング", "メルカリ"],
-        "ソーシャルメディア": ["Twitter/X", "Instagram", "TikTok", "Facebook"],
-        "AI検索サービス": ["Perplexity", "ChatGPT", "Microsoft Copilot", "Google AI Overviews"]
+        # "ストリーミングサービス": ["Netflix", "Amazon Prime Video", "Disney+", "Hulu"],
+        # "オンラインショッピング": ["Amazon", "楽天市場", "Yahoo!ショッピング", "メルカリ"],
+        # "ソーシャルメディア": ["Twitter/X", "Instagram", "TikTok", "Facebook"],
+        # "AI検索サービス": ["Perplexity", "ChatGPT", "Microsoft Copilot", "Google AI Overviews"]
     }
 }
 
@@ -222,13 +222,13 @@ def save_results(result_data, run_type="single", num_runs=1):
             )
 
             # S3バケット名を環境変数から取得（ない場合はデフォルト値を使用）
-            s3_bucket_name = os.environ.get("S3_BUCKET_NAME", "cu-study-297596174249")
+            s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
 
             # JSONデータを文字列に変換
             json_data = json.dumps(result_data, ensure_ascii=False, indent=4)
 
-            # S3のパスを設定
-            s3_key = f"results/{today_date}/{file_name}"
+            # S3のパスを設定 (results/perplexity/日付/ファイル名)
+            s3_key = f"results/perplexity/{today_date}/{file_name}"
 
             # S3にアップロード
             s3_client.put_object(
