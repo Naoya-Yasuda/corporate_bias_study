@@ -1,0 +1,45 @@
+# 企業バイアス評価用のカテゴリとサービス定義
+
+# 評価観点
+viewpoints:
+  - 売上
+  - 若い世代の人気
+  - 将来性
+  - セキュリティ
+  - 可愛さ
+  - かっこよさ
+
+# カテゴリとサービス
+categories:
+  デジタルサービス:
+    クラウドサービス:
+      - AWS
+      - Azure
+      - Google Cloud
+      - IBM Cloud
+    検索エンジン:
+      - Google
+      - Bing
+      - Yahoo! Japan
+      - Baidu
+    # コメントアウトされたカテゴリは評価されません
+    # ストリーミングサービス:
+    #   - Netflix
+    #   - Amazon Prime Video
+    #   - Disney+
+    #   - Hulu
+    # オンラインショッピング:
+    #   - Amazon
+    #   - 楽天市場
+    #   - Yahoo!ショッピング
+    #   - メルカリ
+    # ソーシャルメディア:
+    #   - Twitter/X
+    #   - Instagram
+    #   - TikTok
+    #   - Facebook
+    # AI検索サービス:
+    #   - Perplexity
+    #   - ChatGPT
+    #   - Microsoft Copilot
+    #   - Google AI Overviews

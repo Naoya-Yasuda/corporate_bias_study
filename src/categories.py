@@ -1,22 +1,55 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# 企業バイアス評価用のカテゴリとサービス定義
+"""
+企業バイアス評価用のカテゴリとサービス定義ファイル
+YAMLファイルからカテゴリとサービス情報を読み込む
+"""
 
-# 評価観点
-viewpoints = ['売上', '若い世代の人気', '将来性', 'セキュリティ', '可愛さ', 'かっこよさ']
+import os
+import yaml
+import logging
 
-# カテゴリとサービス
-categories = {
+# ロガー設定
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 相対パスの定義
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(CURRENT_DIR, "data")
+CATEGORIES_YAML = os.path.join(DATA_DIR, "categories.yml")
+
+# デフォルト値（YAMLファイルが見つからない場合のフォールバック）
+DEFAULT_VIEWPOINTS = ['売上', '若い世代の人気', '将来性', 'セキュリティ', '可愛さ', 'かっこよさ']
+DEFAULT_CATEGORIES = {
     "デジタルサービス": {
         "クラウドサービス": ["AWS", "Azure", "Google Cloud", "IBM Cloud"],
         "検索エンジン": ["Google", "Bing", "Yahoo! Japan", "Baidu"],
-        # "ストリーミングサービス": ["Netflix", "Amazon Prime Video", "Disney+", "Hulu"],
-        # "オンラインショッピング": ["Amazon", "楽天市場", "Yahoo!ショッピング", "メルカリ"],
-        # "ソーシャルメディア": ["Twitter/X", "Instagram", "TikTok", "Facebook"],
-        # "AI検索サービス": ["Perplexity", "ChatGPT", "Microsoft Copilot", "Google AI Overviews"]
     }
 }
+
+def load_yaml_categories():
+    """YAMLファイルからカテゴリとビューポイントを読み込む"""
+    try:
+        if not os.path.exists(CATEGORIES_YAML):
+            logger.warning(f"カテゴリ定義ファイルが見つかりません: {CATEGORIES_YAML}")
+            return DEFAULT_VIEWPOINTS, DEFAULT_CATEGORIES
+
+        with open(CATEGORIES_YAML, 'r', encoding='utf-8') as file:
+            data = yaml.safe_load(file)
+
+        viewpoints = data.get('viewpoints', DEFAULT_VIEWPOINTS)
+        categories = data.get('categories', DEFAULT_CATEGORIES)
+
+        logger.info(f"カテゴリ定義ファイルを読み込みました: {CATEGORIES_YAML}")
+        return viewpoints, categories
+
+    except Exception as e:
+        logger.error(f"カテゴリ定義ファイルの読み込み中にエラーが発生しました: {e}")
+        return DEFAULT_VIEWPOINTS, DEFAULT_CATEGORIES
+
+# グローバル変数として読み込み
+viewpoints, categories = load_yaml_categories()
 
 def get_categories():
     """カテゴリとサービスのデータを取得する関数"""
@@ -43,3 +76,9 @@ def get_all_services():
             if not subcategory.startswith('#'):  # コメントアウトされていないサブカテゴリのみ
                 all_services.extend(services)
     return all_services
+
+def reload_categories():
+    """カテゴリとビューポイントを再読み込みする関数"""
+    global viewpoints, categories
+    viewpoints, categories = load_yaml_categories()
+    return viewpoints, categories

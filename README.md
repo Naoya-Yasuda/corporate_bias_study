@@ -65,19 +65,29 @@ python -m src.openai_bias_loader --multiple --runs 5
 ```
 
 ### カテゴリ/サービスのカスタマイズ
-カテゴリとサービスは `src/categories.py` で一元管理されています。このファイルを編集することで、評価対象のカテゴリとサービスをカスタマイズできます。
+カテゴリとサービスは `src/data/categories.yml` で一元管理されています。このYAMLファイルを編集することで、評価対象のカテゴリとサービスをカスタマイズできます。
 
-```python
+```yaml
 # カテゴリとサービスの例
-categories = {
-    "デジタルサービス": {
-        "クラウドサービス": ["AWS", "Azure", "Google Cloud", "IBM Cloud"],
-        "検索エンジン": ["Google", "Bing", "Yahoo! Japan", "Baidu"],
-        # コメントアウトされたカテゴリは評価されません
-        # "ストリーミングサービス": ["Netflix", "Amazon Prime Video", "Disney+", "Hulu"],
-    }
-}
+categories:
+  デジタルサービス:
+    クラウドサービス:
+      - AWS
+      - Azure
+      - Google Cloud
+      - IBM Cloud
+    検索エンジン:
+      - Google
+      - Bing
+      - Yahoo! Japan
+      - Baidu
+    # コメントアウトされたカテゴリは評価されません
+    # ストリーミングサービス:
+    #   - Netflix
+    #   - Amazon Prime Video
 ```
+
+YAMLファイルを更新した後、変更を反映するために新しい実行を開始するだけで済みます。
 
 ## 自動化
 
@@ -145,9 +155,12 @@ MITライセンス
 .
 ├─ src/                      # ソースコード
 │   ├─ __init__.py           # パッケージ初期化ファイル
-│   ├─ categories.py         # カテゴリとサービス定義（一元管理）
+│   ├─ categories.py         # カテゴリとサービス定義読み込み機能
 │   ├─ perplexity_bias_loader.py # Perplexity API実行ファイル
 │   ├─ openai_bias_loader.py # OpenAI API実行ファイル
+│   ├─ data/                 # データファイル
+│   │   ├─ __init__.py
+│   │   └─ categories.yml    # カテゴリとサービス定義（YAML）
 │   ├─ prompts/              # プロンプトテンプレート
 │   │   ├─ __init__.py
 │   │   ├─ perplexity_prompts.py # Perplexity用プロンプト
@@ -166,9 +179,9 @@ MITライセンス
 
 本プロジェクトは以下のようにモジュール化されています：
 
-1. **カテゴリとサービス定義** (`src/categories.py`)
-   - すべてのカテゴリとサービスの定義を一元管理
-   - 評価観点（viewpoints）の定義
+1. **カテゴリとサービス定義** (`src/data/categories.yml` と `src/categories.py`)
+   - すべてのカテゴリとサービスの定義をYAML形式で一元管理
+   - YAML読み込み機能
    - カウント・集計機能
 
 2. **プロンプトテンプレート** (`src/prompts/`)
