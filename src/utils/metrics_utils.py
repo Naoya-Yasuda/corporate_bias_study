@@ -8,7 +8,6 @@ HHIなどの市場集中度指標や公平性指標の計算を一元化する�
 """
 
 import numpy as np
-import pandas as pd
 from typing import Dict, List, Union
 
 def calculate_hhi(market_share: Dict[str, float]) -> float:

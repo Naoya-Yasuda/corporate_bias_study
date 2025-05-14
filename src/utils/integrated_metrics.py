@@ -18,7 +18,6 @@ import seaborn as sns
 
 # 共通ユーティリティをインポート
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share, gini_coefficient
-from src.utils.plot_utils import save_figure
 from src.utils.file_utils import ensure_dir, save_json_data
 
 def calculate_integrated_hhi(

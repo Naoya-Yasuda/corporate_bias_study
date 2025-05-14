@@ -21,14 +21,12 @@ from scipy.stats import kendalltau
 from dotenv import load_dotenv
 import boto3
 from typing import Dict, List, Tuple, Union, Optional
-from urllib.parse import urlparse
-import re
 
 # 共通ユーティリティをインポート
-from src.utils.s3_utils import get_s3_client, upload_to_s3, put_json_to_s3
-from src.utils.file_utils import ensure_dir, save_json, get_today_str, save_json_data
+from src.utils.s3_utils import get_s3_client, upload_to_s3
+from src.utils.file_utils import ensure_dir, save_json_data
 from src.utils.rank_utils import compute_tau, rbo
-from src.utils.plot_utils import set_plot_style, save_figure
+from src.utils.plot_utils import set_plot_style
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
 
 # 環境変数の読み込み

@@ -17,7 +17,7 @@ from collections import defaultdict
 # 共通ユーティリティをインポート
 from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
 from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
-from src.utils.file_utils import ensure_dir, save_json
+from src.utils.file_utils import ensure_dir
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 
 # -------------------------------------------------------------------
