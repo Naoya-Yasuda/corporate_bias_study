@@ -58,21 +58,21 @@ jobs:
       - name: Run Perplexity bias analysis (${{ env.RUNS_COUNT }} runs)
         run: |
           echo "開始: Perplexity バイアス分析 ($(date))" | tee -a logs/execution.log
-          python -m src.perplexity_bias_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_bias.log
+          python -m src.perplexity_bias_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_bias.log
           echo "完了: Perplexity バイアス分析 ($(date))" | tee -a logs/execution.log
 
       # Perplexity APIによるランキング抽出
       - name: Run Perplexity ranking extraction (${{ env.RUNS_COUNT }} runs)
         run: |
           echo "開始: Perplexity ランキング抽出 ($(date))" | tee -a logs/execution.log
-          python -m src.perplexity_ranking_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_ranking.log
+          python -m src.perplexity_ranking_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_ranking.log
           echo "完了: Perplexity ランキング抽出 ($(date))" | tee -a logs/execution.log
 
       # Perplexity APIによる引用リンク抽出
       - name: Run Perplexity citations extraction (${{ env.RUNS_COUNT }} runs)
         run: |
           echo "開始: Perplexity 引用リンク抽出 ($(date))" | tee -a logs/execution.log
-          python -m src.perplexity_citations_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_citations.log
+          python -m src.perplexity_citations_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_citations.log
           echo "完了: Perplexity 引用リンク抽出 ($(date))" | tee -a logs/execution.log
 
       # Google SERP APIによる検索結果収集と比較分析
@@ -83,12 +83,12 @@ jobs:
           echo "完了: Google SERP 分析 ($(date))" | tee -a logs/execution.log
 
       # OpenAI APIによるバイアス分析（条件付き）
-      - name: Run OpenAI bias analysis (${{ env.RUNS_COUNT }} runs)
-        if: ${{ env.OPENAI_API_KEY != '' }}
-        run: |
-          echo "開始: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
-          python -m src.openai_bias_loader --multiple --runs ${{ env.RUNS_COUNT }} | tee -a logs/openai_bias.log
-          echo "完了: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
+      # - name: Run OpenAI bias analysis (${{ env.RUNS_COUNT }} runs)
+      #   if: ${{ env.OPENAI_API_KEY != '' }}
+      #   run: |
+      #     echo "開始: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
+      #     python -m src.openai_bias_loader --multiple --runs ${{ env.RUNS_COUNT }} | tee -a logs/openai_bias.log
+      #     echo "完了: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
 
       # 追加分析モジュールの実行
       # ランキング指標分析（Perplexityのランキング）
@@ -106,12 +106,12 @@ jobs:
           echo "完了: Perplexity バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
       # バイアス指標分析（OpenAIのバイアス - APIキーが設定されている場合のみ）
-      - name: Run OpenAI bias metrics analysis
-        if: ${{ env.OPENAI_API_KEY != '' }}
-        run: |
-          echo "開始: OpenAI バイアス指標分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.bias_metrics --json-path results/${{ env.TODAY_DATE }}_openai_results_${{ env.RUNS_COUNT }}runs.json --verbose | tee -a logs/bias_metrics_openai.log
-          echo "完了: OpenAI バイアス指標分析 ($(date))" | tee -a logs/execution.log
+      # - name: Run OpenAI bias metrics analysis
+      #   if: ${{ env.OPENAI_API_KEY != '' }}
+      #   run: |
+      #     echo "開始: OpenAI バイアス指標分析 ($(date))" | tee -a logs/execution.log
+      #     python -m src.analysis.bias_metrics --json-path results/${{ env.TODAY_DATE }}_openai_results_${{ env.RUNS_COUNT }}runs.json --verbose | tee -a logs/bias_metrics_openai.log
+      #     echo "完了: OpenAI バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
       # 統合指標分析（複数指標に基づく後段処理）
       - name: Run integrated metrics analysis

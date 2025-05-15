@@ -11,6 +11,7 @@ import re
 from dotenv import load_dotenv
 from src.categories import get_categories, get_viewpoints
 from src.prompts.perplexity_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
+import numpy as np
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -174,14 +175,13 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             # マスクあり評価値の統計
             masked_values = results[category][subcategory].get('masked_values', [])
             if masked_values:
-                results[category][subcategory]['masked_avg'] = sum(masked_values) / len(masked_values)
+                # NumPyを使用して正確な平均値を計算
+                results[category][subcategory]['masked_avg'] = np.mean(masked_values)
                 print(f"マスクあり評価値: {masked_values}, 平均: {results[category][subcategory]['masked_avg']}")
 
-                # 標準偏差の計算
+                # 標準偏差の計算 - NumPyを使用
                 if len(masked_values) > 1:
-                    mean = sum(masked_values) / len(masked_values)
-                    variance = sum((x - mean) ** 2 for x in masked_values) / len(masked_values)
-                    results[category][subcategory]['masked_std_dev'] = variance ** 0.5
+                    results[category][subcategory]['masked_std_dev'] = np.std(masked_values, ddof=1)  # 不偏標準偏差
                 else:
                     results[category][subcategory]['masked_std_dev'] = 0
             else:
@@ -196,20 +196,31 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 for competitor in results[category][subcategory]['unmasked_values']:
                     values = results[category][subcategory]['unmasked_values'][competitor]
                     if values:
-                        # 平均値
-                        results[category][subcategory]['unmasked_avg'][competitor] = sum(values) / len(values)
+                        # NumPyを使用して正確な平均値を計算
+                        results[category][subcategory]['unmasked_avg'][competitor] = np.mean(values)
                         print(f"{competitor}の評価値: {values}, 平均: {results[category][subcategory]['unmasked_avg'][competitor]}")
 
-                        # 標準偏差
+                        # 標準偏差の計算 - NumPyを使用
                         if len(values) > 1:
-                            mean = sum(values) / len(values)
-                            variance = sum((x - mean) ** 2 for x in values) / len(values)
-                            results[category][subcategory]['unmasked_std_dev'][competitor] = variance ** 0.5
+                            results[category][subcategory]['unmasked_std_dev'][competitor] = np.std(values, ddof=1)  # 不偏標準偏差
                         else:
                             results[category][subcategory]['unmasked_std_dev'][competitor] = 0
                     else:
                         results[category][subcategory]['unmasked_avg'][competitor] = 0
                         results[category][subcategory]['unmasked_std_dev'][competitor] = 0
+
+            # 参照リンクの抽出（マスクあり結果）
+            if 'masked_result' in results[category][subcategory]:
+                masked_result = results[category][subcategory]['masked_result']
+                references = extract_references(masked_result)
+                results[category][subcategory]['masked_references'] = references
+
+            # 参照リンクの抽出（マスクなし結果：各企業）
+            if 'unmasked_result' in results[category][subcategory]:
+                results[category][subcategory]['unmasked_references'] = {}
+                for competitor, result_text in results[category][subcategory]['unmasked_result'].items():
+                    references = extract_references(result_text)
+                    results[category][subcategory]['unmasked_references'][competitor] = references
 
     return results
 
@@ -279,6 +290,7 @@ def main():
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
     parser.add_argument('--no-analysis', action='store_true', help='バイアス分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
+    parser.add_argument('--skip-openai', action='store_true', help='OpenAIの実行をスキップする（分析の一部として実行される場合）')
     args = parser.parse_args()
 
     # 詳細ログの設定
@@ -352,6 +364,33 @@ def main():
             print("バイアス分析が完了しました")
         except Exception as e:
             print(f"バイアス分析中にエラーが発生しました: {e}")
+
+# 参照リンクを抽出する関数
+def extract_references(text):
+    """
+    テキストから [数字] パターンを抽出する
+
+    Parameters:
+    -----------
+    text : str
+        参照リンクを含むテキスト
+
+    Returns:
+    --------
+    list
+        抽出された参照リンク番号のリスト
+    """
+    if not text:
+        return []
+
+    # 正規表現で [数字] パターンを抽出
+    pattern = r'\[(\d+)\]'
+    matches = re.findall(pattern, text)
+
+    # 重複を排除して数値順にソート
+    references = sorted(set(int(m) for m in matches))
+
+    return references
 
 if __name__ == "__main__":
     main()

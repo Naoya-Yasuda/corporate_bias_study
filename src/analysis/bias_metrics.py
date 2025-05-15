@@ -165,7 +165,7 @@ def calculate_sentiment_stability(sentiment_values):
 
     else:
         # 不正な入力の場合
-        return {"stability_score": 0.0, "cv": float('inf')}
+        return {"stability_score": 0.0, "cv": -1}
 
 def interpret_sentiment_stability(score):
     """感情スコア安定性の解釈"""

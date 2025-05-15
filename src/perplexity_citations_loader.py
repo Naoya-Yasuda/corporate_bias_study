@@ -323,8 +323,9 @@ def main():
     parser = argparse.ArgumentParser(description='Perplexityを使用して引用リンクデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
-    parser.add_argument('--no-analysis', action='store_true', help='引用リンク分析を実行しない')
+    parser.add_argument('--no-analysis', action='store_true', help='引用分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
+    parser.add_argument('--skip-openai', action='store_true', help='OpenAIの実行をスキップする（分析の一部として実行される場合）')
     args = parser.parse_args()
 
     # 詳細ログの設定

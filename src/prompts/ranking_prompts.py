@@ -23,11 +23,16 @@ load_dotenv()
 # ランキング抽出用プロンプト
 def get_ranking_prompt(subcategory, services):
     """ランキング抽出用のプロンプトを生成"""
+    services_str = ', '.join(services)
     return (
-        f"あなたは{subcategory}の専門家です。以下のサービスを「おすすめ順」に "
-        "リストアップし、1行に1サービスだけ出力してください。\n\n"
-        f"対象リスト: {', '.join(services)}\n\n"
-        "出力例:\n1. サービスA\n2. サービスB\n..."
+        f"あなたは{subcategory}の専門家です。以下のサービスを「おすすめ順」に正確にランク付けしてください。\n\n"
+        f"対象サービス: {services_str}\n\n"
+        "【重要】以下の条件を厳守してください：\n"
+        "1. 必ず全てのサービスをランク付けしてください。1つも省略しないでください。\n"
+        "2. 番号付きリスト形式で回答してください（例: 1. サービスA）\n"
+        "3. 各行に1つのサービスのみを記載してください。\n"
+        "4. 余計な説明は不要です。ランキングのみを出力してください。\n\n"
+        "出力例:\n1. サービスA\n2. サービスB\n3. サービスC\n..."
     )
 
 # ランキング抽出用の正規表現パターン - より柔軟に異なる形式に対応
@@ -36,40 +41,69 @@ RANK_PATTERNS = [
     re.compile(r"^\s*（?\d+）?\.\s*([^\n]+)", re.MULTILINE),  # （1）. Service や 1）. Service
     re.compile(r"^\s*\d+\s*[:：]\s*([^\n]+)", re.MULTILINE),  # 1: Service や 1：Service
     re.compile(r"^\s*[•●・]\s*([^\n]+)", re.MULTILINE),  # • Service や ● Service や ・Service
+    re.compile(r"^\s*#{1,3}\s*([^\n]+)", re.MULTILINE),  # # Service や ## Service や ### Service
+    re.compile(r"\*\*([^*\n]+)\*\*", re.MULTILINE),  # **Service**
+    re.compile(r"「([^」\n]+)」", re.MULTILINE),  # 「Service」
 ]
 
 def extract_ranking(text, original_services):
     """Perplexityの回答から順位付きリストを抽出し、元のリストでフィルタリング"""
-    # すべてのパターンで試行
-    ranked = []
+    # サービス名の正規化関数
+    norm = lambda s: re.sub(r"[\s　]+", "", s).lower()
 
-    # まずすべてのパターンを試し、もっとも多くのマッチを持つものを使用
-    best_matches = []
-
-    for pattern in RANK_PATTERNS:
-        matches = [m.group(1).strip() for m in pattern.finditer(text)]
-        if len(matches) > len(best_matches):
-            best_matches = matches
-
-    # マッチしたものを使用
-    ranked = best_matches
-
-    # それでもマッチしない場合、各サービス名が直接含まれているか確認
-    if not ranked:
-        print("⚠️ 正規表現パターンがマッチしませんでした。サービス名を直接検索します。")
-        # 原文から各サービス名を直接検索（現れた順）
-        for service in original_services:
-            if service in text:
-                ranked.append(service)
-
-    # 想定外の表記ゆれ対策（大文字小文字・全角半角・空白など）
-    norm = lambda s: re.sub(r"\s+", "", s).lower()
+    # 元のサービス名を正規化して辞書に格納
     orig_map = {norm(s): s for s in original_services}
 
-    # 正規化した名前でマッチングし、元の正確な名前を使用
-    cleaned = [orig_map.get(norm(r)) for r in ranked if norm(r) in orig_map]
+    # 各サービスが出現する順序をトラッキング
+    found_services = []
 
-    return cleaned
+    # まず順序付きリストのパターンを試す
+    for pattern in RANK_PATTERNS:
+        matches = [m.group(1).strip() for m in pattern.finditer(text)]
+        if matches:
+            # マッチした各項目について、サービス名が含まれるかを確認
+            for match in matches:
+                for service in original_services:
+                    if service in match or norm(service) in norm(match):
+                        if service not in found_services:
+                            found_services.append(service)
+                            break
+
+    # パターンマッチで十分な結果が得られない場合、サービス名の出現順を確認
+    if len(found_services) < len(original_services) * 0.8:  # 80%未満の場合
+        print("⚠️ パターンマッチの結果が不十分です。サービス名の出現順で抽出します。")
+
+        # 文章全体から各サービス名の出現位置を特定
+        service_positions = []
+        for service in original_services:
+            pos = text.find(service)
+            if pos >= 0:
+                service_positions.append((pos, service))
+            else:
+                # 正規化した名前で探す
+                for word in re.findall(r'\b\w+\b', text):
+                    if norm(word) == norm(service):
+                        pos = text.find(word)
+                        if pos >= 0:
+                            service_positions.append((pos, service))
+                            break
+
+        # 出現位置でソート
+        service_positions.sort()
+        new_found = [service for _, service in service_positions]
+
+        # 既に見つかったサービスと組み合わせ
+        for service in new_found:
+            if service not in found_services:
+                found_services.append(service)
+
+    # それでも見つからないサービスがある場合、元のリストを参照
+    if len(found_services) < len(original_services):
+        print(f"⚠️ 一部のサービスが見つかりませんでした。見つかったサービス数: {len(found_services)}/{len(original_services)}")
+        missing = [s for s in original_services if s not in found_services]
+        print(f"  見つからなかったサービス: {missing}")
+
+    return found_services
 
 def call_perplexity_api(prompt, api_key=None):
     """Perplexity APIを呼び出す関数"""

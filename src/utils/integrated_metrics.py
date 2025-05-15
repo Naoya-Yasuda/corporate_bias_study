@@ -103,7 +103,7 @@ def calculate_integrated_hhi(
 
             # 結果を保存
             service_hhi[service_name] = exposure_hhi
-            service_hhi_ratio[service_name] = exposure_hhi / market_hhi if market_hhi > 0 else float('inf')
+            service_hhi_ratio[service_name] = exposure_hhi / market_hhi if market_hhi > 0 else -1
             service_gini[service_name] = gini
 
             # 市場シェア影響度の詳細データを作成

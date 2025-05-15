@@ -67,6 +67,15 @@ python -m src.perplexity_bias_loader --multiple --runs 5 --verbose
 python -m src.analysis.bias_metrics --json-path results/20240501_perplexity_results_5runs.json --verbose
 ```
 
+### OpenAIの実行をスキップ
+OpenAIの実行をスキップしてPerplexityのみに集中する場合は、`--skip-openai`オプションを使用できます。
+```bash
+# OpenAIの実行をスキップして、Perplexityのみを実行
+python -m src.perplexity_bias_loader --multiple --runs 5 --skip-openai
+python -m src.perplexity_ranking_loader --multiple --runs 5 --skip-openai
+python -m src.perplexity_citations_loader --multiple --runs 5 --skip-openai
+```
+
 ### 単一実行
 ```bash
 # Perplexity - バイアス評価
@@ -623,117 +632,23 @@ python -m src.analysis.bias_metrics results/20240501_perplexity_results_10runs.j
 - 市場シェアと露出度の散布図: `results/ranking_analysis/YYYYMMDD/カテゴリ名_exposure_market.png`
 - 全カテゴリの指標サマリー: `results/ranking_analysis/YYYYMMDD/YYYYMMDD_perplexity_rank_summary.csv`
 
-## 7.7 Google検索比較指標
+## 7.7 データ処理と分析の改善点
 
-AIが生成するランキングとGoogle検索結果を比較し、両者の違いを分析するための指標群を実装しています。
+### 1. 感情スコア計算の精度向上
 
-### 比較対象データ
+感情スコアの平均値と標準偏差の計算において、NumPyライブラリを使用して統計的に正確な値を算出するよう改善しました。
+これにより、複数回実行時の集計結果の信頼性が向上しています。
 
-分析には2種類のPerplexityデータを使用できます：
+- 平均値計算：`np.mean()`を使用した正確な平均値計算
+- 標準偏差計算：`np.std(values, ddof=1)`を使用した不偏標準偏差の算出
 
-1. **ランキングデータ** (`--data-type rankings`): AIが生成した企業名のランキングリスト
-2. **引用リンクデータ** (`--data-type citations`): AIの回答に含まれる引用リンクとそのドメイン
+### 2. 参照リンクの抽出と保存
 
-引用リンクデータを使用すると、より実際のユーザー体験に近い分析が可能になります。AIが生成した回答の情報源として実際に引用しているウェブサイトの順序を分析するためです。
+AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動的に抽出し、別途リストとして保存する機能を追加しました。
+これにより、参照情報の分析や検証が容易になります。
 
-### 1. 順位比較指標
-
-#### Rank-Biased Overlap (RBO)
-Google検索結果とAI検索結果の上位k位の一致度を0〜1のスコアで表します。1に近いほど結果が類似していることを示します。重み付けにより、上位の順位ほど重要視されます。
-
-#### Kendallのタウ係数
-2つのランキングの順序の一致度を測る指標。-1〜1の範囲を取り、1は完全に同じ順序、-1は完全に逆順、0はランダムな関係を示します。
-
-#### ΔRank
-`Google順位 - Perplexity順位`で計算される各企業の順位差。負の値は「AIによる押し上げ効果」（Googleより上位表示）を、正の値は「AIによる押し下げ効果」（Googleより下位表示）を示します。
-
-### 2. コンテンツ比較指標
-
-#### 公式/非公式比率
-検索結果に含まれる公式サイトの比率を比較し、AIとGoogleがどのように情報源を選択するかの違いを可視化します。
-
-#### ポジティブ/ネガティブ比率
-検索結果に含まれるネガティブなコンテンツの比率を比較し、AIとGoogleのセンチメントバイアスの違いを評価します。
-
-### 3. 経済的影響評価
-
-#### 調整後市場シェア
-ΔRankに基づいて、各企業の市場シェアがAIによってどのように影響を受ける可能性があるかをシミュレーションします。
-
-#### HHI (Herfindahl-Hirschman Index) 変化
-AIバイアスによる市場集中度の変化を評価します。HHIの上昇は市場集中（独占・寡占）の強化を、減少は競争の促進を示唆します。
-
-### 4. 使用方法
-
-```bash
-# Google SERP APIを使用して検索結果を取得し、Perplexityと比較（デフォルトは引用リンクと比較）
-python -m src.google_serp_loader
-
-# 特定の日付のPerplexityデータと比較
-python -m src.google_serp_loader --perplexity-date 20240501
-
-# 特定の実行回数（例：10回実行）のデータを使用
-python -m src.google_serp_loader --runs 10
-
-# 特定の日付の特定実行回数のデータを使用
-python -m src.google_serp_loader --perplexity-date 20240501 --runs 10
-
-# Perplexityのランキングデータと比較
-python -m src.google_serp_loader --data-type rankings
-
-# 特定の日付のランキングデータと比較
-python -m src.google_serp_loader --data-type rankings --perplexity-date 20240501
-
-# 一部のカテゴリのみ処理
-python -m src.google_serp_loader --max 3
-
-# 取得のみ（分析なし）
-python -m src.google_serp_loader --no-analysis
-
-# 既存のJSONファイルを使って直接分析
-python -m src.analysis.serp_metrics results/20240501_google_serp_results.json results/20240501_perplexity_citations_10runs.json
-```
-
-分析結果は以下のファイルに保存されます：
-- Google検索結果: `results/YYYYMMDD_google_serp_results.json`
-- 比較結果: `results/YYYYMMDD_google_serp_comparison.json`
-- 分析結果: `results/YYYYMMDD_google_serp_analysis.json`
-- ΔRankグラフ: `results/analysis/カテゴリ名_delta_ranks.png`
-- 市場影響グラフ: `results/analysis/カテゴリ名_market_impact.png`
-
-#### Google SERP比較
-
-```bash
-# 基本的な実行
-python src/google_serp_loader.py --perplexity-date 20240510
-
-# 特定の実行回数のデータを使用
-python src/google_serp_loader.py --perplexity-date 20240510 --runs 10
-
-# ランキングデータを指定の実行回数で使用
-python src/google_serp_loader.py --data-type rankings --runs 20
-```
-
-### 7.7 統合指標分析
-
-複数の指標データを組み合わせた後段処理として、以下の統合分析を実施：
-
-#### 統合HHI分析
-Perplexityランキング、Google SERP、引用リンクなど複数のデータソースから上位露出確率を抽出し、
-各サービスの市場集中度への影響を統合的に評価します。
-
-```python
-# 使用例
-python -m src.utils.integrated_metrics --date 20240506 --output results/integrated_metrics --verbose
-```
-
-統合分析により生成される主な指標：
-- 各カテゴリの市場HHI（現実の市場集中度）
-- 各AIサービスの露出HHI（AIが生み出す潜在的集中度）
-- HHI比率（AIが市場集中を強化/分散するか）
-- 各企業の市場シェア変化シミュレーション
-
-これにより、AIシステムが市場に与える潜在的影響を多角的に評価できます。
+- 抽出方法：正規表現を使用して`[数字]`パターンを検出
+- 保存形式：各カテゴリ・企業ごとに参照番号のリストとして保存
 
 ## 8. ロードマップ
 

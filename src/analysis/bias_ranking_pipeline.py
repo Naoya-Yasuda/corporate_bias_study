@@ -336,15 +336,16 @@ def analyze_existing_data(date_str, data_type, output_dir, verbose=False):
         delta_rank = {}
 
         for domain in all_domains:
-            g_rank = google_rank.get(domain, float('inf'))
-            p_rank = pplx_rank.get(domain, float('inf'))
+            g_rank = google_rank.get(domain, 999)  # Infinityの代わりに大きな数字を使用
+            p_rank = pplx_rank.get(domain, 999)  # Infinityの代わりに大きな数字を使用
 
-            if g_rank != float('inf') and p_rank != float('inf'):
-                delta_rank[domain] = p_rank - g_rank
-            elif g_rank != float('inf'):
-                delta_rank[domain] = 10 - g_rank  # Perplexityにないので最低順位と仮定
-            elif p_rank != float('inf'):
-                delta_rank[domain] = p_rank - 10  # Googleにないので最低順位と仮定
+            # 両方のランキングに存在する場合のみDelta計算
+            if g_rank != 999 and p_rank != 999:
+                delta_rank[domain] = g_rank - p_rank
+            elif g_rank != 999:
+                delta_rank[domain] = 0  # Googleのみにある場合は中立
+            elif p_rank != 999:
+                delta_rank[domain] = 0  # Perplexityのみにある場合は中立
 
         # 5. 評価指標の計算
         # RBOスコア
