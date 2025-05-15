@@ -270,3 +270,29 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
             print(f"図のS3保存エラー: {e}")
 
     return result
+
+def get_results_paths(data_type, date_str, file_name):
+    """
+    指定したデータタイプと日付に対応するローカルパスとS3パスを生成
+
+    Args:
+        data_type: データタイプ（perplexity_sentiment, perplexity_rankings, openai など）
+        date_str: 日付文字列（YYYYMMDD形式）
+        file_name: ファイル名
+
+    Returns:
+        tuple: (ローカルパス, S3パス)
+    """
+    # ストレージ設定を取得
+    storage_config = get_storage_config()
+
+    # ローカルパスの生成
+    local_dir = os.path.join(storage_config["local_dir"], data_type)
+    local_path = os.path.join(local_dir, file_name)
+    ensure_dir(local_dir)
+
+    # S3パスの生成
+    s3_dir = f"results/perplexity/{data_type}/{date_str}"
+    s3_path = f"{s3_dir}/{file_name}"
+
+    return local_path, s3_path
