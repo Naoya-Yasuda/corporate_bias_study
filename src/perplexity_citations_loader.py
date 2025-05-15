@@ -52,6 +52,7 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
         (回答テキスト, 引用のリスト)
     """
     import requests
+    import json
 
     if not PPLX_API_KEY:
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
@@ -64,31 +65,211 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "あなたは役立つアシスタントです。引用元のリンクを含めて回答してください。"},
+            {
+                "role": "system",
+                "content": "あなたは役立つアシスタントです。回答には必ず[1]、[2]のような番号付き引用を含めてください。情報源を明確にすることが重要です。"
+            },
             {"role": "user", "content": query}
         ],
-        "temperature": 0.0
+        "temperature": 0.0,
+        "include_citations": True,  # 引用情報を明示的に要求（パラメータ名修正）
+        "stream": False  # 必ずストリーミングを無効化
     }
 
     try:
+        print(f"  リクエスト送信中: {payload['model']}")
         response = requests.post(
             "https://api.perplexity.ai/chat/completions",
             json=payload,
             headers=headers
         )
-        data = response.json()
+
+        # デバッグ: ステータスコードの確認
+        print(f"  API ステータスコード: {response.status_code}")
+
+        # レスポンスの解析
+        try:
+            data = response.json()
+        except Exception as e:
+            print(f"  JSONパース失敗: {e}")
+            print(f"  レスポンス本文: {response.text[:500]}")
+            return None, []
+
+        # レスポンス全体の詳細デバッグ（機密情報に注意）
+        print(f"  レスポンスの構造: {list(data.keys())}")
+        if "choices" in data and data["choices"]:
+            choice = data["choices"][0]
+            print(f"  choiceの構造: {list(choice.keys())}")
+            if "message" in choice:
+                message = choice["message"]
+                print(f"  messageの構造: {list(message.keys())}")
+
+                # CitationDataがある場合の処理
+                if "citation_data" in message:
+                    print(f"  citation_dataが見つかりました")
+                elif "citations" in message:
+                    print(f"  citationsが見つかりました")
+
+                # リンクの検索
+                if "content" in message:
+                    content_preview = message["content"][:100]
+                    links_exist = "[1]" in message["content"] or "[2]" in message["content"]
+                    print(f"  回答に引用リンクあり: {links_exist}, プレビュー: {content_preview}...")
 
         if "error" in data:
             print(f"API エラー: {data['error']}")
             return None, []
 
+        # 回答テキストを取得
         answer = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        citations = data.get("choices", [{}])[0].get("message", {}).get("citations", [])
+
+        # 引用情報の検索 - 複数のパターンを試してみる
+        citations = []
+        message = data.get("choices", [{}])[0].get("message", {})
+
+        # 1. 標準的な citations プロパティ
+        if "citations" in message:
+            citations = message["citations"]
+            print(f"  標準的なcitationsプロパティから{len(citations)}件の引用情報を取得")
+
+        # 2. citation_data プロパティ（これも可能性がある）
+        elif "citation_data" in message:
+            citations = message["citation_data"].get("citations", [])
+            print(f"  citation_dataプロパティから{len(citations)}件の引用情報を取得")
+
+        # 3. links プロパティ（別の可能性）
+        elif "links" in message:
+            citations = message["links"]
+            print(f"  linksプロパティから{len(citations)}件の引用情報を取得")
+
+        # 4. web_search_query プロパティ（検索系と関連があるかも）
+        elif "web_search_query" in message:
+            print(f"  web_search_queryプロパティが存在: {message['web_search_query']}")
+
+        # 引用情報が見つからない場合
+        if not citations:
+            print("  APIレスポンスから引用情報を取得できませんでした")
 
         return answer, citations
     except Exception as e:
         print(f"Perplexity API 呼び出しエラー: {e}")
+        import traceback
+        print(f"  スタックトレース: {traceback.format_exc()}")
         return None, []
+
+
+def extract_references_from_text(text):
+    """
+    テキストから[1][2][3]形式の引用参照を抽出する
+
+    Parameters:
+    -----------
+    text : str
+        引用参照を含むテキスト
+
+    Returns:
+    --------
+    list
+        抽出された引用参照の辞書リスト（順番と番号）
+    """
+    import re
+
+    if not text:
+        return []
+
+    # より堅牢な[数字]パターンの検出 - 文の途中や行末などさまざまな状況に対応
+    pattern = r'\[(\d+)\](?:\s|\.|,|;|:|\)|\]|$)'
+    matches = re.findall(pattern, text)
+
+    if not matches:
+        # バックアップとして、単純な[数字]パターンも試す
+        pattern = r'\[(\d+)\]'
+        matches = re.findall(pattern, text)
+
+    if not matches:
+        return []
+
+    # 重複を排除せずに出現順に保存
+    references = []
+    seen = set()
+    for ref_num in matches:
+        ref_int = int(ref_num)
+        # 順序情報を含めつつ重複を排除
+        ref_item = {
+            "ref_num": ref_int,
+            "rank": len(references) + 1  # 1-indexedの順位
+        }
+        # 同じ参照番号は一度だけ追加
+        if ref_int not in seen:
+            references.append(ref_item)
+            seen.add(ref_int)
+
+    return references
+
+
+def extract_references_with_context(text):
+    """
+    テキストから[数字]形式の引用参照とその前後の文脈を抽出する
+
+    Parameters:
+    -----------
+    text : str
+        引用参照を含むテキスト
+
+    Returns:
+    --------
+    list
+        引用参照とその文脈を含む辞書のリスト
+    """
+    import re
+
+    if not text:
+        return []
+
+    # [数字] パターンの位置を検出
+    pattern = r'\[(\d+)\]'
+    matches = list(re.finditer(pattern, text))
+
+    if not matches:
+        return []
+
+    references = []
+    seen = set()
+
+    for match in matches:
+        ref_num = int(match.group(1))
+        if ref_num in seen:
+            continue
+
+        # 参照の前後の文脈を抽出（最大100文字ずつ）
+        start_pos = max(0, match.start() - 100)
+        end_pos = min(len(text), match.end() + 100)
+
+        # 文脈の中から文を切り出す試み
+        context_before = text[start_pos:match.start()]
+        context_after = text[match.end():end_pos]
+
+        # 最も近い文の区切りを見つける
+        if '。' in context_before:
+            context_before = context_before[context_before.rindex('。')+1:]
+        if '。' in context_after:
+            context_after = context_after[:context_after.index('。')+1]
+
+        # 参照項目を作成
+        ref_item = {
+            "ref_num": ref_num,
+            "rank": len(references) + 1,
+            "context": context_before + match.group(0) + context_after,
+            "position": match.start()
+        }
+
+        references.append(ref_item)
+        seen.add(ref_num)
+
+    # 出現位置順にソート
+    references.sort(key=lambda x: x["position"])
+
+    return references
 
 
 def collect_citation_rankings(categories, num_runs=1):
@@ -102,14 +283,29 @@ def collect_citation_rankings(categories, num_runs=1):
     Returns:
         dict: カテゴリごとの引用リンクランキング結果
     """
-    results = {}
+    # 結果の初期化 - 主要カテゴリの構造を作成
+    results = {
+        "Digital Services": {},
+        "Companies": {}
+    }
 
     total_categories = get_all_categories()
     processed = 0
 
+    # 試すモデル（成功するまで順に試す）
+    models_to_try = [
+        "llama-3.1-sonar-large-128k-online",  # デフォルトモデル
+        "sonar-medium-online",                # バックアップモデル
+        "mixtral-8x7b-instruct"               # さらにバックアップ
+    ]
+
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")
-        results[category] = {}
+
+        # カテゴリをDigital ServicesまたはCompaniesに割り当て
+        target_category = "Digital Services"  # デフォルト
+        if category.lower() in ["企業", "会社", "companies"]:
+            target_category = "Companies"
 
         for subcategory, services in subcategories.items():
             processed += 1
@@ -123,19 +319,32 @@ def collect_citation_rankings(categories, num_runs=1):
             # 各実行の回答テキストも保存
             all_answers = []
 
-            # 検索クエリの生成
-            query = f"日本における{subcategory}の主要な{len(services)}社について、それぞれの特徴や強み、提供サービスについて詳しく教えてください。"
+            # 検索クエリの生成 - 引用を強調
+            query = f"""日本における{subcategory}の主要な{len(services)}社について、それぞれの特徴や強み、提供サービスについて詳しく教えてください。
+回答には必ず[1][2][3]などの引用番号を含めて、情報源を明示してください。特に各企業の市場シェアや特徴について述べる際には必ず引用をつけてください。"""
 
             for run in range(num_runs):
                 if num_runs > 1:
                     print(f"  実行 {run+1}/{num_runs}")
 
-                # API呼び出し
-                print(f"  検索クエリ: {query}")
-                answer, citations = perplexity_api(query)
+                # すべてのモデルを試す
+                answer = None
+                citations = []
+
+                for model in models_to_try:
+                    if answer:  # 既に成功していれば次のモデルはスキップ
+                        break
+
+                    # API呼び出し
+                    print(f"  検索クエリ実行（モデル: {model}）: {query}")
+                    answer, citations = perplexity_api(query, model=model)
+
+                    if answer:
+                        print(f"  モデル {model} で成功")
+                        break
 
                 if not answer:
-                    print("  ⚠️ 警告: APIからの応答が取得できませんでした")
+                    print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
                     continue
 
                 print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
@@ -146,31 +355,63 @@ def collect_citation_rankings(categories, num_runs=1):
                 # 引用リンクの処理
                 citation_data = []
 
-                for i, citation in enumerate(citations):
-                    url = citation.get("url", "")
-                    if url:
-                        domain = extract_domain(url)
-                        citation_data.append({
-                            "rank": i + 1,  # 1-indexed
-                            "url": url,
-                            "domain": domain,
-                            "title": citation.get("title", "")
-                        })
+                # APIからのcitationsがある場合はそれを使用
+                if citations:
+                    for i, citation in enumerate(citations):
+                        url = citation.get("url", "")
+                        if url:
+                            domain = extract_domain(url)
+                            citation_data.append({
+                                "rank": i + 1,  # 1-indexed
+                                "url": url,
+                                "domain": domain,
+                                "title": citation.get("title", ""),
+                                "from_api": True
+                            })
+
+                    print(f"  APIから引用情報を取得: {len(citation_data)}件")
+
+                # テキストからも引用参照を抽出（APIから取得できた場合も念のため）
+                print("  テキストから[数字]参照を抽出します...")
+                references = extract_references_with_context(answer)
+
+                # テキストから参照が見つかった場合
+                if references:
+                    # APIからの引用がない場合のみ追加
+                    if not citation_data:
+                        for ref in references:
+                            # ドメインの代わりに参照番号と文脈を使用
+                            citation_data.append({
+                                "rank": ref["rank"],
+                                "ref_num": ref["ref_num"],
+                                "domain": f"引用元{ref['ref_num']}",  # ドメインの代わりに引用番号
+                                "url": f"ref:{ref['ref_num']}",  # 実際のURLはないので識別子として使用
+                                "context": ref.get("context", ""),  # 引用の文脈
+                                "from_text": True
+                            })
+                        print(f"  テキストから引用参照を抽出: {len(citation_data)}件")
+                    else:
+                        # APIからの引用がある場合は、テキスト参照は補足情報として記録
+                        print(f"  テキストから引用参照を抽出: {len(references)}件（APIからの引用も存在するため参考情報）")
+                else:
+                    print("  ⚠️ 警告: テキストから引用参照が見つかりませんでした")
 
                 if citation_data:
                     # 各実行の回答テキストと引用データを組み合わせて保存
                     subcategory_results.append({
                         "run": run + 1,
                         "answer": answer,
-                        "citations": citation_data
+                        "citations": citation_data,
+                        "references": references,  # 元のテキスト参照情報も保存
+                        "extracted_from_text": len(citations) == 0 and len(references) > 0,  # テキストから抽出したかどうか
+                        "model_used": model
                     })
-                    print(f"  ✓ 引用リンク抽出完了: {len(citation_data)}件")
 
-                    # 抽出したドメインのリストを表示
+                    # 抽出したドメインまたは参照番号のリストを表示
                     domains = [item["domain"] for item in citation_data]
-                    print(f"  抽出ドメイン: {domains}")
+                    print(f"  抽出された引用情報: {domains}")
                 else:
-                    print("  ⚠️ 警告: 引用リンクが見つかりませんでした")
+                    print("  ⚠️ 警告: 引用情報が見つかりませんでした")
 
                 # API制限を考慮した待機
                 if run < num_runs - 1 or processed < total_categories:
@@ -212,7 +453,7 @@ def collect_citation_rankings(categories, num_runs=1):
                 else:
                     summary = all_answers[0] if all_answers else ""
 
-                results[category][subcategory] = {
+                results[target_category][subcategory] = {
                     "query": query,
                     "summary": summary,
                     "all_runs": subcategory_results,
@@ -226,7 +467,7 @@ def collect_citation_rankings(categories, num_runs=1):
                     if domain not in domains:
                         domains.append(domain)
 
-                results[category][subcategory] = {
+                results[target_category][subcategory] = {
                     "query": query,
                     "summary": all_answers[0] if all_answers else "",
                     "run": subcategory_results[0],
@@ -313,6 +554,55 @@ def save_results(result_data, run_type="single", num_runs=1):
         print(f"ローカルに保存しました: {local_path}")
     if result["s3"]:
         print(f"S3に保存しました: s3://{s3_path}")
+
+    # 結果のサマリーを出力（引用情報の抽出が成功したかどうかの確認）
+    print("\n=== 引用情報の抽出結果サマリー ===")
+    total_citations = 0
+    total_runs = 0
+
+    # 各カテゴリとサブカテゴリについて
+    for category, subcategories in result_data.items():
+        if not subcategories:
+            continue
+
+        print(f"\nカテゴリ: {category}")
+
+        for subcategory, data in subcategories.items():
+            print(f"  サブカテゴリ: {subcategory}")
+
+            # 複数回実行の場合
+            if "all_runs" in data:
+                runs_with_citations = 0
+                citations_count = 0
+
+                for run in data["all_runs"]:
+                    if run.get("citations"):
+                        runs_with_citations += 1
+                        citations_count += len(run["citations"])
+
+                total_runs += len(data["all_runs"])
+                total_citations += citations_count
+
+                print(f"    引用情報あり実行: {runs_with_citations}/{len(data['all_runs'])} ({runs_with_citations/len(data['all_runs'])*100:.1f}%)")
+                print(f"    引用情報総数: {citations_count}件")
+
+                # ドメインランキングがある場合
+                if "domain_rankings" in data and data["domain_rankings"]:
+                    print(f"    トップ引用ドメイン: {', '.join([d['domain'] for d in data['domain_rankings'][:3]])}")
+
+            # 単一実行の場合
+            elif "run" in data:
+                citations_count = len(data["run"].get("citations", []))
+                total_runs += 1
+                total_citations += citations_count
+
+                print(f"    引用情報: {citations_count}件")
+                if "domains" in data and data["domains"]:
+                    print(f"    引用ドメイン: {', '.join(data['domains'][:3])}")
+
+    # 全体のサマリー
+    if total_runs > 0:
+        print(f"\n全体の引用情報密度: {total_citations/total_runs:.1f}件/実行")
 
     return local_path
 

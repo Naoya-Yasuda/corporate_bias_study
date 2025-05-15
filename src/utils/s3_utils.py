@@ -50,6 +50,11 @@ def save_to_s3(local_path, s3_path):
     '''
     if not (AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME):
         print("S3認証情報が設定されていないため、S3への保存をスキップします")
+        print("S3に保存するには、.env ファイルに以下の環境変数を設定してください：")
+        print("  AWS_ACCESS_KEY - AWSアクセスキー")
+        print("  AWS_SECRET_KEY - AWSシークレットキー")
+        print("  AWS_REGION - AWSリージョン（デフォルト: ap-northeast-1）")
+        print("  S3_BUCKET_NAME - S3バケット名")
         return False
 
     try:
@@ -87,6 +92,11 @@ def upload_to_s3(local_path, s3_key, content_type=None):
     '''
     if not (AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME):
         print("S3認証情報が設定されていないため、S3への保存をスキップします")
+        print("S3に保存するには、.env ファイルに以下の環境変数を設定してください：")
+        print("  AWS_ACCESS_KEY - AWSアクセスキー")
+        print("  AWS_SECRET_KEY - AWSシークレットキー")
+        print("  AWS_REGION - AWSリージョン（デフォルト: ap-northeast-1）")
+        print("  S3_BUCKET_NAME - S3バケット名")
         return False
 
     s3_client = get_s3_client()
@@ -127,6 +137,11 @@ def put_json_to_s3(data, s3_key):
     '''
     if not (AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME):
         print("S3認証情報が設定されていないため、S3への保存をスキップします")
+        print("S3に保存するには、.env ファイルに以下の環境変数を設定してください：")
+        print("  AWS_ACCESS_KEY - AWSアクセスキー")
+        print("  AWS_SECRET_KEY - AWSシークレットキー")
+        print("  AWS_REGION - AWSリージョン（デフォルト: ap-northeast-1）")
+        print("  S3_BUCKET_NAME - S3バケット名")
         return False
 
     try:

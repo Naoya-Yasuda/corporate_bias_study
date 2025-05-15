@@ -415,16 +415,13 @@ def main():
         logging.info(f"Perplexity分析日付: {perplexity_date}, データタイプ: {args.data_type}")
 
     # Google SERP結果を取得
-    result = get_google_serp(categories)
+    result = process_categories_with_serp(categories, args.max)
 
     # 現在の日付（SERPデータの取得日時）
     today_date = datetime.datetime.now().strftime("%Y%m%d")
 
-    # ファイル名
-    serp_file = f"results/{today_date}_google_serp_results.json"
-
     # 結果を保存
-    save_results(result, serp_file)
+    serp_file = save_results(result, "results")
 
     if args.verbose:
         logging.info(f"Google SERP結果をファイルに保存しました: {serp_file}")
@@ -432,7 +429,8 @@ def main():
     # SERPメトリクス分析を実行（--no-analysisオプションが指定されていない場合）
     if not args.no_analysis:
         try:
-            from src.analysis.serp_metrics import analyze_serp_data
+            # serp_metricsモジュールからすべての関数をインポート
+            from src.analysis.serp_metrics import analyze_serp_results, compare_with_perplexity
             print("\n=== SERPメトリクス分析を開始します ===")
             if args.verbose:
                 logging.info("SERPメトリクス分析を開始します")
@@ -444,11 +442,26 @@ def main():
                 logging.info(f"Perplexityデータ: {perplexity_json}")
 
             # 分析実行
-            metrics = analyze_serp_data(serp_file, perplexity_json, args.data_type, verbose=args.verbose)
+            # serp_fileはファイルパスなので、内容を読み込む必要がある
+            with open(serp_file, "r", encoding="utf-8") as f:
+                serp_data = json.load(f)
 
-            print("SERPメトリクス分析が完了しました")
-            if args.verbose:
-                logging.info("SERPメトリクス分析が完了しました")
+            # Perplexityファイルを読み込む
+            with open(perplexity_json, "r", encoding="utf-8") as f:
+                perplexity_data = json.load(f)
+
+            # 比較分析を実行
+            comparison = compare_with_perplexity(serp_data, perplexity_data)
+
+            # Perplexityとの比較結果を用いて分析を実行
+            metrics = analyze_serp_results(serp_data, perplexity_data, comparison)
+
+            # 結果を保存
+            metrics_file = save_results(metrics, "analysis")
+            comparison_file = save_results(comparison, "comparison")
+
+            print(f"SERPメトリクス分析が完了しました：{metrics_file}")
+            print(f"Perplexity比較分析が完了しました：{comparison_file}")
         except Exception as e:
             print(f"SERPメトリクス分析中にエラーが発生しました: {e}")
             if args.verbose:
