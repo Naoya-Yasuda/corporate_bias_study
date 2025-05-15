@@ -19,6 +19,9 @@ urlextract>=1.8.0
 # AWS統合
 boto3>=1.28.0
 
+# ダッシュボード
+streamlit>=1.32.0
+
 # テスト・開発
 pytest>=7.3.0
 jupyter>=1.0.0

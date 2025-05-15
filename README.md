@@ -47,6 +47,24 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
    S3_BUCKET_NAME=your_s3_bucket_name
    ```
 
+4. 日本語フォントのインストール（Streamlitダッシュボードの文字化け防止）
+
+   **macOS**:
+   ```bash
+   # Homebrewを使用する場合
+   brew install fonts-japanese
+   # またはIPA fontsを直接ダウンロード
+   # https://moji.or.jp/ipafont/ipafontdownload/
+   ```
+
+   **Ubuntu/Debian**:
+   ```bash
+   sudo apt-get install fonts-ipafont-gothic fonts-ipafont-mincho
+   ```
+
+   **Windows**:
+   - IPAフォントを[公式サイト](https://moji.or.jp/ipafont/ipafontdownload/)からダウンロードしてインストール
+
 ### 依存パッケージ
 主な依存パッケージ:
 - データ処理: `pandas`, `numpy`, `scipy`
@@ -55,10 +73,27 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 - 可視化: `matplotlib`, `seaborn`
 - URL処理: `tldextract`, `urlextract`
 - AWS統合: `boto3`
+- ダッシュボード: `streamlit`
 
 詳細は`requirements.txt`を参照してください。
 
 ## 使用方法
+
+### Streamlitダッシュボード
+分析結果を可視化するStreamlitダッシュボードを起動します：
+
+```bash
+# 基本的な起動
+streamlit run app.py
+
+# ポート指定して起動（デフォルトが8501で使用中の場合）
+streamlit run app.py --server.port 8502
+```
+
+ダッシュボードでは以下の機能が利用できます：
+- **単一データ分析**: 選択したファイルの詳細な分析結果を表示
+- **時系列分析**: 複数日のデータを比較して時間による変化を確認
+- **サービス時系列分析**: 特定のサービスの時間変化を追跡
 
 ### 詳細ログ出力
 全モジュールで`--verbose`オプションを使用することで、詳細なログ出力を有効にできます。
