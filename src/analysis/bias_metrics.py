@@ -355,9 +355,15 @@ def export_results(metrics, output_dir="results/analysis"):
 # -------------------------------------------------------------------
 # メイン実行関数
 # -------------------------------------------------------------------
-def analyze_bias_from_file(input_file, output_dir="results/analysis"):
+def analyze_bias_from_file(input_file, output_dir="results/analysis", verbose=False):
     """JSONファイルからバイアス分析を実行"""
     print(f"ファイル {input_file} の分析を開始します...")
+
+    if verbose:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+        logger.info(f"詳細ログモードでバイアス分析を実行中: {input_file}")
 
     # JSONファイルを読み込み
     with open(input_file, 'r', encoding='utf-8') as f:
@@ -366,12 +372,18 @@ def analyze_bias_from_file(input_file, output_dir="results/analysis"):
     # DataFrameに変換
     df = json_to_dataframe(json_data)
     print(f"データ変換完了: {len(df)} 行のデータ")
+    if verbose:
+        logging.info(f"カテゴリ数: {df['category'].nunique()}, サブカテゴリ数: {df['subcategory'].nunique()}, 企業数: {df['company'].nunique()}")
 
     # バイアス指標を計算
     metrics = compute_bias_metrics(df, top_level="subcategory")
+    if verbose:
+        logging.info(f"バイアス指標計算完了: {len(metrics)} カテゴリのデータ")
 
     # 結果を保存
     all_metrics, category_summary = export_results(metrics, output_dir)
+    if verbose:
+        logging.info(f"結果の保存完了: {output_dir}")
 
     # サマリーを表示
     print("\n=== バイアス分析サマリー ===")
@@ -390,10 +402,17 @@ def main():
     parser.add_argument('--rankings-date', help='ランキング分析の日付（YYYYMMDD形式、デフォルト: 同日）')
     parser.add_argument('--api-type', default='perplexity', choices=['perplexity', 'openai'],
                         help='APIタイプ（デフォルト: perplexity）')
+    parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
 
+    # 詳細ログの設定
+    if args.verbose:
+        import logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logging.info("詳細ログモードが有効になりました")
+
     # バイアス分析を実行
-    bias_metrics, category_summary = analyze_bias_from_file(args.input_file, args.output)
+    bias_metrics, category_summary = analyze_bias_from_file(args.input_file, args.output, verbose=args.verbose)
 
     # ランキング分析も実行するオプションが指定されている場合
     if args.rankings:
@@ -416,7 +435,8 @@ def main():
             date_str=date_str,
             api_type=args.api_type,
             output_dir=f"{args.output}/rankings/{date_str}",
-            upload_results=True
+            upload_results=True,
+            verbose=args.verbose
         )
 
         if ranking_summary is not None:

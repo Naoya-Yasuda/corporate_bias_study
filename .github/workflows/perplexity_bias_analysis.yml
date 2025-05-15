@@ -78,7 +78,7 @@ jobs:
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: |
           echo "開始: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
-          python -m src.openai_bias_loader --multiple --runs 10 --verbose | tee -a logs/openai_bias.log
+          python -m src.openai_bias_loader --multiple --runs 10 | tee -a logs/openai_bias.log
           echo "完了: OpenAI バイアス分析 ($(date))" | tee -a logs/execution.log
 
       # 追加分析モジュールの実行

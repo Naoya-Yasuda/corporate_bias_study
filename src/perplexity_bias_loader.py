@@ -240,7 +240,14 @@ def main():
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
     parser.add_argument('--no-analysis', action='store_true', help='バイアス分析を実行しない')
+    parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
+
+    # 詳細ログの設定
+    if args.verbose:
+        import logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logging.info("詳細ログモードが有効になりました")
 
     # 結果を保存するファイルパス
     today_date = datetime.datetime.now().strftime("%Y%m%d")
@@ -266,8 +273,8 @@ def main():
             # 分析出力ディレクトリ
             analysis_dir = f"results/analysis/perplexity/{today_date}"
 
-            # 分析実行
-            metrics = analyze_bias_from_file(result_file, analysis_dir)
+            # 分析実行（verboseオプションを渡す）
+            metrics = analyze_bias_from_file(result_file, analysis_dir, verbose=args.verbose)
 
             # S3へのアップロード
             try:

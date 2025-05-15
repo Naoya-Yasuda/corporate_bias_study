@@ -46,7 +46,26 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
    S3_BUCKET_NAME=your_s3_bucket_name
    ```
 
+### 依存パッケージ
+主な依存パッケージ:
+- データ処理: `pandas`, `numpy`, `scipy`
+- APIクライアント: `requests`, `python-dotenv`
+- 進捗表示: `tqdm` (必須)
+- 可視化: `matplotlib`, `seaborn`
+- URL処理: `tldextract`, `urlextract`
+- AWS統合: `boto3`
+
+詳細は`requirements.txt`を参照してください。
+
 ## 使用方法
+
+### 詳細ログ出力
+全モジュールで`--verbose`オプションを使用することで、詳細なログ出力を有効にできます。
+```bash
+# 詳細ログ出力を有効にして実行
+python -m src.perplexity_bias_loader --multiple --runs 5 --verbose
+python -m src.analysis.bias_metrics --json-path results/20240501_perplexity_results_5runs.json --verbose
+```
 
 ### 単一実行
 ```bash

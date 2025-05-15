@@ -454,7 +454,7 @@ def plot_stability_matrix(stability_matrix, category, output_dir):
 # -----------------------------
 # 4. S3からデータを取得して分析
 # -----------------------------
-def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, upload_results=True):
+def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, upload_results=True, verbose=False):
     """
     S3から指定日付のランキングデータを取得して分析
 
@@ -468,12 +468,21 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         出力ディレクトリ、未指定時は "results/ranking_analysis/{date_str}"
     upload_results : bool, optional
         分析結果をS3にアップロードするかどうか
+    verbose : bool, optional
+        詳細なログ出力を有効にするかどうか
 
     Returns
     -------
     pd.DataFrame
         全カテゴリの概要指標
     """
+    # 詳細ログの設定
+    if verbose:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+        logger.info(f"詳細ログモードでランキング分析を実行中: {api_type}, 日付: {date_str}")
+
     # 日付が未指定の場合は今日の日付を使用
     if date_str is None:
         date_str = datetime.datetime.now().strftime("%Y%m%d")
@@ -483,6 +492,8 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         output_dir = f"results/ranking_analysis/{date_str}"
 
     os.makedirs(output_dir, exist_ok=True)
+    if verbose:
+        logging.info(f"出力ディレクトリを作成: {output_dir}")
 
     # S3からランキングデータを取得
     s3_prefix = f"results/{api_type}_rankings/{date_str}/"
@@ -490,15 +501,23 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
 
     if not json_content:
         print(f"⚠️ {date_str}のランキングデータが見つかりません")
+        if verbose:
+            logging.error(f"ランキングデータが見つかりません: {s3_prefix}")
         return None
 
     print(f"📥 S3からデータを取得: {s3_key}")
+    if verbose:
+        logging.info(f"S3からデータを取得: {s3_key}, サイズ: {len(json_content)}バイト")
 
     # JSONをパース
     try:
         ranked_json = json.loads(json_content)
+        if verbose:
+            logging.info(f"JSONをパース: {len(ranked_json)}個のカテゴリを検出")
     except json.JSONDecodeError as e:
         print(f"⚠️ JSONパースエラー: {e}")
+        if verbose:
+            logging.error(f"JSONパースエラー: {e}")
         return None
 
     print(f"🔍 {len(ranked_json)}個のカテゴリを分析します")
@@ -509,32 +528,51 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
 
     for category, data in ranked_json.items():
         print(f"- {category} 分析中...")
+        if verbose:
+            logging.info(f"カテゴリの分析開始: {category}")
 
         # カテゴリデータの構造を確認（ランキング結果を取得）
         runs = []
         if isinstance(data, dict) and "all_rankings" in data:
             # 複数実行結果の場合（recommended）
             runs = data["all_rankings"]
+            if verbose:
+                logging.info(f"複数実行データを検出: {len(runs)}回分のランキング")
         elif isinstance(data, dict) and "ranking" in data:
             # 単一実行結果の場合
             runs = [data["ranking"]]
+            if verbose:
+                logging.info("単一実行データを検出")
         elif isinstance(data, list):
             # ランキングのリストの場合
             runs = data
+            if verbose:
+                logging.info(f"ランキングリストを検出: {len(runs)}項目")
         else:
             print(f"  ⚠️ 不明なデータ形式: {type(data)}")
+            if verbose:
+                logging.warning(f"不明なデータ形式: {type(data)}")
             continue
 
         # カテゴリに合った市場シェアを選択
         market_share = MARKET_SHARES.get(category, None)
+        if verbose:
+            if market_share:
+                logging.info(f"市場シェアデータを使用: {len(market_share)}企業")
+            else:
+                logging.warning(f"'{category}'の市場シェアデータがありません")
 
         # 指標計算
         df_metrics, summary = compute_rank_metrics(category, runs, market_share)
+        if verbose:
+            logging.info(f"指標計算完了: {len(df_metrics)}企業の指標を生成")
 
         # 結果を保存
         csv_path = os.path.join(output_dir, f"{category}_rank_metrics.csv")
         df_metrics.to_csv(csv_path, index=False)
         uploaded_files.append((csv_path, f"results/ranking_analysis/{date_str}/{category}_rank_metrics.csv", "text/csv"))
+        if verbose:
+            logging.info(f"CSVを保存: {csv_path}")
 
         # 可視化
         heatmap_file = plot_rank_distribution(df_metrics, category, output_dir)
@@ -544,6 +582,8 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
                 f"results/ranking_analysis/{date_str}/{heatmap_file}",
                 "image/png"
             ))
+            if verbose:
+                logging.info(f"ヒートマップを生成: {heatmap_file}")
 
         scatter_file = plot_exposure_vs_market(df_metrics, category, output_dir)
         if scatter_file:
@@ -552,6 +592,8 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
                 f"results/ranking_analysis/{date_str}/{scatter_file}",
                 "image/png"
             ))
+            if verbose:
+                logging.info(f"散布図を生成: {scatter_file}")
 
         # 安定性行列のプロット（2回以上実行された場合のみ）
         if len(runs) > 1:
@@ -564,6 +606,8 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
                     f"results/ranking_analysis/{date_str}/{stability_file}",
                     "image/png"
                 ))
+                if verbose:
+                    logging.info(f"安定性行列を生成: {stability_file}")
 
         # 概要を集計
         summaries.append(summary)
@@ -577,17 +621,27 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         f"results/ranking_analysis/{date_str}/{date_str}_{api_type}_rank_summary.csv",
         "text/csv"
     ))
+    if verbose:
+        logging.info(f"概要を保存: {summary_path}, {len(summaries)}カテゴリ")
 
     # S3にアップロード
     if upload_results and AWS_ACCESS_KEY and AWS_SECRET_KEY:
         print("📤 分析結果をS3にアップロード中...")
+        if verbose:
+            logging.info("S3へのアップロード開始")
         for local_path, s3_key, content_type in uploaded_files:
             if upload_to_s3(local_path, s3_key, content_type):
                 print(f"  ✓ {s3_key}")
+                if verbose:
+                    logging.info(f"S3アップロード成功: {s3_key}")
             else:
                 print(f"  ✗ {s3_key}")
+                if verbose:
+                    logging.error(f"S3アップロード失敗: {s3_key}")
 
     print(f"✅ ランキング分析が完了しました: {output_dir}")
+    if verbose:
+        logging.info(f"ランキング分析完了: {len(summary_df)}カテゴリ")
 
     # 概要を表示
     print("\n=== ランキング分析の概要 ===")

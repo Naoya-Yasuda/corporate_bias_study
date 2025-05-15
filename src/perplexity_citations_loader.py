@@ -20,12 +20,12 @@ from collections import defaultdict
 from src.utils import (
     extract_domain,
     ensure_dir,
-    save_json_data,
     get_today_str,
     is_s3_enabled,
     get_storage_config,
     get_results_paths
 )
+from src.utils.storage_utils import save_json_data
 from src.categories import get_categories, get_all_categories
 
 # .envファイルから環境変数を読み込む
@@ -250,30 +250,66 @@ def save_results(result_data, run_type="single", num_runs=1):
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
-    parser = argparse.ArgumentParser(description='Perplexity APIを使用して引用リンクのランキングを取得')
+    parser = argparse.ArgumentParser(description='Perplexityを使用して引用リンクデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
-    parser.add_argument('--no-analysis', action='store_true', help='ランキング分析を実行しない')
+    parser.add_argument('--no-analysis', action='store_true', help='引用リンク分析を実行しない')
+    parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
+
+    # 詳細ログの設定
+    if args.verbose:
+        import logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logging.info("詳細ログモードが有効になりました")
 
     # カテゴリとサービスの取得
     categories = get_categories()
 
-    # 引用リンクのランキングを取得
+    # 結果を保存するファイルパス
+    today_date = datetime.datetime.now().strftime("%Y%m%d")
+
+    # 多重実行フラグがある場合は複数回実行
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の引用リンク取得を実行します")
+        if args.verbose:
+            logging.info(f"{args.runs}回の実行を開始します")
         result = collect_citation_rankings(categories, args.runs)
+        result_file = f"results/{today_date}_perplexity_citations_{args.runs}runs.json"
         save_results(result, "multiple", args.runs)
     else:
-        print("Perplexity APIを使用して単一実行の引用リンク取得を実行します")
+        print("Perplexity APIを使用して単一実行引用リンク取得を実行します")
+        if args.verbose:
+            logging.info("単一実行を開始します")
         result = collect_citation_rankings(categories)
+        result_file = f"results/{today_date}_perplexity_citations.json"
         save_results(result)
 
     print("引用リンク取得処理が完了しました")
+    if args.verbose:
+        logging.info("引用リンク取得処理が完了しました")
 
-    # 将来的には引用リンクの分析もここに実装予定
+    # 引用リンク分析を実行（--no-analysisオプションが指定されていない場合）
     if not args.no_analysis:
-        print("\n注: 現在のバージョンでは引用リンクの自動分析は実装されていません。")
+        try:
+            from src.analysis.serp_metrics import analyze_citations_from_file
+            print("\n=== 引用リンク分析を開始します ===")
+            if args.verbose:
+                logging.info("引用リンク分析を開始します")
+
+            # 分析出力ディレクトリ
+            analysis_dir = f"results/analysis/citations/{today_date}"
+
+            # 分析実行
+            metrics = analyze_citations_from_file(result_file, analysis_dir, verbose=args.verbose)
+
+            print("引用リンク分析が完了しました")
+            if args.verbose:
+                logging.info("引用リンク分析が完了しました")
+        except Exception as e:
+            print(f"引用リンク分析中にエラーが発生しました: {e}")
+            if args.verbose:
+                logging.error(f"引用リンク分析中にエラーが発生しました: {e}")
 
 
 if __name__ == "__main__":

@@ -379,44 +379,80 @@ def process_categories_with_serp(categories, max_categories=None):
 # -------------------------------------------------------------------
 def main():
     """メイン関数"""
-    parser = argparse.ArgumentParser(description="Google SERP API を使用して検索結果を取得")
-    parser.add_argument("--max", type=int, help="処理する最大カテゴリ数")
-    parser.add_argument("--perplexity-date", help="比較するPerplexityデータの日付（YYYYMMDD形式）")
-    parser.add_argument("--no-analysis", action="store_true", help="SERP分析を実行しない")
-    parser.add_argument("--data-type", choices=["rankings", "citations"], default="citations",
-                        help="Perplexityデータタイプ: rankings（ランキング）かcitations（引用リンク）")
-    parser.add_argument("--runs", type=int, help="指定された実行回数のPerplexityデータを使用")
+    # 引数処理（コマンドライン引数があれば使用）
+    parser = argparse.ArgumentParser(description='Google SERPデータを取得し、Perplexityとの比較分析を行う')
+    parser.add_argument('--perplexity-date', help='分析対象のPerplexityデータ日付（YYYYMMDD形式）')
+    parser.add_argument('--data-type', choices=['rankings', 'citations'], default='citations',
+                        help='比較するPerplexityデータのタイプ（デフォルト: citations）')
+    parser.add_argument('--max', type=int, help='処理するカテゴリ数の上限')
+    parser.add_argument('--runs', type=int, default=10, help='使用するPerplexity実行回数（デフォルト: 10）')
+    parser.add_argument('--no-analysis', action='store_true', help='SERPメトリクス分析を実行しない')
+    parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
 
-    # SERP API で検索
-    print("Google SERP API で検索結果を取得中...")
-    serp_results = process_categories_with_serp(categories, args.max)
+    # 詳細ログの設定
+    if args.verbose:
+        import logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logging.info("詳細ログモードが有効になりました")
+
+    # カテゴリとサービスの取得
+    categories = get_categories()
+    if args.max:
+        # カテゴリ数の上限が指定されている場合は制限
+        limited_categories = {}
+        for i, (cat, subcat) in enumerate(categories.items()):
+            if i >= args.max:
+                break
+            limited_categories[cat] = subcat
+        categories = limited_categories
+        if args.verbose:
+            logging.info(f"カテゴリを{args.max}個に制限しました")
+
+    # 日付を取得（指定がなければ今日の日付）
+    perplexity_date = args.perplexity_date or datetime.datetime.now().strftime("%Y%m%d")
+    if args.verbose:
+        logging.info(f"Perplexity分析日付: {perplexity_date}, データタイプ: {args.data_type}")
+
+    # Google SERP結果を取得
+    result = get_google_serp(categories)
+
+    # 現在の日付（SERPデータの取得日時）
+    today_date = datetime.datetime.now().strftime("%Y%m%d")
+
+    # ファイル名
+    serp_file = f"results/{today_date}_google_serp_results.json"
 
     # 結果を保存
-    save_results(serp_results, "results")
+    save_results(result, serp_file)
 
-    # Perplexityデータと比較・分析
+    if args.verbose:
+        logging.info(f"Google SERP結果をファイルに保存しました: {serp_file}")
+
+    # SERPメトリクス分析を実行（--no-analysisオプションが指定されていない場合）
     if not args.no_analysis:
-        perplexity_data, run_type, run_count = get_perplexity_results(
-            args.perplexity_date,
-            data_type=args.data_type,
-            runs=args.runs
-        )
+        try:
+            from src.analysis.serp_metrics import analyze_serp_data
+            print("\n=== SERPメトリクス分析を開始します ===")
+            if args.verbose:
+                logging.info("SERPメトリクス分析を開始します")
 
-        if perplexity_data:
-            print(f"Perplexity {run_type} データ（{args.data_type}、{run_count}回実行）と比較中...")
+            # PerplexityのJSONパス（データタイプに応じて）
+            perplexity_json = f"results/{perplexity_date}_perplexity_{args.data_type}_{args.runs}runs.json"
 
-            # 比較結果
-            comparison_results = compare_with_perplexity(serp_results, perplexity_data)
-            save_results(comparison_results, "comparison")
+            if args.verbose:
+                logging.info(f"Perplexityデータ: {perplexity_json}")
 
-            # 分析
-            analysis_results = analyze_serp_results(serp_results, perplexity_data, comparison_results)
-            save_results(analysis_results, "analysis")
+            # 分析実行
+            metrics = analyze_serp_data(serp_file, perplexity_json, args.data_type, verbose=args.verbose)
 
-            print("分析完了")
-        else:
-            print(f"Perplexity {args.data_type} データが見つからないため、比較分析はスキップします")
+            print("SERPメトリクス分析が完了しました")
+            if args.verbose:
+                logging.info("SERPメトリクス分析が完了しました")
+        except Exception as e:
+            print(f"SERPメトリクス分析中にエラーが発生しました: {e}")
+            if args.verbose:
+                logging.error(f"SERPメトリクス分析中にエラーが発生しました: {e}")
 
 if __name__ == "__main__":
     main()
