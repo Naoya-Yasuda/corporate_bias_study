@@ -18,6 +18,10 @@ load_dotenv()
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-1")
+# リージョンが空の場合はデフォルト値を使用
+if not AWS_REGION or AWS_REGION.strip() == '':
+    AWS_REGION = 'ap-northeast-1'
+    print(f'[storage_config] AWS_REGIONが未設定または空のため、デフォルト値を使用します: {AWS_REGION}')
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 # 保存モード設定（環境変数から取得、デフォルトは両方）

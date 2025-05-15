@@ -11,7 +11,7 @@
 from .s3_utils import save_to_s3, upload_to_s3, put_json_to_s3, get_s3_client
 
 # file utils
-from .file_utils import ensure_dir, save_json, get_today_str
+from .file_utils import ensure_dir, save_json, get_today_str, load_json
 
 # text utils
 from .text_utils import extract_domain, is_negative, ratio

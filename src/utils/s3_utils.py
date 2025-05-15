@@ -23,6 +23,10 @@ if not AWS_REGION or AWS_REGION.strip() == '':
 
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
+# S3設定のデバッグ情報
+print(f"S3設定情報: リージョン={AWS_REGION}, バケット={S3_BUCKET_NAME}")
+print(f"S3エンドポイント: https://s3.{AWS_REGION}.amazonaws.com")
+
 def get_s3_client():
     '''S3クライアントを取得'''
     return boto3.client(

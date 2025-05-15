@@ -28,7 +28,7 @@ import time
 from src.utils import extract_domain, is_negative, ratio
 from src.utils import rbo, rank_map, compute_tau, compute_delta_ranks
 from src.utils import plot_delta_ranks, plot_market_impact
-from src.utils import save_json_data, save_text_data, save_figure
+from src.utils.storage_utils import save_json_data, save_text_data, save_figure
 from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 

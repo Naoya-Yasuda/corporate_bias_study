@@ -23,12 +23,13 @@ from collections import defaultdict
 
 # ドメイン関連の機能
 from src.utils import extract_domain, get_results_paths, get_today_str
-from src.utils.file_utils import get_local_json, get_s3_json
+from src.utils.file_utils import load_json
 from src.categories import get_categories
 
 # 共通ユーティリティをインポート
 from src.utils.s3_utils import get_s3_client, upload_to_s3
-from src.utils.file_utils import ensure_dir, save_json_data
+from src.utils.file_utils import ensure_dir
+from src.utils.storage_utils import save_json_data
 from src.utils.rank_utils import compute_tau, rbo
 from src.utils.plot_utils import set_plot_style
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
