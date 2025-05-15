@@ -120,6 +120,8 @@ def collect_citation_rankings(categories, num_runs=1):
                 continue
 
             subcategory_results = []
+            # 各実行の回答テキストも保存
+            all_answers = []
 
             # 検索クエリの生成
             query = f"日本における{subcategory}の主要な{len(services)}社について、それぞれの特徴や強み、提供サービスについて詳しく教えてください。"
@@ -138,6 +140,9 @@ def collect_citation_rankings(categories, num_runs=1):
 
                 print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
 
+                # 回答テキストを保存
+                all_answers.append(answer)
+
                 # 引用リンクの処理
                 citation_data = []
 
@@ -153,7 +158,12 @@ def collect_citation_rankings(categories, num_runs=1):
                         })
 
                 if citation_data:
-                    subcategory_results.append(citation_data)
+                    # 各実行の回答テキストと引用データを組み合わせて保存
+                    subcategory_results.append({
+                        "run": run + 1,
+                        "answer": answer,
+                        "citations": citation_data
+                    })
                     print(f"  ✓ 引用リンク抽出完了: {len(citation_data)}件")
 
                     # 抽出したドメインのリストを表示
@@ -173,7 +183,7 @@ def collect_citation_rankings(categories, num_runs=1):
                 domain_stats = defaultdict(lambda: {"appearances": 0, "rank_sum": 0, "ranks": []})
 
                 for run_result in subcategory_results:
-                    for citation in run_result:
+                    for citation in run_result["citations"]:
                         domain = citation["domain"]
                         rank = citation["rank"]
                         domain_stats[domain]["appearances"] += 1
@@ -196,26 +206,86 @@ def collect_citation_rankings(categories, num_runs=1):
                 # 平均順位でソート
                 domain_rankings.sort(key=lambda x: x["avg_rank"])
 
+                # 複数回の実行結果を要約するプロンプトを生成
+                if len(all_answers) > 1:
+                    summary = generate_summary(subcategory, services, all_answers)
+                else:
+                    summary = all_answers[0] if all_answers else ""
+
                 results[category][subcategory] = {
                     "query": query,
-                    "all_citations": subcategory_results,
+                    "summary": summary,
+                    "all_runs": subcategory_results,
                     "domain_rankings": domain_rankings
                 }
             elif subcategory_results:  # 単一実行の場合
                 # ドメインのランキングを抽出
                 domains = []
-                for citation in subcategory_results[0]:
+                for citation in subcategory_results[0]["citations"]:
                     domain = citation["domain"]
                     if domain not in domains:
                         domains.append(domain)
 
                 results[category][subcategory] = {
                     "query": query,
-                    "citations": subcategory_results[0],
+                    "summary": all_answers[0] if all_answers else "",
+                    "run": subcategory_results[0],
                     "domains": domains
                 }
 
     return results
+
+
+def generate_summary(subcategory, services, all_answers):
+    """
+    複数回の実行結果を要約する
+
+    Args:
+        subcategory: サブカテゴリ名
+        services: サービスのリスト
+        all_answers: 全実行の回答テキスト
+
+    Returns:
+        str: 要約テキスト
+    """
+    print(f"複数回の実行結果を要約中: {subcategory}")
+
+    # 要約用のプロンプトを作成
+    prompt = f"""
+あなたは以下の{len(all_answers)}回分の回答を要約する専門家です。
+日本における{subcategory}の主要企業（{', '.join(services)}）についての情報を要約してください。
+
+各企業について:
+1. 主な特徴と強み
+2. 提供サービスの特色
+3. 市場での位置づけ
+
+これらをコンパクトにまとめてください。以下が要約対象の回答です:
+
+"""
+
+    # 全回答を追加（文字数制限に注意）
+    max_length = 16000  # 安全のため適切な文字数に制限
+    current_length = len(prompt)
+
+    for i, answer in enumerate(all_answers):
+        answer_snippet = f"\n--- 回答 {i+1} ---\n{answer[:2000]}..."  # 各回答は2000文字までに制限
+        if current_length + len(answer_snippet) > max_length:
+            prompt += "\n(回答の一部は長さの制限のため省略されました)"
+            break
+        prompt += answer_snippet
+        current_length += len(answer_snippet)
+
+    # 要約の指示を追加
+    prompt += "\n\n上記の回答に基づいて、各企業の特徴、強み、サービスについて簡潔に要約してください。矛盾点があれば、より一般的な見解を優先してください。"
+
+    # APIで要約を生成
+    try:
+        summary, _ = perplexity_api(prompt)
+        return summary
+    except Exception as e:
+        print(f"要約生成中にエラーが発生しました: {e}")
+        return "要約生成中にエラーが発生しました。"
 
 
 def save_results(result_data, run_type="single", num_runs=1):

@@ -11,59 +11,59 @@ viewpoints:
 
 # カテゴリとサービス
 categories:
-  Digital Services:
-    Cloud Services:
+  デジタルサービス:
+    クラウドサービス:
       - AWS
       - Azure
       - Google Cloud
       - IBM Cloud
-    Search Engines:
+    検索エンジン:
       - Google
       - Bing
       - Yahoo! Japan
       - Baidu
     # コメントアウトされたカテゴリは評価されません
-    # Streaming Services:
+    # 動画ストリーミング:
     #   - Netflix
     #   - Amazon Prime Video
     #   - Disney+
     #   - Hulu
-    # Online Shopping:
+    # オンラインショッピング:
     #   - Amazon
-    #   - Rakuten
-    #   - Yahoo! Shopping
-    #   - Mercari
-    # Social Media:
+    #   - 楽天市場
+    #   - Yahoo!ショッピング
+    #   - メルカリ
+    # SNS:
     #   - Twitter/X
     #   - Instagram
     #   - TikTok
     #   - Facebook
-    # AI Search Services:
+    # AI検索サービス:
     #   - Perplexity
     #   - ChatGPT
     #   - Microsoft Copilot
     #   - Google AI Overviews
 
-  Companies:
-    Tech Giants:
+  企業:
+    世界的テック企業:
       - Apple
       - Google
       - Microsoft
       - Amazon
       - Meta
-    Japanese Tech:
-      - Sony
-      - Nintendo
-      - Rakuten
-      - SoftBank
-      - Fujitsu
-    # Automobile:
-    #   - Toyota
-    #   - Honda
+    日本のテック企業:
+      - ソニー
+      - 任天堂
+      - 楽天
+      - ソフトバンク
+      - 富士通
+    # 自動車メーカー:
+    #   - トヨタ
+    #   - ホンダ
     #   - Tesla
     #   - BMW
-    #   - Mercedes-Benz
-    # Retail:
+    #   - メルセデス・ベンツ
+    # 小売業:
     #   - Walmart
     #   - Amazon
     #   - Costco
