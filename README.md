@@ -409,7 +409,7 @@ MITライセンス
 4. **分析モジュール** (`src/analysis/`)
    - `ranking_metrics.py`: ランキング指標の計算（露出度、公平性ギャップ等）
    - `bias_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率等）
-   - `serp_metrics.py`: Google検索とPerplexity結果の比較分析
+   - `serp_metrics.py`: Google検索とPerplexity結果の比較分析、引用リンク分析(`analyze_citations_from_file`関数)
    - `bias_ranking_pipeline.py`: 統合されたバイアス評価パイプライン
 
 5. **共通ユーティリティ** (`src/utils/`)
@@ -691,7 +691,7 @@ AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動�
 3. **分析モジュール** (`src/analysis/`)
    - `ranking_metrics.py`: ランキング指標分析
    - `bias_metrics.py`: バイアス指標分析
-   - `serp_metrics.py`: Google検索結果とPerplexity結果の比較分析
+   - `serp_metrics.py`: Google検索とPerplexity結果の比較分析
    - `bias_ranking_pipeline.py`: 統合されたバイアス評価
 
 4. **データ定義** (`src/data/`)
@@ -836,7 +836,9 @@ python src/analysis/ranking_metrics.py --date 20240510 --api perplexity
 
 ```bash
 python src/google_serp_loader.py --perplexity-date 20240510
-```## 11. コード修正履歴
+```
+
+## 11. コード修正履歴
 
 ### 2024年7月の主な修正
 

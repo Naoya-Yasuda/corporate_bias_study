@@ -19,6 +19,7 @@ from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
 from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
 from src.utils.file_utils import ensure_dir
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
+from src.utils.storage_utils import save_json_data, save_figure
 
 # -------------------------------------------------------------------
 # 比較メトリクス
@@ -127,6 +128,217 @@ def compute_content_metrics(serp_detailed_results, top_k=10):
             }
 
     return metrics
+
+# -------------------------------------------------------------------
+# 引用リンク (Citations) 分析関数
+# -------------------------------------------------------------------
+def analyze_citations_from_file(citations_file, output_dir=None, verbose=False):
+    """
+    引用リンク (Citations) データファイルを分析
+
+    Parameters
+    ----------
+    citations_file : str
+        引用リンクデータのJSONファイルパス
+    output_dir : str, optional
+        分析結果の出力ディレクトリ
+    verbose : bool, optional
+        詳細な出力を表示するかどうか
+
+    Returns
+    -------
+    dict
+        分析結果
+    """
+    if verbose:
+        print(f"引用リンクデータファイル {citations_file} の分析を開始します")
+
+    # 出力ディレクトリの設定
+    if output_dir is None:
+        output_dir = "results/analysis/citations"
+
+    ensure_dir(output_dir)
+
+    if verbose:
+        print(f"出力ディレクトリ: {output_dir}")
+
+    # ファイルの読み込み
+    try:
+        with open(citations_file, "r", encoding="utf-8") as f:
+            citations_data = json.load(f)
+            if verbose:
+                print(f"引用リンクデータを読み込みました（サイズ: {len(json.dumps(citations_data))} バイト）")
+    except Exception as e:
+        print(f"引用リンクデータファイルの読み込みに失敗しました: {e}")
+        return None
+
+    # 分析結果を格納する辞書
+    analysis_results = {}
+
+    # カテゴリとサブカテゴリの分析
+    for category, subcategories in citations_data.items():
+        if verbose:
+            print(f"カテゴリ {category} の分析を開始します")
+
+        analysis_results[category] = {}
+
+        for subcategory, data in subcategories.items():
+            if verbose:
+                print(f"  サブカテゴリ {subcategory} の分析を開始します")
+
+            # サブカテゴリごとの分析結果
+            subcategory_analysis = {
+                "citation_metrics": {},
+                "domain_distribution": {},
+                "summary": {}
+            }
+
+            # 複数回実行の場合（all_runsキーがある場合）
+            if "all_runs" in data:
+                # ドメインごとの出現回数と平均順位を分析
+                domain_stats = defaultdict(lambda: {"count": 0, "ranks": []})
+                total_citations = 0
+                successful_runs = 0
+
+                for run in data["all_runs"]:
+                    citations = run.get("citations", [])
+                    if citations:
+                        successful_runs += 1
+                        total_citations += len(citations)
+
+                        for citation in citations:
+                            domain = citation.get("domain", "unknown")
+                            rank = citation.get("rank", 0)
+                            domain_stats[domain]["count"] += 1
+                            domain_stats[domain]["ranks"].append(rank)
+
+                # ドメイン分布の計算
+                domain_distribution = []
+                for domain, stats in domain_stats.items():
+                    avg_rank = sum(stats["ranks"]) / len(stats["ranks"]) if stats["ranks"] else 0
+                    frequency = stats["count"] / total_citations if total_citations > 0 else 0
+                    domain_distribution.append({
+                        "domain": domain,
+                        "count": stats["count"],
+                        "frequency": frequency,
+                        "avg_rank": avg_rank
+                    })
+
+                # ドメイン分布を平均ランクでソート
+                domain_distribution.sort(key=lambda x: x["avg_rank"])
+
+                # メトリクスの計算
+                citation_metrics = {
+                    "total_citations": total_citations,
+                    "successful_runs": successful_runs,
+                    "avg_citations_per_run": total_citations / successful_runs if successful_runs > 0 else 0,
+                    "unique_domains": len(domain_stats)
+                }
+
+                # 分析結果の保存
+                subcategory_analysis["citation_metrics"] = citation_metrics
+                subcategory_analysis["domain_distribution"] = domain_distribution
+                subcategory_analysis["summary"] = {
+                    "query": data.get("query", ""),
+                    "top_domains": [d["domain"] for d in domain_distribution[:5]],
+                    "run_success_rate": successful_runs / len(data["all_runs"]) if data["all_runs"] else 0
+                }
+
+                # ドメイン分布の可視化（上位10ドメイン）
+                if domain_distribution:
+                    top_domains = domain_distribution[:10]
+                    domain_names = [d["domain"] for d in top_domains]
+                    frequencies = [d["frequency"] * 100 for d in top_domains]  # パーセンテージに変換
+
+                    plt.figure(figsize=(10, 6))
+                    bars = plt.barh(domain_names, frequencies, color='skyblue')
+                    plt.xlabel('引用頻度 (%)')
+                    plt.ylabel('ドメイン')
+                    plt.title(f'{subcategory} の引用ドメイン分布')
+                    plt.tight_layout()
+
+                    # 各バーに値をラベル付け
+                    for i, bar in enumerate(bars):
+                        plt.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height()/2,
+                                f"{frequencies[i]:.1f}%", va='center')
+
+                    # グラフを保存
+                    plot_path = os.path.join(output_dir, f"{category}_{subcategory}_domain_distribution.png")
+                    plt.savefig(plot_path, dpi=100)
+                    plt.close()
+
+                    subcategory_analysis["plots"] = {
+                        "domain_distribution": plot_path
+                    }
+
+            # 単一実行の場合（runキーがある場合）
+            elif "run" in data:
+                run = data["run"]
+                citations = run.get("citations", [])
+
+                # ドメインカウントの計算
+                domain_counts = {}
+                for citation in citations:
+                    domain = citation.get("domain", "unknown")
+                    domain_counts[domain] = domain_counts.get(domain, 0) + 1
+
+                # ドメイン分布の作成
+                domain_distribution = []
+                total_citations = len(citations)
+                for domain, count in domain_counts.items():
+                    frequency = count / total_citations if total_citations > 0 else 0
+                    domain_distribution.append({
+                        "domain": domain,
+                        "count": count,
+                        "frequency": frequency
+                    })
+
+                # ドメイン分布をカウントでソート
+                domain_distribution.sort(key=lambda x: x["count"], reverse=True)
+
+                # メトリクスの計算
+                citation_metrics = {
+                    "total_citations": total_citations,
+                    "unique_domains": len(domain_counts)
+                }
+
+                # 分析結果の保存
+                subcategory_analysis["citation_metrics"] = citation_metrics
+                subcategory_analysis["domain_distribution"] = domain_distribution
+                subcategory_analysis["summary"] = {
+                    "query": data.get("query", ""),
+                    "top_domains": [d["domain"] for d in domain_distribution[:5]]
+                }
+
+            # サブカテゴリの分析結果を追加
+            analysis_results[category][subcategory] = subcategory_analysis
+
+    # 全体の分析結果をJSONに保存
+    result_path = os.path.join(output_dir, "citations_analysis.json")
+    save_json_data(analysis_results, result_path)
+    if verbose:
+        print(f"分析結果を {result_path} に保存しました")
+
+    # 分析結果のサマリーを出力
+    print("\n=== 引用リンク分析結果サマリー ===")
+    for category, subcategories in analysis_results.items():
+        print(f"\nカテゴリ: {category}")
+
+        for subcategory, analysis in subcategories.items():
+            metrics = analysis.get("citation_metrics", {})
+            summary = analysis.get("summary", {})
+
+            print(f"  サブカテゴリ: {subcategory}")
+            print(f"    引用数: {metrics.get('total_citations', 0)}")
+            print(f"    ユニークドメイン: {metrics.get('unique_domains', 0)}")
+
+            if "top_domains" in summary and summary["top_domains"]:
+                print(f"    トップドメイン: {', '.join(summary['top_domains'][:3])}")
+
+            if "run_success_rate" in summary:
+                print(f"    成功率: {summary['run_success_rate']*100:.1f}%")
+
+    return analysis_results
 
 # -------------------------------------------------------------------
 # PerplexityとGoogle SERPの比較
