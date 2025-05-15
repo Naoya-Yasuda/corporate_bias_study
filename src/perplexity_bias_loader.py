@@ -93,33 +93,47 @@ def process_categories(api_key, categories):
 
 def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
     """複数回実行して平均値を取得"""
+    # 最終結果を格納する辞書
     results = {}
 
+    # 初期化：カテゴリとサブカテゴリのデータ構造を作成
+    for category, subcategories_data in categories.items():
+        results[category] = {}
+        for subcategory, competitors in subcategories_data.items():
+            results[category][subcategory] = {
+                "competitors": competitors,
+                "masked_example": get_masked_prompt(subcategory),
+                "unmasked_examples": {competitor: get_unmasked_prompt(subcategory, competitor) for competitor in competitors},
+                "masked_result": "",  # 最後の結果を格納
+                "unmasked_result": {competitor: "" for competitor in competitors},  # 各企業の最後の結果を格納
+                "masked_values": [],  # 各実行のマスクあり評価値
+                "all_masked_results": [],  # 各実行のマスクあり結果テキスト
+                "unmasked_values": {competitor: [] for competitor in competitors}  # 各企業ごとの評価値配列
+            }
+            print(f"評価対象: カテゴリ={category}, サブカテゴリ={subcategory}, サービス={competitors}")
+
+    # 指定回数分の実行
     for run in range(num_runs):
         print(f"実行 {run+1}/{num_runs}")
         run_results = process_categories(api_key, categories)
 
-        # 結果を蓄積
-        if not results:
-            results = run_results  # 初回は結果をそのまま格納
-            # 評価値を格納する配列を初期化
-            for category in results:
-                for subcategory in results[category]:
-                    print(f"カテゴリ: {category}, サブカテゴリ: {subcategory}, サービス: {results[category][subcategory]['competitors']}")
-                    # マスクあり評価値の配列
-                    results[category][subcategory]['masked_values'] = []
-                    results[category][subcategory]['all_masked_results'] = []
-
-                    # マスクなし評価値（各企業別）の配列
-                    for competitor in results[category][subcategory]['competitors']:
-                        if 'unmasked_values' not in results[category][subcategory]:
-                            results[category][subcategory]['unmasked_values'] = {}
-                        results[category][subcategory]['unmasked_values'][competitor] = []
-
-        # 各実行の評価値を配列に追加
+        # 各カテゴリと各サブカテゴリについて結果を処理
         for category in results:
             for subcategory in results[category]:
+                if subcategory not in run_results[category]:
+                    print(f"警告: 実行{run+1}の結果に {category}/{subcategory} が含まれていません")
+                    continue
+
                 print(f"処理中: カテゴリ={category}, サブカテゴリ={subcategory}")
+
+                # 最後の実行結果を保存（表示用）
+                results[category][subcategory]['masked_result'] = run_results[category][subcategory]['masked_result']
+
+                # 各企業の最後の結果を保存（表示用）
+                for competitor in results[category][subcategory]['competitors']:
+                    if competitor in run_results[category][subcategory]['unmasked_result']:
+                        results[category][subcategory]['unmasked_result'][competitor] = run_results[category][subcategory]['unmasked_result'][competitor]
+
                 # マスクありの結果を保存
                 masked_result = run_results[category][subcategory]['masked_result']
                 results[category][subcategory]['all_masked_results'].append(masked_result)
@@ -129,20 +143,26 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     value = extract_score(masked_result)
                     if value is not None:
                         results[category][subcategory]['masked_values'].append(value)
+                    else:
+                        print(f"警告: マスクあり評価値が抽出できませんでした: {masked_result}")
                 except Exception as e:
                     print(f"マスクあり評価値の抽出エラー: {e}, 結果: {masked_result}")
 
                 # マスクなし評価値の抽出（各競合企業ごと）
                 for competitor in results[category][subcategory]['competitors']:
                     try:
-                        print(f"  サービス評価中: {competitor}")
                         # unmasked_resultから各企業の結果を取得
-                        unmasked_result = run_results[category][subcategory]['unmasked_result'][competitor]
+                        if competitor in run_results[category][subcategory]['unmasked_result']:
+                            unmasked_result = run_results[category][subcategory]['unmasked_result'][competitor]
 
-                        # 評価値の抽出
-                        value = extract_score(unmasked_result)
-                        if value is not None:
-                            results[category][subcategory]['unmasked_values'][competitor].append(value)
+                            # 評価値の抽出
+                            value = extract_score(unmasked_result)
+                            if value is not None:
+                                results[category][subcategory]['unmasked_values'][competitor].append(value)
+                            else:
+                                print(f"警告: {competitor}の評価値が抽出できませんでした: {unmasked_result}")
+                        else:
+                            print(f"警告: 実行{run+1}の結果に {competitor} が含まれていません")
                     except Exception as e:
                         print(f"マスクなし評価値の抽出エラー ({competitor}): {e}")
 
@@ -155,6 +175,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             masked_values = results[category][subcategory].get('masked_values', [])
             if masked_values:
                 results[category][subcategory]['masked_avg'] = sum(masked_values) / len(masked_values)
+                print(f"マスクあり評価値: {masked_values}, 平均: {results[category][subcategory]['masked_avg']}")
 
                 # 標準偏差の計算
                 if len(masked_values) > 1:
@@ -177,6 +198,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     if values:
                         # 平均値
                         results[category][subcategory]['unmasked_avg'][competitor] = sum(values) / len(values)
+                        print(f"{competitor}の評価値: {values}, 平均: {results[category][subcategory]['unmasked_avg'][competitor]}")
 
                         # 標準偏差
                         if len(values) > 1:
@@ -193,7 +215,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
 
 # 共通ユーティリティをインポート
 from src.utils.file_utils import ensure_dir, save_json, get_today_str
-from src.utils.s3_utils import save_to_s3, put_json_to_s3
+from src.utils.storage_utils import save_json_data
 
 def save_results(result_data, run_type="single", num_runs=1):
     """結果を保存する関数"""
@@ -201,6 +223,11 @@ def save_results(result_data, run_type="single", num_runs=1):
     aws_access_key = os.environ.get("AWS_ACCESS_KEY")
     aws_secret_key = os.environ.get("AWS_SECRET_KEY")
     aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")
+    # リージョンが空文字列の場合はデフォルト値を使用
+    if not aws_region or aws_region.strip() == '':
+        aws_region = 'ap-northeast-1'
+        print(f'AWS_REGIONが未設定または空のため、デフォルト値を使用します: {aws_region}')
+
     s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
 
     # 日付を取得
@@ -223,12 +250,23 @@ def save_results(result_data, run_type="single", num_runs=1):
 
     # S3に保存（認証情報がある場合のみ）
     if aws_access_key and aws_secret_key and s3_bucket_name:
-        # S3のパスを設定 (results/perplexity/日付/ファイル名)
-        s3_key = f"results/perplexity/{today_date}/{file_name}"
+        try:
+            # S3のパスを設定 (results/perplexity/日付/ファイル名)
+            s3_key = f"results/perplexity/{today_date}/{file_name}"
 
-        # S3にアップロード
-        if put_json_to_s3(result_data, s3_key):
-            print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")
+            # save_json_dataを使用してS3に保存
+            result = save_json_data(result_data, local_file, s3_key)
+            if result["s3"]:
+                print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")
+            else:
+                print(f"S3への保存に失敗しました: 認証情報を確認してください")
+                print(f"  バケット名: {s3_bucket_name}")
+                print(f"  AWS認証キーの設定状態: ACCESS_KEY={'設定済み' if aws_access_key else '未設定'}, SECRET_KEY={'設定済み' if aws_secret_key else '未設定'}")
+                print(f"  リージョン: {aws_region}")
+        except Exception as e:
+            print(f"S3保存中にエラーが発生しました: {e}")
+    else:
+        print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
 
     return local_file
 

@@ -292,6 +292,7 @@ cron: '0 21 * * 1'
 ## 分析結果の保存先
 - ローカル: `results/YYYYMMDD_*_results.json`
 - S3: `s3://your-bucket/results/{openai|perplexity}/YYYYMMDD/*_results.json`
+- Github Actions: ログから取得可能（90日間保存）
 
 ## ライセンス
 MITライセンス
