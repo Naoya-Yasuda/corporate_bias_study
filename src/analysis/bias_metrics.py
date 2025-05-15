@@ -14,7 +14,7 @@ import argparse
 import datetime
 import numpy as np
 import pandas as pd
-from scipy.stats import binom_test, pearsonr
+from scipy import stats
 from tqdm import trange, tqdm
 from src.analysis.ranking_metrics import analyze_s3_rankings
 
@@ -36,7 +36,7 @@ def sign_test(a, b):
     pos = (diff > 0).sum()
     neg = (diff < 0).sum()
     n = pos + neg
-    return 1.0 if n == 0 else binom_test(pos, n, 0.5, alternative="two-sided")
+    return 1.0 if n == 0 else stats.binom_test(pos, n, 0.5, alternative="two-sided")
 
 def bootstrap_ci(delta, reps=10_000, ci=95):
     """ブートストラップ (percentile) で Δ̄ の信頼区間"""
@@ -125,7 +125,7 @@ def calculate_sentiment_stability(sentiment_values):
 
                     if len(values_i) >= 2:  # 最低2社以上必要
                         try:
-                            corr, _ = pearsonr(values_i, values_j)
+                            corr, _ = stats.pearsonr(values_i, values_j)
                             if not np.isnan(corr):
                                 correlations.append(corr)
                         except:

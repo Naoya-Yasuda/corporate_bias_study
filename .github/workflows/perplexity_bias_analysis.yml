@@ -137,6 +137,11 @@ jobs:
 
           # AWS認証情報
           aws_region = os.environ.get('AWS_REGION', 'ap-northeast-1')
+          # リージョンが空文字列の場合はデフォルト値を使用
+          if not aws_region or aws_region.strip() == '':
+              aws_region = 'ap-northeast-1'
+              print(f'AWS_REGIONが未設定のため、デフォルト値を使用します: {aws_region}')
+
           aws_access_key = os.environ.get('AWS_ACCESS_KEY')
           aws_secret_key = os.environ.get('AWS_SECRET_KEY')
 

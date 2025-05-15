@@ -2,25 +2,29 @@
 # coding: utf-8
 
 """
-ランキング指標分析モジュール
+ランキングメトリクス分析モジュール
 
-AIランキング結果から各種バイアス指標を計算し、
-市場シェアとの比較や統計的分析を行うための機能を提供します。
-S3からのデータ取得に対応。
+ランキングデータを分析し、様々な公平性・多様性の指標を計算します。
+特に露出度（Exposure）、機会均等性（Equal Opportunity）、ランキング安定性などの
+指標を実装しています。
 """
 
-import collections
-import json
-import datetime
 import os
+import json
+import csv
+import datetime
+import argparse
 import numpy as np
 import pandas as pd
+from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.stats import kendalltau
-from dotenv import load_dotenv
-import boto3
-from typing import Dict, List, Tuple, Union, Optional
+from collections import defaultdict
+
+# ドメイン関連の機能
+from src.utils import extract_domain, get_results_paths, get_today_str
+from src.utils.file_utils import get_local_json, get_s3_json
+from src.categories import get_categories
 
 # 共通ユーティリティをインポート
 from src.utils.s3_utils import get_s3_client, upload_to_s3
@@ -197,11 +201,10 @@ def rank_distribution(runs: list[list[str]], max_rank: int = 5):
 # -----------------------------
 # 2. 指標 (SP・EO・Correlation・Gini)
 # -----------------------------
-def kendall_tau_correlation(ranked_runs: list[list[str]],
-                          market_share: dict[str, float]):
+def kendall_tau_correlation(ranked_runs, market_share):
     """Kendallのタウ順位相関係数（ランキングと市場シェアの相関度）"""
     # 平均ランキングを計算
-    rank_counts = collections.defaultdict(list)
+    rank_counts = defaultdict(list)
     for run in ranked_runs:
         for rank, service in enumerate(run):
             rank_counts[service].append(rank)
@@ -218,7 +221,7 @@ def kendall_tau_correlation(ranked_runs: list[list[str]],
     y = [-market_share[service] for service in common_services]  # シェアは大きいほど順位が上位なので負にする
 
     # Kendallのタウ相関係数を計算
-    tau, _ = kendalltau(x, y)
+    tau, _ = stats.kendalltau(x, y)
     return tau
 
 def calculate_ranking_stability(rankings):
