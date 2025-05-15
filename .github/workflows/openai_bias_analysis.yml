@@ -25,7 +25,7 @@ jobs:
           pip install -r requirements.txt
       - name: Run OpenAI bias analysis (multiple runs)
         run: |
-          python src/openai_bias_loader.py --multiple --runs 5
+          python src/openai_bias_loader.py --multiple --runs 3
       - name: Upload results as artifact
         uses: actions/upload-artifact@v4
         with:
