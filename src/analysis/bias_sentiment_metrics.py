@@ -432,7 +432,7 @@ def main():
     # ランキング分析も実行するオプションが指定されている場合
     if args.rankings:
         print("\n=== ランキング分析を実行します ===")
-        # 入力ファイル名から日付を抽出（例: 20250425_perplexity_results.json）
+        # 入力ファイル名から日付を抽出（例: 20250425_perplexity_rankings.json）
         date_from_file = None
         try:
             import re

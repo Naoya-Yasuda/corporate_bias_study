@@ -918,3 +918,7 @@ python -m src.analysis.bias_sentiment_metrics results/20250501_perplexity_result
 ```
 
 - 分析対象ファイルは input_file 位置引数で指定してください。
+
+> 注意: すべてのPerplexityランキングデータのファイル名は `perplexity_rankings` の命名規則で統一してください。
+
+> 統合指標分析（integrated_metrics.py）は、ローカルにPerplexityランキングデータが存在しない場合、自動的にS3（results/perplexity_rankings/{日付}/...）から該当ファイルをダウンロードして利用します。

@@ -15,6 +15,8 @@ import os
 from typing import Dict, List, Tuple, Union, Optional
 import matplotlib.pyplot as plt
 import seaborn as sns
+import re
+from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME
 
 # 共通ユーティリティをインポート
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share, gini_coefficient
@@ -262,7 +264,29 @@ def load_and_integrate_metrics(
         pplx_file = f"results/{date_str}_perplexity_rankings_10runs.json"
         if not os.path.exists(pplx_file):
             pplx_file = f"results/{date_str}_perplexity_rankings.json"
-
+        if not os.path.exists(pplx_file):
+            # S3から探す
+            s3_client = get_s3_client()
+            s3_prefix = f"results/perplexity_rankings/{date_str}/"
+            response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=s3_prefix)
+            s3_candidates = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    key = obj['Key']
+                    if re.search(rf"{date_str}_perplexity_rankings(_\d+runs)?\\.json$", key):
+                        s3_candidates.append(key)
+            if s3_candidates:
+                # 優先順位: _10runs > _3runs > 単一
+                s3_candidates.sort(key=lambda x: ("_10runs" in x, "_3runs" in x), reverse=True)
+                s3_key = s3_candidates[0]
+                local_path = f"results/{os.path.basename(s3_key)}"
+                s3_client.download_file(S3_BUCKET_NAME, s3_key, local_path)
+                pplx_file = local_path
+                if verbose:
+                    print(f"S3からPerplexityランキングデータをダウンロードしました: {s3_key}")
+            else:
+                print(f"Perplexityデータが見つかりません: {date_str}_perplexity_rankings_10runs.json または {date_str}_perplexity_rankings.json を先に生成してください。")
+                return None
         with open(pplx_file, "r", encoding="utf-8") as f:
             pplx_data = json.load(f)
             if verbose:
