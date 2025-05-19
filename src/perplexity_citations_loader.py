@@ -650,28 +650,6 @@ def main():
     if args.verbose:
         logging.info("引用リンク取得処理が完了しました")
 
-    # 引用リンク分析を実行（--no-analysisオプションが指定されていない場合）
-    if not args.no_analysis:
-        try:
-            from src.analysis.serp_metrics import analyze_citations_from_file
-            print("\n=== 引用リンク分析を開始します ===")
-            if args.verbose:
-                logging.info("引用リンク分析を開始します")
-
-            # 分析出力ディレクトリ
-            analysis_dir = f"results/analysis/citations/{today_date}"
-
-            # 分析実行
-            metrics = analyze_citations_from_file(result_file, analysis_dir, verbose=args.verbose)
-
-            print("引用リンク分析が完了しました")
-            if args.verbose:
-                logging.info("引用リンク分析が完了しました")
-        except Exception as e:
-            print(f"引用リンク分析中にエラーが発生しました: {e}")
-            if args.verbose:
-                logging.error(f"引用リンク分析中にエラーが発生しました: {e}")
-
 
 if __name__ == "__main__":
     main()
