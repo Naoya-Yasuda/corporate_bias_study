@@ -1,28 +1,34 @@
 # APIクライアント
 requests>=2.32.0
-python-dotenv>=1.0.0
+python-dotenv==1.0.1
 
 # データ処理・分析
-pandas>=2.0.0
+pandas==2.2.1
 numpy>=1.24.0
 scipy>=1.10.0
 tqdm>=4.65.0
 
 # 可視化
-matplotlib>=3.7.0
-seaborn>=0.12.0
+matplotlib==3.8.3
+seaborn==0.13.2
 
 # URL処理
 tldextract>=3.4.0
 urlextract>=1.8.0
 
 # AWS統合
-boto3>=1.28.0
+boto3==1.34.69
 
 # ダッシュボード
-streamlit>=1.32.0
+streamlit==1.32.2
 
 # テスト・開発
 pytest>=7.3.0
 jupyter>=1.0.0
 notebook>=6.5.0
+
+# 日本語表示
+japanize-matplotlib==1.1.3
+
+# Plotly
+plotly==5.19.0

@@ -21,6 +21,7 @@ import matplotlib.font_manager as fm
 from dotenv import load_dotenv
 from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME
 from src.utils.file_utils import load_json
+from src.analysis.ranking_metrics import list_s3_files, get_latest_ranking_file
 
 # 利用可能な日本語フォントを優先的に取得
 import matplotlib.pyplot as plt
