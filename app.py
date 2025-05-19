@@ -19,8 +19,8 @@ from datetime import datetime
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 from dotenv import load_dotenv
-from src.utils.file_utils import get_s3_json
 from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME
+from src.utils.file_utils import load_json
 
 # 利用可能な日本語フォントを優先的に取得
 import matplotlib.pyplot as plt
@@ -213,9 +213,12 @@ if selected_view == "単一データ分析":
 
     # ファイル読み込み
     try:
-        with open(selected_file["path"], "r", encoding="utf-8") as f:
-            data = json.load(f)
-            st.sidebar.success("ファイルの読み込みに成功しました")
+        s3_path = f"s3://{S3_BUCKET_NAME}/{selected_file['path']}"
+        data = load_json(s3_path)
+        if data is None:
+            st.error(f"ファイルの読み込みに失敗しました: {s3_path}")
+            st.stop()
+        st.sidebar.success("ファイルの読み込みに成功しました")
     except Exception as e:
         st.error(f"ファイルの読み込みエラー: {e}")
         st.stop()
@@ -968,5 +971,9 @@ file_list = [content['Key'] for content in response.get('Contents', [])]
 
 selected_file = st.selectbox("ファイルを選択", file_list)
 if selected_file:
-    data = get_s3_json(selected_file)
+    s3_path = f"s3://{bucket}/{selected_file}"
+    data = load_json(s3_path)
+    if data is None:
+        st.error(f"ファイルの読み込みに失敗しました: {s3_path}")
+        st.stop()
     st.json(data)
