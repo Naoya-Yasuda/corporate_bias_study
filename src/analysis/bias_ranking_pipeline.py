@@ -38,7 +38,7 @@ load_dotenv()
 
 # API キーの取得
 SERP_API_KEY = os.getenv("SERP_API_KEY")
-PPLX_API_KEY = os.getenv("PPLX_API_KEY")
+PPLX_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 # -------------------------------------------------------------------
 # ユーティリティ関数
