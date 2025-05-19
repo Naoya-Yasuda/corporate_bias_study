@@ -426,46 +426,5 @@ def main():
     if args.verbose:
         logging.info(f"Google SERP結果をファイルに保存しました: {serp_file}")
 
-    # SERPメトリクス分析を実行（--no-analysisオプションが指定されていない場合）
-    if not args.no_analysis:
-        try:
-            # serp_metricsモジュールからすべての関数をインポート
-            from src.analysis.serp_metrics import analyze_serp_results, compare_with_perplexity
-            print("\n=== SERPメトリクス分析を開始します ===")
-            if args.verbose:
-                logging.info("SERPメトリクス分析を開始します")
-
-            # PerplexityのJSONパス（データタイプに応じて）
-            perplexity_json = f"results/{perplexity_date}_perplexity_{args.data_type}_{args.runs}runs.json"
-
-            if args.verbose:
-                logging.info(f"Perplexityデータ: {perplexity_json}")
-
-            # 分析実行
-            # serp_fileはファイルパスなので、内容を読み込む必要がある
-            with open(serp_file, "r", encoding="utf-8") as f:
-                serp_data = json.load(f)
-
-            # Perplexityファイルを読み込む
-            with open(perplexity_json, "r", encoding="utf-8") as f:
-                perplexity_data = json.load(f)
-
-            # 比較分析を実行
-            comparison = compare_with_perplexity(serp_data, perplexity_data)
-
-            # Perplexityとの比較結果を用いて分析を実行
-            metrics = analyze_serp_results(serp_data, perplexity_data, comparison)
-
-            # 結果を保存
-            metrics_file = save_results(metrics, "analysis")
-            comparison_file = save_results(comparison, "comparison")
-
-            print(f"SERPメトリクス分析が完了しました：{metrics_file}")
-            print(f"Perplexity比較分析が完了しました：{comparison_file}")
-        except Exception as e:
-            print(f"SERPメトリクス分析中にエラーが発生しました: {e}")
-            if args.verbose:
-                logging.error(f"SERPメトリクス分析中にエラーが発生しました: {e}")
-
 if __name__ == "__main__":
     main()

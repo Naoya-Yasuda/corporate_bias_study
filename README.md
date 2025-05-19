@@ -14,13 +14,15 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 
 ## 機能
 - Perplexity APIを使用した企業バイアス評価
+- Perplexity APIを使用した企業バイアスデータ取得
 - OpenAI APIを使用した企業バイアス評価
 - マスクあり・マスクなしの評価値比較
 - 複数回実行による平均値と標準偏差の計算
 - ローカルとS3への結果保存
 - モジュール化されたカテゴリ定義と再利用可能なプロンプトテンプレート
 - サービスのランキング（おすすめ順）抽出機能
-- Perplexity APIの引用リンク順番の取得・分析機能
+- Perplexity APIを使用したランキングデータ取得
+- Perplexity APIを使用した引用リンクデータ取得
 - Streamlitを使用した可視化ダッシュボード（感情スコア、ランキング、引用リンクデータの分析）
 
 ## セットアップ
@@ -114,32 +116,32 @@ python -m src.perplexity_citations_loader --multiple --runs 5 --skip-openai
 
 ### 単一実行
 ```bash
-# Perplexity - バイアス評価
+# Perplexity - バイアス評価データ取得
 python -m src.perplexity_sentiment_loader
 
-# Perplexity - ランキング抽出
+# Perplexity - ランキングデータ取得
 python -m src.perplexity_ranking_loader
 
-# Perplexity - 引用リンク順番取得
+# Perplexity - 引用リンクデータ取得
 python -m src.perplexity_citations_loader
 
-# OpenAI - バイアス評価
-python -m src.openai_bias_loader
+# Google SERPデータ取得
+python -m src.google_serp_loader
 ```
 
 ### 複数回実行（平均値を計算）
 ```bash
-# Perplexity - バイアス評価（5回実行）+ 自動分析
+# Perplexity - バイアス評価データ取得（5回実行）+ 自動分析
 python -m src.perplexity_sentiment_loader --multiple --runs 5
 
-# Perplexity - ランキング抽出（5回実行）
+# Perplexity - ランキングデータ取得（5回実行）
 python -m src.perplexity_ranking_loader --multiple --runs 5
 
-# Perplexity - 引用リンク順番取得（5回実行）
+# Perplexity - 引用リンクデータ取得（5回実行）
 python -m src.perplexity_citations_loader --multiple --runs 5
 
-# OpenAI - バイアス評価（5回実行）+ 自動分析
-python -m src.openai_bias_loader --multiple --runs 5
+# Google SERPデータ取得（5回実行）
+python -m src.google_serp_loader --runs 5
 
 # 分析なしで実行する場合
 python -m src.perplexity_sentiment_loader --multiple --runs 5 --no-analysis
@@ -310,10 +312,10 @@ python -m src.analysis.bias_ranking_pipeline --query "best smartphones 2025" --m
 実行時間: 毎週月曜日 06:00 JST (21:00 UTC)
 
 実行されるモジュール:
-1. `perplexity_sentiment_loader` - Perplexity APIのバイアス評価 (10回実行)
-2. `perplexity_ranking_loader` - Perplexity APIのランキング抽出 (10回実行)
-3. `perplexity_citations_loader` - Perplexity APIの引用リンク抽出 (10回実行)
-4. `google_serp_loader` - Google検索結果の取得と比較分析
+1. `perplexity_sentiment_loader` - Perplexity APIのバイアス評価データ取得 (10回実行)
+2. `perplexity_ranking_loader` - Perplexity APIのランキングデータ取得 (10回実行)
+3. `perplexity_citations_loader` - Perplexity APIの引用リンクデータ取得 (10回実行)
+4. `google_serp_loader` - Google検索データ取得
 5. `openai_bias_loader` - OpenAI APIのバイアス評価 (10回実行) - APIキーがある場合のみ
 6. `ranking_metrics` - ランキング指標の分析
 7. `bias_sentiment_metrics` - バイアス指標の分析 (Perplexityと条件付きでOpenAI)
