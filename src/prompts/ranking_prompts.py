@@ -97,11 +97,14 @@ def extract_ranking(text, original_services):
             if service not in found_services:
                 found_services.append(service)
 
-    # それでも見つからないサービスがある場合、元のリストを参照
-    if len(found_services) < len(original_services):
+    # 見つからなかったサービスを最後に追加
+    missing_services = [s for s in original_services if s not in found_services]
+    if missing_services:
         print(f"⚠️ 一部のサービスが見つかりませんでした。見つかったサービス数: {len(found_services)}/{len(original_services)}")
-        missing = [s for s in original_services if s not in found_services]
-        print(f"  見つからなかったサービス: {missing}")
+        print(f"  見つからなかったサービス: {missing_services}")
+        print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(found_services)}/{len(original_services)})")
+        # 見つからなかったサービスを最後に追加
+        found_services.extend(missing_services)
 
     return found_services
 

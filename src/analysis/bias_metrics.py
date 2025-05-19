@@ -17,6 +17,19 @@ import pandas as pd
 from scipy import stats
 from tqdm import trange, tqdm
 from src.analysis.ranking_metrics import analyze_s3_rankings
+from dotenv import load_dotenv
+import boto3
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.s3_utils import save_to_s3, put_json_to_s3
+
+# .envファイルから環境変数を読み込む
+load_dotenv()
+
+# 環境変数から認証情報を取得
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 # -------------------------------------------------------------------
 # 効果量 & 検定ユーティリティ
