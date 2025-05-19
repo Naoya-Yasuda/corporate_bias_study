@@ -26,13 +26,13 @@ jobs:
       # GitHubアクションのログ詳細度設定
       PYTHONUNBUFFERED: 1  # Pythonの出力バッファリングを無効化（リアルタイムログ出力）
       ACTIONS_STEP_DEBUG: true  # GitHubアクション詳細ログを有効化
-      # 実行回数設定（デフォルトは3回、手動実行時には入力値を使用）
+      # 実行回数設定（デフォルトは10回、手動実行時には入力値を使用）
       RUNS_COUNT: ${{ github.event.inputs.runs_count || '10' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
