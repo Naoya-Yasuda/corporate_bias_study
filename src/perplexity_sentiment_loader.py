@@ -306,49 +306,6 @@ def main():
 
     print("データ取得処理が完了しました")
 
-    # バイアス分析を実行（--no-analysisオプションが指定されていない場合）
-    if not args.no_analysis:
-        try:
-            from src.analysis.bias_sentiment_metrics import analyze_bias_from_file
-            print("\n=== バイアス分析を開始します ===")
-
-            # 分析出力ディレクトリ
-            analysis_dir = f"results/analysis/perplexity_sentiment/{today_date}"
-
-            # 分析実行（verboseオプションを渡す）
-            metrics = analyze_bias_from_file(result_file, analysis_dir, verbose=args.verbose)
-
-            # S3へのアップロード
-            try:
-                # S3クライアントを作成
-                s3_client = boto3.client(
-                    "s3",
-                    aws_access_key_id=AWS_ACCESS_KEY,
-                    aws_secret_access_key=AWS_SECRET_KEY,
-                    region_name=AWS_REGION
-                )
-
-                # 分析ディレクトリ内のCSVファイルをアップロード
-                for filename in os.listdir(analysis_dir):
-                    if filename.endswith('.csv'):
-                        local_path = os.path.join(analysis_dir, filename)
-                        s3_key = f"results/analysis/perplexity_sentiment/{today_date}/{filename}"
-
-                        with open(local_path, 'rb') as file_data:
-                            s3_client.upload_fileobj(
-                                file_data,
-                                S3_BUCKET_NAME,
-                                s3_key,
-                                ExtraArgs={'ContentType': 'text/csv'}
-                            )
-                        print(f"分析結果をS3にアップロードしました: s3://{S3_BUCKET_NAME}/{s3_key}")
-            except Exception as e:
-                print(f"分析結果のS3アップロードエラー: {e}")
-
-            print("バイアス分析が完了しました")
-        except Exception as e:
-            print(f"バイアス分析中にエラーが発生しました: {e}")
-
 # 参照リンクを抽出する関数
 def extract_references(text):
     """
