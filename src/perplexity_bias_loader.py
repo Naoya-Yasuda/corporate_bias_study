@@ -240,9 +240,9 @@ def save_results(result_data, run_type="single", num_runs=1):
 
     # ファイル名の生成
     if run_type == "multiple":
-        file_name = f"{today_date}_perplexity_results_{num_runs}runs.json"
+        file_name = f"{today_date}_perplexity_sentiment_results_{num_runs}runs.json"
     else:
-        file_name = f"{today_date}_perplexity_results.json"
+        file_name = f"{today_date}_perplexity_sentiment_results.json"
 
     # ローカルに保存
     output_dir = "results"
@@ -256,8 +256,8 @@ def save_results(result_data, run_type="single", num_runs=1):
     # S3に保存（認証情報がある場合のみ）
     if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
         try:
-            # S3のパスを設定 (results/perplexity/日付/ファイル名)
-            s3_key = f"results/perplexity/{today_date}/{file_name}"
+            # S3のパスを設定 (results/perplexity_sentiment/日付/ファイル名)
+            s3_key = f"results/perplexity_sentiment/{today_date}/{file_name}"
 
             # save_json_dataを使用してS3に保存
             result = save_json_data(result_data, local_file, s3_key)
@@ -296,12 +296,12 @@ def main():
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
         result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, args.runs)
-        result_file = f"results/{today_date}_perplexity_results_{args.runs}runs.json"
+        result_file = f"results/{today_date}_perplexity_sentiment_results_{args.runs}runs.json"
         save_results(result, "multiple", args.runs)
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
         result = process_categories(PERPLEXITY_API_KEY, categories)
-        result_file = f"results/{today_date}_perplexity_results.json"
+        result_file = f"results/{today_date}_perplexity_sentiment_results.json"
         save_results(result)
 
     print("データ取得処理が完了しました")
@@ -313,7 +313,7 @@ def main():
             print("\n=== バイアス分析を開始します ===")
 
             # 分析出力ディレクトリ
-            analysis_dir = f"results/analysis/perplexity/{today_date}"
+            analysis_dir = f"results/analysis/perplexity_sentiment/{today_date}"
 
             # 分析実行（verboseオプションを渡す）
             metrics = analyze_bias_from_file(result_file, analysis_dir, verbose=args.verbose)
@@ -332,7 +332,7 @@ def main():
                 for filename in os.listdir(analysis_dir):
                     if filename.endswith('.csv'):
                         local_path = os.path.join(analysis_dir, filename)
-                        s3_key = f"results/analysis/perplexity/{today_date}/{filename}"
+                        s3_key = f"results/analysis/perplexity_sentiment/{today_date}/{filename}"
 
                         with open(local_path, 'rb') as file_data:
                             s3_client.upload_fileobj(
