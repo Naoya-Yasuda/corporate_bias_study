@@ -31,6 +31,7 @@ from src.utils import plot_delta_ranks, plot_market_impact
 from src.utils.storage_utils import save_json_data, save_text_data, save_figure
 from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
+from src.utils.file_utils import ensure_dir  # ensure_dir関数をインポート
 
 # .env ファイルから環境変数を読み込み
 load_dotenv()
