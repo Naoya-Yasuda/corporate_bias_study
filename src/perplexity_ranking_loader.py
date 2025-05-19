@@ -148,7 +148,7 @@ def save_results(result_data, run_type="single", num_runs=1):
     s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
 
     # 日付を取得
-    today_date = get_today_str()
+    today_date = datetime.datetime.now().strftime("%Y%m%d")
 
     # ローカルに保存
     output_dir = "results"

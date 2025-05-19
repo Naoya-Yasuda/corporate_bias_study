@@ -532,7 +532,7 @@ def generate_summary(subcategory, services, all_answers):
 def save_results(result_data, run_type="single", num_runs=1):
     """結果をローカルとS3に保存（新しいストレージAPI使用）"""
     # 日付を取得
-    today_date = get_today_str()
+    today_date = datetime.datetime.now().strftime("%Y%m%d")
 
     # ファイル名の生成
     if run_type == "multiple":

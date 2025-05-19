@@ -508,7 +508,7 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
     ensure_dir(out_dir)
 
     # 結果ファイル名
-    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     result_file = os.path.join(out_dir, f"bias_analysis_{now}.json")
 
     # 1. Google検索の実行
