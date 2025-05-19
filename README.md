@@ -102,7 +102,7 @@ streamlit run app.py --server.port 8502
 ```bash
 # 詳細ログ出力を有効にして実行
 python -m src.perplexity_sentiment_loader --multiple --runs 5 --verbose
-python -m src.analysis.bias_sentiment_metrics --json-path results/20250501_perplexity_results_5runs.json --verbose
+python -m src.analysis.bias_sentiment_metrics results/20250501_perplexity_results_5runs.json --verbose
 ```
 
 ### OpenAIの実行をスキップ
@@ -651,7 +651,7 @@ python -m src.analysis.ranking_metrics --api openai
 python -m src.analysis.ranking_metrics --output results/my_analysis
 
 # ローカルのJSONファイルを直接分析
-python -m src.analysis.ranking_metrics --json-path results/20250501_perplexity_rankings_10runs.json
+python -m src.analysis.ranking_metrics results/20250501_perplexity_rankings_10runs.json
 ```
 
 バイアス分析と一緒に実行する場合：
@@ -911,3 +911,10 @@ streamlit run app.py
 - 引用リンクデータの分析（ドメイン頻度、ドメイン平均ランク）
 - カテゴリごとのフィルタリングと詳細表示
 - 結果の生データ表示
+
+### バイアス分析の実行例
+```bash
+python -m src.analysis.bias_sentiment_metrics results/20250501_perplexity_results_5runs.json --verbose
+```
+
+- 分析対象ファイルは input_file 位置引数で指定してください。

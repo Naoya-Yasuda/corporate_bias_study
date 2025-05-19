@@ -83,7 +83,7 @@ jobs:
       - name: Run Perplexity Sentiment Bias Analysis
         run: |
           echo "開始: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.bias_sentiment_metrics --json-path results/${{ env.TODAY_DATE }}_perplexity_results_${{ env.RUNS_COUNT }}runs.json --rankings --verbose | tee -a logs/bias_metrics_perplexity.log
+          python -m src.analysis.bias_sentiment_metrics results/${{ env.TODAY_DATE }}_perplexity_results_${{ env.RUNS_COUNT }}runs.json --rankings --verbose | tee -a logs/bias_metrics_perplexity.log
           echo "完了: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
       - name: Run ranking metrics analysis

@@ -424,8 +424,10 @@ def main():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
+    input_file = args.input_file
+
     # バイアス分析を実行
-    bias_metrics, category_summary = analyze_bias_from_file(args.input_file, args.output, verbose=args.verbose)
+    bias_metrics, category_summary = analyze_bias_from_file(input_file, args.output, verbose=args.verbose)
 
     # ランキング分析も実行するオプションが指定されている場合
     if args.rankings:
@@ -434,7 +436,7 @@ def main():
         date_from_file = None
         try:
             import re
-            date_match = re.search(r'(\d{8})_', os.path.basename(args.input_file))
+            date_match = re.search(r'(\d{8})_', os.path.basename(input_file))
             if date_match:
                 date_from_file = date_match.group(1)
         except:
