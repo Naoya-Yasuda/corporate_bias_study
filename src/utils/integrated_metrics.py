@@ -18,7 +18,7 @@ import seaborn as sns
 
 # 共通ユーティリティをインポート
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share, gini_coefficient
-from src.utils.file_utils import ensure_dir, save_json
+from src.utils.storage_utils import save_json
 
 def calculate_integrated_hhi(
     market_shares: Dict[str, Dict[str, float]],

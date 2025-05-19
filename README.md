@@ -174,7 +174,7 @@ S3_RESULTS_PREFIX=project/results
 #### 新しいストレージAPIの使用例
 ```python
 # JSONデータの保存
-from src.utils import save_json
+from src.utils.storage_utils import save_json
 results = {"data": [...], "metadata": {...}}
 save_json(results, "results/analysis.json")
 

@@ -13,18 +13,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def set_plot_style():
-    """グラフのスタイルを設定"""
-    plt.style.use('ggplot')
-    sns.set_style("whitegrid")
-    plt.rcParams['font.size'] = 12
-    plt.rcParams['axes.labelsize'] = 12
-    plt.rcParams['axes.titlesize'] = 14
-    plt.rcParams['xtick.labelsize'] = 10
-    plt.rcParams['ytick.labelsize'] = 10
-    plt.rcParams['legend.fontsize'] = 10
-    plt.rcParams['figure.titlesize'] = 16
-
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
     ΔRankをバーチャートで可視化

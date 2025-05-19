@@ -18,7 +18,7 @@ from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RAN
 from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
 
 # 共通ユーティリティをインポート
-from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
 
 # .envファイルから環境変数を読み込む
@@ -171,7 +171,7 @@ def save_results(result_data, run_type="single", num_runs=1):
             # S3のパスを設定 (results/perplexity_rankings/日付/ファイル名)
             s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
 
-            # save_jsonを使用してS3に保存
+            # src.utils.storage_utilsのsave_jsonを使用してS3に保存
             result = save_json(result_data, local_file, s3_key)
             if result["s3"]:
                 print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")

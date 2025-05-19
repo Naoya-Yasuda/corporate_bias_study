@@ -22,49 +22,6 @@ def ensure_dir(dir_path):
     '''
     os.makedirs(dir_path, exist_ok=True)
 
-def save_json(data, file_path, ensure_dir_exists=True):
-    '''
-    JSONデータをファイルに保存
-
-    Parameters:
-    -----------
-    data : dict
-        保存するデータ
-    file_path : str
-        保存先ファイルパス
-    ensure_dir_exists : bool, optional
-        ディレクトリを自動作成するかどうか
-
-    Returns:
-    --------
-    bool
-        成功したかどうか
-    '''
-    try:
-        if ensure_dir_exists:
-            dir_name = os.path.dirname(file_path)
-            if dir_name:
-                os.makedirs(dir_name, exist_ok=True)
-
-        # Infinity値をJSON互換の値に変換するカスタムエンコーダー
-        class CustomJSONEncoder(json.JSONEncoder):
-            def default(self, obj):
-                if isinstance(obj, float) and (obj == float('inf') or obj == float('-inf') or obj != obj):  # 最後の条件はNaN
-                    if obj == float('inf'):
-                        return "Infinity"
-                    elif obj == float('-inf'):
-                        return "-Infinity"
-                    else:
-                        return "NaN"
-                return super().default(obj)
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4, cls=CustomJSONEncoder)
-        return True
-    except Exception as e:
-        print(f"JSONファイルの保存に失敗しました: {e}")
-        return False
-
 def load_json(file_path):
     '''
     JSONファイルを読み込む（ローカルまたはS3対応）

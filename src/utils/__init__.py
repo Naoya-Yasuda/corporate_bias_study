@@ -11,7 +11,7 @@
 from .s3_utils import save_to_s3, upload_to_s3, put_json_to_s3, get_s3_client
 
 # file utils
-from .file_utils import ensure_dir, save_json, get_today_str, load_json
+from .file_utils import ensure_dir, get_today_str, load_json
 
 # text utils
 from .text_utils import extract_domain, is_negative, ratio
@@ -27,6 +27,6 @@ from .storage_config import is_s3_enabled, is_local_enabled, get_storage_config,
 
 # storage utils (新しい統合ストレージAPI)
 from .storage_utils import (
-    save_data, save_json_data, save_text_data, save_binary_data, save_figure,
+    save_json, save_text_data, save_binary_data, save_figure,
     get_today_str, get_s3_client
 )

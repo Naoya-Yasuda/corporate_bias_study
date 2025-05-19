@@ -22,8 +22,8 @@ import tldextract
 
 # 共通ユーティリティをインポート
 from src.utils.text_utils import extract_domain, is_negative
-from src.utils.file_utils import ensure_dir, save_json, get_today_str
-from src.utils.s3_utils import save_to_s3
+from src.utils.file_utils import ensure_dir, get_today_str
+from src.utils.storage_utils import save_json
 
 # プロジェクト固有のモジュール
 from src.categories import get_categories
@@ -68,8 +68,9 @@ def save_results(results, type_str, local_path="results"):
         # S3のパス
         s3_path = f"results/google_serp/{today}/{filename}"
 
-        # アップロード
-        if save_to_s3(local_file, s3_path):
+        # storage_utilsのsave_jsonでS3保存
+        result = save_json(results, local_file, s3_path)
+        if result["s3"]:
             print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
 
     return local_file

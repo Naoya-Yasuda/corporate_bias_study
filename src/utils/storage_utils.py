@@ -29,171 +29,142 @@ def get_today_str():
     """今日の日付を文字列（YYYYMMDD形式）で取得"""
     return datetime.datetime.now().strftime("%Y%m%d")
 
-def save_data(data, local_path, s3_path=None, content_type=None, data_format="json"):
+def save_json(data, local_path, s3_path=None):
     """
-    データを保存（ローカルとS3の両方に対応）
+    JSONデータをローカルとS3に保存
 
     Parameters:
     -----------
-    data : dict/list/str
-        保存するデータ
+    data : dict
+        保存するJSONデータ
     local_path : str
-        ローカルファイルパス
+        ローカル保存先のパス
     s3_path : str, optional
-        S3上のパス（省略時はローカルパスから自動生成）
-    content_type : str, optional
-        コンテンツタイプ（S3アップロード時）
-    data_format : str, optional
-        データ形式 ("json", "text", "binary")
+        S3保存先のパス
 
     Returns:
     --------
     dict
-        保存結果 {"local": bool, "s3": bool}
+        {"local": bool, "s3": bool} の形式で保存結果を返す
     """
     result = {"local": False, "s3": False}
 
-    # ローカル保存
-    if is_local_enabled():
-        try:
-            # ディレクトリの作成
-            local_dir = os.path.dirname(local_path)
-            if local_dir:
-                ensure_dir(local_dir)
+    # ローカルに保存
+    try:
+        ensure_dir(os.path.dirname(local_path))
+        with open(local_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        result["local"] = True
+    except Exception as e:
+        print(f"ローカル保存エラー: {e}")
 
-            # データ形式に応じた保存処理
-            if data_format == "json":
-                if isinstance(data, (dict, list)):
-                    with open(local_path, "w", encoding="utf-8") as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2)
-                else:
-                    with open(local_path, "w", encoding="utf-8") as f:
-                        f.write(str(data))
-            elif data_format == "text":
-                with open(local_path, "w", encoding="utf-8") as f:
-                    f.write(str(data))
-            elif data_format == "binary":
-                with open(local_path, "wb") as f:
-                    f.write(data)
-            else:
-                raise ValueError(f"未対応のデータ形式: {data_format}")
-
-            print(f"ファイルをローカルに保存しました: {local_path}")
-            result["local"] = True
-        except Exception as e:
-            print(f"ローカル保存エラー: {e}")
-
-    # S3保存
-    if is_s3_enabled():
-        # S3パスが指定されていない場合、ローカルパスからの変換を試みる
-        if not s3_path:
-            s3_path = local_path.replace("\\", "/")
-            # resultsディレクトリプレフィックスを削除（S3のパスを短くするため）
-            if s3_path.startswith("results/"):
-                s3_path = s3_path[8:]
-
+    # S3に保存
+    if s3_path and is_s3_enabled():
         try:
             s3_client = get_s3_client()
-
-            # データ形式に応じたアップロード処理
-            if data_format == "json" and isinstance(data, (dict, list)):
-                # JSONデータを直接アップロード
-                json_str = json.dumps(data, ensure_ascii=False, indent=2)
-                s3_client.put_object(
-                    Bucket=S3_BUCKET_NAME,
-                    Key=s3_path,
-                    Body=json_str,
-                    ContentType=content_type or "application/json"
-                )
-            elif os.path.exists(local_path):
-                # ローカルファイルをアップロード
-                extra_args = {}
-                if content_type:
-                    extra_args["ContentType"] = content_type
-
-                s3_client.upload_file(
-                    local_path,
-                    S3_BUCKET_NAME,
-                    s3_path,
-                    ExtraArgs=extra_args
-                )
-            else:
-                # ファイル不在かつS3のみ保存モードの場合は文字列としてアップロード
-                s3_client.put_object(
-                    Bucket=S3_BUCKET_NAME,
-                    Key=s3_path,
-                    Body=str(data).encode("utf-8"),
-                    ContentType=content_type or "text/plain"
-                )
-
-            print(f"データをS3に保存しました: s3://{S3_BUCKET_NAME}/{s3_path}")
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=s3_path,
+                Body=json.dumps(data, ensure_ascii=False).encode('utf-8'),
+                ContentType="application/json"
+            )
             result["s3"] = True
         except Exception as e:
             print(f"S3保存エラー: {e}")
 
     return result
 
-def save_json_data(data, local_path, s3_path=None):
-    """
-    JSONデータを保存（ローカルとS3の両方に対応）
-
-    Parameters:
-    -----------
-    data : dict/list
-        保存するJSONデータ
-    local_path : str
-        ローカルファイルパス
-    s3_path : str, optional
-        S3上のパス
-
-    Returns:
-    --------
-    dict
-        保存結果 {"local": bool, "s3": bool}
-    """
-    return save_data(data, local_path, s3_path, "application/json", "json")
-
 def save_text_data(text, local_path, s3_path=None):
     """
-    テキストデータを保存（ローカルとS3の両方に対応）
+    テキストデータをローカルとS3に保存
 
     Parameters:
     -----------
     text : str
-        保存するテキスト
+        保存するテキストデータ
     local_path : str
-        ローカルファイルパス
+        ローカル保存先のパス
     s3_path : str, optional
-        S3上のパス
+        S3保存先のパス
 
     Returns:
     --------
     dict
-        保存結果 {"local": bool, "s3": bool}
+        {"local": bool, "s3": bool} の形式で保存結果を返す
     """
-    return save_data(text, local_path, s3_path, "text/plain", "text")
+    result = {"local": False, "s3": False}
+
+    # ローカルに保存
+    try:
+        ensure_dir(os.path.dirname(local_path))
+        with open(local_path, 'w', encoding='utf-8') as f:
+            f.write(text)
+        result["local"] = True
+    except Exception as e:
+        print(f"ローカル保存エラー: {e}")
+
+    # S3に保存
+    if s3_path and is_s3_enabled():
+        try:
+            s3_client = get_s3_client()
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=s3_path,
+                Body=text.encode('utf-8'),
+                ContentType="text/plain"
+            )
+            result["s3"] = True
+        except Exception as e:
+            print(f"S3保存エラー: {e}")
+
+    return result
 
 def save_binary_data(data, local_path, s3_path=None, content_type=None):
     """
-    バイナリデータを保存（ローカルとS3の両方に対応）
+    バイナリデータをローカルとS3に保存
 
     Parameters:
     -----------
     data : bytes
         保存するバイナリデータ
     local_path : str
-        ローカルファイルパス
+        ローカル保存先のパス
     s3_path : str, optional
-        S3上のパス
+        S3保存先のパス
     content_type : str, optional
-        コンテンツタイプ
+        Content-Typeヘッダー
 
     Returns:
     --------
     dict
-        保存結果 {"local": bool, "s3": bool}
+        {"local": bool, "s3": bool} の形式で保存結果を返す
     """
-    return save_data(data, local_path, s3_path, content_type, "binary")
+    result = {"local": False, "s3": False}
+
+    # ローカルに保存
+    try:
+        ensure_dir(os.path.dirname(local_path))
+        with open(local_path, 'wb') as f:
+            f.write(data)
+        result["local"] = True
+    except Exception as e:
+        print(f"ローカル保存エラー: {e}")
+
+    # S3に保存
+    if s3_path and is_s3_enabled():
+        try:
+            s3_client = get_s3_client()
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=s3_path,
+                Body=data,
+                ContentType=content_type
+            )
+            result["s3"] = True
+        except Exception as e:
+            print(f"S3保存エラー: {e}")
+
+    return result
 
 def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
     """
