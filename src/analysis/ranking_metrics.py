@@ -33,7 +33,7 @@ from src.categories import get_categories
 # 共通ユーティリティをインポート
 from src.utils.s3_utils import get_s3_client, upload_to_s3
 from src.utils.file_utils import load_json
-from src.utils.storage_utils import save_json_data
+from src.utils.storage_utils import save_json
 from src.utils.rank_utils import compute_tau, rbo
 from src.utils.plot_utils import set_plot_style
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
@@ -671,6 +671,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', help='出力ディレクトリ（デフォルト: results/ranking_analysis/YYYYMMDD）')
     parser.add_argument('--no-upload', action='store_true', help='S3への結果アップロードを無効化')
     parser.add_argument('--json-path', help='ローカルJSONファイルから直接分析する場合のパス')
+    parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効にする')
 
     args = parser.parse_args()
 
@@ -706,5 +707,6 @@ if __name__ == "__main__":
             date_str=args.date,
             api_type=args.api,
             output_dir=args.output,
-            upload_results=not args.no_upload
+            upload_results=not args.no_upload,
+            verbose=args.verbose
         )

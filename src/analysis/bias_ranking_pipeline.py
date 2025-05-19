@@ -28,7 +28,7 @@ import time
 from src.utils import extract_domain, is_negative, ratio
 from src.utils import rbo, rank_map, compute_tau, compute_delta_ranks
 from src.utils import plot_delta_ranks, plot_market_impact
-from src.utils.storage_utils import save_json_data, save_text_data, save_figure
+from src.utils.storage_utils import save_json, save_text_data, save_figure
 from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 from src.utils.file_utils import ensure_dir  # ensure_dir関数をインポート
@@ -437,7 +437,7 @@ def analyze_existing_data(date_str, data_type, output_dir, verbose=False):
 
         # サマリーをJSONに保存
         json_path = os.path.join(category_dir, "bias_analysis.json")
-        save_json_data(summary, json_path)
+        save_json(summary, json_path)
 
         # ΔRankグラフ
         plot_path = os.path.join(category_dir, "delta_ranks.png")
@@ -465,7 +465,7 @@ def analyze_existing_data(date_str, data_type, output_dir, verbose=False):
 
     # 全体サマリーJSONを保存
     summary_json_path = os.path.join(output_dir, "all_categories_summary.json")
-    save_json_data(all_results, summary_json_path)
+    save_json(all_results, summary_json_path)
 
     if verbose:
         print(f"\n全カテゴリの分析が完了しました")
@@ -663,7 +663,7 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
 
     # サマリーをJSONに保存
     json_path = os.path.join(out_dir, f"bias_analysis_{now}.json")
-    save_json_data(summary, json_path)
+    save_json(summary, json_path)
 
     # 10. 結果の出力
     print("\n結果サマリー:")

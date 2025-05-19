@@ -86,6 +86,12 @@ jobs:
           python -m src.analysis.bias_sentiment_metrics --json-path results/${{ env.TODAY_DATE }}_perplexity_results_${{ env.RUNS_COUNT }}runs.json --rankings --verbose | tee -a logs/bias_metrics_perplexity.log
           echo "完了: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
+      - name: Run ranking metrics analysis
+        run: |
+          echo "開始: ランキング指標分析 ($(date))" | tee -a logs/execution.log
+          python -m src.analysis.ranking_metrics --date ${{ env.TODAY_DATE }} --api perplexity --verbose | tee -a logs/ranking_metrics.log
+          echo "完了: ランキング指標分析 ($(date))" | tee -a logs/execution.log
+
       # 統合指標分析（複数指標に基づく後段処理）
       - name: Run integrated metrics analysis
         run: |

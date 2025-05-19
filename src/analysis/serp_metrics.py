@@ -19,7 +19,7 @@ from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
 from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
 from src.utils.file_utils import ensure_dir
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
-from src.utils.storage_utils import save_json_data, save_figure
+from src.utils.storage_utils import save_json, save_figure
 
 # -------------------------------------------------------------------
 # 比較メトリクス
@@ -315,7 +315,7 @@ def analyze_citations_from_file(citations_file, output_dir=None, verbose=False):
 
     # 全体の分析結果をJSONに保存
     result_path = os.path.join(output_dir, "citations_analysis.json")
-    save_json_data(analysis_results, result_path)
+    save_json(analysis_results, result_path)
     if verbose:
         print(f"分析結果を {result_path} に保存しました")
 

@@ -174,9 +174,9 @@ S3_RESULTS_PREFIX=project/results
 #### 新しいストレージAPIの使用例
 ```python
 # JSONデータの保存
-from src.utils import save_json_data
+from src.utils import save_json
 results = {"data": [...], "metadata": {...}}
-save_json_data(results, "results/analysis.json")
+save_json(results, "results/analysis.json")
 
 # テキストデータの保存
 from src.utils import save_text_data
@@ -191,7 +191,7 @@ ax.plot([1, 2, 3], [4, 5, 6])
 save_figure(fig, "results/graph.png")
 
 # 明示的なS3パスの指定
-save_json_data(results, "results/analysis.json", "custom/path/analysis.json")
+save_json(results, "results/analysis.json", "custom/path/analysis.json")
 ```
 
 #### 各モジュールのヘルプ
@@ -867,13 +867,13 @@ python src/analysis/bias_ranking_pipeline.py --query "best smartphones 2025" --m
 #### ランキング指標分析
 
 ```bash
-python src/analysis/ranking_metrics.py --date 20250510 --api perplexity
+python -m src.analysis.ranking_metrics --date 20250510 --api perplexity --verbose
 ```
 
 #### Google SERP比較
 
 ```bash
-python src/google_serp_loader.py --perplexity-date 20250510
+python -m src.google_serp_loader.py --perplexity-date 20250510
 ```
 
 ## 11. コード修正履歴

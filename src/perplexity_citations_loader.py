@@ -25,7 +25,7 @@ from src.utils import (
     get_storage_config,
     get_results_paths
 )
-from src.utils.storage_utils import save_json_data
+from src.utils.storage_utils import save_json
 from src.categories import get_categories, get_all_categories
 
 # .envファイルから環境変数を読み込む
@@ -548,7 +548,7 @@ def save_results(result_data, run_type="single", num_runs=1):
     print(f"ストレージ設定: {storage_config}")
 
     # 保存
-    result = save_json_data(result_data, local_path, s3_path)
+    result = save_json(result_data, local_path, s3_path)
 
     if result["local"]:
         print(f"ローカルに保存しました: {local_path}")

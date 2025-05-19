@@ -15,7 +15,7 @@ import numpy as np
 import argparse
 import logging
 from src.utils.file_utils import ensure_dir, save_json, get_today_str
-from src.utils.storage_utils import save_json_data
+from src.utils.storage_utils import save_json
 from src.utils.s3_utils import save_to_s3, put_json_to_s3
 
 # .envファイルから環境変数を読み込む
@@ -259,8 +259,8 @@ def save_results(result_data, run_type="single", num_runs=1):
             # S3のパスを設定 (results/perplexity_sentiment/日付/ファイル名)
             s3_key = f"results/perplexity_sentiment/{today_date}/{file_name}"
 
-            # save_json_dataを使用してS3に保存
-            result = save_json_data(result_data, local_file, s3_key)
+            # save_jsonを使用してS3に保存
+            result = save_json(result_data, local_file, s3_key)
             if result["s3"]:
                 print(f"S3に保存完了: s3://{S3_BUCKET_NAME}/{s3_key}")
             else:
