@@ -44,13 +44,13 @@ categories:
     #   - Microsoft Copilot
     #   - Google AI Overviews
 
-  企業:
-    世界的テック企業:
-      - Apple
-      - Google
-      - Microsoft
-      - Amazon
-      - Meta
+  # 企業:
+  #   世界的テック企業:
+  #     - Apple
+  #     - Google
+  #     - Microsoft
+  #     - Amazon
+  #     - Meta
     # 日本のテック企業:
     #   - ソニー
     #   - 任天堂
