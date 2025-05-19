@@ -85,19 +85,8 @@ def get_result_files():
         "results/analysis/perplexity_sentiment/*_perplexity_sentiment_*.json",
         "results/perplexity_rankings/*_perplexity_rankings_*.json",
         "results/perplexity_citations/*_perplexity_citations_*.json",
+        "results/analysis/perplexity_citations/*_perplexity_citations_*.json",
         "results/openai_sentiment/*_openai_sentiment_*.json",
-
-        # 旧パス構造（後方互換性のため）
-        "results/perplexity/sentiment/*_perplexity_sentiment_*.json",
-        "results/perplexity/rankings/*_perplexity_rankings_*.json",
-        "results/perplexity/citations/*_perplexity_citations_*.json",
-        "results/openai/sentiment/*_openai_sentiment_*.json",
-
-        # 古い命名規則（後方互換性のため）
-        "results/perplexity/sentiment/*_perplexity_results_*.json",
-        "results/perplexity/rankings/*_perplexity_results_*.json",
-        "results/perplexity/citations/*_perplexity_results_*.json",
-        "results/openai/sentiment/*_openai_results_*.json",
 
         # ルートのresultsフォルダも検索
         "results/*_perplexity_sentiment_*.json",
@@ -215,7 +204,12 @@ if selected_view == "単一データ分析":
 
     # ファイル読み込み
     try:
-        s3_path = f"s3://{S3_BUCKET_NAME}/{selected_file['path']}"
+        # S3パスの構築
+        if selected_file['path'].startswith('s3://'):
+            s3_path = selected_file['path']
+        else:
+            s3_path = f"s3://{S3_BUCKET_NAME}/{selected_file['path']}"
+
         data = load_json(s3_path)
         if data is None:
             st.error(f"ファイルの読み込みに失敗しました: {s3_path}")

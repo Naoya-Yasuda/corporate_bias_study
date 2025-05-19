@@ -101,6 +101,11 @@ def load_json(file_path):
     else:
         # ローカルファイル
         try:
+            # ファイルが存在するか確認
+            if not os.path.exists(file_path):
+                print(f"ファイルが存在しません: {file_path}")
+                return None
+
             with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
