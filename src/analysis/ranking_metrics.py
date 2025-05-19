@@ -35,7 +35,6 @@ from src.utils.s3_utils import get_s3_client, upload_to_s3
 from src.utils.file_utils import load_json
 from src.utils.storage_utils import save_json
 from src.utils.rank_utils import compute_tau, rbo
-from src.utils.plot_utils import set_plot_style
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
 
 # .envファイルから環境変数を読み込む

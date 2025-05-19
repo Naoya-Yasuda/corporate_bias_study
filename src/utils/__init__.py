@@ -20,7 +20,7 @@ from .text_utils import extract_domain, is_negative, ratio
 from .rank_utils import rbo, rank_map, compute_tau, compute_delta_ranks
 
 # plot utils
-from .plot_utils import plot_delta_ranks, plot_market_impact, set_plot_style
+from .plot_utils import plot_delta_ranks, plot_market_impact
 
 # storage config
 from .storage_config import is_s3_enabled, is_local_enabled, get_storage_config, get_results_paths
