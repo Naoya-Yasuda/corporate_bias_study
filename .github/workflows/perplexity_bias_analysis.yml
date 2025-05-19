@@ -58,19 +58,19 @@ jobs:
       - name: Run Perplexity sentiment analysis (${{ env.RUNS_COUNT }} runs)
         run: |
           echo "開始: Perplexity 感情スコア分析 ($(date))" | tee -a logs/execution.log
-          python -m src.perplexity_sentiment_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_sentiment.log
+          python -m src.perplexity_sentiment_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_sentiment.log
           echo "完了: Perplexity 感情スコア分析 ($(date))" | tee -a logs/execution.log
 
       - name: Run Perplexity ranking extraction (${{ env.RUNS_COUNT }} runs)
         run: |
           echo "開始: Perplexity ランキング抽出 ($(date))" | tee -a logs/execution.log
-          python -m src.perplexity_ranking_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_ranking.log
+          python -m src.perplexity_ranking_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_ranking.log
           echo "完了: Perplexity ランキング抽出 ($(date))" | tee -a logs/execution.log
 
       - name: Run Perplexity citations extraction (${{ env.RUNS_COUNT }} runs)
         run: |
           echo "開始: Perplexity 引用リンク抽出 ($(date))" | tee -a logs/execution.log
-          python -m src.perplexity_citations_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_citations.log
+          python -m src.perplexity_citations_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_citations.log
           echo "完了: Perplexity 引用リンク抽出 ($(date))" | tee -a logs/execution.log
 
       - name: Run Google SERP analysis
@@ -79,32 +79,12 @@ jobs:
           python -m src.google_serp_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/google_serp.log
           echo "完了: Google SERP 分析 ($(date))" | tee -a logs/execution.log
 
-      - name: Run OpenAI sentiment analysis (${{ env.RUNS_COUNT }} runs)
-        if: env.OPENAI_API_KEY != ''
-        run: |
-          echo "開始: OpenAI 感情スコア分析 ($(date))" | tee -a logs/execution.log
-          python -m src.openai_bias_loader --multiple --runs ${{ env.RUNS_COUNT }} | tee -a logs/openai_sentiment.log
-          echo "完了: OpenAI 感情スコア分析 ($(date))" | tee -a logs/execution.log
-
-      # 2. 分析ステップ（データ取得がすべて終わった後にまとめて実行）
-      - name: Run ranking metrics analysis
-        run: |
-          echo "開始: ランキング指標分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.ranking_metrics --date ${{ env.TODAY_DATE }} --api perplexity --verbose | tee -a logs/ranking_metrics.log
-          echo "完了: ランキング指標分析 ($(date))" | tee -a logs/execution.log
-
+      # 2. 分析ステップ
       - name: Run Perplexity Sentiment Bias Analysis
         run: |
           echo "開始: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
           python -m src.analysis.bias_sentiment_metrics --json-path results/${{ env.TODAY_DATE }}_perplexity_results_${{ env.RUNS_COUNT }}runs.json --rankings --verbose | tee -a logs/bias_metrics_perplexity.log
           echo "完了: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
-
-      - name: Run OpenAI Sentiment Bias Analysis
-        if: env.OPENAI_API_KEY != ''
-        run: |
-          echo "開始: OpenAI 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.bias_sentiment_metrics --json-path results/${{ env.TODAY_DATE }}_openai_results_${{ env.RUNS_COUNT }}runs.json --verbose | tee -a logs/bias_metrics_openai.log
-          echo "完了: OpenAI 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
 
       # 統合指標分析（複数指標に基づく後段処理）
       - name: Run integrated metrics analysis
