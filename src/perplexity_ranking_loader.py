@@ -271,7 +271,7 @@ def main():
     print("\n処理が完了しました。")
     print(f"結果は {result_file} に保存されました。")
     print("分析を実行するには、以下のコマンドを実行してください：")
-    print(f"python -m src.analysis.ranking_metrics --json-path {result_file}")
+    print(f"python -m src.analysis.ranking_metrics {result_file}")
 
 if __name__ == "__main__":
     main()

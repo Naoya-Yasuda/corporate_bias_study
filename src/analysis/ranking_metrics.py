@@ -670,14 +670,14 @@ if __name__ == "__main__":
                         help='APIタイプ（デフォルト: perplexity）')
     parser.add_argument('--output', help='出力ディレクトリ（デフォルト: results/ranking_analysis/YYYYMMDD）')
     parser.add_argument('--no-upload', action='store_true', help='S3への結果アップロードを無効化')
-    parser.add_argument('--json-path', help='ローカルJSONファイルから直接分析する場合のパス')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効にする')
+    parser.add_argument('input_file', nargs='?', help='ローカルJSONファイルから直接分析する場合のパス')
 
     args = parser.parse_args()
 
-    if args.json_path:
+    if args.input_file:
         # ローカルファイルからの分析
-        with open(args.json_path, 'r', encoding='utf-8') as f:
+        with open(args.input_file, 'r', encoding='utf-8') as f:
             ranked_json = json.load(f)
 
         # 出力ディレクトリの設定
