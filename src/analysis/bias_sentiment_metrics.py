@@ -19,7 +19,7 @@ from tqdm import trange, tqdm
 from src.analysis.ranking_metrics import analyze_s3_rankings
 from dotenv import load_dotenv
 import boto3
-from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.s3_utils import save_to_s3, put_json_to_s3
 
 # .envファイルから環境変数を読み込む

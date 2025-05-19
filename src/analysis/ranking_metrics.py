@@ -23,7 +23,7 @@ from collections import defaultdict
 from tqdm import trange, tqdm
 from dotenv import load_dotenv
 import boto3
-from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.s3_utils import save_to_s3, put_json_to_s3
 
 # ドメイン関連の機能
