@@ -26,6 +26,10 @@ load_dotenv()
 
 # 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 def collect_rankings(api_key, categories, num_runs=1):
     """

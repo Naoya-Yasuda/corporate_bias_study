@@ -12,12 +12,21 @@ from dotenv import load_dotenv
 from src.categories import get_categories, get_viewpoints
 from src.prompts.perplexity_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
 import numpy as np
+import argparse
+import logging
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.storage_utils import save_json_data
+from src.utils.s3_utils import save_to_s3, put_json_to_s3
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
 # 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 # カテゴリとサービスの定義を取得
 categories = get_categories()
@@ -224,23 +233,8 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
 
     return results
 
-# 共通ユーティリティをインポート
-from src.utils.file_utils import ensure_dir, save_json, get_today_str
-from src.utils.storage_utils import save_json_data
-
 def save_results(result_data, run_type="single", num_runs=1):
     """結果を保存する関数"""
-    # AWS認証情報を環境変数から取得
-    aws_access_key = os.environ.get("AWS_ACCESS_KEY")
-    aws_secret_key = os.environ.get("AWS_SECRET_KEY")
-    aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")
-    # リージョンが空文字列の場合はデフォルト値を使用
-    if not aws_region or aws_region.strip() == '':
-        aws_region = 'ap-northeast-1'
-        print(f'AWS_REGIONが未設定または空のため、デフォルト値を使用します: {aws_region}')
-
-    s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
-
     # 日付を取得
     today_date = get_today_str()
 
@@ -260,7 +254,7 @@ def save_results(result_data, run_type="single", num_runs=1):
     print(f"ローカルに保存しました: {local_file}")
 
     # S3に保存（認証情報がある場合のみ）
-    if aws_access_key and aws_secret_key and s3_bucket_name:
+    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
         try:
             # S3のパスを設定 (results/perplexity/日付/ファイル名)
             s3_key = f"results/perplexity/{today_date}/{file_name}"
@@ -268,12 +262,12 @@ def save_results(result_data, run_type="single", num_runs=1):
             # save_json_dataを使用してS3に保存
             result = save_json_data(result_data, local_file, s3_key)
             if result["s3"]:
-                print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")
+                print(f"S3に保存完了: s3://{S3_BUCKET_NAME}/{s3_key}")
             else:
                 print(f"S3への保存に失敗しました: 認証情報を確認してください")
-                print(f"  バケット名: {s3_bucket_name}")
-                print(f"  AWS認証キーの設定状態: ACCESS_KEY={'設定済み' if aws_access_key else '未設定'}, SECRET_KEY={'設定済み' if aws_secret_key else '未設定'}")
-                print(f"  リージョン: {aws_region}")
+                print(f"  バケット名: {S3_BUCKET_NAME}")
+                print(f"  AWS認証キーの設定状態: ACCESS_KEY={'設定済み' if AWS_ACCESS_KEY else '未設定'}, SECRET_KEY={'設定済み' if AWS_SECRET_KEY else '未設定'}")
+                print(f"  リージョン: {AWS_REGION}")
         except Exception as e:
             print(f"S3保存中にエラーが発生しました: {e}")
     else:
@@ -284,7 +278,6 @@ def save_results(result_data, run_type="single", num_runs=1):
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
-    import argparse
     parser = argparse.ArgumentParser(description='Perplexityを使用して企業バイアスデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
@@ -295,7 +288,6 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
-        import logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
@@ -328,36 +320,28 @@ def main():
 
             # S3へのアップロード
             try:
-                # AWS認証情報を環境変数から取得
-                aws_access_key = os.environ.get("AWS_ACCESS_KEY")
-                aws_secret_key = os.environ.get("AWS_SECRET_KEY")
-                aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")
-                s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
+                # S3クライアントを作成
+                s3_client = boto3.client(
+                    "s3",
+                    aws_access_key_id=AWS_ACCESS_KEY,
+                    aws_secret_access_key=AWS_SECRET_KEY,
+                    region_name=AWS_REGION
+                )
 
-                if aws_access_key and aws_secret_key and s3_bucket_name:
-                    # S3クライアントを作成
-                    import boto3
-                    s3_client = boto3.client(
-                        "s3",
-                        aws_access_key_id=aws_access_key,
-                        aws_secret_access_key=aws_secret_key,
-                        region_name=aws_region
-                    )
+                # 分析ディレクトリ内のCSVファイルをアップロード
+                for filename in os.listdir(analysis_dir):
+                    if filename.endswith('.csv'):
+                        local_path = os.path.join(analysis_dir, filename)
+                        s3_key = f"results/analysis/perplexity/{today_date}/{filename}"
 
-                    # 分析ディレクトリ内のCSVファイルをアップロード
-                    for filename in os.listdir(analysis_dir):
-                        if filename.endswith('.csv'):
-                            local_path = os.path.join(analysis_dir, filename)
-                            s3_key = f"results/analysis/perplexity/{today_date}/{filename}"
-
-                            with open(local_path, 'rb') as file_data:
-                                s3_client.upload_fileobj(
-                                    file_data,
-                                    s3_bucket_name,
-                                    s3_key,
-                                    ExtraArgs={'ContentType': 'text/csv'}
-                                )
-                            print(f"分析結果をS3にアップロードしました: s3://{s3_bucket_name}/{s3_key}")
+                        with open(local_path, 'rb') as file_data:
+                            s3_client.upload_fileobj(
+                                file_data,
+                                S3_BUCKET_NAME,
+                                s3_key,
+                                ExtraArgs={'ContentType': 'text/csv'}
+                            )
+                        print(f"分析結果をS3にアップロードしました: s3://{S3_BUCKET_NAME}/{s3_key}")
             except Exception as e:
                 print(f"分析結果のS3アップロードエラー: {e}")
 

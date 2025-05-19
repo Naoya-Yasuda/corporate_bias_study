@@ -20,21 +20,25 @@ from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import defaultdict
+from tqdm import trange, tqdm
+from dotenv import load_dotenv
+import boto3
+from src.utils.file_utils import ensure_dir, save_json, get_today_str
+from src.utils.s3_utils import save_to_s3, put_json_to_s3
 
 # ドメイン関連の機能
-from src.utils import extract_domain, get_results_paths, get_today_str
-from src.utils.file_utils import load_json
+from src.utils import extract_domain, get_results_paths
 from src.categories import get_categories
 
 # 共通ユーティリティをインポート
 from src.utils.s3_utils import get_s3_client, upload_to_s3
-from src.utils.file_utils import ensure_dir
+from src.utils.file_utils import load_json
 from src.utils.storage_utils import save_json_data
 from src.utils.rank_utils import compute_tau, rbo
 from src.utils.plot_utils import set_plot_style
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
 
-# 環境変数の読み込み
+# .envファイルから環境変数を読み込む
 load_dotenv()
 
 # -----------------------------
@@ -43,7 +47,7 @@ load_dotenv()
 TOP_K        = 5                       # 「上位 k 位」を陽性扱い
 EXPOSURE_WTS = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}      # 1位=5pt, 2位=4pt, 3位=3pt, 4位=2pt, 5位=1pt
 
-# AWS S3接続情報
+# 環境変数から認証情報を取得
 AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
