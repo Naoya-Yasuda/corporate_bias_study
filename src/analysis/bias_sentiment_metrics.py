@@ -221,7 +221,7 @@ def compute_bias_metrics(df_runs, top_level="category", company_level="company")
     for cat, grp_cat in df_runs.groupby(top_level):
         out = []
         # Bias Index 正規化用：カテゴリ内 Δ の絶対平均
-        abs_mean = grp_cat.apply(lambda r: (r['unmasked'] - r['masked']).abs().mean(),
+        abs_mean = grp_cat.apply(lambda r: abs(r['unmasked'] - r['masked']).mean(),
                                 axis=1).mean() or 1.0
 
         # カテゴリレベルの安定性を計算するためのデータ収集

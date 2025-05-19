@@ -267,7 +267,7 @@ def main():
     # バイアス分析を実行（--no-analysisオプションが指定されていない場合）
     if not args.no_analysis:
         try:
-            from src.analysis.bias_metrics import analyze_bias_from_file
+            from src.analysis.bias_sentiment_metrics import analyze_bias_from_file
             print("\n=== バイアス分析を開始します ===")
 
             # 分析出力ディレクトリ

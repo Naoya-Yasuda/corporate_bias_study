@@ -193,7 +193,6 @@ def main():
     parser = argparse.ArgumentParser(description='Perplexityを使用してランキングデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
-    parser.add_argument('--no-analysis', action='store_true', help='ランキング分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     parser.add_argument('--skip-openai', action='store_true', help='OpenAIの実行をスキップする（分析の一部として実行される場合）')
     parser.add_argument('--max-retries', type=int, default=3, help='ランキング抽出に失敗した場合の最大再試行回数')
@@ -268,32 +267,11 @@ def main():
     if args.verbose:
         logging.info("データ取得処理が完了しました")
 
-    # ランキング分析を実行（--no-analysisオプションが指定されていない場合）
-    if not args.no_analysis:
-        try:
-            from src.analysis.ranking_metrics import analyze_rankings_from_file
-            print("\n=== ランキング分析を開始します ===")
-            if args.verbose:
-                logging.info("ランキング分析を開始します")
-
-            # 分析出力ディレクトリ
-            analysis_dir = f"results/analysis/rankings/{today_date}"
-
-            # 分析実行
-            metrics = analyze_rankings_from_file(result_file, analysis_dir, verbose=args.verbose)
-
-            print("ランキング分析が完了しました")
-            if args.verbose:
-                logging.info("ランキング分析が完了しました")
-        except Exception as e:
-            print(f"ランキング分析中にエラーが発生しました: {e}")
-            if args.verbose:
-                import traceback
-                logging.error(f"詳細エラー情報: {traceback.format_exc()}")
-
     # 完了メッセージ
     print("\n処理が完了しました。")
     print(f"結果は {result_file} に保存されました。")
+    print("分析を実行するには、以下のコマンドを実行してください：")
+    print(f"python -m src.analysis.ranking_metrics --json-path {result_file}")
 
 if __name__ == "__main__":
     main()

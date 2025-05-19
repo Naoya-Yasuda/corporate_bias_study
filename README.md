@@ -100,7 +100,7 @@ streamlit run app.py --server.port 8502
 ```bash
 # 詳細ログ出力を有効にして実行
 python -m src.perplexity_sentiment_loader --multiple --runs 5 --verbose
-python -m src.analysis.bias_metrics --json-path results/20250501_perplexity_results_5runs.json --verbose
+python -m src.analysis.bias_sentiment_metrics --json-path results/20250501_perplexity_results_5runs.json --verbose
 ```
 
 ### OpenAIの実行をスキップ
@@ -211,7 +211,7 @@ python -m src.google_serp_loader --help
 
 # 分析モジュールのヘルプ
 python -m src.analysis.ranking_metrics --help
-python -m src.analysis.bias_metrics --help
+python -m src.analysis.bias_sentiment_metrics --help
 python -m src.analysis.serp_metrics --help
 python -m src.analysis.bias_ranking_pipeline --help
 ```
@@ -316,7 +316,7 @@ python -m src.analysis.bias_ranking_pipeline --query "best smartphones 2025" --m
 4. `google_serp_loader` - Google検索結果の取得と比較分析
 5. `openai_bias_loader` - OpenAI APIのバイアス評価 (10回実行) - APIキーがある場合のみ
 6. `ranking_metrics` - ランキング指標の分析
-7. `bias_metrics` - バイアス指標の分析 (Perplexityと条件付きでOpenAI)
+7. `bias_sentiment_metrics` - バイアス指標の分析 (Perplexityと条件付きでOpenAI)
 8. `bias_ranking_pipeline` - 統合バイアス評価パイプライン (引用リンクデータ使用)
 
 これにより、単なるデータ収集だけでなく、詳細な分析結果も自動的に生成され、企業バイアスの時系列的な変化も追跡できます。
@@ -444,7 +444,7 @@ MITライセンス
 
 4. **分析モジュール** (`src/analysis/`)
    - `ranking_metrics.py`: ランキング指標の計算（露出度、公平性ギャップ等）
-   - `bias_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率等）
+   - `bias_sentiment_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率等）
    - `serp_metrics.py`: Google検索とPerplexity結果の比較分析、引用リンク分析(`analyze_citations_from_file`関数)
    - `bias_ranking_pipeline.py`: 統合されたバイアス評価パイプライン
 
@@ -546,7 +546,7 @@ $$\delta = \frac{\#(X_{masked} < X_{unmasked}) - \#(X_{masked} > X_{unmasked})}{
 3. 効果量（Cliff's Delta）の正確な計算が可能
 4. ブートストラップ信頼区間の信頼性向上
 
-複数回実行データは自動的にバイアス分析モジュール（`src/analysis/bias_metrics.py`）で処理され、CSVファイルとして出力されます。分析結果はデータ収集時に自動的に計算・保存されます。
+複数回実行データは自動的にバイアス分析モジュール（`src/analysis/bias_sentiment_metrics.py`）で処理され、CSVファイルとして出力されます。分析結果はデータ収集時に自動的に計算・保存されます。
 
 ## 7.6 ランキング評価指標
 
@@ -656,10 +656,10 @@ python -m src.analysis.ranking_metrics --json-path results/20250501_perplexity_r
 
 ```bash
 # バイアス分析とランキング分析を同時実行
-python -m src.analysis.bias_metrics results/20250501_perplexity_results_10runs.json --rankings
+python -m src.analysis.bias_sentiment_metrics results/20250501_perplexity_results_10runs.json --rankings
 
 # 別日のランキングを指定して分析
-python -m src.analysis.bias_metrics results/20250501_perplexity_results_10runs.json --rankings --rankings-date 20250502
+python -m src.analysis.bias_sentiment_metrics results/20250501_perplexity_results_10runs.json --rankings --rankings-date 20250502
 ```
 
 分析結果は以下のファイルに保存されます：
@@ -726,7 +726,7 @@ AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動�
 
 3. **分析モジュール** (`src/analysis/`)
    - `ranking_metrics.py`: ランキング指標分析
-   - `bias_metrics.py`: バイアス指標分析
+   - `bias_sentiment_metrics.py`: バイアス指標分析
    - `serp_metrics.py`: Google検索とPerplexity結果の比較分析
    - `bias_ranking_pipeline.py`: 統合されたバイアス評価
 
@@ -755,7 +755,7 @@ AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動�
 
 2. **分析モジュール**
    - `ranking_metrics.py`: ランキング指標の計算（露出度、公平性ギャップなど）
-   - `bias_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率など）
+   - `bias_sentiment_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率など）
    - `serp_metrics.py`: Google検索結果とPerplexity結果の比較分析
    - `bias_ranking_pipeline.py`: 高速バイアス評価パイプライン
 
