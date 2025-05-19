@@ -58,7 +58,7 @@ jobs:
       - name: Run Perplexity bias analysis (${{ env.RUNS_COUNT }} runs)
         run: |
           echo "開始: Perplexity バイアス分析 ($(date))" | tee -a logs/execution.log
-          python -m src.perplexity_bias_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_bias.log
+          python -m src.perplexity_sentiment_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose --skip-openai | tee -a logs/perplexity_bias.log
           echo "完了: Perplexity バイアス分析 ($(date))" | tee -a logs/execution.log
 
       # Perplexity APIによるランキング抽出

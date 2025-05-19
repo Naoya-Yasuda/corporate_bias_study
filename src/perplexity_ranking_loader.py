@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 from src.categories import get_categories, get_all_categories
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
-from src.perplexity_bias_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
+from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
 
 # 共通ユーティリティをインポート
 from src.utils.file_utils import ensure_dir, save_json, get_today_str

@@ -99,7 +99,7 @@ streamlit run app.py --server.port 8502
 全モジュールで`--verbose`オプションを使用することで、詳細なログ出力を有効にできます。
 ```bash
 # 詳細ログ出力を有効にして実行
-python -m src.perplexity_bias_loader --multiple --runs 5 --verbose
+python -m src.perplexity_sentiment_loader --multiple --runs 5 --verbose
 python -m src.analysis.bias_metrics --json-path results/20250501_perplexity_results_5runs.json --verbose
 ```
 
@@ -107,7 +107,7 @@ python -m src.analysis.bias_metrics --json-path results/20250501_perplexity_resu
 OpenAIの実行をスキップしてPerplexityのみに集中する場合は、`--skip-openai`オプションを使用できます。
 ```bash
 # OpenAIの実行をスキップして、Perplexityのみを実行
-python -m src.perplexity_bias_loader --multiple --runs 5 --skip-openai
+python -m src.perplexity_sentiment_loader --multiple --runs 5 --skip-openai
 python -m src.perplexity_ranking_loader --multiple --runs 5 --skip-openai
 python -m src.perplexity_citations_loader --multiple --runs 5 --skip-openai
 ```
@@ -115,7 +115,7 @@ python -m src.perplexity_citations_loader --multiple --runs 5 --skip-openai
 ### 単一実行
 ```bash
 # Perplexity - バイアス評価
-python -m src.perplexity_bias_loader
+python -m src.perplexity_sentiment_loader
 
 # Perplexity - ランキング抽出
 python -m src.perplexity_ranking_loader
@@ -130,7 +130,7 @@ python -m src.openai_bias_loader
 ### 複数回実行（平均値を計算）
 ```bash
 # Perplexity - バイアス評価（5回実行）+ 自動分析
-python -m src.perplexity_bias_loader --multiple --runs 5
+python -m src.perplexity_sentiment_loader --multiple --runs 5
 
 # Perplexity - ランキング抽出（5回実行）
 python -m src.perplexity_ranking_loader --multiple --runs 5
@@ -142,7 +142,7 @@ python -m src.perplexity_citations_loader --multiple --runs 5
 python -m src.openai_bias_loader --multiple --runs 5
 
 # 分析なしで実行する場合
-python -m src.perplexity_bias_loader --multiple --runs 5 --no-analysis
+python -m src.perplexity_sentiment_loader --multiple --runs 5 --no-analysis
 ```
 
 #### ストレージ設定のカスタマイズ
@@ -197,7 +197,7 @@ save_json_data(results, "results/analysis.json", "custom/path/analysis.json")
 
 ```bash
 # バイアス評価モジュールのヘルプ
-python -m src.perplexity_bias_loader --help
+python -m src.perplexity_sentiment_loader --help
 python -m src.openai_bias_loader --help
 
 # ランキング抽出モジュールのヘルプ
@@ -310,7 +310,7 @@ python -m src.analysis.bias_ranking_pipeline --query "best smartphones 2025" --m
 実行時間: 毎週月曜日 06:00 JST (21:00 UTC)
 
 実行されるモジュール:
-1. `perplexity_bias_loader` - Perplexity APIのバイアス評価 (10回実行)
+1. `perplexity_sentiment_loader` - Perplexity APIのバイアス評価 (10回実行)
 2. `perplexity_ranking_loader` - Perplexity APIのランキング抽出 (10回実行)
 3. `perplexity_citations_loader` - Perplexity APIの引用リンク抽出 (10回実行)
 4. `google_serp_loader` - Google検索結果の取得と比較分析
@@ -395,7 +395,7 @@ MITライセンス
 ├─ src/                      # ソースコード
 │   ├─ __init__.py           # パッケージ初期化ファイル
 │   ├─ categories.py         # カテゴリとサービス定義読み込み機能
-│   ├─ perplexity_bias_loader.py # Perplexity API実行ファイル
+│   ├─ perplexity_sentiment_loader.py # Perplexity API実行ファイル
 │   ├─ perplexity_ranking_loader.py # Perplexity ランキング抽出ファイル
 │   ├─ perplexity_citations_loader.py # Perplexity 引用リンク取得ファイル
 │   ├─ openai_bias_loader.py # OpenAI API実行ファイル
@@ -437,7 +437,7 @@ MITライセンス
    - 再利用可能な関数として実装
    - 評価値抽出ロジックの標準化
 
-3. **API実行モジュール** (`src/perplexity_bias_loader.py`, `src/openai_bias_loader.py`, `src/perplexity_ranking_loader.py`, `src/perplexity_citations_loader.py`)
+3. **API実行モジュール** (`src/perplexity_sentiment_loader.py`, `src/openai_bias_loader.py`, `src/perplexity_ranking_loader.py`, `src/perplexity_citations_loader.py`)
    - API呼び出し処理
    - 複数回実行と統計処理
    - 結果の保存機能
@@ -719,7 +719,7 @@ AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動�
    - `plot_utils.py`: データ可視化
 
 2. **データ収集モジュール** (`src/`)
-   - `perplexity_bias_loader.py`: Perplexity APIバイアス測定
+   - `perplexity_sentiment_loader.py`: Perplexity API感情バイアス測定
    - `perplexity_ranking_loader.py`: ランキング抽出
    - `perplexity_citations_loader.py`: 引用リンク抽出
    - `google_serp_loader.py`: Google検索結果取得
