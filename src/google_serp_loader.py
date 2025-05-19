@@ -110,8 +110,8 @@ def get_perplexity_results(date_str=None, local_path="results", data_type="citat
         local_files = [f for f in os.listdir(local_path) if os.path.isfile(os.path.join(local_path, f))]
 
     # 特定の日付とデータタイプに一致するファイルをフィルタリング
-    multi_run_pattern = f"{date_str}_perplexity_{data_type}_"  # 例: 20240501_perplexity_citations_
-    single_run_pattern = f"{date_str}_perplexity_{data_type}.json"  # 例: 20240501_perplexity_citations.json
+    multi_run_pattern = f"{date_str}_perplexity_{data_type}_"  # 例: 20250501_perplexity_citations_
+    single_run_pattern = f"{date_str}_perplexity_{data_type}.json"  # 例: 20250501_perplexity_citations.json
 
     # 複数実行結果ファイルをフィルタリング
     multi_run_files = [f for f in local_files if f.startswith(multi_run_pattern) and f.endswith("runs.json")]

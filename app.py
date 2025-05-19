@@ -18,6 +18,9 @@ import numpy as np
 from datetime import datetime
 import matplotlib as mpl
 import matplotlib.font_manager as fm
+from dotenv import load_dotenv
+from src.utils.file_utils import get_s3_json
+from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME
 
 # 利用可能な日本語フォントを優先的に取得
 import matplotlib.pyplot as plt
@@ -952,4 +955,18 @@ if selected_view == "単一データ分析":
 
 # フッター
 st.markdown("---")
-st.markdown("企業バイアス分析ダッシュボード © 2024")
+st.markdown("企業バイアス分析ダッシュボード © 2025")
+
+# Streamlitで利用
+bucket = S3_BUCKET_NAME
+prefix = 'results/'
+
+# S3からファイル一覧を取得
+s3_client = get_s3_client()
+response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+file_list = [content['Key'] for content in response.get('Contents', [])]
+
+selected_file = st.selectbox("ファイルを選択", file_list)
+if selected_file:
+    data = get_s3_json(selected_file)
+    st.json(data)

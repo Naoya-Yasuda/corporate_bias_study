@@ -100,7 +100,7 @@ streamlit run app.py --server.port 8502
 ```bash
 # 詳細ログ出力を有効にして実行
 python -m src.perplexity_bias_loader --multiple --runs 5 --verbose
-python -m src.analysis.bias_metrics --json-path results/20240501_perplexity_results_5runs.json --verbose
+python -m src.analysis.bias_metrics --json-path results/20250501_perplexity_results_5runs.json --verbose
 ```
 
 ### OpenAIの実行をスキップ
@@ -640,7 +640,7 @@ hhi_ratio = exposure_hhi / market_hhi
 python -m src.analysis.ranking_metrics
 
 # 特定日付のデータを分析
-python -m src.analysis.ranking_metrics --date 20240501
+python -m src.analysis.ranking_metrics --date 20250501
 
 # OpenAIのランキングデータを分析
 python -m src.analysis.ranking_metrics --api openai
@@ -649,17 +649,17 @@ python -m src.analysis.ranking_metrics --api openai
 python -m src.analysis.ranking_metrics --output results/my_analysis
 
 # ローカルのJSONファイルを直接分析
-python -m src.analysis.ranking_metrics --json-path results/20240501_perplexity_rankings_10runs.json
+python -m src.analysis.ranking_metrics --json-path results/20250501_perplexity_rankings_10runs.json
 ```
 
 バイアス分析と一緒に実行する場合：
 
 ```bash
 # バイアス分析とランキング分析を同時実行
-python -m src.analysis.bias_metrics results/20240501_perplexity_results_10runs.json --rankings
+python -m src.analysis.bias_metrics results/20250501_perplexity_results_10runs.json --rankings
 
 # 別日のランキングを指定して分析
-python -m src.analysis.bias_metrics results/20240501_perplexity_results_10runs.json --rankings --rankings-date 20240502
+python -m src.analysis.bias_metrics results/20250501_perplexity_results_10runs.json --rankings --rankings-date 20250502
 ```
 
 分析結果は以下のファイルに保存されます：
@@ -822,7 +822,7 @@ AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動�
 
 ```bash
 # 既存のデータを使用してバイアス分析を実行する例
-python src/analysis/bias_ranking_pipeline.py --perplexity-date 20240510 --data-type citations --output results/existing_analysis
+python src/analysis/bias_ranking_pipeline.py --perplexity-date 20250510 --data-type citations --output results/existing_analysis
 ```
 
 ### バイアス評価パイプライン
@@ -865,18 +865,18 @@ python src/analysis/bias_ranking_pipeline.py --query "best smartphones 2025" --m
 #### ランキング指標分析
 
 ```bash
-python src/analysis/ranking_metrics.py --date 20240510 --api perplexity
+python src/analysis/ranking_metrics.py --date 20250510 --api perplexity
 ```
 
 #### Google SERP比較
 
 ```bash
-python src/google_serp_loader.py --perplexity-date 20240510
+python src/google_serp_loader.py --perplexity-date 20250510
 ```
 
 ## 11. コード修正履歴
 
-### 2024年7月の主な修正
+### 2025年7月の主な修正
 
 1. **Google SERP分析モジュールの修正**
    - `google_serp_loader.py`での`analyze_serp_results`関数呼び出しを修正

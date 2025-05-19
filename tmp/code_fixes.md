@@ -1,6 +1,6 @@
 ## 11. コード修正履歴
 
-### 2024年7月の主な修正
+### 2025年7月の主な修正
 
 1. **Google SERP分析モジュールの修正**
    - `google_serp_loader.py`での`analyze_serp_results`関数呼び出しを修正
