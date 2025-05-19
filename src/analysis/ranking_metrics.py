@@ -139,7 +139,8 @@ def get_latest_ranking_file(date_str=None, prefix="results/perplexity_rankings/"
     files = list_s3_files(prefix)
 
     # ランキングファイルをフィルタリング
-    ranking_files = [f for f in files if f.endswith('_rankings.json') or f.endswith('_rankings_5runs.json')]
+    import re
+    ranking_files = [f for f in files if re.search(r'_rankings(_\d+runs)?\.json$', f)]
 
     if not ranking_files:
         print(f"ランキングファイルが見つかりません: {prefix}")
