@@ -229,7 +229,7 @@ st.title("企業バイアス分析ダッシュボード")
 st.markdown("AI検索サービスにおける企業優遇バイアスの可視化")
 
 # --- データ分析セクション ---
-st.header("データ分析")
+# st.header("データ分析")
 
 # データファイルの取得
 data_files = get_data_files()
@@ -546,105 +546,154 @@ else:
             # ランキングの可視化
             st.subheader("ランキング分析")
 
-            category_data = data[selected_category]
-
-            # 複数回実行の場合
-            if selected_file["is_multi_run"] and "all_rankings" in category_data:
-                rankings_data = category_data["all_rankings"]
-
-                # 平均ランキングがあれば表示
-                if "avg_ranking" in category_data:
-                    st.markdown("### 平均ランキング")
-                    avg_ranking = category_data["avg_ranking"]
-
-                    # 平均ランキングの表示
-                    for i, service in enumerate(avg_ranking[:10], 1):
-                        st.write(f"{i}. {service}")
-
-                # サービスごとの出現頻度と平均順位を計算
-                service_stats = {}
-
-                for ranking in rankings_data:
-                    for i, service in enumerate(ranking, 1):
-                        if service not in service_stats:
-                            service_stats[service] = {"appearances": 0, "positions": []}
-
-                        service_stats[service]["appearances"] += 1
-                        service_stats[service]["positions"].append(i)
-
-                # 統計情報をDataFrameに変換
-                stats_records = []
-                for service, stats in service_stats.items():
-                    avg_position = sum(stats["positions"]) / len(stats["positions"]) if stats["positions"] else 0
-                    appearance_rate = stats["appearances"] / len(rankings_data)
-
-                    stats_records.append({
-                        "サービス": service,
-                        "出現回数": stats["appearances"],
-                        "出現率": appearance_rate,
-                        "平均順位": avg_position
-                    })
-
-                stats_df = pd.DataFrame(stats_records)
-                stats_df = stats_df.sort_values("平均順位")
-
-                # 出現率と平均順位のグラフ
-                st.markdown("### サービスの出現頻度と平均順位")
-                fig, ax = plt.subplots()
-
-                # 上位10サービスに絞る
-                top_services = stats_df.head(10)
-
-                # 棒グラフ（出現率）
-                bars = ax.bar(top_services["サービス"], top_services["出現率"], alpha=0.7)
-
-                # 出現率のスケール
-                ax.set_ylabel("出現率", fontproperties=prop)
-                ax.tick_params(axis='y', colors='blue')
-
-                # 平均順位のスケール（反転：小さいほど上位）
-                ax2 = ax.twinx()
-                ax2.plot(top_services["サービス"], top_services["平均順位"], 'ro-', alpha=0.7)
-                ax2.set_ylabel("平均順位", fontproperties=prop)
-                ax2.tick_params(axis='y', colors='red')
-                ax2.invert_yaxis()  # 順位は小さいほど上位なので反転
-
-                ax.set_xticklabels(top_services["サービス"], rotation=45, ha='right', fontproperties=prop)
-                ax.set_title(f"{selected_category} のサービス出現率と平均順位", fontproperties=prop)
-
-                st.pyplot(fig)
-
-                # データテーブル
-                st.dataframe(stats_df)
-
-            # 単一実行の場合
-            elif "ranking" in category_data:
-                st.markdown("### ランキング結果")
-                ranking = category_data["ranking"]
-
-                # ランキングの表示
-                for i, service in enumerate(ranking[:10], 1):
-                    st.write(f"{i}. {service}")
-
-                # 棒グラフで可視化
-                fig, ax = plt.subplots()
-
-                # 上位10サービスに絞る
-                top_services = ranking[:10]
-                y_pos = range(len(top_services))
-
-                # 順位を反転して表示（1位が一番上に来るように）
-                ax.barh(y_pos, [10 - i for i in range(len(top_services))], align='center')
-                ax.set_yticks(y_pos)
-                ax.set_yticklabels(top_services, fontproperties=prop)
-                ax.invert_yaxis()  # 1位を上に表示
-                ax.set_xlabel('順位（逆順）', fontproperties=prop)
-                ax.set_title(f"{selected_category} のランキング", fontproperties=prop)
-
-                st.pyplot(fig)
-
+            category_data = data.get(selected_category, None)
+            if category_data is None:
+                st.error("選択したカテゴリにデータが存在しません（data[selected_category] is None）")
+            elif not category_data:
+                st.error("選択したカテゴリのデータが空です（data[selected_category] is empty）")
+            elif ("all_rankings" not in category_data and "ranking" not in category_data and
+                  not any(isinstance(v, dict) and ("all_rankings" in v or "ranking" in v) for v in category_data.values())):
+                st.error("このカテゴリにランキングデータ（all_rankings/ranking）が見つかりません。データ構造が異なるか、ファイルにランキングデータが含まれていない可能性があります。")
+                st.write("データ構造:", category_data)
+            elif (isinstance(category_data, dict) and not ("all_rankings" in category_data or "ranking" in category_data)):
+                # サブカテゴリ構造の場合
+                subcategories = list(category_data.keys())
+                selected_subcategory = st.selectbox("サブカテゴリを選択", subcategories)
+                subcategory_data = category_data[selected_subcategory]
+                if selected_file["is_multi_run"] and "all_rankings" in subcategory_data:
+                    rankings_data = subcategory_data["all_rankings"]
+                    # ...（既存の複数回実行の可視化処理）...
+                    # オススメ順（平均ランキング）の可視化
+                    if "avg_ranking" in subcategory_data:
+                        st.markdown("### オススメ順（平均ランキング）")
+                        avg_ranking = subcategory_data["avg_ranking"]
+                        rank_details = subcategory_data.get("rank_details", {})
+                        records = []
+                        std_list = []
+                        avg_list = []
+                        all_ranks_dict = {}
+                        for i, service in enumerate(avg_ranking, 1):
+                            detail = rank_details.get(service, {})
+                            avg_rank = detail.get('avg_rank', 0.0)
+                            std_dev = detail.get('std_dev', 0.0)
+                            all_ranks = detail.get('all_ranks', [])
+                            records.append({
+                                "順位": i,
+                                "サービス": service,
+                                "平均順位": f"{avg_rank:.2f}",
+                                "標準偏差": f"{std_dev:.2f}",
+                                "全順位": all_ranks
+                            })
+                            avg_list.append(avg_rank)
+                            std_list.append(std_dev)
+                            if all_ranks:
+                                all_ranks_dict[service] = all_ranks
+                        st.dataframe(records)
+                        # 平均順位の折れ線グラフ
+                        st.markdown("#### 平均順位の推移（オススメ順）")
+                        fig, ax = plt.subplots()
+                        ax.plot([i+1 for i in range(len(avg_list))], avg_list, marker='o')
+                        ax.set_xticks([i+1 for i in range(len(avg_ranking))])
+                        ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
+                        ax.set_xlabel('サービス', fontproperties=prop)
+                        ax.set_ylabel('平均順位', fontproperties=prop)
+                        ax.set_title('平均順位の推移', fontproperties=prop)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        # 標準偏差の棒グラフ
+                        st.markdown("#### 標準偏差（ばらつき）の棒グラフ")
+                        fig, ax = plt.subplots()
+                        ax.bar([i+1 for i in range(len(std_list))], std_list, tick_label=avg_ranking)
+                        ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
+                        ax.set_xlabel('サービス', fontproperties=prop)
+                        ax.set_ylabel('標準偏差', fontproperties=prop)
+                        ax.set_title('標準偏差（ばらつき）', fontproperties=prop)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        # 全順位の箱ひげ図
+                        if all_ranks_dict:
+                            st.markdown("#### 全順位の箱ひげ図")
+                            fig, ax = plt.subplots()
+                            ax.boxplot([all_ranks_dict[s] for s in avg_ranking], labels=avg_ranking, patch_artist=True)
+                            ax.set_xlabel('サービス', fontproperties=prop)
+                            ax.set_ylabel('順位', fontproperties=prop)
+                            ax.set_title('全実行における順位の分布', fontproperties=prop)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                elif "ranking" in subcategory_data:
+                    ranking = subcategory_data["ranking"]
+                    # ...（既存の単一実行の可視化処理）...
+                else:
+                    st.error("このサブカテゴリにランキングデータがありません（all_rankings/rankingが存在しません）")
+                    st.write("サブカテゴリデータ:", subcategory_data)
             else:
-                st.warning("このカテゴリにはランキングデータがありません")
+                # 既存の分岐
+                if selected_file["is_multi_run"] and "all_rankings" in category_data:
+                    rankings_data = category_data["all_rankings"]
+                    # ...（既存の複数回実行の可視化処理）...
+                    # オススメ順（平均ランキング）の可視化
+                    if "avg_ranking" in category_data:
+                        st.markdown("### オススメ順（平均ランキング）")
+                        avg_ranking = category_data["avg_ranking"]
+                        rank_details = category_data.get("rank_details", {})
+                        records = []
+                        std_list = []
+                        avg_list = []
+                        all_ranks_dict = {}
+                        for i, service in enumerate(avg_ranking, 1):
+                            detail = rank_details.get(service, {})
+                            avg_rank = detail.get('avg_rank', 0.0)
+                            std_dev = detail.get('std_dev', 0.0)
+                            all_ranks = detail.get('all_ranks', [])
+                            records.append({
+                                "順位": i,
+                                "サービス": service,
+                                "平均順位": f"{avg_rank:.2f}",
+                                "標準偏差": f"{std_dev:.2f}",
+                                "全順位": all_ranks
+                            })
+                            avg_list.append(avg_rank)
+                            std_list.append(std_dev)
+                            if all_ranks:
+                                all_ranks_dict[service] = all_ranks
+                        st.dataframe(records)
+                        # 平均順位の折れ線グラフ
+                        st.markdown("#### 平均順位の推移（オススメ順）")
+                        fig, ax = plt.subplots()
+                        ax.plot([i+1 for i in range(len(avg_list))], avg_list, marker='o')
+                        ax.set_xticks([i+1 for i in range(len(avg_ranking))])
+                        ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
+                        ax.set_xlabel('サービス', fontproperties=prop)
+                        ax.set_ylabel('平均順位', fontproperties=prop)
+                        ax.set_title('平均順位の推移', fontproperties=prop)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        # 標準偏差の棒グラフ
+                        st.markdown("#### 標準偏差（ばらつき）の棒グラフ")
+                        fig, ax = plt.subplots()
+                        ax.bar([i+1 for i in range(len(std_list))], std_list, tick_label=avg_ranking)
+                        ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
+                        ax.set_xlabel('サービス', fontproperties=prop)
+                        ax.set_ylabel('標準偏差', fontproperties=prop)
+                        ax.set_title('標準偏差（ばらつき）', fontproperties=prop)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        # 全順位の箱ひげ図
+                        if all_ranks_dict:
+                            st.markdown("#### 全順位の箱ひげ図")
+                            fig, ax = plt.subplots()
+                            ax.boxplot([all_ranks_dict[s] for s in avg_ranking], labels=avg_ranking, patch_artist=True)
+                            ax.set_xlabel('サービス', fontproperties=prop)
+                            ax.set_ylabel('順位', fontproperties=prop)
+                            ax.set_title('全実行における順位の分布', fontproperties=prop)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                elif "ranking" in category_data:
+                    ranking = category_data["ranking"]
+                    # ...（既存の単一実行の可視化処理）...
+                else:
+                    st.error("このカテゴリにランキングデータがありません（all_rankings/rankingが存在しません）")
+                    st.write("カテゴリデータ:", category_data)
 
         elif "引用リンク" in selected_file["type"]:
             # 引用リンクの可視化
