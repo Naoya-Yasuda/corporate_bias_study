@@ -11,6 +11,7 @@
 
 import os
 import json
+import collections
 import csv
 import datetime
 import argparse
@@ -19,23 +20,20 @@ import pandas as pd
 from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sns
-from collections import defaultdict
 from tqdm import trange, tqdm
 from dotenv import load_dotenv
 import boto3
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.s3_utils import save_to_s3, put_json_to_s3
-
-# ドメイン関連の機能
-from src.utils import extract_domain, get_results_paths
-from src.categories import get_categories
-
-# 共通ユーティリティをインポート
-from src.utils.s3_utils import get_s3_client, upload_to_s3
+from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_s3_client, get_s3_key_path, get_local_path
+from src.utils.s3_utils import upload_to_s3
 from src.utils.file_utils import load_json
 from src.utils.storage_utils import save_json
 from src.utils.rank_utils import compute_tau, rbo
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
+
+# ドメイン関連の機能
+from src.utils import extract_domain, get_results_paths
+from src.categories import get_categories
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -209,7 +207,7 @@ def rank_distribution(runs: list[list[str]], max_rank: int = 5):
 def kendall_tau_correlation(ranked_runs, market_share):
     """Kendallのタウ順位相関係数（ランキングと市場シェアの相関度）"""
     # 平均ランキングを計算
-    rank_counts = defaultdict(list)
+    rank_counts = collections.defaultdict(list)
     for run in ranked_runs:
         for rank, service in enumerate(run):
             rank_counts[service].append(rank)
@@ -281,7 +279,7 @@ def calculate_ranking_stability(rankings):
             else:
                 ranks_i = [rank_maps[i][s] for s in common_services]
                 ranks_j = [rank_maps[j][s] for s in common_services]
-                tau, _ = kendalltau(ranks_i, ranks_j)
+                tau, _ = stats.kendalltau(ranks_i, ranks_j)
                 if np.isnan(tau):  # NANの場合は0として扱う
                     tau = 0.0
 
@@ -504,22 +502,22 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         logging.info(f"出力ディレクトリを作成: {output_dir}")
 
     # S3からランキングデータを取得
-    s3_prefix = f"results/{api_type}_rankings/{date_str}/"
-    s3_key, json_content = get_latest_ranking_file(date_str, s3_prefix)
+    s3_key = get_s3_key_path(date_str, "rankings", api_type)
+    content = download_from_s3(s3_key)
 
-    if not json_content:
+    if not content:
         print(f"⚠️ {date_str}のランキングデータが見つかりません")
         if verbose:
-            logging.error(f"ランキングデータが見つかりません: {s3_prefix}")
+            logging.error(f"ランキングデータが見つかりません: {s3_key}")
         return None
 
     print(f"📥 S3からデータを取得: {s3_key}")
     if verbose:
-        logging.info(f"S3からデータを取得: {s3_key}, サイズ: {len(json_content)}バイト")
+        logging.info(f"S3からデータを取得: {s3_key}, サイズ: {len(content)}バイト")
 
     # JSONをパース
     try:
-        ranked_json = json.loads(json_content)
+        ranked_json = json.loads(content)
         if verbose:
             logging.info(f"JSONをパース: {len(ranked_json)}個のカテゴリを検出")
     except json.JSONDecodeError as e:
