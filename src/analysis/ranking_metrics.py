@@ -695,17 +695,24 @@ def get_timeseries_exposure_market_data(category):
         date_str = date_match.group(1)
         s3_key, content = get_latest_file(date_str, "rankings", "perplexity")
         if not content:
+            print(f"ファイルが見つかりません: {s3_key}")
             continue
-        rankings_data = json.loads(content)
-        if category not in rankings_data:
+        try:
+            rankings_data = json.loads(content)
+            if category not in rankings_data:
+                print(f"カテゴリ '{category}' のランキングデータが見つかりません。")
+                continue
+            runs = rankings_data[category]
+            market_share = MARKET_SHARES.get(category)
+            if not runs or not market_share:
+                print(f"カテゴリ '{category}' のランキングデータが空です。")
+                continue
+            df_metrics, _ = compute_rank_metrics(category, runs, market_share)
+            df_metrics["date"] = date_str
+            dfs.append(df_metrics)
+        except Exception as e:
+            print(f"データの取得中にエラーが発生しました: {str(e)}")
             continue
-        runs = rankings_data[category]
-        market_share = MARKET_SHARES.get(category)
-        if not runs or not market_share:
-            continue
-        df_metrics, _ = compute_rank_metrics(category, runs, market_share)
-        df_metrics["date"] = date_str
-        dfs.append(df_metrics)
     if dfs:
         return pd.concat(dfs, ignore_index=True)
     return None
