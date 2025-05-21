@@ -622,6 +622,7 @@ else:
                             ax.set_xlabel('サービス', fontproperties=prop)
                             ax.set_ylabel('順位', fontproperties=prop)
                             ax.set_title('全実行における順位の分布', fontproperties=prop)
+                            ax.invert_yaxis()  # 小さい値が上
                             plt.tight_layout()
                             st.pyplot(fig)
                 elif "ranking" in subcategory_data:
@@ -692,6 +693,7 @@ else:
                             ax.set_xlabel('サービス', fontproperties=prop)
                             ax.set_ylabel('順位', fontproperties=prop)
                             ax.set_title('全実行における順位の分布', fontproperties=prop)
+                            ax.invert_yaxis()  # 小さい値が上
                             plt.tight_layout()
                             st.pyplot(fig)
                 elif "ranking" in category_data:
@@ -710,37 +712,31 @@ else:
             import os
             # Google SERPデータのパスを自動推定（同日付 or 直近）
             serp_date = selected_file["date_raw"] or selected_file["date"] or ""
-            serp_path = f"results/google_serp/{serp_date}/{serp_date}_google_serp_results.json"
-            if not os.path.exists(serp_path):
+            analysis_path = f"results/perplexity_analysis/{serp_date}/analysis_results.json"
+            if not os.path.exists(analysis_path):
                 # S3からダウンロードを試みる
-                s3_key = serp_path
+                s3_key = analysis_path
                 try:
                     s3_client = get_s3_client()
                     response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
-                    os.makedirs(os.path.dirname(serp_path), exist_ok=True)
-                    with open(serp_path, "wb") as f:
+                    os.makedirs(os.path.dirname(analysis_path), exist_ok=True)
+                    with open(analysis_path, "wb") as f:
                         f.write(response["Body"].read())
-                    st.info(f"S3からGoogle SERPデータをダウンロードしました: {serp_path}")
+                    st.info(f"S3から分析結果データをダウンロードしました: {analysis_path}")
                 except Exception as e:
-                    st.warning(f"Google SERPデータが見つかりません: {serp_path} (S3も失敗)\n{e}")
-            if os.path.exists(serp_path):
-                with open(serp_path, "r", encoding="utf-8") as f:
-                    serp_results = json.load(f)
-                # Perplexity引用データ（カテゴリ単位）
-                pplx_results = {selected_category: category_data}
-                # Google SERPデータ（カテゴリ単位）
-                google_results = {selected_category: serp_results.get(selected_category, {})}
-                # 比較
-                comparison = serp_metrics.compare_with_perplexity(google_results, pplx_results)
-                if selected_category in comparison:
-                    comp = comparison[selected_category]
-                    st.markdown("### Google検索結果との比較")
+                    st.warning(f"分析結果データが見つかりません: {analysis_path} (S3も失敗)\n{e}")
+            if os.path.exists(analysis_path):
+                with open(analysis_path, "r", encoding="utf-8") as f:
+                    analysis_results = json.load(f)
+                if selected_category in analysis_results:
+                    comp = analysis_results[selected_category]
+                    st.markdown("### Google検索結果との比較（分析済みデータ）")
                     # ランキング類似度
                     st.markdown("#### ランキング類似度指標")
                     st.write({
-                        "RBO": comp["ranking_metrics"]["rbo"],
-                        "Kendall Tau": comp["ranking_metrics"]["kendall_tau"],
-                        "Overlap Ratio": comp["ranking_metrics"]["overlap_ratio"]
+                        "RBO": comp["ranking_similarity"]["rbo"],
+                        "Kendall Tau": comp["ranking_similarity"]["kendall_tau"],
+                        "Overlap Ratio": comp["ranking_similarity"]["overlap_ratio"]
                     })
                     # 公式/非公式・ポジ/ネガ比率
                     st.markdown("#### 公式/非公式・ポジ/ネガ比率（Google vs Perplexity）")
@@ -748,7 +744,7 @@ else:
                     import numpy as np
                     fig, axes = plt.subplots(1, 2, figsize=(8, 3))
                     labels = ["公式", "非公式"]
-                    google_official = [comp["google_content_metrics"]["official_ratio"], 1-comp["google_content_metrics"]["official_ratio"]]
+                    google_official = [comp["content_comparison"]["google_official_ratio"], 1-comp["content_comparison"]["google_official_ratio"]]
                     pplx_official = [0, 1]  # Perplexity引用は公式/非公式判定不可のため仮
                     axes[0].bar(labels, google_official, color=["#4caf50", "#f44336"])
                     axes[0].set_title("Google公式/非公式")
@@ -759,7 +755,7 @@ else:
                     # ポジ/ネガ比率
                     fig, axes = plt.subplots(1, 2, figsize=(8, 3))
                     labels = ["ポジティブ", "ネガティブ"]
-                    google_neg = [1-comp["google_content_metrics"]["negative_ratio"], comp["google_content_metrics"]["negative_ratio"]]
+                    google_neg = [1-comp["content_comparison"]["google_negative_ratio"], comp["content_comparison"]["google_negative_ratio"]]
                     pplx_neg = [1, 0]  # Perplexity引用はポジ/ネガ判定不可のため仮
                     axes[0].bar(labels, google_neg, color=["#2196f3", "#ff9800"])
                     axes[0].set_title("Googleポジ/ネガ")
@@ -769,9 +765,14 @@ else:
                     st.pyplot(fig)
                     # ドメインランキング比較
                     st.markdown("#### ドメインランキング比較")
-                    st.write("Google:", comp["google_domains"])
-                    st.write("Perplexity:", comp["pplx_domains"])
+                    st.write("Google:", comp.get("google_domains", []))
+                    st.write("Perplexity:", comp.get("pplx_domains", []))
+                else:
+                    st.warning(f"分析結果データにカテゴリ {selected_category} が見つかりません")
+            else:
+                st.warning(f"分析結果データが見つかりません: {analysis_path}")
 
+            # --- ここから従来の引用リンク（Perplexity側）可視化を復活 ---
             # サブカテゴリがある場合
             if isinstance(category_data, dict) and len(category_data) > 0:
                 # サブカテゴリの選択
@@ -786,7 +787,7 @@ else:
 
                     # ドメインランキングがある場合
                     if "domain_rankings" in subcategory_data:
-                        st.markdown("### ドメイン分析")
+                        st.markdown("### ドメイン分析（Perplexity引用リンク）")
                         domain_rankings = subcategory_data["domain_rankings"]
                         rankings_df = pd.DataFrame(domain_rankings)
                         top_domains = rankings_df.head(10)
@@ -829,6 +830,7 @@ else:
                             ax.set_xlabel('ドメイン', fontproperties=prop)
                             ax.set_ylabel('順位', fontproperties=prop)
                             ax.set_title('全実行におけるドメイン順位の分布', fontproperties=prop)
+                            ax.invert_yaxis()  # 小さい値が上
                             plt.tight_layout()
                             st.pyplot(fig)
 
@@ -851,7 +853,7 @@ else:
                 elif "run" in subcategory_data and "citations" in subcategory_data["run"]:
                     citations = subcategory_data["run"]["citations"]
                     citations_df = pd.DataFrame(citations)
-                    st.markdown("### 引用リンク")
+                    st.markdown("### 引用リンク（Perplexity単一実行）")
                     st.dataframe(citations_df)
                     # ドメイン頻度のグラフ
                     if len(citations_df) > 0 and "domain" in citations_df.columns:
