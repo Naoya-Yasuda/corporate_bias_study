@@ -419,6 +419,7 @@ def main():
     parser.add_argument('--api-type', default='perplexity', choices=['perplexity', 'openai'],
                         help='APIタイプ（デフォルト: perplexity）')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
+    parser.add_argument('input_file', nargs='?', help='分析するJSONファイルのパス（指定がない場合は日付から自動生成）')
     args = parser.parse_args()
 
     # 詳細ログの設定
@@ -427,25 +428,32 @@ def main():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
-    # 入力ファイルパスの生成
-    input_file = get_local_path(args.date, "sentiment", "perplexity")
-    if not os.path.exists(input_file):
-        print(f"警告: 指定されたファイルが見つかりません: {input_file}")
-        # 利用可能なファイルを検索
-        sentiment_dir = "results/sentiment"
-        if os.path.exists(sentiment_dir):
-            available_files = [f for f in os.listdir(sentiment_dir) if f.endswith('.json')]
-            if available_files:
-                print("\n利用可能なファイル:")
-                for f in sorted(available_files):
-                    print(f"  - {f}")
-                # 最新のファイルを使用
-                latest_file = sorted(available_files)[-1]
-                input_file = os.path.join(sentiment_dir, latest_file)
-                print(f"\n最新のファイルを使用します: {input_file}")
-            else:
-                print(f"エラー: {sentiment_dir} にJSONファイルが見つかりません")
-                return
+    # 入力ファイルパスの決定
+    if args.input_file:
+        input_file = args.input_file
+        if not os.path.exists(input_file):
+            print(f"エラー: 指定されたファイルが見つかりません: {input_file}")
+            return
+    else:
+        # 日付からファイルパスを生成
+        input_file = get_local_path(args.date, "sentiment", "perplexity")
+        if not os.path.exists(input_file):
+            print(f"警告: 指定されたファイルが見つかりません: {input_file}")
+            # 利用可能なファイルを検索
+            sentiment_dir = "results/sentiment"
+            if os.path.exists(sentiment_dir):
+                available_files = [f for f in os.listdir(sentiment_dir) if f.endswith('.json')]
+                if available_files:
+                    print("\n利用可能なファイル:")
+                    for f in sorted(available_files):
+                        print(f"  - {f}")
+                    # 最新のファイルを使用
+                    latest_file = sorted(available_files)[-1]
+                    input_file = os.path.join(sentiment_dir, latest_file)
+                    print(f"\n最新のファイルを使用します: {input_file}")
+                else:
+                    print(f"エラー: {sentiment_dir} にJSONファイルが見つかりません")
+                    return
 
     # バイアス分析を実行
     bias_metrics, category_summary = analyze_bias_from_file(input_file, args.output, verbose=args.verbose)
