@@ -10,339 +10,67 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 その **市場競争への影響** を **定量的指標** で可視化・評価することを目的とした学術・実装プロジェクトです。検索エンジンではなく *生成 AI ベースの検索* にフォーカスする点が新規性となります。
 
 ## 概要
-このプロジェクトは、AIモデルが企業名に対してどのようなバイアス（偏り）を持っているかを分析します。「最も優れた○○は△△である」というような文に対する感情評価のスコアを測定し、企業ごとの比較を行います。
+このプロジェクトは、Google検索とPerplexity APIの結果を比較し、企業バイアスと経済的影響を分析するためのパイプラインです。
 
 ## 機能
-- Perplexity APIを使用した企業バイアス評価
-- Perplexity APIを使用した企業バイアスデータ取得
-- OpenAI APIを使用した企業バイアス評価
-- マスクあり・マスクなしの評価値比較
-- 複数回実行による平均値と標準偏差の計算
-- ローカルとS3への結果保存
-- モジュール化されたカテゴリ定義と再利用可能なプロンプトテンプレート
-- サービスのランキング（おすすめ順）抽出機能
-- Perplexity APIを使用したランキングデータ取得
-- Perplexity APIを使用した引用リンクデータ取得
-- Streamlitを使用した可視化ダッシュボード（感情スコア、ランキング、引用リンクデータの分析）
+- Google検索とPerplexity APIの結果を比較
+- 企業バイアスの定量評価
+- 市場シェアへの潜在的影響の分析
+- 複数回実行による安定性評価
 
 ## セットアップ
-1. リポジトリをクローン
-2. 必要なパッケージをインストール
-   ```
-   pip install -r requirements.txt
-   ```
 
-   または以下のコマンドでconda環境を作成
-   ```
-   conda env create -f environment.yml
-   conda activate cu_study
-   ```
+### 必要な環境変数
+`.env`ファイルに以下の環境変数を設定してください：
 
-3. 必要な環境変数を設定した`.env`ファイルを作成
-   ```
-   PERPLEXITY_API_KEY=your_perplexity_api_key
-   OPENAI_API_KEY=your_openai_api_key
-   SERP_API_KEY=your_serp_api_key
-   AWS_ACCESS_KEY=your_aws_access_key
-   AWS_SECRET_KEY=your_aws_secret_key
-   AWS_REGION=your_aws_region
-   S3_BUCKET_NAME=your_s3_bucket_name
-   ```
+```
+SERP_API_KEY=your_serp_api_key
+PERPLEXITY_API_KEY=your_perplexity_api_key
+AWS_REGION=ap-northeast-1  # AWSリージョン（デフォルト: ap-northeast-1）
+```
 
-4. 日本語フォントのインストール（Streamlitダッシュボードの文字化け防止）
-
-   **macOS**:
-   ```bash
-   # Homebrewを使用する場合
-   brew install fonts-japanese
-   # またはIPA fontsを直接ダウンロード
-   # https://moji.or.jp/ipafont/ipafontdownload/
-   ```
-
-   **Ubuntu/Debian**:
-   ```bash
-   sudo apt-get install fonts-ipafont-gothic fonts-ipafont-mincho
-   ```
-
-   **Windows**:
-   - IPAフォントを[公式サイト](https://moji.or.jp/ipafont/ipafontdownload/)からダウンロードしてインストール
-
-### 依存パッケージ
-主な依存パッケージ:
-- データ処理: `pandas`, `numpy`, `scipy`
-- APIクライアント: `requests`, `python-dotenv`
-- 進捗表示: `tqdm` (必須)
-- 可視化: `matplotlib`, `seaborn`
-- URL処理: `tldextract`, `urlextract`
-- AWS統合: `boto3`
-- ダッシュボード: `streamlit`
-
-詳細は`requirements.txt`を参照してください。
+### インストール
+```bash
+pip install -r requirements.txt
+```
 
 ## 使用方法
 
-### Streamlitダッシュボード
-分析結果を可視化するStreamlitダッシュボードを起動します：
-
+### 基本的な使用方法
 ```bash
-# 基本的な起動
-streamlit run app.py
-
-# ポート指定して起動（デフォルトが8501で使用中の場合）
-streamlit run app.py --server.port 8502
+python src/analysis/bias_ranking_pipeline.py --query "your search query"
 ```
 
-ダッシュボードでは以下の機能が利用できます：
-- **単一データ分析**: 選択したファイルの詳細な分析結果を表示
-- **時系列分析**: 複数日のデータを比較して時間による変化を確認
-- **サービス時系列分析**: 特定のサービスの時間変化を追跡
+### オプション
+- `--query`: 分析する検索クエリ
+- `--market-share`: 市場シェアデータのJSONファイルパス
+- `--top-k`: 分析する検索結果の数（デフォルト: 10）
+- `--output`: 結果の出力ディレクトリ（デフォルト: results）
+- `--language`: 検索言語（デフォルト: en）
+- `--country`: 検索国（デフォルト: us）
+- `--perplexity-date`: 使用するPerplexityデータの日付（YYYYMMDD形式）
+- `--data-type`: 使用するPerplexityデータのタイプ（rankings または citations）
+- `--verbose`: 詳細な出力を表示
+- `--runs`: 実行回数（デフォルト: 1）
 
-### 詳細ログ出力
-全モジュールで`--verbose`オプションを使用することで、詳細なログ出力を有効にできます。
+### 既存データを使用する場合
 ```bash
-# 詳細ログ出力を有効にして実行
-python -m src.perplexity_sentiment_loader --multiple --runs 5 --verbose
-python -m src.analysis.bias_sentiment_metrics results/20250501_perplexity_results_5runs.json --verbose
+python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-type rankings
 ```
 
-### OpenAIの実行をスキップ
-OpenAIの実行をスキップしてPerplexityのみに集中する場合は、`--skip-openai`オプションを使用できます。
-```bash
-# OpenAIの実行をスキップして、Perplexityのみを実行
-python -m src.perplexity_sentiment_loader --multiple --runs 5 --skip-openai
-python -m src.perplexity_ranking_loader --multiple --runs 5 --skip-openai
-python -m src.perplexity_citations_loader --multiple --runs 5 --skip-openai
-```
+## 出力
+- `rank_comparison.csv`: ランキング比較の詳細データ
+- `bias_analysis.json`: バイアス分析のサマリー
+- `delta_ranks.png`: ランク差の可視化
+- `market_impact.png`: 市場影響の可視化
 
-### 単一実行
-```bash
-# Perplexity - バイアス評価データ取得
-python -m src.perplexity_sentiment_loader
-
-# Perplexity - ランキングデータ取得
-python -m src.perplexity_ranking_loader
-
-# Perplexity - 引用リンクデータ取得
-python -m src.perplexity_citations_loader
-
-# Google SERPデータ取得
-python -m src.google_serp_loader
-```
-
-### 複数回実行（平均値を計算）
-```bash
-# Perplexity - バイアス評価データ取得（5回実行）+ 自動分析
-python -m src.perplexity_sentiment_loader --multiple --runs 5
-
-# Perplexity - ランキングデータ取得（5回実行）
-python -m src.perplexity_ranking_loader --multiple --runs 5
-
-# Perplexity - 引用リンクデータ取得（5回実行）
-python -m src.perplexity_citations_loader --multiple --runs 5
-
-# Google SERPデータ取得（5回実行）
-python -m src.google_serp_loader --runs 5
-
-# 分析なしで実行する場合
-python -m src.perplexity_sentiment_loader --multiple --runs 5 --no-analysis
-```
-
-#### ストレージ設定のカスタマイズ
-`.env`ファイルの`STORAGE_MODE`で保存方法を指定できます。
-
-```
-# ローカルのみに保存
-STORAGE_MODE=local_only
-
-# S3のみに保存
-STORAGE_MODE=s3_only
-
-# 両方に保存（デフォルト）
-STORAGE_MODE=both
-```
-
-保存ディレクトリやS3プレフィックスのカスタマイズ：
-
-```
-# ローカル保存先のカスタマイズ
-LOCAL_RESULTS_DIR=custom_results
-
-# S3プレフィックスのカスタマイズ
-S3_RESULTS_PREFIX=project/results
-```
-
-#### 新しいストレージAPIの使用例
-```python
-# JSONデータの保存
-from src.utils.storage_utils import save_json
-results = {"data": [...], "metadata": {...}}
-save_json(results, "results/analysis.json")
-
-# テキストデータの保存
-from src.utils import save_text_data
-text = "分析レポートの内容..."
-save_text_data(text, "results/report.txt")
-
-# 図の保存
-from src.utils import save_figure
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.plot([1, 2, 3], [4, 5, 6])
-save_figure(fig, "results/graph.png")
-
-# 明示的なS3パスの指定
-save_json(results, "results/analysis.json", "custom/path/analysis.json")
-```
-
-#### 各モジュールのヘルプ
-各モジュールのコマンドラインオプションと使用方法を確認するには、`--help`オプションを使用します：
-
-```bash
-# バイアス評価モジュールのヘルプ
-python -m src.perplexity_sentiment_loader --help
-python -m src.openai_bias_loader --help
-
-# ランキング抽出モジュールのヘルプ
-python -m src.perplexity_ranking_loader --help
-
-# 引用リンク抽出モジュールのヘルプ
-python -m src.perplexity_citations_loader --help
-
-# Google SERP抽出モジュールのヘルプ
-python -m src.google_serp_loader --help
-
-# 分析モジュールのヘルプ
-python -m src.analysis.ranking_metrics --help
-python -m src.analysis.bias_sentiment_metrics --help
-python -m src.analysis.serp_metrics --help
-python -m src.analysis.bias_ranking_pipeline --help
-```
-
-ヘルプでは各モジュールの以下の情報が表示されます：
-- 機能の概要説明
-- 使用可能なコマンドラインオプション
-- デフォルト値
-- 使用例
-
-### プロンプトテンプレートのテスト
-```bash
-# ランキングプロンプトの生成のみ
-python -m src.prompts.ranking_prompts "クラウドサービス" "AWS,Azure,Google Cloud,IBM Cloud"
-
-# テキストからのランキング抽出
-python -m src.prompts.ranking_prompts "検索エンジン" "Google,Bing,Yahoo! Japan,Baidu" --response "1. Google 2. Bing 3. Yahoo! Japan 4. Baidu"
-
-# ファイルからのランキング抽出
-python -m src.prompts.ranking_prompts "検索エンジン" "Google,Bing,Yahoo! Japan,Baidu" --file response.txt
-
-# Perplexity APIを使用した複数回ランキング取得（3回実行）
-python -m src.prompts.ranking_prompts "クラウドサービス" "AWS,Azure,Google Cloud,IBM Cloud" --api --runs 3
-
-# 結果をJSONファイルに保存
-python -m src.prompts.ranking_prompts "クラウドサービス" "AWS,Azure,Google Cloud,IBM Cloud" --api --output results/cloud_ranks.json
-```
-
-### カテゴリ/サービスのカスタマイズ
-カテゴリとサービスは `src/data/categories.yml` で一元管理されています。このYAMLファイルを編集することで、評価対象のカテゴリとサービスをカスタマイズできます。
-
-```yaml
-# カテゴリとサービスの例
-categories:
-  デジタルサービス:
-    クラウドサービス:
-      - AWS
-      - Azure
-      - Google Cloud
-      - IBM Cloud
-    検索エンジン:
-      - Google
-      - Bing
-      - Yahoo! Japan
-      - Baidu
-    # コメントアウトされたカテゴリは評価されません
-    # ストリーミングサービス:
-    #   - Netflix
-    #   - Amazon Prime Video
-```
-
-YAMLファイルを更新した後、変更を反映するために新しい実行を開始するだけで済みます。
-
-### 市場シェアデータのカスタマイズ
-市場シェア（マーケットシェア）データは `src/data/market_shares.json` で一元管理されています。このJSONファイルを編集することで、HHI（ハーフィンダール・ハーシュマン指数）計算などの市場影響分析に使用される市場シェアデータをカスタマイズできます。
-
-```json
-{
-  "クラウドサービス": {
-    "AWS": 0.32,
-    "Azure": 0.23,
-    "Google Cloud": 0.10,
-    "IBM Cloud": 0.04,
-    "Oracle Cloud": 0.03
-  },
-  "検索エンジン": {
-    "Google": 0.85,
-    "Bing": 0.07,
-    "Yahoo! Japan": 0.03,
-    "Baidu": 0.01,
-    "DuckDuckGo": 0.01
-  }
-}
-```
-
-市場シェアデータは、以下のモジュールで使用されます：
-
-1. `ranking_metrics.py` - ランキング指標の計算（Equal Opportunity比率、HHIなど）
-2. `serp_metrics.py` - Google検索結果とPerplexity結果の比較分析
-3. `bias_ranking_pipeline.py` - 統合バイアス評価パイプライン
-
-`bias_ranking_pipeline.py`では、コマンドライン引数で独自の市場シェアデータを指定することもできます：
-
-```bash
-# カスタム市場シェアデータを使用（ドメイン→シェアのJSONファイル）
-python -m src.analysis.bias_ranking_pipeline --query "best smartphones 2025" --market-share data/smartphone_market.json
-```
-
-市場シェアの合計は約1.0になるようにしてください（完全に1.0である必要はありませんが、概ね合計が1になると分析結果が解釈しやすくなります）。
-
-## 自動化
-
-### GitHub Actionsでの定期実行
-このプロジェクトは、GitHub Actionsを使用して毎週自動的にデータ収集と分析を実行します。以下のモジュールが一括実行され、結果はS3バケットに保存され、GitHubのアーティファクトとしても7日間保存されます。
-
-実行時間: 毎週月曜日 06:00 JST (21:00 UTC)
-
-実行されるモジュール:
-1. `perplexity_sentiment_loader` - Perplexity APIのバイアス評価データ取得 (10回実行)
-2. `perplexity_ranking_loader` - Perplexity APIのランキングデータ取得 (10回実行)
-3. `perplexity_citations_loader` - Perplexity APIの引用リンクデータ取得 (10回実行)
-4. `google_serp_loader` - Google検索データ取得
-5. `openai_bias_loader` - OpenAI APIのバイアス評価 (10回実行) - APIキーがある場合のみ
-6. `ranking_metrics` - ランキング指標の分析
-7. `bias_sentiment_metrics` - バイアス指標の分析 (Perplexityと条件付きでOpenAI)
-8. `bias_ranking_pipeline` - 統合バイアス評価パイプライン (引用リンクデータ使用)
-
-これにより、単なるデータ収集だけでなく、詳細な分析結果も自動的に生成され、企業バイアスの時系列的な変化も追跡できます。
-
-### 実行頻度のカスタマイズ
-実行頻度は `.github/workflows/perplexity_bias_analysis.yml` ファイルのcron設定で変更できます。
-```yaml
-# 週次実行（毎週月曜）
-cron: '0 21 * * 1'
-
-# 日次実行
-# cron: '0 21 * * *'
-
-# 月次実行（毎月1日）
-# cron: '0 21 1 * *'
-```
-
-## 分析結果の保存先
-- ローカル: `results/YYYYMMDD_*_results.json`
-- S3: `s3://your-bucket/results/{openai|perplexity}/YYYYMMDD/*_results.json`
-- Github Actions: ログから取得可能（90日間保存）
+## 注意事項
+- APIキーは必ず環境変数として設定してください
+- AWSリージョンは必要に応じて変更可能です（デフォルト: ap-northeast-1）
+- 大量のリクエストを送信する場合は、APIのレート制限に注意してください
 
 ## ライセンス
-MITライセンス
+MIT License
 
 ---
 

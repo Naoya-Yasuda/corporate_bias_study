@@ -40,6 +40,9 @@ load_dotenv()
 SERP_API_KEY = os.getenv("SERP_API_KEY")
 PPLX_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
+# AWSリージョンの設定（一度だけ）
+AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-1")
+
 # -------------------------------------------------------------------
 # ユーティリティ関数
 # -------------------------------------------------------------------
@@ -525,14 +528,14 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
 
     # 2. Perplexity APIの実行
     print("Perplexity APIを実行中...")
-    pplx_response = perplexity_api(query)
+    pplx_answer, pplx_citations = perplexity_api(query)
 
-    if not pplx_response:
+    if not pplx_answer:
         print("Perplexity APIからの応答が取得できませんでした。")
         return None
 
     # Perplexity引用リンクの抽出
-    pplx_links = pplx_response.get("citations", [])
+    pplx_links = [citation.get("url", "") for citation in pplx_citations]
     pplx_domains = [extract_domain(link) for link in pplx_links]
 
     # 3. 両方のランキングを比較
@@ -584,7 +587,6 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
     ratio_neg_g = len(g_negatives) / len(google_snippets) if google_snippets else 0
 
     # Perplexity回答のネガティブ度
-    pplx_text = pplx_response.get("text", "")
     ratio_neg_p = 0.0  # 簡略化のため省略（本来は回答テキストを分析）
 
     # 5. 上位確率の計算

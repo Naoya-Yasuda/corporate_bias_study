@@ -123,32 +123,18 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
         # 回答テキストを取得
         answer = data.get("choices", [{}])[0].get("message", {}).get("content", "")
 
-        # 引用情報の検索 - 複数のパターンを試してみる
-        citations = []
-        message = data.get("choices", [{}])[0].get("message", {})
-
-        # 1. 標準的な citations プロパティ
-        if "citations" in message:
-            citations = message["citations"]
-            print(f"  標準的なcitationsプロパティから{len(citations)}件の引用情報を取得")
-
-        # 2. citation_data プロパティ（これも可能性がある）
-        elif "citation_data" in message:
-            citations = message["citation_data"].get("citations", [])
-            print(f"  citation_dataプロパティから{len(citations)}件の引用情報を取得")
-
-        # 3. links プロパティ（別の可能性）
-        elif "links" in message:
-            citations = message["links"]
-            print(f"  linksプロパティから{len(citations)}件の引用情報を取得")
-
-        # 4. web_search_query プロパティ（検索系と関連があるかも）
-        elif "web_search_query" in message:
-            print(f"  web_search_queryプロパティが存在: {message['web_search_query']}")
+        # 引用情報の検索 - citationsプロパティから直接取得
+        citations = data.get("citations", [])
+        if citations:
+            print(f"  citationsプロパティから{len(citations)}件の引用情報を取得")
+            print("\n参照URL:")
+            for i, url in enumerate(citations):
+                print(f"{i+1}. {url}")
 
         # 引用情報が見つからない場合
         if not citations:
             print("  APIレスポンスから引用情報を取得できませんでした")
+            print(f"  利用可能なプロパティ: {list(data.keys())}")
 
         return answer, citations
     except Exception as e:
@@ -358,7 +344,15 @@ def collect_citation_rankings(categories, num_runs=1):
                 # APIからのcitationsがある場合はそれを使用
                 if citations:
                     for i, citation in enumerate(citations):
+                        # URLの取得を試みる（複数の可能性を考慮）
                         url = citation.get("url", "")
+                        if not url:
+                            url = citation.get("link", "")
+                        if not url:
+                            url = citation.get("source", "")
+                        if not url:
+                            url = citation.get("reference", "")
+
                         if url:
                             domain = extract_domain(url)
                             citation_data.append({
@@ -368,6 +362,7 @@ def collect_citation_rankings(categories, num_runs=1):
                                 "title": citation.get("title", ""),
                                 "from_api": True
                             })
+                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
 
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
