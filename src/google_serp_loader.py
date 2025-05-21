@@ -292,7 +292,7 @@ def process_serp_results(data, query, category, subcategory, target_companies):
 
     # 検索結果を解析
     results = []
-    company_rankings = []
+    search_result_companies = []  # 検索結果の順序に基づく企業名のリスト
 
     for i, result in enumerate(organic_results):
         title = result.get("title", "")
@@ -307,8 +307,8 @@ def process_serp_results(data, query, category, subcategory, target_companies):
                 company.lower() in snippet.lower() or
                 company.lower() in domain.lower()):
                 related_company = company
-                if len(company_rankings) < 10:  # 上位10社まで記録
-                    company_rankings.append(company)
+                if len(search_result_companies) < 10:  # 上位10件まで記録
+                    search_result_companies.append(company)
                 break
 
         # 結果を記録
@@ -329,7 +329,7 @@ def process_serp_results(data, query, category, subcategory, target_companies):
         "category": category,
         "subcategory": subcategory,
         "companies": target_companies,
-        "company_ranking": company_rankings,
+        "search_result_companies": search_result_companies,  # 名前を変更
         "detailed_results": results
     }
 
