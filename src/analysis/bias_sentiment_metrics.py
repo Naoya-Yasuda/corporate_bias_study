@@ -409,7 +409,10 @@ def analyze_bias_from_file(input_file, output_dir="results/analysis", verbose=Fa
 def main():
     """コマンドライン実行用エントリポイント"""
     parser = argparse.ArgumentParser(description='感情スコアからバイアス指標を計算')
-    parser.add_argument('input_file', help='分析対象のJSONファイルパス')
+    parser.add_argument('--date', default=datetime.datetime.now().strftime("%Y%m%d"),
+                        help='分析対象の日付（YYYYMMDD形式、デフォルト: 今日）')
+    parser.add_argument('--runs', type=int, default=3,
+                        help='実行回数（デフォルト: 3）')
     parser.add_argument('--output', default='results/analysis', help='出力ディレクトリ（デフォルト: results/analysis）')
     parser.add_argument('--rankings', action='store_true', help='ランキング分析も実行する')
     parser.add_argument('--rankings-date', help='ランキング分析の日付（YYYYMMDD形式、デフォルト: 同日）')
@@ -424,7 +427,25 @@ def main():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
-    input_file = args.input_file
+    # 入力ファイルパスの生成
+    input_file = f"results/perplexity/sentiment/{args.date}_perplexity_sentiment_{args.runs}runs.json"
+    if not os.path.exists(input_file):
+        print(f"警告: 指定されたファイルが見つかりません: {input_file}")
+        # 利用可能なファイルを検索
+        sentiment_dir = "results/perplexity/sentiment"
+        if os.path.exists(sentiment_dir):
+            available_files = [f for f in os.listdir(sentiment_dir) if f.endswith('.json')]
+            if available_files:
+                print("\n利用可能なファイル:")
+                for f in sorted(available_files):
+                    print(f"  - {f}")
+                # 最新のファイルを使用
+                latest_file = sorted(available_files)[-1]
+                input_file = os.path.join(sentiment_dir, latest_file)
+                print(f"\n最新のファイルを使用します: {input_file}")
+            else:
+                print(f"エラー: {sentiment_dir} にJSONファイルが見つかりません")
+                return
 
     # バイアス分析を実行
     bias_metrics, category_summary = analyze_bias_from_file(input_file, args.output, verbose=args.verbose)
