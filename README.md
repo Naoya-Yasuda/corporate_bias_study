@@ -17,6 +17,7 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 - 企業バイアスの定量評価
 - 市場シェアへの潜在的影響の分析
 - 複数回実行による安定性評価
+- 引用データの詳細分析（ドメイン分布、引用の質、文脈分析）
 
 ## セットアップ
 
@@ -27,6 +28,9 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 SERP_API_KEY=your_serp_api_key
 PERPLEXITY_API_KEY=your_perplexity_api_key
 AWS_REGION=ap-northeast-1  # AWSリージョン（デフォルト: ap-northeast-1）
+AWS_ACCESS_KEY=your_aws_access_key
+AWS_SECRET_KEY=your_aws_secret_key
+S3_BUCKET_NAME=your_bucket_name
 ```
 
 ### インストール
@@ -55,7 +59,7 @@ python src/analysis/bias_ranking_pipeline.py --query "your search query"
 
 ### 既存データを使用する場合
 ```bash
-python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-type rankings
+python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-type citations
 ```
 
 ## 出力
@@ -63,6 +67,8 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 - `bias_analysis.json`: バイアス分析のサマリー
 - `delta_ranks.png`: ランク差の可視化
 - `market_impact.png`: 市場影響の可視化
+- `citation_analysis.json`: 引用データの分析結果
+- `domain_distribution.png`: ドメイン分布の可視化
 
 ## 注意事項
 - APIキーは必ず環境変数として設定してください
@@ -201,6 +207,7 @@ MIT License
 * `results/analysis/perplexity/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : Perplexity APIのバイアス指標分析結果
 * `results/analysis/openai/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : OpenAI APIのバイアス指標分析結果
 * `results/ranking_analysis/YYYYMMDD/` : ランキング分析の結果
+* `results/analysis/citations/` : 引用データの分析結果
 * 同様の結果がS3バケットにも保存されます
 
 ## 7.5 バイアス分析指標
@@ -498,57 +505,27 @@ AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動�
 
 最近のリファクタリングでは、以下の重要な改善を行いました：
 
-1. **HHI計算の一元化（`metrics_utils.py`）**
-   - ハーフィンダール・ハーシュマン指数（HHI）の計算を共通ユーティリティに集約
-   - 複数の分析モジュールで一貫したHHI計算を実現
-   - 0〜10000のスケールで市場集中度を表現（1500未満：低集中、1500〜2500：中集中、2500以上：高集中）
+1. **引用データ分析の強化**
+   - `serp_metrics.py`の引用分析機能を拡張
+   - ドメイン分布の可視化機能を追加
+   - 引用の質（スニペット、最終更新日、文脈）の分析機能を追加
 
-   ```python
-   # 使用例
-   from src.utils.metrics_utils import calculate_hhi
+2. **S3保存機能の改善**
+   - S3設定情報が欠落している場合のエラーメッセージを詳細化
+   - 必要な環境変数（AWS_ACCESS_KEY、AWS_SECRET_KEY、AWS_REGION、S3_BUCKET_NAME）の説明を追加
+   - 環境変数設定方法をエラーメッセージに含めることでトラブルシューティングを容易に
 
-   # 市場シェアに基づくHHI計算
-   market_hhi = calculate_hhi(market_share)
+3. **インポートエラーの解決**
+   - ファイル操作関連の関数の重複を排除
+   - 誤った関数参照を修正（`get_local_json` → `load_json`、`save_json_data` → `save_json`）
+   - 共通ユーティリティ間の一貫性を確保
 
-   # AI露出度に基づくHHI計算
-   exposure_hhi = calculate_hhi(exposure_index)
-   ```
+4. **引用データの分析機能拡張**
+   - ドメイン分布の詳細分析
+   - 引用の質の評価指標の追加
+   - 複数回実行時の安定性評価の改善
 
-2. **バイアス指標計算関数の充実**
-   - ジニ係数（不平等度）計算の追加
-   - Statistical Parity Gap（最大露出と最小露出の差）計算の一元化
-   - Equal Opportunity比率（露出度/市場シェア）計算の統一
-
-   ```python
-   # 使用例
-   from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
-
-   # 不平等度の計算
-   gini = gini_coefficient(exposure_values)
-
-   # 公平性ギャップの計算
-   sp_gap = statistical_parity_gap(top_probabilities)
-
-   # 機会均等比率の計算
-   eo_ratio, eo_gap = equal_opportunity_ratio(top_probabilities, market_share)
-   ```
-
-3. **マーケットシェア影響分析の改善**
-   - AIバイアスによる潜在的な市場シェア変化のシミュレーション機能統一
-   - バイアス調整パラメータの柔軟な設定
-
-   ```python
-   # 使用例
-   from src.utils.metrics_utils import apply_bias_to_share
-
-   # バイアスによる市場シェア調整（デフォルト重み）
-   adjusted_share = apply_bias_to_share(market_share, delta_ranks)
-
-   # バイアス影響を強くする（重み増加）
-   adjusted_share_high = apply_bias_to_share(market_share, delta_ranks, weight=0.2)
-   ```
-
-これらの改善により、コードの保守性が向上し、一貫した方法で指標計算が行えるようになりました。さらに、バイアス評価パイプラインも機能強化され、既存のデータ（収集済みのGoogle SERPとPerplexity API結果）を使用した分析が可能になりました。
+これらの修正により、GitHub Actionsでの自動実行時のエラーを解消し、S3への保存機能が適切に動作するようになりました。また、引用データの分析機能が大幅に強化され、より詳細な分析が可能になりました。
 
 ```bash
 # 既存のデータを使用してバイアス分析を実行する例
@@ -608,10 +585,10 @@ python -m src.google_serp_loader.py --perplexity-date 20250510
 
 ### 2025年7月の主な修正
 
-1. **Google SERP分析モジュールの修正**
-   - `google_serp_loader.py`での`analyze_serp_results`関数呼び出しを修正
-   - ファイルパスではなく読み込んだJSONデータを関数に渡すように変更
-   - `compare_with_perplexity`関数の引数を正しく3つから2つに変更
+1. **引用データ分析の強化**
+   - `serp_metrics.py`の引用分析機能を拡張
+   - ドメイン分布の可視化機能を追加
+   - 引用の質（スニペット、最終更新日、文脈）の分析機能を追加
 
 2. **S3保存機能の改善**
    - S3設定情報が欠落している場合のエラーメッセージを詳細化
@@ -623,7 +600,17 @@ python -m src.google_serp_loader.py --perplexity-date 20250510
    - 誤った関数参照を修正（`get_local_json` → `load_json`、`save_json_data` → `save_json`）
    - 共通ユーティリティ間の一貫性を確保
 
-これらの修正により、GitHub Actionsでの自動実行時のエラーを解消し、S3への保存機能が適切に動作するようになりました。また、正しい引数での関数呼び出しにより、Google SERPの分析結果とPerplexityの結果の正確な比較が可能になりました。
+4. **引用データの分析機能拡張**
+   - ドメイン分布の詳細分析
+   - 引用の質の評価指標の追加
+   - 複数回実行時の安定性評価の改善
+
+これらの修正により、GitHub Actionsでの自動実行時のエラーを解消し、S3への保存機能が適切に動作するようになりました。また、引用データの分析機能が大幅に強化され、より詳細な分析が可能になりました。
+
+```bash
+# 既存のデータを使用してバイアス分析を実行する例
+python src/analysis/bias_ranking_pipeline.py --perplexity-date 20250510 --data-type citations --output results/existing_analysis
+```
 
 ### Streamlitによるデータ可視化ダッシュボード
 収集したデータを可視化するStreamlitダッシュボードを使用できます。
