@@ -719,65 +719,62 @@ else:
 
                     # ドメインランキングがある場合
                     if "domain_rankings" in subcategory_data:
-                        st.markdown("### ドメインランキング")
+                        st.markdown("### ドメイン分析")
                         domain_rankings = subcategory_data["domain_rankings"]
-
-                        # ドメインランキングをDataFrameに変換
                         rankings_df = pd.DataFrame(domain_rankings)
-
-                        # 上位10ドメインの選択
                         top_domains = rankings_df.head(10)
 
-                        # ドメイン出現率のグラフ
-                        st.markdown("### ドメイン出現率")
+                        # ドメイン出現率のグラフ（全て1.0なら非表示）
+                        if not all(top_domains["appearance_ratio"] == 1.0):
+                            st.markdown("#### ドメイン出現率")
+                            fig, ax = plt.subplots()
+                            bars = ax.bar(top_domains["domain"], top_domains["appearance_ratio"])
+                            for bar in bars:
+                                height = bar.get_height()
+                                ax.text(bar.get_x() + bar.get_width()/2., height,
+                                        f'{height:.2f}',
+                                        ha='center', va='bottom')
+                            ax.set_xticklabels(top_domains["domain"], rotation=45, ha='right', fontproperties=prop)
+                            ax.set_ylabel('出現率', fontproperties=prop)
+                            ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン出現率", fontproperties=prop)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+
+                        # ドメイン平均ランクのグラフ（y軸反転）
+                        st.markdown("#### ドメイン平均ランク")
                         fig, ax = plt.subplots()
-                        bars = ax.bar(top_domains["domain"], top_domains["appearance_ratio"])
-
-                        # バーにラベルを追加
-                        for bar in bars:
-                            height = bar.get_height()
-                            ax.text(bar.get_x() + bar.get_width()/2., height,
-                                    f'{height:.2f}',
-                                    ha='center', va='bottom')
-
-                        ax.set_xticklabels(top_domains["domain"], rotation=45, ha='right', fontproperties=prop)
-                        ax.set_ylabel('出現率', fontproperties=prop)
-                        ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン出現率", fontproperties=prop)
-                        plt.tight_layout()
-
-                        st.pyplot(fig)
-
-                        # 平均ランクのグラフ
-                        st.markdown("### ドメイン平均ランク")
-                        fig, ax = plt.subplots()
-                        bars = ax.bar(top_domains["domain"], top_domains["avg_rank"])
-
-                        # バーにラベルを追加
-                        for bar in bars:
-                            height = bar.get_height()
-                            ax.text(bar.get_x() + bar.get_width()/2., height,
-                                    f'{height:.2f}',
-                                    ha='center', va='bottom')
-
+                        ax.plot(range(len(top_domains)), top_domains["avg_rank"], marker='o')
+                        ax.set_xticks(range(len(top_domains)))
                         ax.set_xticklabels(top_domains["domain"], rotation=45, ha='right', fontproperties=prop)
                         ax.set_ylabel('平均ランク', fontproperties=prop)
                         ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン平均ランク", fontproperties=prop)
+                        ax.invert_yaxis()  # 小さい値が上
                         plt.tight_layout()
-
                         st.pyplot(fig)
 
+                        # ドメインごとの全ランクの箱ひげ図（ばらつきがある場合のみ）
+                        if any(len(set(r["all_ranks"])) > 1 for _, r in top_domains.iterrows() if "all_ranks" in r):
+                            st.markdown("#### ドメイン順位の箱ひげ図")
+                            fig, ax = plt.subplots()
+                            box_data = [r["all_ranks"] for _, r in top_domains.iterrows() if "all_ranks" in r]
+                            labels = [r["domain"] for _, r in top_domains.iterrows() if "all_ranks" in r]
+                            ax.boxplot(box_data, labels=labels, patch_artist=True)
+                            ax.set_xlabel('ドメイン', fontproperties=prop)
+                            ax.set_ylabel('順位', fontproperties=prop)
+                            ax.set_title('全実行におけるドメイン順位の分布', fontproperties=prop)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+
                         # データテーブル
+                        st.markdown("#### ドメインランキングデータ")
                         st.dataframe(rankings_df)
 
                     # 個別の実行データを表示
-                    st.markdown("### 個別実行データ")
-
+                    st.markdown("### 個別実行データ（引用元URL一覧）")
                     for i, run in enumerate(runs_data):
                         with st.expander(f"実行 {i+1}"):
                             if "citations" in run:
                                 citations = run["citations"]
-
-                                # DataFrameに変換
                                 citations_df = pd.DataFrame(citations)
                                 st.dataframe(citations_df)
                             else:
@@ -786,26 +783,35 @@ else:
                 # 単一実行の場合
                 elif "run" in subcategory_data and "citations" in subcategory_data["run"]:
                     citations = subcategory_data["run"]["citations"]
-
-                    # DataFrameに変換
                     citations_df = pd.DataFrame(citations)
-
                     st.markdown("### 引用リンク")
                     st.dataframe(citations_df)
-
                     # ドメイン頻度のグラフ
                     if len(citations_df) > 0 and "domain" in citations_df.columns:
                         domain_counts = citations_df["domain"].value_counts()
-
-                        st.markdown("### ドメイン頻度")
+                        if not all(domain_counts == 1):
+                            st.markdown("#### ドメイン頻度")
+                            fig, ax = plt.subplots()
+                            domain_counts.head(10).plot(kind="bar", ax=ax)
+                            ax.set_ylabel("頻度", fontproperties=prop)
+                            ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン頻度", fontproperties=prop)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                    # 平均ランクのグラフ（y軸反転）
+                    if "rank" in citations_df.columns:
+                        st.markdown("#### ドメイン平均ランク")
+                        avg_rank_df = citations_df.groupby("domain")["rank"].mean().sort_values()
                         fig, ax = plt.subplots()
-                        domain_counts.head(10).plot(kind="bar", ax=ax)
-                        ax.set_ylabel("頻度", fontproperties=prop)
-                        ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン頻度", fontproperties=prop)
-
+                        ax.plot(range(len(avg_rank_df)), avg_rank_df.values, marker='o')
+                        ax.set_xticks(range(len(avg_rank_df)))
+                        ax.set_xticklabels(avg_rank_df.index, rotation=45, ha='right', fontproperties=prop)
+                        ax.set_ylabel('平均ランク', fontproperties=prop)
+                        ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン平均ランク", fontproperties=prop)
+                        ax.invert_yaxis()
+                        plt.tight_layout()
                         st.pyplot(fig)
                 else:
-                    st.warning("このサブカテゴリには引用データがありません")
+                    st.warning("このカテゴリにはサブカテゴリデータがありません")
             else:
                 st.warning("このカテゴリにはサブカテゴリデータがありません")
         else:

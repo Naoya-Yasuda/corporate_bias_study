@@ -275,10 +275,7 @@ def collect_citation_rankings(categories, num_runs=1):
         dict: カテゴリごとの引用リンクランキング結果
     """
     # 結果の初期化 - 主要カテゴリの構造を作成
-    results = {
-        "Digital Services": {},
-        "Companies": {}
-    }
+    results = {}
 
     total_categories = get_all_categories()
     processed = 0
@@ -293,10 +290,8 @@ def collect_citation_rankings(categories, num_runs=1):
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")
 
-        # カテゴリをDigital ServicesまたはCompaniesに割り当て
-        target_category = "Digital Services"  # デフォルト
-        if category.lower() in ["企業", "会社", "companies"]:
-            target_category = "Companies"
+        # カテゴリ名は日本語のまま使用
+        target_category = category
 
         for subcategory, services in subcategories.items():
             processed += 1
