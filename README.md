@@ -206,7 +206,7 @@ MIT License
 * `results/YYYYMMDD_google_serp_analysis.json` : Google検索の分析結果
 * `results/analysis/perplexity/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : Perplexity APIのバイアス指標分析結果
 * `results/analysis/openai/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : OpenAI APIのバイアス指標分析結果
-* `results/ranking_analysis/YYYYMMDD/` : ランキング分析の結果
+* `results/perplexity_analysis/YYYYMMDD/` : ランキング分析の結果
 * `results/analysis/citations/` : 引用データの分析結果
 * 同様の結果がS3バケットにも保存されます
 
@@ -400,10 +400,10 @@ python -m src.analysis.bias_sentiment_metrics results/20250501_perplexity_result
 ```
 
 分析結果は以下のファイルに保存されます：
-- 各カテゴリの詳細指標CSV: `results/ranking_analysis/YYYYMMDD/カテゴリ名_rank_metrics.csv`
-- ランキング分布ヒートマップ: `results/ranking_analysis/YYYYMMDD/カテゴリ名_rank_heatmap.png`
-- 市場シェアと露出度の散布図: `results/ranking_analysis/YYYYMMDD/カテゴリ名_exposure_market.png`
-- 全カテゴリの指標サマリー: `results/ranking_analysis/YYYYMMDD/YYYYMMDD_perplexity_rank_summary.csv`
+- 各カテゴリの詳細指標CSV: `results/perplexity_analysis/YYYYMMDD/カテゴリ名_rank_metrics.csv`
+- ランキング分布ヒートマップ: `results/perplexity_analysis/YYYYMMDD/カテゴリ名_rank_heatmap.png`
+- 市場シェアと露出度の散布図: `results/perplexity_analysis/YYYYMMDD/カテゴリ名_exposure_market.png`
+- 全カテゴリの指標サマリー: `results/perplexity_analysis/YYYYMMDD/YYYYMMDD_perplexity_rank_summary.csv`
 
 ## 7.7 データ処理と分析の改善点
 

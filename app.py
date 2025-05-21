@@ -158,7 +158,7 @@ def get_image_files():
     """S3から画像ファイル（PNG）のみを取得"""
     try:
         s3_client = get_s3_client()
-        prefix = 'results/ranking_analysis/'
+        prefix = 'results/perplexity_analysis/'
         response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=prefix)
 
         if 'Contents' not in response:

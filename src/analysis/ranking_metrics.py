@@ -427,7 +427,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
     api_type : str, optional
         "perplexity" または "openai"
     output_dir : str, optional
-        出力ディレクトリ、未指定時は "results/ranking_analysis/{date_str}"
+        出力ディレクトリ、未指定時は "results/perplexity_analysis/{date_str}"
     upload_results : bool, optional
         分析結果をS3にアップロードするかどうか
     verbose : bool, optional
@@ -451,7 +451,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
 
     # 出力ディレクトリの設定
     if output_dir is None:
-        output_dir = f"results/ranking_analysis/{date_str}"
+        output_dir = f"results/perplexity_analysis/{date_str}"
 
     os.makedirs(output_dir, exist_ok=True)
     if verbose:
@@ -561,7 +561,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         # 結果を保存
         csv_path = os.path.join(output_dir, f"{category}_rank_metrics.csv")
         df_metrics.to_csv(csv_path, index=False)
-        uploaded_files.append((csv_path, f"results/ranking_analysis/{date_str}/{category}_rank_metrics.csv", "text/csv"))
+        uploaded_files.append((csv_path, f"results/perplexity_analysis/{date_str}/{category}_rank_metrics.csv", "text/csv"))
         if verbose:
             logging.info(f"CSVを保存: {csv_path}")
 
@@ -570,7 +570,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         if heatmap_file:
             uploaded_files.append((
                 os.path.join(output_dir, heatmap_file),
-                f"results/ranking_analysis/{date_str}/{heatmap_file}",
+                f"results/perplexity_analysis/{date_str}/{heatmap_file}",
                 "image/png"
             ))
             if verbose:
@@ -580,7 +580,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         if scatter_file:
             uploaded_files.append((
                 os.path.join(output_dir, scatter_file),
-                f"results/ranking_analysis/{date_str}/{scatter_file}",
+                f"results/perplexity_analysis/{date_str}/{scatter_file}",
                 "image/png"
             ))
             if verbose:
@@ -594,7 +594,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
             if stability_file:
                 uploaded_files.append((
                     os.path.join(output_dir, stability_file),
-                    f"results/ranking_analysis/{date_str}/{stability_file}",
+                    f"results/perplexity_analysis/{date_str}/{stability_file}",
                     "image/png"
                 ))
                 if verbose:
@@ -609,7 +609,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
     summary_df.to_csv(summary_path, index=False)
     uploaded_files.append((
         summary_path,
-        f"results/ranking_analysis/{date_str}/{date_str}_{api_type}_rank_summary.csv",
+        f"results/perplexity_analysis/{date_str}/{date_str}_{api_type}_rank_summary.csv",
         "text/csv"
     ))
     if verbose:
@@ -726,7 +726,7 @@ if __name__ == "__main__":
     parser.add_argument('--date', help='分析する日付（YYYYMMDD形式、デフォルト: 今日）')
     parser.add_argument('--api', default='perplexity', choices=['perplexity', 'openai'],
                         help='APIタイプ（デフォルト: perplexity）')
-    parser.add_argument('--output', help='出力ディレクトリ（デフォルト: results/ranking_analysis/YYYYMMDD）')
+    parser.add_argument('--output', help='出力ディレクトリ（デフォルト: results/perplexity_analysis/YYYYMMDD）')
     parser.add_argument('--no-upload', action='store_true', help='S3への結果アップロードを無効化')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効にする')
     parser.add_argument('input_file', nargs='?', help='ローカルJSONファイルから直接分析する場合のパス')
@@ -741,7 +741,7 @@ if __name__ == "__main__":
         # 出力ディレクトリの設定
         if args.output is None:
             today = datetime.datetime.now().strftime("%Y%m%d")
-            output_dir = f"results/ranking_analysis/{today}"
+            output_dir = f"results/perplexity_analysis/{today}"
         else:
             output_dir = args.output
 
