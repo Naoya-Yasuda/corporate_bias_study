@@ -27,6 +27,8 @@ from src.analysis.ranking_metrics import list_s3_files, get_latest_ranking_file
 import matplotlib.pyplot as plt
 import japanize_matplotlib  # 追加
 
+# 環境変数の読み込み
+load_dotenv()
 
 # ヒラギノ角ゴシックのパス（W3を例に）
 font_path = '/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc'
@@ -77,92 +79,78 @@ st.sidebar.header("データ選択")
 
 # 結果ファイルの検索
 def get_result_files():
-    """resultsディレクトリから利用可能な結果ファイルを取得"""
-    # 結果ファイルパターン
-    patterns = [
-        # 新しいパス構造と命名規則
-        "results/perplexity_sentiment/*_perplexity_sentiment_*.json",
-        "results/analysis/perplexity_sentiment/*_perplexity_sentiment_*.json",
-        "results/perplexity_rankings/*_perplexity_rankings_*.json",
-        "results/perplexity_citations/*_perplexity_citations_*.json",
-        "results/analysis/perplexity_citations/*_perplexity_citations_*.json",
-        "results/openai_sentiment/*_openai_sentiment_*.json",
+    """S3から利用可能な結果ファイルを取得"""
+    try:
+        s3_client = get_s3_client()
+        prefix = 'results/'
+        response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=prefix)
 
-        # ルートのresultsフォルダも検索
-        "results/*_perplexity_sentiment_*.json",
-        "results/*_perplexity_rankings_*.json",
-        "results/*_perplexity_citations_*.json",
-        "results/*_openai_sentiment_*.json",
-        "results/*_perplexity_results_*.json",
-        "results/*_openai_results_*.json"
-    ]
+        if 'Contents' not in response:
+            st.warning("S3バケットにファイルが見つかりません。")
+            return []
 
-    files = []
-    for pattern in patterns:
-        files.extend(glob.glob(pattern))
+        files = []
+        for content in response['Contents']:
+            file_path = content['Key']
+            file_name = os.path.basename(file_path)
 
-    # 重複を削除
-    files = list(set(files))
+            # 日付を抽出 (YYYYMMDD形式)
+            date_match = next((part for part in file_name.split('_') if len(part) == 8 and part.isdigit()), None)
 
-    # ファイル情報を整理
-    file_info = []
-    for file_path in files:
-        # ファイル名から情報を抽出
-        file_name = os.path.basename(file_path)
-
-        # 日付を抽出 (YYYYMMDD形式)
-        date_match = next((part for part in file_name.split('_') if len(part) == 8 and part.isdigit()), None)
-
-        if date_match:
-            try:
-                date_obj = datetime.strptime(date_match, "%Y%m%d")
-                date_str = date_obj.strftime("%Y-%m-%d")
-            except:
+            if date_match:
+                try:
+                    date_obj = datetime.strptime(date_match, "%Y%m%d")
+                    date_str = date_obj.strftime("%Y-%m-%d")
+                except:
+                    date_str = "不明"
+            else:
                 date_str = "不明"
-        else:
-            date_str = "不明"
 
-        # データタイプを判断
-        if "perplexity_sentiment" in file_name:
-            data_type = "Perplexity 感情スコア"
-        elif "perplexity_results" in file_name and "/sentiment/" in file_path:
-            data_type = "Perplexity 感情スコア"
-        elif "perplexity_rankings" in file_name:
-            data_type = "Perplexity ランキング"
-        elif "perplexity_results" in file_name and "/rankings/" in file_path:
-            data_type = "Perplexity ランキング"
-        elif "perplexity_citations" in file_name:
-            data_type = "Perplexity 引用リンク"
-        elif "perplexity_results" in file_name and "/citations/" in file_path:
-            data_type = "Perplexity 引用リンク"
-        elif "openai_sentiment" in file_name:
-            data_type = "OpenAI 感情スコア"
-        elif "openai_results" in file_name:
-            data_type = "OpenAI 感情スコア"
-        else:
-            data_type = "その他"
+            # データタイプを判断
+            if "perplexity_sentiment" in file_name:
+                data_type = "Perplexity 感情スコア"
+            elif "perplexity_results" in file_name and "/sentiment/" in file_path:
+                data_type = "Perplexity 感情スコア"
+            elif "perplexity_rankings" in file_name:
+                data_type = "Perplexity ランキング"
+            elif "perplexity_results" in file_name and "/rankings/" in file_path:
+                data_type = "Perplexity ランキング"
+            elif "perplexity_citations" in file_name:
+                data_type = "Perplexity 引用リンク"
+            elif "perplexity_results" in file_name and "/citations/" in file_path:
+                data_type = "Perplexity 引用リンク"
+            elif "openai_sentiment" in file_name:
+                data_type = "OpenAI 感情スコア"
+            elif "openai_results" in file_name:
+                data_type = "OpenAI 感情スコア"
+            else:
+                data_type = "その他"
 
-        # 複数回実行かどうか
-        is_multi_run = "_runs.json" in file_name or "_3runs.json" in file_name or "_5runs.json" in file_name or "_10runs.json" in file_name
-        runs_suffix = "（複数回実行）" if is_multi_run else "（単一実行）"
+            # 複数回実行かどうか
+            is_multi_run = "_runs.json" in file_name or "_3runs.json" in file_name or "_5runs.json" in file_name or "_10runs.json" in file_name
+            runs_suffix = "（複数回実行）" if is_multi_run else "（単一実行）"
 
-        # 表示名を生成
-        display_name = f"{date_str}: {data_type}{runs_suffix}"
+            # 表示名を生成
+            display_name = f"{date_str}: {data_type}{runs_suffix}"
 
-        file_info.append({
-            "path": file_path,
-            "name": file_name,
-            "date": date_str,
-            "date_obj": date_obj if date_match else datetime.now(),
-            "type": data_type,
-            "is_multi_run": is_multi_run,
-            "display_name": display_name,
-            "date_raw": date_match
-        })
+            files.append({
+                "path": f"s3://{S3_BUCKET_NAME}/{file_path}",
+                "name": file_name,
+                "date": date_str,
+                "date_obj": date_obj if date_match else datetime.now(),
+                "type": data_type,
+                "is_multi_run": is_multi_run,
+                "display_name": display_name,
+                "date_raw": date_match
+            })
 
-    # 日付の新しい順にソート
-    file_info.sort(key=lambda x: x["date_obj"], reverse=True)
-    return file_info
+        # 日付の新しい順にソート
+        files.sort(key=lambda x: x["date_obj"], reverse=True)
+        return files
+
+    except Exception as e:
+        st.error(f"S3からのファイル一覧取得エラー: {e}")
+        return []
 
 # 結果ファイルの一覧を取得
 result_files = get_result_files()
@@ -204,15 +192,9 @@ if selected_view == "単一データ分析":
 
     # ファイル読み込み
     try:
-        # S3パスの構築
-        if selected_file['path'].startswith('s3://'):
-            s3_path = selected_file['path']
-        else:
-            s3_path = f"s3://{S3_BUCKET_NAME}/{selected_file['path']}"
-
-        data = load_json(s3_path)
+        data = load_json(selected_file['path'])
         if data is None:
-            st.error(f"ファイルの読み込みに失敗しました: {s3_path}")
+            st.error(f"ファイルの読み込みに失敗しました: {selected_file['path']}")
             st.stop()
         st.sidebar.success("ファイルの読み込みに成功しました")
     except Exception as e:
@@ -955,21 +937,3 @@ if selected_view == "単一データ分析":
 # フッター
 st.markdown("---")
 st.markdown("企業バイアス分析ダッシュボード © 2025")
-
-# Streamlitで利用
-bucket = S3_BUCKET_NAME
-prefix = 'results/'
-
-# S3からファイル一覧を取得
-s3_client = get_s3_client()
-response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-file_list = [content['Key'] for content in response.get('Contents', [])]
-
-selected_file = st.selectbox("ファイルを選択", file_list)
-if selected_file:
-    s3_path = f"s3://{bucket}/{selected_file}"
-    data = load_json(s3_path)
-    if data is None:
-        st.error(f"ファイルの読み込みに失敗しました: {s3_path}")
-        st.stop()
-    st.json(data)
