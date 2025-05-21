@@ -365,6 +365,8 @@ def collect_citation_rankings(categories, num_runs=1):
                                 "url": url,
                                 "domain": domain,
                                 "title": citation.get("title", ""),
+                                "snippet": citation.get("snippet", ""),  # スニペットを追加
+                                "last_modified": citation.get("last_modified", ""),  # 最終更新日を追加
                                 "from_api": True
                             })
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
@@ -387,7 +389,8 @@ def collect_citation_rankings(categories, num_runs=1):
                                 "domain": f"引用元{ref['ref_num']}",  # ドメインの代わりに引用番号
                                 "url": f"ref:{ref['ref_num']}",  # 実際のURLはないので識別子として使用
                                 "context": ref.get("context", ""),  # 引用の文脈
-                                "from_text": True
+                                "from_text": True,
+                                "text_position": ref.get("position", 0)  # テキスト内の位置を追加
                             })
                         print(f"  テキストから引用参照を抽出: {len(citation_data)}件")
                     else:

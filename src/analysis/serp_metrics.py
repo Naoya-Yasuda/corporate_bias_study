@@ -410,7 +410,7 @@ def extract_domains_from_citations(citations_data, subcategory):
 def compare_with_perplexity(serp_results, pplx_results):
     """
     Google検索結果とPerplexity APIの結果を比較
-    ランキングデータと引用リンク（citations）データの両方に対応
+    引用リンク（citations）データを使用
 
     Parameters
     ----------
@@ -427,11 +427,6 @@ def compare_with_perplexity(serp_results, pplx_results):
     # 結果を保存する辞書
     comparison = {}
 
-    # Perplexityデータの種類を判定
-    is_citations = is_citations_data(pplx_results)
-
-    print(f"Perplexityデータタイプ: {'引用リンク(citations)' if is_citations else 'ランキング'}")
-
     # カテゴリごとに比較
     categories = set(serp_results.keys()) & set(pplx_results.keys())
 
@@ -439,47 +434,121 @@ def compare_with_perplexity(serp_results, pplx_results):
         google_data = serp_results[category]
         pplx_data = pplx_results[category]
 
-        # Googleからランキングを抽出
-        google_ranking = [r.get("company") for r in google_data.get("results", [])]
+        # Googleからドメインランキングを抽出
+        google_domains = [r.get("domain") for r in google_data.get("results", [])]
 
-        # Perplexityからランキングを抽出
-        if is_citations:
-            # 引用リンクデータからドメインランキングを抽出
-            pplx_domains = extract_domains_from_citations(pplx_data, list(pplx_data.keys())[0] if pplx_data else "")
-            pplx_ranking = pplx_domains
-        else:
-            # 通常のランキングデータを処理
-            pplx_rankings = []
-            for run in pplx_data.get("runs", []):
-                run_ranking = []
-                for rank_entry in run.get("ranking", []):
-                    company = rank_entry.get("company")
-                    if company:
-                        run_ranking.append(company)
-                if run_ranking:
-                    pplx_rankings.append(run_ranking)
-
-            # 複数実行の場合は最初のランキングを使用
-            pplx_ranking = pplx_rankings[0] if pplx_rankings else []
+        # Perplexityからドメインランキングを抽出
+        pplx_domains = []
+        if "all_runs" in pplx_data:
+            # 複数回実行の場合
+            domain_rankings = pplx_data.get("domain_rankings", [])
+            pplx_domains = [item["domain"] for item in domain_rankings]
+        elif "run" in pplx_data:
+            # 単一実行の場合
+            citations = pplx_data["run"].get("citations", [])
+            pplx_domains = [citation["domain"] for citation in citations]
 
         # ランキング比較メトリクスを計算
-        metrics = compute_ranking_metrics(google_ranking, pplx_ranking)
+        metrics = compute_ranking_metrics(google_domains, pplx_domains)
 
         # GoogleとPerplexityのコンテンツメトリクスを計算
         google_content = compute_content_metrics(google_data.get("results", []))
-        pplx_content = {}  # Perplexityにはコンテンツ情報がない場合が多い
+
+        # Perplexityの引用メトリクスを計算
+        pplx_content = compute_citation_metrics(pplx_data)
 
         # 結果を保存
         comparison[category] = {
-            "google_ranking": google_ranking,
-            "pplx_ranking": pplx_ranking,
+            "google_domains": google_domains,
+            "pplx_domains": pplx_domains,
             "ranking_metrics": metrics,
             "google_content_metrics": google_content,
             "pplx_content_metrics": pplx_content,
-            "data_type": "citations" if is_citations else "rankings"
+            "data_type": "citations"
         }
 
     return comparison
+
+def compute_citation_metrics(pplx_data):
+    """
+    Perplexityの引用データからメトリクスを計算
+
+    Parameters
+    ----------
+    pplx_data : dict
+        Perplexity APIの結果辞書
+
+    Returns
+    -------
+    dict
+        引用メトリクス
+    """
+    metrics = {
+        "total_citations": 0,
+        "unique_domains": 0,
+        "domain_distribution": [],
+        "citation_quality": {
+            "with_snippet": 0,
+            "with_last_modified": 0,
+            "with_context": 0
+        }
+    }
+
+    if "all_runs" in pplx_data:
+        # 複数回実行の場合
+        all_citations = []
+        for run in pplx_data["all_runs"]:
+            citations = run.get("citations", [])
+            all_citations.extend(citations)
+
+        # ドメイン分布の計算
+        domain_stats = defaultdict(lambda: {"count": 0, "snippets": 0, "last_modified": 0})
+        for citation in all_citations:
+            domain = citation.get("domain", "unknown")
+            domain_stats[domain]["count"] += 1
+            if citation.get("snippet"):
+                domain_stats[domain]["snippets"] += 1
+            if citation.get("last_modified"):
+                domain_stats[domain]["last_modified"] += 1
+
+        # メトリクスの計算
+        metrics["total_citations"] = len(all_citations)
+        metrics["unique_domains"] = len(domain_stats)
+        metrics["citation_quality"]["with_snippet"] = sum(1 for c in all_citations if c.get("snippet"))
+        metrics["citation_quality"]["with_last_modified"] = sum(1 for c in all_citations if c.get("last_modified"))
+        metrics["citation_quality"]["with_context"] = sum(1 for c in all_citations if c.get("context"))
+
+        # ドメイン分布の作成
+        for domain, stats in domain_stats.items():
+            metrics["domain_distribution"].append({
+                "domain": domain,
+                "count": stats["count"],
+                "snippet_ratio": stats["snippets"] / stats["count"] if stats["count"] > 0 else 0,
+                "last_modified_ratio": stats["last_modified"] / stats["count"] if stats["count"] > 0 else 0
+            })
+
+    elif "run" in pplx_data:
+        # 単一実行の場合
+        citations = pplx_data["run"].get("citations", [])
+        metrics["total_citations"] = len(citations)
+        metrics["unique_domains"] = len(set(c.get("domain", "unknown") for c in citations))
+        metrics["citation_quality"]["with_snippet"] = sum(1 for c in citations if c.get("snippet"))
+        metrics["citation_quality"]["with_last_modified"] = sum(1 for c in citations if c.get("last_modified"))
+        metrics["citation_quality"]["with_context"] = sum(1 for c in citations if c.get("context"))
+
+        # ドメイン分布の作成
+        domain_counts = defaultdict(int)
+        for citation in citations:
+            domain = citation.get("domain", "unknown")
+            domain_counts[domain] += 1
+
+        for domain, count in domain_counts.items():
+            metrics["domain_distribution"].append({
+                "domain": domain,
+                "count": count
+            })
+
+    return metrics
 
 # -------------------------------------------------------------------
 # 分析実行関数
@@ -522,43 +591,13 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
         print("エラーのため、ranking_metrics.pyから市場シェアデータを使用します")
 
     # カテゴリごとに分析
-    categories = set(comparison_results.keys()) & set(MARKET_SHARES.keys())
-
-    for category in categories:
+    for category in comparison_results.keys():
         comp_data = comparison_results[category]
-        market_share = MARKET_SHARES.get(category, {})
-
-        if not market_share:
-            print(f"カテゴリ {category} の市場シェアデータがありません。スキップします。")
-            continue
-
         delta_ranks = comp_data["ranking_metrics"]["delta_ranks"]
 
-        # 市場シェアへの影響をシミュレーション
-        adjusted_share = apply_bias_to_share(market_share, delta_ranks)
-
-        # ΔRankと市場影響度の集計
-        impact_data = []
-        for company in set(market_share.keys()) & set(delta_ranks.keys()):
-            impact_data.append({
-                "company": company,
-                "delta_rank": delta_ranks.get(company, 0),
-                "market_share_before": market_share.get(company, 0) * 100,
-                "market_share_after": adjusted_share.get(company, 0) * 100,
-                "share_change_pct": (adjusted_share.get(company, 0) / market_share.get(company, 0) - 1) * 100 if market_share.get(company, 0) > 0 else 0
-            })
-
-        impact_df = pd.DataFrame(impact_data)
-
-        # グラフの生成と保存
-        output_dir = "results/analysis"
-        ensure_dir(output_dir)
-
-        # delta_ranksグラフ（上位10社）
-        delta_plot_path = plot_delta_ranks(delta_ranks, output_path=f"{output_dir}/{category}_delta_ranks.png")
-
-        # 市場影響グラフ
-        market_plot_path = plot_market_impact(market_share, adjusted_share, output_path=f"{output_dir}/{category}_market_impact.png")
+        # 引用メトリクスの分析
+        pplx_metrics = comp_data["pplx_content_metrics"]
+        google_metrics = comp_data["google_content_metrics"]
 
         # 分析結果の保存
         analysis[category] = {
@@ -567,21 +606,42 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
                 "kendall_tau": comp_data["ranking_metrics"]["kendall_tau"],
                 "overlap_ratio": comp_data["ranking_metrics"]["overlap_ratio"]
             },
+            "citation_analysis": {
+                "total_citations": pplx_metrics["total_citations"],
+                "unique_domains": pplx_metrics["unique_domains"],
+                "citation_quality": pplx_metrics["citation_quality"],
+                "top_domains": [d["domain"] for d in pplx_metrics["domain_distribution"][:5]]
+            },
             "content_comparison": {
-                "google_official_ratio": comp_data["google_content_metrics"]["official_ratio"],
-                "google_negative_ratio": comp_data["google_content_metrics"]["negative_ratio"]
-            },
-            "market_impact": {
-                "market_share": market_share,
-                "adjusted_share": adjusted_share,
-                "delta_ranks": delta_ranks,
-                "impact_data": impact_data
-            },
-            "plots": {
-                "delta_ranks_plot": delta_plot_path,
-                "market_impact_plot": market_plot_path
+                "google_official_ratio": google_metrics["official_ratio"],
+                "google_negative_ratio": google_metrics["negative_ratio"]
             }
         }
+
+        # グラフの生成と保存
+        output_dir = "results/analysis"
+        ensure_dir(output_dir)
+
+        # ドメイン分布の可視化
+        if pplx_metrics["domain_distribution"]:
+            plt.figure(figsize=(10, 6))
+            top_domains = pplx_metrics["domain_distribution"][:10]
+            domains = [d["domain"] for d in top_domains]
+            counts = [d["count"] for d in top_domains]
+
+            plt.barh(domains, counts)
+            plt.xlabel('引用回数')
+            plt.ylabel('ドメイン')
+            plt.title(f'{category} の引用ドメイン分布')
+            plt.tight_layout()
+
+            plot_path = f"{output_dir}/{category}_citation_distribution.png"
+            plt.savefig(plot_path)
+            plt.close()
+
+            analysis[category]["plots"] = {
+                "citation_distribution": plot_path
+            }
 
     return analysis
 
