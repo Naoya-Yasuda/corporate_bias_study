@@ -598,20 +598,22 @@ else:
                         ax.set_xlabel('サービス', fontproperties=prop)
                         ax.set_ylabel('平均順位', fontproperties=prop)
                         ax.set_title('平均順位の推移', fontproperties=prop)
+                        ax.invert_yaxis()  # 小さい値が上
                         plt.tight_layout()
                         st.pyplot(fig)
-                        # 標準偏差の棒グラフ
-                        st.markdown("#### 標準偏差（ばらつき）の棒グラフ")
-                        fig, ax = plt.subplots()
-                        ax.bar([i+1 for i in range(len(std_list))], std_list, tick_label=avg_ranking)
-                        ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
-                        ax.set_xlabel('サービス', fontproperties=prop)
-                        ax.set_ylabel('標準偏差', fontproperties=prop)
-                        ax.set_title('標準偏差（ばらつき）', fontproperties=prop)
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        # 全順位の箱ひげ図
-                        if all_ranks_dict:
+                        # 標準偏差の棒グラフ（全て0または空なら表示しない）
+                        if any(std > 0 for std in std_list):
+                            st.markdown("#### 標準偏差（ばらつき）の棒グラフ")
+                            fig, ax = plt.subplots()
+                            ax.bar([i+1 for i in range(len(std_list))], std_list, tick_label=avg_ranking)
+                            ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
+                            ax.set_xlabel('サービス', fontproperties=prop)
+                            ax.set_ylabel('標準偏差', fontproperties=prop)
+                            ax.set_title('標準偏差（ばらつき）', fontproperties=prop)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                        # 全順位の箱ひげ図（全サービスでばらつきがある場合のみ）
+                        if all_ranks_dict and any(len(set(all_ranks_dict[s])) > 1 for s in avg_ranking if s in all_ranks_dict):
                             st.markdown("#### 全順位の箱ひげ図")
                             fig, ax = plt.subplots()
                             ax.boxplot([all_ranks_dict[s] for s in avg_ranking], labels=avg_ranking, patch_artist=True)
@@ -666,20 +668,22 @@ else:
                         ax.set_xlabel('サービス', fontproperties=prop)
                         ax.set_ylabel('平均順位', fontproperties=prop)
                         ax.set_title('平均順位の推移', fontproperties=prop)
+                        ax.invert_yaxis()  # 小さい値が上
                         plt.tight_layout()
                         st.pyplot(fig)
-                        # 標準偏差の棒グラフ
-                        st.markdown("#### 標準偏差（ばらつき）の棒グラフ")
-                        fig, ax = plt.subplots()
-                        ax.bar([i+1 for i in range(len(std_list))], std_list, tick_label=avg_ranking)
-                        ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
-                        ax.set_xlabel('サービス', fontproperties=prop)
-                        ax.set_ylabel('標準偏差', fontproperties=prop)
-                        ax.set_title('標準偏差（ばらつき）', fontproperties=prop)
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        # 全順位の箱ひげ図
-                        if all_ranks_dict:
+                        # 標準偏差の棒グラフ（全て0または空なら表示しない）
+                        if any(std > 0 for std in std_list):
+                            st.markdown("#### 標準偏差（ばらつき）の棒グラフ")
+                            fig, ax = plt.subplots()
+                            ax.bar([i+1 for i in range(len(std_list))], std_list, tick_label=avg_ranking)
+                            ax.set_xticklabels(avg_ranking, rotation=45, ha='right', fontproperties=prop)
+                            ax.set_xlabel('サービス', fontproperties=prop)
+                            ax.set_ylabel('標準偏差', fontproperties=prop)
+                            ax.set_title('標準偏差（ばらつき）', fontproperties=prop)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                        # 全順位の箱ひげ図（全サービスでばらつきがある場合のみ）
+                        if all_ranks_dict and any(len(set(all_ranks_dict[s])) > 1 for s in avg_ranking if s in all_ranks_dict):
                             st.markdown("#### 全順位の箱ひげ図")
                             fig, ax = plt.subplots()
                             ax.boxplot([all_ranks_dict[s] for s in avg_ranking], labels=avg_ranking, patch_artist=True)
