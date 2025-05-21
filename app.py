@@ -22,6 +22,8 @@ from dotenv import load_dotenv
 from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME, get_latest_file
 from src.utils.file_utils import load_json
 from src.analysis.ranking_metrics import get_exposure_market_data, compute_rank_metrics, MARKET_SHARES, get_timeseries_exposure_market_data
+import importlib
+serp_metrics = importlib.import_module('src.analysis.serp_metrics')
 
 # 利用可能な日本語フォントを優先的に取得
 import matplotlib.pyplot as plt
@@ -702,8 +704,73 @@ else:
         elif "引用リンク" in selected_file["type"]:
             # 引用リンクの可視化
             st.subheader("引用リンク分析")
-
             category_data = data[selected_category]
+            # --- Google SERP比較 ---
+            import json
+            import os
+            # Google SERPデータのパスを自動推定（同日付 or 直近）
+            serp_date = selected_file["date_raw"] or selected_file["date"] or ""
+            serp_path = f"results/google_serp/{serp_date}/{serp_date}_google_serp_results.json"
+            if not os.path.exists(serp_path):
+                # S3からダウンロードを試みる
+                s3_key = serp_path
+                try:
+                    s3_client = get_s3_client()
+                    response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+                    os.makedirs(os.path.dirname(serp_path), exist_ok=True)
+                    with open(serp_path, "wb") as f:
+                        f.write(response["Body"].read())
+                    st.info(f"S3からGoogle SERPデータをダウンロードしました: {serp_path}")
+                except Exception as e:
+                    st.warning(f"Google SERPデータが見つかりません: {serp_path} (S3も失敗)\n{e}")
+            if os.path.exists(serp_path):
+                with open(serp_path, "r", encoding="utf-8") as f:
+                    serp_results = json.load(f)
+                # Perplexity引用データ（カテゴリ単位）
+                pplx_results = {selected_category: category_data}
+                # Google SERPデータ（カテゴリ単位）
+                google_results = {selected_category: serp_results.get(selected_category, {})}
+                # 比較
+                comparison = serp_metrics.compare_with_perplexity(google_results, pplx_results)
+                if selected_category in comparison:
+                    comp = comparison[selected_category]
+                    st.markdown("### Google検索結果との比較")
+                    # ランキング類似度
+                    st.markdown("#### ランキング類似度指標")
+                    st.write({
+                        "RBO": comp["ranking_metrics"]["rbo"],
+                        "Kendall Tau": comp["ranking_metrics"]["kendall_tau"],
+                        "Overlap Ratio": comp["ranking_metrics"]["overlap_ratio"]
+                    })
+                    # 公式/非公式・ポジ/ネガ比率
+                    st.markdown("#### 公式/非公式・ポジ/ネガ比率（Google vs Perplexity）")
+                    import matplotlib.pyplot as plt
+                    import numpy as np
+                    fig, axes = plt.subplots(1, 2, figsize=(8, 3))
+                    labels = ["公式", "非公式"]
+                    google_official = [comp["google_content_metrics"]["official_ratio"], 1-comp["google_content_metrics"]["official_ratio"]]
+                    pplx_official = [0, 1]  # Perplexity引用は公式/非公式判定不可のため仮
+                    axes[0].bar(labels, google_official, color=["#4caf50", "#f44336"])
+                    axes[0].set_title("Google公式/非公式")
+                    axes[1].bar(labels, pplx_official, color=["#4caf50", "#f44336"])
+                    axes[1].set_title("Perplexity公式/非公式")
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    # ポジ/ネガ比率
+                    fig, axes = plt.subplots(1, 2, figsize=(8, 3))
+                    labels = ["ポジティブ", "ネガティブ"]
+                    google_neg = [1-comp["google_content_metrics"]["negative_ratio"], comp["google_content_metrics"]["negative_ratio"]]
+                    pplx_neg = [1, 0]  # Perplexity引用はポジ/ネガ判定不可のため仮
+                    axes[0].bar(labels, google_neg, color=["#2196f3", "#ff9800"])
+                    axes[0].set_title("Googleポジ/ネガ")
+                    axes[1].bar(labels, pplx_neg, color=["#2196f3", "#ff9800"])
+                    axes[1].set_title("Perplexityポジ/ネガ")
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    # ドメインランキング比較
+                    st.markdown("#### ドメインランキング比較")
+                    st.write("Google:", comp["google_domains"])
+                    st.write("Perplexity:", comp["pplx_domains"])
 
             # サブカテゴリがある場合
             if isinstance(category_data, dict) and len(category_data) > 0:
