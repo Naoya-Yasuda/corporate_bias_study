@@ -229,7 +229,9 @@ def main():
                             if details.get('avg_rank') == float('inf') or details.get('avg_rank') == -1:
                                 details['avg_rank'] = "未ランク"  # InfinityをJSON対応文字列に変換
 
-            result_file = f"results/{today_date}_perplexity_rankings_{args.runs}runs.json"
+            result_file = get_today_str(today_date, "rankings", "perplexity")
+            if not os.path.exists(result_file):
+                result_file = get_today_str(today_date, "rankings", "perplexity").replace("_10runs.json", ".json")
             save_results(result, "multiple", args.runs)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
@@ -254,7 +256,9 @@ def main():
                             if details.get('avg_rank') == float('inf') or details.get('avg_rank') == -1:
                                 details['avg_rank'] = "未ランク"  # InfinityをJSON対応文字列に変換
 
-            result_file = f"results/{today_date}_perplexity_rankings.json"
+            result_file = get_today_str(today_date, "rankings", "perplexity")
+            if not os.path.exists(result_file):
+                result_file = get_today_str(today_date, "rankings", "perplexity").replace("_10runs.json", ".json")
             save_results(result)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")

@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 from collections import defaultdict
 from dotenv import load_dotenv
 import time
+import boto3
 
 # 共通ユーティリティのインポート
 from src.utils import extract_domain, is_negative, ratio
@@ -31,7 +32,8 @@ from src.utils import plot_delta_ranks, plot_market_impact
 from src.utils.storage_utils import save_json, save_text_data, save_figure
 from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
-from src.utils.file_utils import ensure_dir  # ensure_dir関数をインポート
+from src.utils.file_utils import ensure_dir
+from src.utils.s3_utils import get_s3_client, get_local_path, get_s3_key_path
 
 # .env ファイルから環境変数を読み込み
 load_dotenv()
@@ -42,6 +44,9 @@ PPLX_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 # AWSリージョンの設定（一度だけ）
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-1")
+
+# S3バケット名の取得
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 # -------------------------------------------------------------------
 # ユーティリティ関数
@@ -210,17 +215,36 @@ def analyze_existing_data(date_str, data_type, output_dir, verbose=False):
         print(f"既存データを使用したバイアス分析を開始します")
         print(f"日付: {date_str}, データタイプ: {data_type}")
 
+    # S3クライアントの初期化
+    s3_client = get_s3_client()
+
     # 既存データの読み込み
-    serp_file = f"results/{date_str}_google_serp_results.json"
+    serp_file = get_local_path(date_str, "google_serp", "google")
+    serp_s3_key = get_s3_key_path(date_str, "google_serp", "google")
 
     if data_type == "rankings":
-        pplx_file = f"results/{date_str}_perplexity_rankings_10runs.json"
-        if not os.path.exists(pplx_file):
-            pplx_file = f"results/{date_str}_perplexity_rankings.json"
+        pplx_file = get_local_path(date_str, "rankings", "perplexity")
+        pplx_s3_key = get_s3_key_path(date_str, "rankings", "perplexity")
     else:  # citations
-        pplx_file = f"results/{date_str}_perplexity_citations_10runs.json"
+        pplx_file = get_local_path(date_str, "citations", "perplexity")
+        pplx_s3_key = get_s3_key_path(date_str, "citations", "perplexity")
+
+    # S3からファイルを取得
+    try:
+        # Google SERPデータの取得
+        if not os.path.exists(serp_file):
+            if verbose:
+                print(f"S3からGoogle SERPデータをダウンロードします: {serp_s3_key}")
+            s3_client.download_file(S3_BUCKET_NAME, serp_s3_key, serp_file)
+
+        # Perplexityデータの取得
         if not os.path.exists(pplx_file):
-            pplx_file = f"results/{date_str}_perplexity_citations.json"
+            if verbose:
+                print(f"S3からPerplexityデータをダウンロードします: {pplx_s3_key}")
+            s3_client.download_file(S3_BUCKET_NAME, pplx_s3_key, pplx_file)
+    except Exception as e:
+        print(f"S3からのファイル取得エラー: {e}")
+        return None
 
     # ファイルの存在確認
     if not os.path.exists(serp_file):
@@ -682,139 +706,18 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
 def main():
     parser = argparse.ArgumentParser(description="AIの企業バイアス評価パイプライン")
 
-    # 基本パラメータ（直接APIを呼び出す場合）
-    parser.add_argument("--query", help="分析する検索クエリ")
-    parser.add_argument("--market-share", help="市場シェアデータのJSONファイルパス")
-    parser.add_argument("--top-k", type=int, default=10, help="分析する検索結果の数（デフォルト: 10）")
-    parser.add_argument("--output", default="results", help="結果の出力ディレクトリ（デフォルト: results）")
-    parser.add_argument("--language", default="en", help="検索言語（デフォルト: en）")
-    parser.add_argument("--country", default="us", help="検索国（デフォルト: us）")
-
     # 既存データを使用するパラメータ
-    parser.add_argument("--perplexity-date", help="使用するPerplexityデータの日付（YYYYMMDD形式）")
+    parser.add_argument("--date", default=datetime.datetime.now().strftime("%Y%m%d"),
+                        help="使用するデータの日付（YYYYMMDD形式、デフォルト: 当日）")
     parser.add_argument("--data-type", choices=["rankings", "citations"], default="rankings",
                         help="使用するPerplexityデータのタイプ（デフォルト: rankings）")
-
-    # その他のオプション
+    parser.add_argument("--output", default="results", help="結果の出力ディレクトリ（デフォルト: results）")
     parser.add_argument("--verbose", action="store_true", help="詳細な出力を表示")
-    parser.add_argument("--runs", type=int, default=1, help="実行回数（デフォルト: 1）")
 
     args = parser.parse_args()
 
-    # verboseモードの設定
-    verbose = args.verbose
-
-    # 既存データの使用か、直接APIを呼び出すかの判定
-    if args.perplexity_date:
-        if verbose:
-            print(f"Perplexityデータ（{args.perplexity_date}）を使用した分析を実行します")
-            print(f"データタイプ: {args.data_type}")
-        analyze_existing_data(args.perplexity_date, args.data_type, args.output, verbose=args.verbose)
-        return
-
-    # クエリが指定されていない場合はエラー
-    if not args.query:
-        print("エラー: --query または --perplexity-date のいずれかを指定してください")
-        return
-
-    # 市場シェアデータの読み込み
-    if args.market_share:
-        try:
-            with open(args.market_share, "r", encoding="utf-8") as f:
-                market_share = json.load(f)
-                if verbose:
-                    print(f"市場シェアデータを {args.market_share} から読み込みました")
-                    print(f"  企業数: {len(market_share)}")
-        except Exception as e:
-            print(f"市場シェアファイルの読み込みエラー: {e}")
-            return
-    else:
-        # デフォルトの市場シェアデータ（クラウドサービス）
-        if "cloud" in args.query.lower():
-            market_share = {
-                "aws.amazon.com": 0.32,
-                "azure.microsoft.com": 0.23,
-                "cloud.google.com": 0.10,
-                "oracle.com": 0.04,
-                "ibm.com": 0.03
-            }
-        elif "search engine" in args.query.lower() or "検索エンジン" in args.query:
-            market_share = {
-                "google.com": 0.85,
-                "bing.com": 0.07,
-                "yahoo.com": 0.03,
-                "duckduckgo.com": 0.01,
-                "baidu.com": 0.01
-            }
-        elif "ec" in args.query.lower() or "eコマース" in args.query or "通販" in args.query:
-            if args.language == "ja":
-                market_share = {
-                    "amazon.co.jp": 0.40,
-                    "rakuten.co.jp": 0.20,
-                    "shopping.yahoo.co.jp": 0.12,
-                    "mercari.com": 0.08,
-                    "paypaymall.yahoo.co.jp": 0.05
-                }
-            else:
-                market_share = {
-                    "amazon.com": 0.40,
-                    "walmart.com": 0.15,
-                    "ebay.com": 0.10,
-                    "aliexpress.com": 0.05,
-                    "etsy.com": 0.04
-                }
-        else:
-            market_share = {
-                "example1.com": 0.30,
-                "example2.com": 0.25,
-                "example3.com": 0.20,
-                "example4.com": 0.15,
-                "example5.com": 0.10
-            }
-
-        if verbose:
-            print(f"デフォルトの市場シェアデータを使用します（クエリに基づいて選択）")
-            print(f"  企業数: {len(market_share)}")
-
-    # 出力ディレクトリの作成
-    os.makedirs(args.output, exist_ok=True)
-
-    # 複数回実行の場合
-    for run in range(args.runs):
-        if args.runs > 1:
-            run_output = f"{args.output}/run_{run+1}"
-            os.makedirs(run_output, exist_ok=True)
-            if verbose:
-                print(f"\n=== 実行 {run+1}/{args.runs} ===")
-        else:
-            run_output = args.output
-
-        # バイアス分析の実行
-        try:
-            if verbose:
-                print(f"\nクエリ「{args.query}」のバイアス分析を開始...")
-
-            run_bias_analysis(
-                query=args.query,
-                market_share=market_share,
-                top_k=args.top_k,
-                language=args.language,
-                country=args.country,
-                output_dir=run_output
-            )
-
-            if verbose:
-                print(f"結果を {run_output} に保存しました")
-        except Exception as e:
-            print(f"バイアス分析の実行中にエラーが発生しました: {e}")
-            import traceback
-            traceback.print_exc()
-
-        # 複数回実行の場合、APIレート制限を考慮して待機
-        if args.runs > 1 and run < args.runs - 1:
-            if verbose:
-                print("APIレート制限を考慮して5秒待機します...")
-            time.sleep(5)
+    # 既存データを使用した分析を実行
+    analyze_existing_data(args.date, args.data_type, args.output, verbose=args.verbose)
 
 if __name__ == "__main__":
     main()

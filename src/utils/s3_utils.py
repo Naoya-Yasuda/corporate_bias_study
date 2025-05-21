@@ -167,3 +167,70 @@ def put_json_to_s3(data, s3_key):
     except Exception as e:
         print(f"S3へのJSONアップロードに失敗しました: {e}")
         return False
+
+def get_s3_key_path(date_str: str, data_type: str, file_type: str) -> str:
+    """
+    S3のキーパスを生成します。
+
+    Parameters:
+    -----------
+    date_str : str
+        日付（YYYYMMDD形式）
+    data_type : str
+        データタイプ（'rankings', 'citations', 'sentiment', 'google_serp'）
+    file_type : str
+        ファイルタイプ（'perplexity', 'google'）
+
+    Returns:
+    --------
+    str
+        S3のキーパス
+    """
+    base_path = f"results/{data_type}/{date_str}"
+
+    if file_type == "perplexity":
+        if data_type == "rankings":
+            return f"{base_path}/{date_str}_perplexity_rankings_10runs.json"
+        elif data_type == "citations":
+            return f"{base_path}/{date_str}_perplexity_citations_10runs.json"
+        elif data_type == "sentiment":
+            return f"{base_path}/{date_str}_perplexity_sentiment_3runs.json"
+    elif file_type == "google":
+        if data_type == "google_serp":
+            return f"{base_path}/{date_str}_google_serp_results.json"
+
+    raise ValueError(f"未対応のデータタイプまたはファイルタイプ: {data_type}, {file_type}")
+
+def get_local_path(date_str: str, data_type: str, file_type: str) -> str:
+    """
+    ローカルのファイルパスを生成します。
+
+    Parameters:
+    -----------
+    date_str : str
+        日付（YYYYMMDD形式）
+    data_type : str
+        データタイプ（'rankings', 'citations', 'sentiment', 'google_serp'）
+    file_type : str
+        ファイルタイプ（'perplexity', 'google'）
+
+    Returns:
+    --------
+    str
+        ローカルのファイルパス
+    """
+    base_path = f"results/{data_type}/{date_str}"
+    os.makedirs(base_path, exist_ok=True)
+
+    if file_type == "perplexity":
+        if data_type == "rankings":
+            return f"{base_path}/{date_str}_perplexity_rankings_10runs.json"
+        elif data_type == "citations":
+            return f"{base_path}/{date_str}_perplexity_citations_10runs.json"
+        elif data_type == "sentiment":
+            return f"{base_path}/{date_str}_perplexity_sentiment_3runs.json"
+    elif file_type == "google":
+        if data_type == "google_serp":
+            return f"{base_path}/{date_str}_google_serp_results.json"
+
+    raise ValueError(f"未対応のデータタイプまたはファイルタイプ: {data_type}, {file_type}")

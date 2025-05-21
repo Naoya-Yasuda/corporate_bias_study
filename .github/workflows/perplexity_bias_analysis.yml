@@ -103,14 +103,10 @@ jobs:
       - name: Run bias ranking pipeline
         run: |
           echo "開始: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
-          # クラウドサービス分析
-          python -m src.analysis.bias_ranking_pipeline --query "best cloud providers 2025" --output results/bias_analysis/cloud_services --verbose | tee -a logs/bias_ranking_pipeline.log
-          # 検索エンジン分析
-          python -m src.analysis.bias_ranking_pipeline --query "top search engines comparison" --output results/bias_analysis/search_engines --verbose | tee -a logs/bias_ranking_pipeline.log
-          # ECサイト分析（日本語）
-          python -m src.analysis.bias_ranking_pipeline --query "おすすめのECサイト比較" --language ja --country jp --output results/bias_analysis/ec_sites_jp --verbose | tee -a logs/bias_ranking_pipeline.log
+          # ランキングデータを使用した分析
+          python -m src.analysis.bias_ranking_pipeline --data-type rankings --output results/bias_analysis/rankings --verbose | tee -a logs/bias_ranking_pipeline.log
           # 引用リンクデータを使用した分析
-          python -m src.analysis.bias_ranking_pipeline --perplexity-date ${{ env.TODAY_DATE }} --data-type citations --output results/bias_analysis/citations_comparison --verbose | tee -a logs/bias_ranking_pipeline.log
+          python -m src.analysis.bias_ranking_pipeline --data-type citations --output results/bias_analysis/citations --verbose | tee -a logs/bias_ranking_pipeline.log
           echo "完了: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
           echo "全プロセス完了: $(date)" | tee -a logs/execution.log
 

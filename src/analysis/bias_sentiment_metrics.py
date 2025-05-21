@@ -19,7 +19,7 @@ from tqdm import trange, tqdm
 from src.analysis.ranking_metrics import analyze_s3_rankings
 from dotenv import load_dotenv
 import boto3
-from src.utils.file_utils import ensure_dir, get_today_str
+from src.utils.file_utils import ensure_dir, get_today_str, get_local_path
 from src.utils.s3_utils import save_to_s3, put_json_to_s3
 
 # .envファイルから環境変数を読み込む
@@ -428,11 +428,11 @@ def main():
         logging.info("詳細ログモードが有効になりました")
 
     # 入力ファイルパスの生成
-    input_file = f"results/perplexity/sentiment/{args.date}_perplexity_sentiment_{args.runs}runs.json"
+    input_file = get_local_path(args.date, "sentiment", "perplexity")
     if not os.path.exists(input_file):
         print(f"警告: 指定されたファイルが見つかりません: {input_file}")
         # 利用可能なファイルを検索
-        sentiment_dir = "results/perplexity/sentiment"
+        sentiment_dir = "results/sentiment"
         if os.path.exists(sentiment_dir):
             available_files = [f for f in os.listdir(sentiment_dir) if f.endswith('.json')]
             if available_files:

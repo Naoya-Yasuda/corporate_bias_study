@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple, Union, Optional
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
-from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME
+from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME, get_local_path
 
 # 共通ユーティリティをインポート
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share, gini_coefficient
@@ -279,16 +279,14 @@ def load_and_integrate_metrics(
             # 優先順位: _10runs > _3runs > 単一
             s3_candidates.sort(key=lambda x: ("_10runs" in x, "_3runs" in x), reverse=True)
             s3_key = s3_candidates[0]
-            local_path = f"results/{os.path.basename(s3_key)}"
+            local_path = get_local_path(date_str, "rankings", "perplexity")
             s3_client.download_file(S3_BUCKET_NAME, s3_key, local_path)
             pplx_file = local_path
             if verbose:
                 print(f"S3からPerplexityランキングデータをダウンロードしました: {s3_key}")
         else:
             # ローカルファイルを確認
-            pplx_file = f"results/perplexity_rankings/{date_str}/{date_str}_perplexity_rankings_10runs.json"
-            if not os.path.exists(pplx_file):
-                pplx_file = f"results/perplexity_rankings/{date_str}/{date_str}_perplexity_rankings.json"
+            pplx_file = get_local_path(date_str, "rankings", "perplexity")
             if not os.path.exists(pplx_file):
                 print(f"Perplexityデータが見つかりません: {date_str}のランキングデータを先に生成してください。")
                 return None
@@ -304,7 +302,7 @@ def load_and_integrate_metrics(
 
     # Google SERPデータの読み込み
     try:
-        serp_file = f"results/google_serp/{date_str}/{date_str}_google_serp_results.json"
+        serp_file = get_local_path(date_str, "google_serp", "google")
         with open(serp_file, "r", encoding="utf-8") as f:
             serp_data = json.load(f)
             if verbose:
@@ -316,10 +314,7 @@ def load_and_integrate_metrics(
 
     # 引用リンクデータの読み込み
     try:
-        citations_file = f"results/perplexity_citations/{date_str}/{date_str}_perplexity_citations_10runs.json"
-        if not os.path.exists(citations_file):
-            citations_file = f"results/perplexity_citations/{date_str}/{date_str}_perplexity_citations.json"
-
+        citations_file = get_local_path(date_str, "citations", "perplexity")
         if os.path.exists(citations_file):
             with open(citations_file, "r", encoding="utf-8") as f:
                 citations_data = json.load(f)
