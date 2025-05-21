@@ -19,7 +19,7 @@ from tqdm import trange, tqdm
 from src.analysis.ranking_metrics import analyze_s3_rankings
 from dotenv import load_dotenv
 import boto3
-from src.utils.file_utils import ensure_dir, get_today_str
+from src.utils.file_utils import ensure_dir, get_today_str, get_latest_file
 from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_local_path
 
 # .envファイルから環境変数を読み込む
@@ -435,25 +435,18 @@ def main():
             print(f"エラー: 指定されたファイルが見つかりません: {input_file}")
             return
     else:
-        # 日付からファイルパスを生成
-        input_file = get_local_path(args.date, "sentiment", "perplexity")
-        if not os.path.exists(input_file):
-            print(f"警告: 指定されたファイルが見つかりません: {input_file}")
-            # 利用可能なファイルを検索
-            sentiment_dir = "results/sentiment"
-            if os.path.exists(sentiment_dir):
-                available_files = [f for f in os.listdir(sentiment_dir) if f.endswith('.json')]
-                if available_files:
-                    print("\n利用可能なファイル:")
-                    for f in sorted(available_files):
-                        print(f"  - {f}")
-                    # 最新のファイルを使用
-                    latest_file = sorted(available_files)[-1]
-                    input_file = os.path.join(sentiment_dir, latest_file)
-                    print(f"\n最新のファイルを使用します: {input_file}")
-                else:
-                    print(f"エラー: {sentiment_dir} にJSONファイルが見つかりません")
-                    return
+        # S3から最新のファイルを取得
+        s3_key, content = get_latest_file(args.date, "sentiment", args.api_type)
+        if not content:
+            print(f"⚠️ {args.date}の感情スコアデータが見つかりません")
+            return
+
+        # 一時ファイルとして保存
+        os.makedirs("results/temp", exist_ok=True)
+        input_file = f"results/temp/{args.date}_sentiment_temp.json"
+        with open(input_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"📥 S3からデータを取得: {s3_key}")
 
     # バイアス分析を実行
     bias_metrics, category_summary = analyze_bias_from_file(input_file, args.output, verbose=args.verbose)
@@ -487,6 +480,10 @@ def main():
             print("\n✅ バイアス分析とランキング分析が完了しました")
         else:
             print("\n⚠️ ランキング分析は失敗しましたが、バイアス分析は完了しています")
+
+    # 一時ファイルの削除
+    if not args.input_file and os.path.exists(input_file):
+        os.remove(input_file)
 
 if __name__ == "__main__":
     main()
