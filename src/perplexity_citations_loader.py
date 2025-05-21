@@ -131,6 +131,10 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
             for i, url in enumerate(citations):
                 print(f"{i+1}. {url}")
 
+            # citationsが文字列のリストの場合、辞書のリストに変換
+            if citations and isinstance(citations[0], str):
+                citations = [{"url": url} for url in citations]
+
         # 引用情報が見つからない場合
         if not citations:
             print("  APIレスポンスから引用情報を取得できませんでした")
