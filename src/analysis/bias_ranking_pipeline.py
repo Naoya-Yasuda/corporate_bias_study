@@ -191,13 +191,20 @@ def perplexity_api(query, model="sonar-small-chat"):
 # -------------------------------------------------------------------
 # 既存データ解析関数
 # -------------------------------------------------------------------
-def analyze_existing_data(date_str, api_type="perplexity"):
+def analyze_existing_data(date_str, data_type="rankings", output_dir="results", verbose=False):
     """既存のデータを分析"""
     print(f"\n=== {date_str}の既存データを分析 ===")
 
     # 出力ディレクトリの設定
-    output_dir = f"results/bias_analysis/{date_str}"
+    output_dir = os.path.join(output_dir, f"bias_analysis/{date_str}")
     os.makedirs(output_dir, exist_ok=True)
+
+    # 詳細ログの設定
+    if verbose:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+        logger.info(f"詳細ログモードで分析を実行中: {date_str}, データタイプ: {data_type}")
 
     # S3クライアントの初期化
     s3_client = get_s3_client()
@@ -478,7 +485,12 @@ def main():
     args = parser.parse_args()
 
     # 既存データを使用した分析を実行
-    analyze_existing_data(args.date, args.data_type, args.output, verbose=args.verbose)
+    analyze_existing_data(
+        date_str=args.date,
+        data_type=args.data_type,
+        output_dir=args.output,
+        verbose=args.verbose
+    )
 
 if __name__ == "__main__":
     main()
