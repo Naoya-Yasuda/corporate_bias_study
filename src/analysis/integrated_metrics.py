@@ -22,6 +22,10 @@ from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share, gini_coefficient
 from src.utils.storage_utils import save_json
 
+# AWS設定を一度だけ行う
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
+s3_client = get_s3_client()
+
 def calculate_integrated_hhi(
     market_shares: Dict[str, Dict[str, float]],
     top_probabilities: Dict[str, Dict[str, Dict[str, float]]],
@@ -58,7 +62,7 @@ def calculate_integrated_hhi(
     """
     # 出力ディレクトリの作成
     if save_results:
-        ensure_dir(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
 
     # 統合結果の辞書
     integrated_results = {}
@@ -261,32 +265,34 @@ def load_and_integrate_metrics(
 
     # Perplexityランキングデータの読み込み
     try:
-        pplx_file = f"results/{date_str}_perplexity_rankings_10runs.json"
-        if not os.path.exists(pplx_file):
-            pplx_file = f"results/{date_str}_perplexity_rankings.json"
-        if not os.path.exists(pplx_file):
-            # S3から探す
-            s3_client = get_s3_client()
-            s3_prefix = f"results/perplexity_rankings/{date_str}/"
-            response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=s3_prefix)
-            s3_candidates = []
-            if 'Contents' in response:
-                for obj in response['Contents']:
-                    key = obj['Key']
-                    if re.search(rf"{date_str}_perplexity_rankings(_\d+runs)?\\.json$", key):
-                        s3_candidates.append(key)
-            if s3_candidates:
-                # 優先順位: _10runs > _3runs > 単一
-                s3_candidates.sort(key=lambda x: ("_10runs" in x, "_3runs" in x), reverse=True)
-                s3_key = s3_candidates[0]
-                local_path = f"results/{os.path.basename(s3_key)}"
-                s3_client.download_file(S3_BUCKET_NAME, s3_key, local_path)
-                pplx_file = local_path
-                if verbose:
-                    print(f"S3からPerplexityランキングデータをダウンロードしました: {s3_key}")
-            else:
-                print(f"Perplexityデータが見つかりません: {date_str}_perplexity_rankings_10runs.json または {date_str}_perplexity_rankings.json を先に生成してください。")
+        # S3から探す
+        s3_prefix = f"results/perplexity_rankings/{date_str}/"
+        response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=s3_prefix)
+        s3_candidates = []
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                key = obj['Key']
+                if re.search(rf"{date_str}_perplexity_rankings(_\d+runs)?\\.json$", key):
+                    s3_candidates.append(key)
+
+        if s3_candidates:
+            # 優先順位: _10runs > _3runs > 単一
+            s3_candidates.sort(key=lambda x: ("_10runs" in x, "_3runs" in x), reverse=True)
+            s3_key = s3_candidates[0]
+            local_path = f"results/{os.path.basename(s3_key)}"
+            s3_client.download_file(S3_BUCKET_NAME, s3_key, local_path)
+            pplx_file = local_path
+            if verbose:
+                print(f"S3からPerplexityランキングデータをダウンロードしました: {s3_key}")
+        else:
+            # ローカルファイルを確認
+            pplx_file = f"results/perplexity_rankings/{date_str}/{date_str}_perplexity_rankings_10runs.json"
+            if not os.path.exists(pplx_file):
+                pplx_file = f"results/perplexity_rankings/{date_str}/{date_str}_perplexity_rankings.json"
+            if not os.path.exists(pplx_file):
+                print(f"Perplexityデータが見つかりません: {date_str}のランキングデータを先に生成してください。")
                 return None
+
         with open(pplx_file, "r", encoding="utf-8") as f:
             pplx_data = json.load(f)
             if verbose:
@@ -298,7 +304,7 @@ def load_and_integrate_metrics(
 
     # Google SERPデータの読み込み
     try:
-        serp_file = f"results/{date_str}_google_serp_results.json"
+        serp_file = f"results/google_serp/{date_str}/{date_str}_google_serp_results.json"
         with open(serp_file, "r", encoding="utf-8") as f:
             serp_data = json.load(f)
             if verbose:
@@ -310,9 +316,9 @@ def load_and_integrate_metrics(
 
     # 引用リンクデータの読み込み
     try:
-        citations_file = f"results/{date_str}_perplexity_citations_10runs.json"
+        citations_file = f"results/perplexity_citations/{date_str}/{date_str}_perplexity_citations_10runs.json"
         if not os.path.exists(citations_file):
-            citations_file = f"results/{date_str}_perplexity_citations.json"
+            citations_file = f"results/perplexity_citations/{date_str}/{date_str}_perplexity_citations.json"
 
         if os.path.exists(citations_file):
             with open(citations_file, "r", encoding="utf-8") as f:
@@ -328,154 +334,4 @@ def load_and_integrate_metrics(
         print(f"引用リンクデータの読み込みエラー: {e}")
         citations_data = None
 
-    # 上位確率データの抽出と構造化
-    top_probabilities = {"perplexity": {}, "google": {}}
-
-    # Perplexityランキングからの確率抽出
-    for category, data in pplx_data.items():
-        if category not in market_shares:
-            continue
-
-        # 複数回実行データの構造に対応
-        if isinstance(data, dict) and "all_rankings" in data:
-            # 複数回実行からの出現確率計算
-            runs = data["all_rankings"]
-            services = market_shares[category].keys()
-
-            # 上位k=5での出現回数を集計
-            k = 5
-            counts = {service: 0 for service in services}
-            total_runs = len(runs)
-
-            for run in runs:
-                top_k = run[:k] if len(run) >= k else run
-                for service in services:
-                    if service in top_k:
-                        counts[service] += 1
-
-            # 確率に変換
-            top_probabilities["perplexity"][category] = {
-                service: count / total_runs for service, count in counts.items()
-            }
-            if verbose:
-                print(f"Perplexity「{category}」の上位確率を抽出しました（{total_runs}回実行）")
-
-        elif isinstance(data, dict) and "ranking" in data:
-            # 単一実行の場合
-            ranking = data["ranking"]
-            services = market_shares[category].keys()
-
-            k = 5
-            top_k = ranking[:k] if len(ranking) >= k else ranking
-
-            # 上位kにあれば1、なければ0の二値確率
-            top_probabilities["perplexity"][category] = {
-                service: 1.0 if service in top_k else 0.0 for service in services
-            }
-            if verbose:
-                print(f"Perplexity「{category}」の上位確率を抽出しました（単一実行）")
-
-    # Google SERPからの確率抽出
-    for category, data in serp_data.items():
-        if category not in market_shares:
-            continue
-
-        results = data.get("results", [])
-        if not results:
-            continue
-
-        # 企業名を抽出
-        companies = [r.get("company", "") for r in results]
-        services = market_shares[category].keys()
-
-        # 上位k=5での出現確率
-        k = 5
-        top_k = companies[:k] if len(companies) >= k else companies
-
-        top_probabilities["google"][category] = {
-            service: 1.0 if service in top_k else 0.0 for service in services
-        }
-        if verbose:
-            print(f"Google SERP「{category}」の上位確率を抽出しました")
-
-    # 引用リンクデータがあれば追加
-    if citations_data:
-        top_probabilities["citations"] = {}
-
-        for category, data in citations_data.items():
-            if category not in market_shares:
-                continue
-
-            # サブカテゴリ取得
-            subcategories = list(data.keys())
-            if not subcategories:
-                continue
-
-            subcategory = subcategories[0]
-
-            # ドメインランキングの取得
-            if "domain_rankings" in data[subcategory]:
-                domains = [item["domain"] for item in data[subcategory]["domain_rankings"]]
-                if verbose:
-                    print(f"Perplexity引用「{category}」のドメインランキングを抽出しました")
-            elif "citations" in data[subcategory]:
-                domains = [citation.get("domain", "") for citation in data[subcategory]["citations"]]
-                if verbose:
-                    print(f"Perplexity引用「{category}」の引用リンクを抽出しました")
-            else:
-                continue
-
-            services = market_shares[category].keys()
-
-            # 上位k=5での出現確率
-            k = 5
-            top_k = domains[:k] if len(domains) >= k else domains
-
-            top_probabilities["citations"][category] = {
-                service: 1.0 if service in top_k else 0.0 for service in services
-            }
-
-    # 統合HHI計算の実行
-    if verbose:
-        print("\n統合HHI計算を開始します...")
-
-    result = calculate_integrated_hhi(
-        market_shares,
-        top_probabilities,
-        output_dir=output_dir,
-        save_results=True,
-        visualize=visualize
-    )
-
-    if verbose:
-        print(f"統合HHI計算が完了しました: {len(result)}カテゴリ")
-        for category, data in result.items():
-            print(f"\nカテゴリ: {category}")
-            print(f"  市場HHI: {data['market_hhi']:.1f} ({data['market_concentration']})")
-            print("  サービスHHI比率:")
-            for service, ratio in data['service_hhi_ratio'].items():
-                print(f"    {service}: {ratio:.2f}")
-
-    return result
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="複数指標の統合分析を行います")
-    parser.add_argument("--date", required=True, help="分析対象日付（YYYYMMDD形式）")
-    parser.add_argument("--output", default="results/integrated_metrics", help="出力ディレクトリ")
-    parser.add_argument("--no-viz", action="store_true", help="視覚化を無効化")
-    parser.add_argument("--verbose", action="store_true", help="詳細な出力を表示")
-
-    args = parser.parse_args()
-
-    result = load_and_integrate_metrics(
-        args.date,
-        output_dir=args.output,
-        visualize=not args.no_viz,
-        verbose=args.verbose
-    )
-
-    if result:
-        print(f"統合分析が完了しました。結果は {args.output} に保存されています。")
-    else:
-        print("統合分析に失敗しました。")
+    # ... existing code ...
