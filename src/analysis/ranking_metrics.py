@@ -542,25 +542,44 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         # カテゴリデータの構造を確認（ランキング結果を取得）
         runs = []
         if isinstance(data, dict):
-            if "all_rankings" in data:
-                # 複数実行結果の場合（recommended）
-                runs = data["all_rankings"]
+            # サブカテゴリの処理
+            for subcategory, subdata in data.items():
+                if isinstance(subdata, dict):
+                    if "all_rankings" in subdata:
+                        # 複数実行結果の場合（recommended）
+                        runs.extend(subdata["all_rankings"])
+                        if verbose:
+                            logging.info(f"複数実行データを検出: {len(subdata['all_rankings'])}回分のランキング")
+                    elif "ranking" in subdata:
+                        # 単一実行結果の場合
+                        runs.append(subdata["ranking"])
+                        if verbose:
+                            logging.info("単一実行データを検出")
+                    elif "search_result_companies" in subdata:
+                        # 新しい形式（search_result_companiesを使用）
+                        runs.append(subdata["search_result_companies"])
+                        if verbose:
+                            logging.info("search_result_companiesデータを検出")
+                    else:
+                        print(f"  ⚠️ 不明な辞書形式: {list(subdata.keys())}")
+                        if verbose:
+                            logging.warning(f"不明な辞書形式: {list(subdata.keys())}")
+                        continue
+                elif isinstance(subdata, list):
+                    # ランキングのリストの場合
+                    runs.extend(subdata)
+                    if verbose:
+                        logging.info(f"ランキングリストを検出: {len(subdata)}項目")
+                else:
+                    print(f"  ⚠️ 不明なデータ形式: {type(subdata)}")
+                    if verbose:
+                        logging.warning(f"不明なデータ形式: {type(subdata)}")
+                    continue
+
+            if not runs:
+                print(f"  ⚠️ 有効なランキングデータが見つかりません")
                 if verbose:
-                    logging.info(f"複数実行データを検出: {len(runs)}回分のランキング")
-            elif "ranking" in data:
-                # 単一実行結果の場合
-                runs = [data["ranking"]]
-                if verbose:
-                    logging.info("単一実行データを検出")
-            elif "search_result_companies" in data:
-                # 新しい形式（search_result_companiesを使用）
-                runs = [data["search_result_companies"]]
-                if verbose:
-                    logging.info("search_result_companiesデータを検出")
-            else:
-                print(f"  ⚠️ 不明な辞書形式: {list(data.keys())}")
-                if verbose:
-                    logging.warning(f"不明な辞書形式: {list(data.keys())}")
+                    logging.warning("有効なランキングデータが見つかりません")
                 continue
         elif isinstance(data, list):
             # ランキングのリストの場合
