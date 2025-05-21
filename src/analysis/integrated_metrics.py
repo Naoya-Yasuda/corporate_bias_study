@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple, Union, Optional
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
-from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME, get_local_path
+from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME, get_local_path, get_s3_key_path, get_latest_file
 
 # 共通ユーティリティをインポート
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share, gini_coefficient
@@ -265,66 +265,83 @@ def load_and_integrate_metrics(
 
     # Perplexityランキングデータの読み込み
     try:
-        # S3から探す
-        s3_prefix = f"results/perplexity_rankings/{date_str}/"
-        response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=s3_prefix)
-        s3_candidates = []
-        if 'Contents' in response:
-            for obj in response['Contents']:
-                key = obj['Key']
-                if re.search(rf"{date_str}_perplexity_rankings(_\d+runs)?\\.json$", key):
-                    s3_candidates.append(key)
+        # S3から最新のランキングファイルを取得
+        s3_key, content = get_latest_file(date_str, "rankings", "perplexity")
 
-        if s3_candidates:
-            # 優先順位: _10runs > _3runs > 単一
-            s3_candidates.sort(key=lambda x: ("_10runs" in x, "_3runs" in x), reverse=True)
-            s3_key = s3_candidates[0]
-            local_path = get_local_path(date_str, "rankings", "perplexity")
-            s3_client.download_file(S3_BUCKET_NAME, s3_key, local_path)
-            pplx_file = local_path
+        if content:
+            perplexity_data = json.loads(content)
+            perplexity_path = os.path.join(output_dir, f"{date_str}_perplexity_rankings.json")
+            with open(perplexity_path, 'w', encoding='utf-8') as f:
+                json.dump(perplexity_data, f, ensure_ascii=False, indent=4)
             if verbose:
                 print(f"S3からPerplexityランキングデータをダウンロードしました: {s3_key}")
         else:
             # ローカルファイルを確認
-            pplx_file = get_local_path(date_str, "rankings", "perplexity")
-            if not os.path.exists(pplx_file):
+            perplexity_path = get_local_path(date_str, "rankings", "perplexity")
+            if not os.path.exists(perplexity_path):
                 print(f"Perplexityデータが見つかりません: {date_str}のランキングデータを先に生成してください。")
                 return None
+            with open(perplexity_path, "r", encoding="utf-8") as f:
+                perplexity_data = json.load(f)
 
-        with open(pplx_file, "r", encoding="utf-8") as f:
-            pplx_data = json.load(f)
-            if verbose:
-                print(f"Perplexityランキングデータを読み込みました: {pplx_file}")
-                print(f"  カテゴリ数: {len(pplx_data)}")
+        if verbose:
+            print(f"Perplexityランキングデータを読み込みました: {perplexity_path}")
+            print(f"  カテゴリ数: {len(perplexity_data)}")
     except Exception as e:
         print(f"Perplexityデータの読み込みエラー: {e}")
         return None
 
     # Google SERPデータの読み込み
     try:
-        serp_file = get_local_path(date_str, "google_serp", "google")
-        with open(serp_file, "r", encoding="utf-8") as f:
-            serp_data = json.load(f)
+        serp_key, serp_content = get_latest_file(date_str, "google_serp", "google")
+
+        if serp_content:
+            serp_data = json.loads(serp_content)
+            serp_path = os.path.join(output_dir, f"{date_str}_google_serp.json")
+            with open(serp_path, 'w', encoding='utf-8') as f:
+                json.dump(serp_data, f, ensure_ascii=False, indent=4)
             if verbose:
-                print(f"Google SERPデータを読み込みました: {serp_file}")
-                print(f"  カテゴリ数: {len(serp_data)}")
+                print(f"S3からGoogle SERPデータをダウンロードしました: {serp_key}")
+        else:
+            # ローカルファイルを確認
+            serp_path = get_local_path(date_str, "google_serp", "google")
+            if not os.path.exists(serp_path):
+                print(f"Google SERPデータが見つかりません: {date_str}のSERPデータを先に生成してください。")
+                return None
+            with open(serp_path, "r", encoding="utf-8") as f:
+                serp_data = json.load(f)
+
+        if verbose:
+            print(f"Google SERPデータを読み込みました: {serp_path}")
+            print(f"  カテゴリ数: {len(serp_data)}")
     except Exception as e:
         print(f"Google SERPデータの読み込みエラー: {e}")
         return None
 
     # 引用リンクデータの読み込み
     try:
-        citations_file = get_local_path(date_str, "citations", "perplexity")
-        if os.path.exists(citations_file):
-            with open(citations_file, "r", encoding="utf-8") as f:
-                citations_data = json.load(f)
-                if verbose:
-                    print(f"引用リンクデータを読み込みました: {citations_file}")
-                    print(f"  カテゴリ数: {len(citations_data)}")
-        else:
-            citations_data = None
+        citations_key, citations_content = get_latest_file(date_str, "citations", "perplexity")
+
+        if citations_content:
+            citations_data = json.loads(citations_content)
+            citations_path = os.path.join(output_dir, f"{date_str}_perplexity_citations.json")
+            with open(citations_path, 'w', encoding='utf-8') as f:
+                json.dump(citations_data, f, ensure_ascii=False, indent=4)
             if verbose:
-                print("引用リンクデータは見つかりませんでした")
+                print(f"S3から引用リンクデータをダウンロードしました: {citations_key}")
+        else:
+            # ローカルファイルを確認
+            citations_path = get_local_path(date_str, "citations", "perplexity")
+            if not os.path.exists(citations_path):
+                if verbose:
+                    print("引用リンクデータは見つかりませんでした")
+                citations_data = None
+            else:
+                with open(citations_path, "r", encoding="utf-8") as f:
+                    citations_data = json.load(f)
+                if verbose:
+                    print(f"引用リンクデータを読み込みました: {citations_path}")
+                    print(f"  カテゴリ数: {len(citations_data)}")
     except Exception as e:
         print(f"引用リンクデータの読み込みエラー: {e}")
         citations_data = None

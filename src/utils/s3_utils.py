@@ -246,3 +246,104 @@ def get_local_path(date_str, data_type, file_type):
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
     return local_path
+
+def get_latest_file(date_str=None, data_type="rankings", api_type="perplexity", prefix="results/"):
+    """
+    指定した日付の最新ファイルを取得
+
+    Parameters
+    ----------
+    date_str : str, optional
+        YYYYMMDD形式の日付文字列、未指定時は最新日付
+    data_type : str, optional
+        データタイプ（"rankings", "citations", "sentiment", "google_serp"）
+    api_type : str, optional
+        APIタイプ（"perplexity", "google"）
+    prefix : str, optional
+        S3内のプレフィックス
+
+    Returns
+    -------
+    tuple
+        (s3_key, json_content) のタプル、見つからない場合は (None, None)
+    """
+    s3_client = get_s3_client()
+
+    # データタイプに応じたディレクトリ名を設定
+    dir_map = {
+        "rankings": "perplexity_rankings",
+        "citations": "perplexity_citations",
+        "sentiment": "perplexity_sentiment",
+        "google_serp": "google_serp"
+    }
+    dir_name = dir_map.get(data_type, data_type)
+
+    # 日付が指定されている場合はその日付のディレクトリを検索
+    if date_str:
+        prefix = f"{prefix}{dir_name}/{date_str}/"
+    else:
+        prefix = f"{prefix}{dir_name}/"
+
+    try:
+        # 指定プレフィックスのファイル一覧を取得
+        response = s3_client.list_objects_v2(
+            Bucket=S3_BUCKET_NAME,
+            Prefix=prefix
+        )
+
+        if 'Contents' not in response:
+            print(f"ファイルが見つかりません: {prefix}")
+            return None, None
+
+        # データタイプに一致するファイルをフィルタリング
+        target_files = [item for item in response['Contents']
+                       if item['Key'].endswith('.json') and data_type in item['Key']]
+
+        if not target_files:
+            print(f"ファイルが見つかりません: {prefix}")
+            return None, None
+
+        # 複数回実行のファイルを優先的に選択
+        multi_run_files = [f for f in target_files if '_runs.json' in f['Key']]
+        if multi_run_files:
+            # 実行回数が多いものを優先し、同じ実行回数の場合は更新日時が新しいものを選択
+            target_file = sorted(multi_run_files,
+                               key=lambda x: (
+                                   int(x['Key'].split('_runs')[0].split('_')[-1]),  # 実行回数
+                                   x['LastModified']  # 更新日時
+                               ),
+                               reverse=True)[0]
+        else:
+            # 単一実行のファイルを使用（更新日時が新しいものを選択）
+            target_file = sorted([f for f in target_files if not '_runs.json' in f['Key']],
+                               key=lambda x: x['LastModified'],
+                               reverse=True)[0]
+
+        # ファイルの内容を取得
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=target_file['Key'])
+        content = response['Body'].read().decode('utf-8')
+
+        return target_file['Key'], content
+
+    except Exception as e:
+        print(f"S3からのファイル取得エラー: {e}")
+        return None, None
+
+# 後方互換性のためにget_latest_ranking_fileを残す
+def get_latest_ranking_file(date_str=None, prefix="results/rankings/"):
+    """
+    指定した日付の最新ランキングファイルを取得（後方互換性用）
+
+    Parameters
+    ----------
+    date_str : str, optional
+        YYYYMMDD形式の日付文字列、未指定時は最新日付
+    prefix : str, optional
+        S3内のプレフィックス
+
+    Returns
+    -------
+    tuple
+        (s3_key, json_content) のタプル、見つからない場合は (None, None)
+    """
+    return get_latest_file(date_str, "rankings", "perplexity", prefix)

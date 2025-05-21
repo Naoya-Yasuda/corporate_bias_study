@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 import boto3
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_s3_client, get_s3_key_path, get_local_path
-from src.utils.s3_utils import upload_to_s3
+from src.utils.s3_utils import upload_to_s3, get_latest_file, get_latest_ranking_file
 from src.utils.file_utils import load_json
 from src.utils.storage_utils import save_json
 from src.utils.rank_utils import compute_tau, rbo
@@ -116,50 +116,6 @@ def download_from_s3(s3_key):
     except Exception as e:
         print(f"S3ダウンロードエラー ({s3_key}): {e}")
         return None
-
-def get_latest_ranking_file(date_str=None, prefix="results/perplexity_rankings/"):
-    """
-    指定した日付の最新ランキングファイルを取得
-
-    Parameters
-    ----------
-    date_str : str, optional
-        YYYYMMDD形式の日付文字列、未指定時は最新日付
-    prefix : str, optional
-        S3内のプレフィックス
-
-    Returns
-    -------
-    tuple
-        (s3_key, json_content) のタプル、見つからない場合は (None, None)
-    """
-    files = list_s3_files(prefix)
-
-    # ランキングファイルをフィルタリング
-    import re
-    ranking_files = [f for f in files if re.search(r'_rankings(_\d+runs)?\.json$', f)]
-
-    if not ranking_files:
-        print(f"ランキングファイルが見つかりません: {prefix}")
-        return None, None
-
-    # 日付でフィルタリング
-    if date_str:
-        ranking_files = [f for f in ranking_files if date_str in f]
-        if not ranking_files:
-            print(f"{date_str}のランキングファイルが見つかりません")
-            return None, None
-
-    # 複数実行版を優先的に選択（より信頼性が高いため）
-    multi_run_files = [f for f in ranking_files if '_5runs.json' in f]
-    target_file = multi_run_files[0] if multi_run_files else ranking_files[0]
-
-    # ファイルの内容を取得
-    content = download_from_s3(target_file)
-    if content:
-        return target_file, content
-
-    return None, None
 
 # -----------------------------
 # 1. 上位出現確率・露出度
@@ -502,8 +458,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         logging.info(f"出力ディレクトリを作成: {output_dir}")
 
     # S3からランキングデータを取得
-    s3_key = get_s3_key_path(date_str, "rankings", api_type)
-    content = download_from_s3(s3_key)
+    s3_key, content = get_latest_ranking_file(date_str)
 
     if not content:
         print(f"⚠️ {date_str}のランキングデータが見つかりません")

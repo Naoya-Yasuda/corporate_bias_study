@@ -24,7 +24,7 @@ import tldextract
 from src.utils.text_utils import extract_domain, is_negative
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
-from src.utils.s3_utils import get_local_path
+from src.utils.s3_utils import get_local_path, get_s3_client, get_s3_key_path, get_latest_file
 
 # プロジェクト固有のモジュール
 from src.categories import get_categories
@@ -99,12 +99,6 @@ def get_perplexity_results(date_str=None, local_path="results", data_type="citat
     if date_str is None:
         date_str = datetime.datetime.now().strftime("%Y%m%d")
 
-    # 保存先ディレクトリの設定
-    if data_type == "citations":
-        s3_prefix = "results/perplexity_citations"
-    else:  # rankings
-        s3_prefix = "results/perplexity_rankings"
-
     # ローカルディレクトリからファイル一覧を取得
     local_files = []
     if os.path.exists(local_path):
@@ -144,61 +138,26 @@ def get_perplexity_results(date_str=None, local_path="results", data_type="citat
     # S3から検索
     if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
         try:
-            import boto3
-            from botocore.exceptions import ClientError
-
-            s3_client = boto3.client(
-                "s3",
-                aws_access_key_id=AWS_ACCESS_KEY,
-                aws_secret_access_key=AWS_SECRET_KEY,
-                region_name=AWS_REGION
-            )
-
-            # S3バケット内のオブジェクトを一覧表示
-            prefix = f"{s3_prefix}/{date_str}/"
-            try:
-                response = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=prefix)
-
-                # 見つかったオブジェクトをフィルタリング
-                s3_files = []
-                if "Contents" in response:
-                    for obj in response["Contents"]:
-                        key = obj["Key"]
-                        filename = os.path.basename(key)
-                        if filename.startswith(f"{date_str}_perplexity_{data_type}"):
-                            s3_files.append((key, filename))
-
-                # 実行回数でフィルタリング
-                if runs is not None:
-                    target_s3_file = f"{date_str}_perplexity_{data_type}_{runs}runs.json"
-                    s3_match = [key for key, name in s3_files if name == target_s3_file]
-                    if s3_match:
-                        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_match[0])
-                        data = json.loads(response["Body"].read().decode("utf-8"))
-                        return data, "multiple", runs
-
-                # 複数実行ファイルを検索（実行回数の大きい順）
-                multi_s3_files = [(key, name) for key, name in s3_files if "_runs.json" in name]
-                if multi_s3_files:
-                    # 実行回数でソート
-                    multi_s3_files.sort(key=lambda x: int(x[1].split("_")[-1].replace("runs.json", "")), reverse=True)
-                    key, name = multi_s3_files[0]
-                    runs_count = int(name.split("_")[-1].replace("runs.json", ""))
-
-                    response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
+            # 実行回数が指定されている場合はそのファイルを取得
+            if runs is not None:
+                s3_key = get_s3_key_path(date_str, data_type, "perplexity")
+                try:
+                    s3_client = get_s3_client()
+                    response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
                     data = json.loads(response["Body"].read().decode("utf-8"))
-                    return data, "multiple", runs_count
+                    return data, "multiple", runs
+                except Exception:
+                    pass
 
-                # 単一実行ファイルを検索
-                single_s3_file = f"{date_str}_perplexity_{data_type}.json"
-                s3_match = [key for key, name in s3_files if name == single_s3_file]
-                if s3_match:
-                    response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_match[0])
-                    data = json.loads(response["Body"].read().decode("utf-8"))
-                    return data, "single", 1
-
-            except ClientError as e:
-                print(f"S3でのファイル一覧取得エラー: {e}")
+            # 最新のファイルを取得
+            s3_key, content = get_latest_file(date_str, data_type, "perplexity")
+            if content:
+                data = json.loads(content)
+                # 実行回数を取得
+                runs_count = 1
+                if "_runs.json" in s3_key:
+                    runs_count = int(s3_key.split("_")[-1].replace("runs.json", ""))
+                return data, "multiple" if runs_count > 1 else "single", runs_count
 
         except Exception as e:
             print(f"S3からのPerplexity結果読み込みに失敗: {e}")

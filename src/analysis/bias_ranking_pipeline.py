@@ -33,7 +33,7 @@ from src.utils.storage_utils import save_json, save_text_data, save_figure
 from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 from src.utils.file_utils import ensure_dir
-from src.utils.s3_utils import get_s3_client, get_local_path, get_s3_key_path
+from src.utils.s3_utils import get_s3_client, get_local_path, get_s3_key_path, get_latest_file
 
 # .env ファイルから環境変数を読み込み
 load_dotenv()
@@ -191,315 +191,76 @@ def perplexity_api(query, model="sonar-small-chat"):
 # -------------------------------------------------------------------
 # 既存データ解析関数
 # -------------------------------------------------------------------
-def analyze_existing_data(date_str, data_type, output_dir, verbose=False):
-    """
-    既存のPerplexityデータを使用してバイアス分析を実行
+def analyze_existing_data(date_str, api_type="perplexity"):
+    """既存のデータを分析"""
+    print(f"\n=== {date_str}の既存データを分析 ===")
 
-    Parameters:
-    -----------
-    date_str : str
-        使用するデータの日付（YYYYMMDD形式）
-    data_type : str
-        データタイプ（'rankings'または'citations'）
-    output_dir : str
-        出力ディレクトリ
-    verbose : bool
-        詳細出力の有無
-
-    Returns:
-    --------
-    dict
-        分析結果
-    """
-    if verbose:
-        print(f"既存データを使用したバイアス分析を開始します")
-        print(f"日付: {date_str}, データタイプ: {data_type}")
+    # 出力ディレクトリの設定
+    output_dir = f"results/bias_analysis/{date_str}"
+    os.makedirs(output_dir, exist_ok=True)
 
     # S3クライアントの初期化
     s3_client = get_s3_client()
 
-    # 既存データの読み込み
-    serp_file = get_local_path(date_str, "google_serp", "google")
-    serp_s3_key = get_s3_key_path(date_str, "google_serp", "google")
+    # 1. Perplexityデータの取得
+    print("\n1. Perplexityデータの取得")
+    perplexity_key, perplexity_content = get_latest_file(date_str, "rankings", "perplexity")
 
-    if data_type == "rankings":
-        pplx_file = get_local_path(date_str, "rankings", "perplexity")
-        pplx_s3_key = get_s3_key_path(date_str, "rankings", "perplexity")
-    else:  # citations
-        pplx_file = get_local_path(date_str, "citations", "perplexity")
-        pplx_s3_key = get_s3_key_path(date_str, "citations", "perplexity")
+    if perplexity_content:
+        perplexity_data = json.loads(perplexity_content)
+        perplexity_path = os.path.join(output_dir, f"{date_str}_perplexity_rankings.json")
+        with open(perplexity_path, 'w', encoding='utf-8') as f:
+            json.dump(perplexity_data, f, ensure_ascii=False, indent=4)
+        print(f"✓ Perplexityデータを保存: {perplexity_path}")
+    else:
+        print("⚠️ Perplexityデータが見つかりません")
 
-    # S3からファイルを取得
-    try:
-        # Google SERPデータの取得
-        if not os.path.exists(serp_file):
-            if verbose:
-                print(f"S3からGoogle SERPデータをダウンロードします: {serp_s3_key}")
-            s3_client.download_file(S3_BUCKET_NAME, serp_s3_key, serp_file)
+    # 2. 引用データの取得
+    print("\n2. 引用データの取得")
+    citations_key, citations_content = get_latest_file(date_str, "citations", "perplexity")
 
-        # Perplexityデータの取得
-        if not os.path.exists(pplx_file):
-            if verbose:
-                print(f"S3からPerplexityデータをダウンロードします: {pplx_s3_key}")
-            s3_client.download_file(S3_BUCKET_NAME, pplx_s3_key, pplx_file)
-    except Exception as e:
-        print(f"S3からのファイル取得エラー: {e}")
-        return None
+    if citations_content:
+        citations_data = json.loads(citations_content)
+        citations_path = os.path.join(output_dir, f"{date_str}_perplexity_citations.json")
+        with open(citations_path, 'w', encoding='utf-8') as f:
+            json.dump(citations_data, f, ensure_ascii=False, indent=4)
+        print(f"✓ 引用データを保存: {citations_path}")
+    else:
+        print("⚠️ 引用データが見つかりません")
 
-    # ファイルの存在確認
-    if not os.path.exists(serp_file):
-        print(f"エラー: Google SERP結果ファイル {serp_file} が見つかりません")
-        return None
+    # 3. 感情分析データの取得
+    print("\n3. 感情分析データの取得")
+    sentiment_key, sentiment_content = get_latest_file(date_str, "sentiment", "perplexity")
 
-    if not os.path.exists(pplx_file):
-        print(f"エラー: Perplexity {data_type}ファイル {pplx_file} が見つかりません")
-        return None
+    if sentiment_content:
+        sentiment_data = json.loads(sentiment_content)
+        sentiment_path = os.path.join(output_dir, f"{date_str}_perplexity_sentiment.json")
+        with open(sentiment_path, 'w', encoding='utf-8') as f:
+            json.dump(sentiment_data, f, ensure_ascii=False, indent=4)
+        print(f"✓ 感情分析データを保存: {sentiment_path}")
+    else:
+        print("⚠️ 感情分析データが見つかりません")
 
-    # 市場シェアデータの読み込み
-    try:
-        market_shares_path = "src/data/market_shares.json"
-        with open(market_shares_path, "r", encoding="utf-8") as f:
-            market_shares = json.load(f)
-            if verbose:
-                print(f"市場シェアデータを {market_shares_path} から読み込みました")
-    except Exception as e:
-        print(f"市場シェアデータの読み込みエラー: {e}")
-        return None
+    # 4. Google SERPデータの取得
+    print("\n4. Google SERPデータの取得")
+    serp_key, serp_content = get_latest_file(date_str, "google_serp", "google")
 
-    # 結果データの読み込み
-    try:
-        with open(serp_file, "r", encoding="utf-8") as f:
-            serp_results = json.load(f)
-            if verbose:
-                print(f"Google SERP結果を {serp_file} から読み込みました")
-                print(f"  カテゴリ数: {len(serp_results)}")
-    except Exception as e:
-        print(f"Google SERP結果の読み込みエラー: {e}")
-        return None
+    if serp_content:
+        serp_data = json.loads(serp_content)
+        serp_path = os.path.join(output_dir, f"{date_str}_google_serp.json")
+        with open(serp_path, 'w', encoding='utf-8') as f:
+            json.dump(serp_data, f, ensure_ascii=False, indent=4)
+        print(f"✓ Google SERPデータを保存: {serp_path}")
+    else:
+        print("⚠️ Google SERPデータが見つかりません")
 
-    try:
-        with open(pplx_file, "r", encoding="utf-8") as f:
-            pplx_results = json.load(f)
-            if verbose:
-                print(f"Perplexity {data_type}結果を {pplx_file} から読み込みました")
-                print(f"  カテゴリ数: {len(pplx_results)}")
-    except Exception as e:
-        print(f"Perplexity結果の読み込みエラー: {e}")
-        return None
-
-    # 分析結果を保存するディレクトリを作成
-    os.makedirs(output_dir, exist_ok=True)
-
-    # 各カテゴリごとに分析
-    all_results = {}
-
-    for category, data in serp_results.items():
-        if category not in pplx_results:
-            if verbose:
-                print(f"カテゴリ {category} はPerplexityデータに存在しないためスキップします")
-            continue
-
-        if category not in market_shares:
-            if verbose:
-                print(f"カテゴリ {category} は市場シェアデータに存在しないためスキップします")
-            continue
-
-        if verbose:
-            print(f"\nカテゴリ {category} の分析を実行中...")
-
-        # カテゴリごとの出力ディレクトリ
-        category_dir = os.path.join(output_dir, category.replace(" ", "_"))
-        os.makedirs(category_dir, exist_ok=True)
-
-        # カテゴリの市場シェア
-        market_share = market_shares[category]
-
-        # Google SERPの結果を解析
-        google_results = data.get("results", [])
-        google_links = [r.get("link", "") for r in google_results]
-        google_domains = [extract_domain(link) for link in google_links]
-        google_rank = rank_map(google_domains)
-
-        # Perplexityの結果を解析
-        pplx_data = pplx_results[category]
-
-        # データタイプに応じた処理
-        if data_type == "rankings":
-            if isinstance(pplx_data, dict) and "avg_ranking" in pplx_data:
-                # 複数回実行の平均ランキング
-                pplx_ranking = pplx_data["avg_ranking"]
-            elif isinstance(pplx_data, dict) and "ranking" in pplx_data:
-                # 単一実行
-                pplx_ranking = pplx_data["ranking"]
-            else:
-                print(f"エラー: 予期しないPerplexityランキングデータ形式です")
-                continue
-
-            pplx_domains = pplx_ranking
-            pplx_links = [""] * len(pplx_domains)  # リンク情報がない場合はダミー
-
-        else:  # citations
-            subcategory = list(pplx_data.keys())[0] if pplx_data else ""
-
-            if subcategory not in pplx_data:
-                print(f"エラー: サブカテゴリ {subcategory} がPerplexityデータに存在しません")
-                continue
-
-            if "domain_rankings" in pplx_data[subcategory]:
-                # 複数回実行の平均ランキング
-                pplx_domains = [item["domain"] for item in pplx_data[subcategory]["domain_rankings"]]
-                pplx_links = [""] * len(pplx_domains)  # リンク情報がない場合はダミー
-            elif "citations" in pplx_data[subcategory]:
-                # 単一実行
-                pplx_links = [c.get("url", "") for c in pplx_data[subcategory]["citations"]]
-                pplx_domains = [extract_domain(link) for link in pplx_links]
-            else:
-                print(f"エラー: 予期しないPerplexity引用データ形式です")
-                continue
-
-        pplx_rank = rank_map(pplx_domains)
-
-        # 4. 順位差（ΔRank）の計算
-        all_domains = set(google_rank) | set(pplx_rank)
-        delta_rank = {}
-
-        for domain in all_domains:
-            g_rank = google_rank.get(domain, 999)  # Infinityの代わりに大きな数字を使用
-            p_rank = pplx_rank.get(domain, 999)  # Infinityの代わりに大きな数字を使用
-
-            # 両方のランキングに存在する場合のみDelta計算
-            if g_rank != 999 and p_rank != 999:
-                delta_rank[domain] = g_rank - p_rank
-            elif g_rank != 999:
-                delta_rank[domain] = 0  # Googleのみにある場合は中立
-            elif p_rank != 999:
-                delta_rank[domain] = 0  # Perplexityのみにある場合は中立
-
-        # 5. 評価指標の計算
-        # RBOスコア
-        rbo_score = rbo(google_domains, pplx_domains, p=0.9)
-
-        # Kendallのタウ係数（共通ドメインのみ）
-        common_domains = set(google_rank) & set(pplx_rank)
-        if len(common_domains) >= 2:
-            g_common_ranks = [google_rank[d] for d in common_domains]
-            p_common_ranks = [pplx_rank[d] for d in common_domains]
-            tau, _ = kendalltau(g_common_ranks, p_common_ranks)
-            if np.isnan(tau):
-                tau = 0.0
-        else:
-            tau = 0.0
-
-        # 公式/非公式比率
-        company_domains = set(market_share.keys())
-
-        ratio_official_g = ratio(google_domains, lambda d: d in company_domains)
-        ratio_official_p = ratio(pplx_domains, lambda d: d in company_domains)
-
-        # ネガティブコンテンツ比率（簡易判定）
-        ratio_neg_g = ratio(google_links, is_negative)
-        ratio_neg_p = ratio(pplx_links, is_negative)
-
-        # 6. Equal Opportunity比率とHHI計算
-        # 上位出現確率
-        top_prob_g = compute_top_probability(google_rank, market_share.keys(), 10)
-        top_prob_p = compute_top_probability(pplx_rank, market_share.keys(), 10)
-
-        # 正規化
-        sum_tp_g = sum(top_prob_g.values()) or 1
-        sum_tp_p = sum(top_prob_p.values()) or 1
-
-        for domain in top_prob_g:
-            top_prob_g[domain] /= sum_tp_g
-
-        for domain in top_prob_p:
-            top_prob_p[domain] /= sum_tp_p
-
-        # Equal Opportunity比率（露出確率 / 市場シェア）
-        eo_ratio_g = {d: top_prob_g.get(d, 0) / market_share[d] for d in market_share}
-        eo_ratio_p = {d: top_prob_p.get(d, 0) / market_share[d] for d in market_share}
-
-        # 市場シェアへの潜在的影響
-        adjusted_share_g = apply_bias_to_share(market_share, eo_ratio_g)
-        adjusted_share_p = apply_bias_to_share(market_share, eo_ratio_p)
-
-        # 7. 結果DataFrameの作成
-        rows = []
-        for domain in all_domains:
-            row = {
-                "domain": domain,
-                "google_rank": google_rank.get(domain, np.nan),
-                "pplx_rank": pplx_rank.get(domain, np.nan),
-                "delta_rank": delta_rank.get(domain, np.nan),
-                "is_official": domain in company_domains,
-                "market_share": market_share.get(domain, np.nan),
-                "google_top_prob": top_prob_g.get(domain, np.nan),
-                "pplx_top_prob": top_prob_p.get(domain, np.nan),
-                "google_eo_ratio": eo_ratio_g.get(domain, np.nan),
-                "pplx_eo_ratio": eo_ratio_p.get(domain, np.nan)
-            }
-            rows.append(row)
-
-        result_df = pd.DataFrame(rows)
-        result_df = result_df.sort_values("google_rank", na_position="last")
-
-        # 8. サマリー指標
-        summary = {
-            "category": category,
-            "rbo_score": rbo_score,
-            "kendall_tau": tau,
-            "official_ratio_google": ratio_official_g,
-            "official_ratio_pplx": ratio_official_p,
-            "negative_ratio_google": ratio_neg_g,
-            "negative_ratio_pplx": ratio_neg_p,
-            "market_share": market_share,
-            "adjusted_share_google": adjusted_share_g,
-            "adjusted_share_pplx": adjusted_share_p
-        }
-
-        # 9. 結果の保存
-        # DataFrameをCSVに保存
-        csv_path = os.path.join(category_dir, "rank_comparison.csv")
-        result_df.to_csv(csv_path, index=False, encoding="utf-8")
-
-        # サマリーをJSONに保存
-        json_path = os.path.join(category_dir, "bias_analysis.json")
-        save_json(summary, json_path)
-
-        # ΔRankグラフ
-        plot_path = os.path.join(category_dir, "delta_ranks.png")
-        fig_delta = plot_delta_ranks(delta_rank, None)
-        if fig_delta:
-            save_figure(fig_delta, plot_path)
-
-        # 市場影響グラフ
-        market_path = os.path.join(category_dir, "market_impact.png")
-        fig_market = plot_market_impact(market_share, adjusted_share_p, None)
-        if fig_market:
-            save_figure(fig_market, market_path)
-
-        all_results[category] = summary
-
-        if verbose:
-            print(f"カテゴリ {category} の分析が完了しました")
-            print(f"  RBO スコア: {rbo_score:.4f}")
-            print(f"  Kendallのタウ係数: {tau:.4f}")
-
-    # 全体サマリーを保存
-    summary_df = pd.DataFrame(list(all_results.values()))
-    summary_path = os.path.join(output_dir, "all_categories_summary.csv")
-    summary_df.to_csv(summary_path, index=False, encoding="utf-8")
-
-    # 全体サマリーJSONを保存
-    summary_json_path = os.path.join(output_dir, "all_categories_summary.json")
-    save_json(all_results, summary_json_path)
-
-    if verbose:
-        print(f"\n全カテゴリの分析が完了しました")
-        print(f"  分析カテゴリ数: {len(all_results)}")
-        print(f"  結果は {output_dir} に保存されました")
-
-    return all_results
+    # 5. 統合分析の実行
+    print("\n5. 統合分析の実行")
+    if perplexity_content and citations_content and sentiment_content:
+        print("統合分析を実行します...")
+        # TODO: 統合分析の実装
+    else:
+        print("⚠️ 統合分析に必要なデータが不足しています")
 
 # -------------------------------------------------------------------
 # メイン処理関数
