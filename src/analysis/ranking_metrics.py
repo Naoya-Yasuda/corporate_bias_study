@@ -541,16 +541,27 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
 
         # カテゴリデータの構造を確認（ランキング結果を取得）
         runs = []
-        if isinstance(data, dict) and "all_rankings" in data:
-            # 複数実行結果の場合（recommended）
-            runs = data["all_rankings"]
-            if verbose:
-                logging.info(f"複数実行データを検出: {len(runs)}回分のランキング")
-        elif isinstance(data, dict) and "ranking" in data:
-            # 単一実行結果の場合
-            runs = [data["ranking"]]
-            if verbose:
-                logging.info("単一実行データを検出")
+        if isinstance(data, dict):
+            if "all_rankings" in data:
+                # 複数実行結果の場合（recommended）
+                runs = data["all_rankings"]
+                if verbose:
+                    logging.info(f"複数実行データを検出: {len(runs)}回分のランキング")
+            elif "ranking" in data:
+                # 単一実行結果の場合
+                runs = [data["ranking"]]
+                if verbose:
+                    logging.info("単一実行データを検出")
+            elif "search_result_companies" in data:
+                # 新しい形式（search_result_companiesを使用）
+                runs = [data["search_result_companies"]]
+                if verbose:
+                    logging.info("search_result_companiesデータを検出")
+            else:
+                print(f"  ⚠️ 不明な辞書形式: {list(data.keys())}")
+                if verbose:
+                    logging.warning(f"不明な辞書形式: {list(data.keys())}")
+                continue
         elif isinstance(data, list):
             # ランキングのリストの場合
             runs = data
