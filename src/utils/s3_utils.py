@@ -201,36 +201,48 @@ def get_s3_key_path(date_str: str, data_type: str, file_type: str) -> str:
 
     raise ValueError(f"未対応のデータタイプまたはファイルタイプ: {data_type}, {file_type}")
 
-def get_local_path(date_str: str, data_type: str, file_type: str) -> str:
+def get_local_path(date_str, data_type, file_type):
     """
-    ローカルのファイルパスを生成します。
+    ローカルファイルパスを生成する関数
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     date_str : str
-        日付（YYYYMMDD形式）
+        日付文字列（YYYYMMDD形式）
     data_type : str
-        データタイプ（'rankings', 'citations', 'sentiment', 'google_serp'）
+        データタイプ（"rankings", "citations", "sentiment", "google_serp"）
     file_type : str
-        ファイルタイプ（'perplexity', 'google'）
+        ファイルタイプ（"perplexity", "google"）
 
-    Returns:
-    --------
+    Returns
+    -------
     str
-        ローカルのファイルパス
+        生成されたローカルファイルパス
     """
-    base_path = f"results/{data_type}/{date_str}"
-    os.makedirs(base_path, exist_ok=True)
+    # データタイプに基づいてディレクトリを決定
+    if data_type == "rankings":
+        dir_name = "perplexity_rankings"
+    elif data_type == "citations":
+        dir_name = "perplexity_citations"
+    elif data_type == "sentiment":
+        dir_name = "perplexity_sentiment"
+    elif data_type == "google_serp":
+        dir_name = "google_serp"
+    else:
+        raise ValueError(f"Unsupported data type: {data_type}")
 
+    # ファイル名を生成
     if file_type == "perplexity":
-        if data_type == "rankings":
-            return f"{base_path}/{date_str}_perplexity_rankings_10runs.json"
-        elif data_type == "citations":
-            return f"{base_path}/{date_str}_perplexity_citations_10runs.json"
-        elif data_type == "sentiment":
-            return f"{base_path}/{date_str}_perplexity_sentiment_3runs.json"
+        file_name = f"{date_str}_perplexity_{data_type}.json"
     elif file_type == "google":
-        if data_type == "google_serp":
-            return f"{base_path}/{date_str}_google_serp_results.json"
+        file_name = f"{date_str}_google_serp_results.json"
+    else:
+        raise ValueError(f"Unsupported file type: {file_type}")
 
-    raise ValueError(f"未対応のデータタイプまたはファイルタイプ: {data_type}, {file_type}")
+    # パスを生成（S3と同じ構造）
+    local_path = f"results/{dir_name}/{date_str}/{file_name}"
+
+    # ディレクトリが存在しない場合は作成
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+    return local_path

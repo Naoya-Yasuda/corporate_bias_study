@@ -24,6 +24,7 @@ import tldextract
 from src.utils.text_utils import extract_domain, is_negative
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
+from src.utils.s3_utils import get_local_path
 
 # プロジェクト固有のモジュール
 from src.categories import get_categories
@@ -56,8 +57,7 @@ def save_results(results, type_str, local_path="results"):
     ensure_dir(local_path)
 
     # ローカルに保存
-    filename = f"{today}_google_serp_{type_str}.json"
-    local_file = f"{local_path}/{filename}"
+    local_file = get_local_path(today, "google_serp", "google")
 
     # JSONを保存
     save_json(results, local_file)
@@ -66,7 +66,7 @@ def save_results(results, type_str, local_path="results"):
     # S3に保存
     if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
         # S3のパス
-        s3_path = f"results/google_serp/{today}/{filename}"
+        s3_path = f"results/google_serp/{today}/{os.path.basename(local_file)}"
 
         # storage_utilsのsave_jsonでS3保存
         result = save_json(results, local_file, s3_path)

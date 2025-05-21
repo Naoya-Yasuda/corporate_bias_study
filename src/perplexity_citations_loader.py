@@ -26,6 +26,7 @@ from src.utils import (
     get_results_paths
 )
 from src.utils.storage_utils import save_json
+from src.utils.s3_utils import get_local_path
 from src.categories import get_categories, get_all_categories
 
 # .envファイルから環境変数を読み込む
@@ -635,14 +636,14 @@ def main():
         if args.verbose:
             logging.info(f"{args.runs}回の実行を開始します")
         result = collect_citation_rankings(categories, args.runs)
-        result_file = f"results/{today_date}_perplexity_citations_{args.runs}runs.json"
+        result_file = get_local_path(today_date, "citations", "perplexity")
         save_results(result, "multiple", args.runs)
     else:
         print("Perplexity APIを使用して単一実行引用リンク取得を実行します")
         if args.verbose:
             logging.info("単一実行を開始します")
         result = collect_citation_rankings(categories)
-        result_file = f"results/{today_date}_perplexity_citations.json"
+        result_file = get_local_path(today_date, "citations", "perplexity")
         save_results(result)
 
     print("引用リンク取得処理が完了しました")

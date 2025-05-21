@@ -20,6 +20,7 @@ from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity
 # 共通ユーティリティをインポート
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
+from src.utils.s3_utils import get_local_path
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -229,9 +230,9 @@ def main():
                             if details.get('avg_rank') == float('inf') or details.get('avg_rank') == -1:
                                 details['avg_rank'] = "未ランク"  # InfinityをJSON対応文字列に変換
 
-            result_file = get_today_str(today_date, "rankings", "perplexity")
+            result_file = get_local_path(today_date, "rankings", "perplexity")
             if not os.path.exists(result_file):
-                result_file = get_today_str(today_date, "rankings", "perplexity").replace("_10runs.json", ".json")
+                result_file = get_local_path(today_date, "rankings", "perplexity").replace("_10runs.json", ".json")
             save_results(result, "multiple", args.runs)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
@@ -256,9 +257,9 @@ def main():
                             if details.get('avg_rank') == float('inf') or details.get('avg_rank') == -1:
                                 details['avg_rank'] = "未ランク"  # InfinityをJSON対応文字列に変換
 
-            result_file = get_today_str(today_date, "rankings", "perplexity")
+            result_file = get_local_path(today_date, "rankings", "perplexity")
             if not os.path.exists(result_file):
-                result_file = get_today_str(today_date, "rankings", "perplexity").replace("_10runs.json", ".json")
+                result_file = get_local_path(today_date, "rankings", "perplexity").replace("_10runs.json", ".json")
             save_results(result)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")

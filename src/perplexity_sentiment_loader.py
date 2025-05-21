@@ -16,7 +16,7 @@ import argparse
 import logging
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
-from src.utils.s3_utils import save_to_s3, put_json_to_s3
+from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_local_path
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -296,12 +296,12 @@ def main():
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
         result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, args.runs)
-        result_file = f"results/{today_date}_perplexity_sentiment_results_{args.runs}runs.json"
+        result_file = get_local_path(today_date, "sentiment", "perplexity")
         save_results(result, "multiple", args.runs)
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
         result = process_categories(PERPLEXITY_API_KEY, categories)
-        result_file = f"results/{today_date}_perplexity_sentiment_results.json"
+        result_file = get_local_path(today_date, "sentiment", "perplexity")
         save_results(result)
 
     print("データ取得処理が完了しました")
