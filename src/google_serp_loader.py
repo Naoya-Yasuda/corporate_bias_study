@@ -28,7 +28,6 @@ from src.utils.s3_utils import get_local_path, get_s3_client, get_s3_key_path, g
 
 # プロジェクト固有のモジュール
 from src.categories import get_categories
-from src.analysis.serp_metrics import compare_with_perplexity, analyze_serp_results
 
 # 環境変数の読み込み
 load_dotenv()

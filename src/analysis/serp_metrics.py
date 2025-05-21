@@ -619,7 +619,7 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
         }
 
         # グラフの生成と保存
-        output_dir = "results/analysis"
+        output_dir = "results/perplexity_analysis"
         ensure_dir(output_dir)
 
         # ドメイン分布の可視化
@@ -652,7 +652,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Google SERPとPerplexityの結果を分析")
     parser.add_argument("serp_file", help="Google SERP結果のJSONファイル")
     parser.add_argument("pplx_file", help="Perplexity結果のJSONファイル")
-    parser.add_argument("--output", default="results/analysis", help="出力ディレクトリ")
+    parser.add_argument("--output", default="results/perplexity_analysis", help="出力ディレクトリ")
 
     args = parser.parse_args()
 
