@@ -329,8 +329,8 @@ def process_categories_with_serp(categories, max_categories=None):
                 if processed_data:
                     results[category][subcategory] = processed_data
 
-            # API制限対策
-            time.sleep(2)
+            # API制限対策（1秒待機）
+            time.sleep(1)
 
     return results
 
@@ -345,7 +345,6 @@ def main():
     parser.add_argument('--data-type', choices=['rankings', 'citations'], default='citations',
                         help='比較するPerplexityデータのタイプ（デフォルト: citations）')
     parser.add_argument('--max', type=int, help='処理するカテゴリ数の上限')
-    parser.add_argument('--runs', type=int, default=10, help='使用するPerplexity実行回数（デフォルト: 10）')
     parser.add_argument('--no-analysis', action='store_true', help='SERPメトリクス分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
