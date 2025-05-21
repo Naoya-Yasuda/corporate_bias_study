@@ -328,22 +328,3 @@ def get_latest_file(date_str=None, data_type="rankings", api_type="perplexity", 
     except Exception as e:
         print(f"S3からのファイル取得エラー: {e}")
         return None, None
-
-# 後方互換性のためにget_latest_ranking_fileを残す
-def get_latest_ranking_file(date_str=None, prefix="results/rankings/"):
-    """
-    指定した日付の最新ランキングファイルを取得（後方互換性用）
-
-    Parameters
-    ----------
-    date_str : str, optional
-        YYYYMMDD形式の日付文字列、未指定時は最新日付
-    prefix : str, optional
-        S3内のプレフィックス
-
-    Returns
-    -------
-    tuple
-        (s3_key, json_content) のタプル、見つからない場合は (None, None)
-    """
-    return get_latest_file(date_str, "rankings", "perplexity", prefix)

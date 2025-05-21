@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 import boto3
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_s3_client, get_s3_key_path, get_local_path
-from src.utils.s3_utils import upload_to_s3, get_latest_file, get_latest_ranking_file
+from src.utils.s3_utils import upload_to_s3, get_latest_file
 from src.utils.file_utils import load_json
 from src.utils.storage_utils import save_json
 from src.utils.rank_utils import compute_tau, rbo
@@ -458,7 +458,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         logging.info(f"出力ディレクトリを作成: {output_dir}")
 
     # S3からランキングデータを取得
-    s3_key, content = get_latest_ranking_file(date_str)
+    s3_key, content = get_latest_file(date_str, "rankings", api_type)
 
     if not content:
         print(f"⚠️ {date_str}のランキングデータが見つかりません")
