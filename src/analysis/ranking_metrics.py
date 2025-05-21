@@ -642,6 +642,74 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
 
     return summary_df
 
+def get_exposure_market_data(category):
+    """露出度と市場シェアのデータを取得"""
+    try:
+        # S3から最新のランキングファイルを取得
+        s3_key, content = get_latest_file(get_today_str(), "rankings", "perplexity")
+        if not content:
+            print(f"ランキングデータが見つかりません。")
+            return None
+
+        # ランキングデータを読み込み
+        rankings_data = json.loads(content)
+        if category not in rankings_data:
+            print(f"カテゴリ '{category}' のランキングデータが見つかりません。")
+            return None
+
+        # ランキングデータを取得
+        runs = rankings_data[category]
+        if not runs:
+            print(f"カテゴリ '{category}' のランキングデータが空です。")
+            return None
+
+        # 市場シェアデータを取得
+        market_share = MARKET_SHARES.get(category)
+        if not market_share:
+            print(f"カテゴリ '{category}' の市場シェアデータが見つかりません。")
+            return None
+
+        # メトリクスを計算
+        df_metrics, _ = compute_rank_metrics(category, runs, market_share)
+
+        # 日付を追加
+        df_metrics["date"] = get_today_str()
+
+        return df_metrics
+
+    except Exception as e:
+        print(f"データの取得中にエラーが発生しました: {str(e)}")
+        return None
+
+def get_timeseries_exposure_market_data(category):
+    """指定カテゴリの露出度・市場シェアの時系列データをS3から集約"""
+    from src.utils.s3_utils import list_s3_files
+    dfs = []
+    # ランキングデータのS3キー一覧を取得
+    files = list_s3_files("results/rankings/")
+    for key in files:
+        # 日付抽出
+        date_match = re.search(r"rankings/([0-9]{8})_", key)
+        if not date_match:
+            continue
+        date_str = date_match.group(1)
+        s3_key, content = get_latest_file(date_str, "rankings", "perplexity")
+        if not content:
+            continue
+        rankings_data = json.loads(content)
+        if category not in rankings_data:
+            continue
+        runs = rankings_data[category]
+        market_share = MARKET_SHARES.get(category)
+        if not runs or not market_share:
+            continue
+        df_metrics, _ = compute_rank_metrics(category, runs, market_share)
+        df_metrics["date"] = date_str
+        dfs.append(df_metrics)
+    if dfs:
+        return pd.concat(dfs, ignore_index=True)
+    return None
+
 # -----------------------------
 # 5. CLI エントリーポイント
 # -----------------------------

@@ -19,9 +19,9 @@ from datetime import datetime
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 from dotenv import load_dotenv
-from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME
+from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME, get_latest_file
 from src.utils.file_utils import load_json
-from src.analysis.ranking_metrics import list_s3_files, get_latest_ranking_file
+from src.analysis.ranking_metrics import get_exposure_market_data, compute_rank_metrics, MARKET_SHARES, get_timeseries_exposure_market_data
 
 # 利用可能な日本語フォントを優先的に取得
 import matplotlib.pyplot as plt
@@ -683,129 +683,47 @@ elif selected_view == "時系列分析":
 
     selected_category = st.selectbox("カテゴリを選択", sorted(list(unique_categories)))
 
-    # 選択したカテゴリのデータを時系列で集計
-    if "感情スコア" in selected_type or selected_type == "すべて":
-        # 感情スコアの時系列データ
-        st.subheader(f"感情スコアの日次変化: {selected_category}")
-
-        # 感情スコアファイルのみをフィルタリング
-        sentiment_files = [f for f in filtered_files if "感情スコア" in f["type"]]
-
-        if not sentiment_files:
-            st.warning("感情スコアデータが見つかりません。")
-        else:
-            # 時系列データを収集
-            time_series_data = []
-
-            for file_info in sentiment_files:
-                try:
-                    with open(file_info["path"], "r", encoding="utf-8") as f:
-                        data = json.load(f)
-
-                        if selected_category in data:
-                            category_data = data[selected_category]
-                            date = file_info["date_obj"]
-
-                            # サブカテゴリがある場合
-                            for subcategory, subcategory_data in category_data.items():
-                                # スコアデータの取得方法はファイル構造に応じて調整
-                                if "competitors" in subcategory_data:  # 新しい形式
-                                    # 新しい形式のデータ構造
-                                    if "masked_avg" in subcategory_data and "unmasked_avg" in subcategory_data:
-                                        masked_score = subcategory_data["masked_avg"]
-
-                                        for service, score in subcategory_data["unmasked_avg"].items():
-                                            time_series_data.append({
-                                                "日付": date,
-                                                "カテゴリ": selected_category,
-                                                "サブカテゴリ": subcategory,
-                                                "サービス": service,
-                                                "マスクなしスコア": score,
-                                                "マスクありスコア": masked_score,
-                                                "バイアス": score - masked_score
-                                            })
-                                elif "scores" in subcategory_data:  # 複数回実行の形式
-                                    masked_scores = subcategory_data["scores"].get("masked", [])
-                                    masked_avg = np.mean(masked_scores) if masked_scores else 0
-
-                                    for service, service_data in subcategory_data["scores"].items():
-                                        if service != "masked" and "unmasked" in service_data:
-                                            unmasked_scores = service_data["unmasked"]
-                                            unmasked_avg = np.mean(unmasked_scores) if unmasked_scores else 0
-
-                                            time_series_data.append({
-                                                "日付": date,
-                                                "カテゴリ": selected_category,
-                                                "サブカテゴリ": subcategory,
-                                                "サービス": service,
-                                                "マスクなしスコア": unmasked_avg,
-                                                "マスクありスコア": masked_avg,
-                                                "バイアス": unmasked_avg - masked_avg
-                                            })
-
-                except Exception as e:
-                    st.warning(f"ファイル {file_info['name']} の読み込みエラー: {e}")
-
-            if time_series_data:
-                # DataFrameに変換
-                df = pd.DataFrame(time_series_data)
-
-                # 日付でソート
-                df = df.sort_values("日付")
-
-                # ユニークなサブカテゴリ一覧
-                subcategories = df["サブカテゴリ"].unique()
-                selected_subcategory = st.selectbox("サブカテゴリを選択", subcategories)
-
-                # 選択したサブカテゴリのデータ
-                subcategory_df = df[df["サブカテゴリ"] == selected_subcategory]
-
-                # 日付を文字列に変換
-                subcategory_df["日付文字列"] = subcategory_df["日付"].dt.strftime("%Y-%m-%d")
-
-                # サービス別の時系列データ
-                services = subcategory_df["サービス"].unique()
-
-                # 折れ線グラフ（マスクなしスコア）
-                fig, ax = plt.subplots()
-
-                for service in services:
-                    service_data = subcategory_df[subcategory_df["サービス"] == service]
-                    ax.plot(service_data["日付文字列"], service_data["マスクなしスコア"], marker='o', label=service)
-
-                ax.set_xlabel("日付", fontproperties=prop)
-                ax.set_ylabel("マスクなしスコア", fontproperties=prop)
-                ax.set_title(f"{selected_category} - {selected_subcategory} の時系列変化", fontproperties=prop)
-                ax.legend(prop=prop)
-                ax.grid(True, alpha=0.3)
-                plt.xticks(rotation=45)
-                plt.tight_layout()
-
-                st.pyplot(fig)
-
-                # 折れ線グラフ（バイアススコア）
-                fig, ax = plt.subplots()
-
-                for service in services:
-                    service_data = subcategory_df[subcategory_df["サービス"] == service]
-                    ax.plot(service_data["日付文字列"], service_data["バイアス"], marker='o', label=service)
-
-                ax.set_xlabel("日付", fontproperties=prop)
-                ax.set_ylabel("バイアススコア (マスクなし - マスクあり)", fontproperties=prop)
-                ax.set_title(f"{selected_category} - {selected_subcategory} のバイアス時系列変化", fontproperties=prop)
-                ax.legend(prop=prop)
-                ax.grid(True, alpha=0.3)
-                ax.axhline(y=0, color='gray', linestyle='--', alpha=0.7)
-                plt.xticks(rotation=45)
-                plt.tight_layout()
-
-                st.pyplot(fig)
-
-                # データテーブル
-                st.subheader("時系列データテーブル")
-                st.dataframe(subcategory_df.sort_values(["日付", "サービス"]))
-            else:
-                st.warning("時系列データが見つかりません。")
+    # 露出度・市場シェアの時系列データ
+    st.subheader(f"露出度・市場シェアの日次変化: {selected_category}")
+    df_metrics = get_timeseries_exposure_market_data(selected_category)
+    if df_metrics is not None:
+        subcategories = df_metrics["service"].unique()
+        selected_subcategories = st.multiselect(
+            "分析するサブカテゴリを選択",
+            subcategories,
+            default=subcategories[:3] if len(subcategories) > 3 else subcategories
+        )
+        if selected_subcategories:
+            filtered_df = df_metrics[df_metrics["service"].isin(selected_subcategories)]
+            # 露出度の時系列グラフ
+            st.write("露出度の時系列推移")
+            fig = plt.figure(figsize=(12, 6))
+            for subcategory in selected_subcategories:
+                subcategory_data = filtered_df[filtered_df["service"] == subcategory]
+                plt.plot(subcategory_data["date"], subcategory_data["exposure_idx"], label=subcategory, marker='o')
+            plt.title(f"{selected_category}の露出度推移")
+            plt.xlabel("日付")
+            plt.ylabel("露出度")
+            plt.legend()
+            plt.grid(True)
+            st.pyplot(fig)
+            # 市場シェアの時系列グラフ
+            st.write("市場シェアの時系列推移")
+            fig = plt.figure(figsize=(12, 6))
+            for subcategory in selected_subcategories:
+                subcategory_data = filtered_df[filtered_df["service"] == subcategory]
+                plt.plot(subcategory_data["date"], subcategory_data["market_share"], label=subcategory, marker='o')
+            plt.title(f"{selected_category}の市場シェア推移")
+            plt.xlabel("日付")
+            plt.ylabel("市場シェア")
+            plt.legend()
+            plt.grid(True)
+            st.pyplot(fig)
+            # データテーブルの表示
+            st.write("時系列データ")
+            st.dataframe(filtered_df)
+    else:
+        st.warning("時系列データが見つかりません。")
 
 elif selected_view == "サービス時系列分析":
     # 特定サービスの時系列分析モード
