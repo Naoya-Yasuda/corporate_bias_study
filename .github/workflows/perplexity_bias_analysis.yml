@@ -39,9 +39,6 @@ jobs:
           pip install -r requirements-github-actions.txt
           # CloudWatch連携用のAWS SDKをインストール
           pip install boto3 watchtower
-      - name: Add src to PYTHONPATH
-        run: |
-          echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
 
       # 日付文字列の取得
       - name: Set today's date
