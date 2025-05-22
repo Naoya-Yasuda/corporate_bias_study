@@ -20,6 +20,7 @@ from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
 from src.utils.file_utils import ensure_dir
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 from src.utils.storage_utils import save_json, save_figure
+from src.utils.s3_utils import get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
 
 # -------------------------------------------------------------------
 # 比較メトリクス
@@ -648,19 +649,51 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
 # CLIから直接実行する場合のエントリポイント
 if __name__ == "__main__":
     import argparse
-
     parser = argparse.ArgumentParser(description="Google SERPとPerplexityの結果を分析")
-    parser.add_argument("serp_file", help="Google SERP結果のJSONファイル")
-    parser.add_argument("pplx_file", help="Perplexity結果のJSONファイル")
+    parser.add_argument("--date", required=True, help="分析対象の日付（YYYYMMDD形式）")
+    parser.add_argument("--runs", type=int, default=10, help="Perplexity API実行回数（デフォルト: 10）")
     parser.add_argument("--output", default="results/perplexity_analysis", help="出力ディレクトリ")
-
     args = parser.parse_args()
 
-    # JSONファイルを読み込み
-    with open(args.serp_file, "r", encoding="utf-8") as f:
-        serp_results = json.load(f)
+    date_str = args.date
+    runs = args.runs
 
-    with open(args.pplx_file, "r", encoding="utf-8") as f:
+    # Google SERPファイルパス
+    def resolve_path(date_str, data_type, file_type, runs=None):
+        from src.utils.s3_utils import get_s3_key_path
+        # ファイル名生成
+        if data_type == "google_serp":
+            file_name = f"{date_str}_google_serp_results.json"
+        elif data_type == "citations":
+            if runs and runs > 1:
+                file_name = f"{date_str}_perplexity_citations_{runs}runs.json"
+            else:
+                file_name = f"{date_str}_perplexity_citations.json"
+        else:
+            raise ValueError("未対応のdata_type")
+        local_path = get_local_path(date_str, data_type, file_type)
+        if os.path.exists(local_path):
+            return local_path
+        s3_key = get_s3_key_path(date_str, data_type, file_type)
+        try:
+            s3_client = get_s3_client()
+            response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(response["Body"].read())
+            print(f"S3からダウンロード: {local_path}")
+            return local_path
+        except Exception as e:
+            print(f"ファイルが見つかりません: {local_path} / S3: {s3_key}")
+            raise e
+
+    serp_file = resolve_path(date_str, "google_serp", "google")
+    pplx_file = resolve_path(date_str, "citations", "perplexity", runs)
+
+    # JSONファイルを読み込み
+    with open(serp_file, "r", encoding="utf-8") as f:
+        serp_results = json.load(f)
+    with open(pplx_file, "r", encoding="utf-8") as f:
         pplx_results = json.load(f)
 
     # 比較と分析
@@ -669,11 +702,8 @@ if __name__ == "__main__":
 
     # 結果をJSONに保存
     os.makedirs(args.output, exist_ok=True)
-
     with open(f"{args.output}/comparison_results.json", "w", encoding="utf-8") as f:
         json.dump(comparison_results, f, ensure_ascii=False, indent=2)
-
     with open(f"{args.output}/analysis_results.json", "w", encoding="utf-8") as f:
         json.dump(analysis_results, f, ensure_ascii=False, indent=2)
-
     print(f"分析が完了し、結果を {args.output} に保存しました")

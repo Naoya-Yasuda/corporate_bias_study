@@ -98,7 +98,7 @@ jobs:
       - name: Run SERP-Perplexity comparison analysis
         run: |
           echo "開始: Google SERPとPerplexityの比較分析 ($(date))" | tee -a logs/execution.log
-          python src/analysis/serp_metrics.py results/perplexity_analysis/${{ env.TODAY_DATE }}/${{ env.TODAY_DATE }}_google_serp_results.json results/perplexity_analysis/${{ env.TODAY_DATE }}/${{ env.TODAY_DATE }}_perplexity_citations_${{ env.RUNS_COUNT }}runs.json --output results/perplexity_analysis/${{ env.TODAY_DATE }}
+          python src/analysis/serp_metrics.py --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --output results/perplexity_analysis/${{ env.TODAY_DATE }}
           echo "完了: Google SERPとPerplexityの比較分析 ($(date))" | tee -a logs/execution.log
 
       # 統合指標分析（複数指標に基づく後段処理）
