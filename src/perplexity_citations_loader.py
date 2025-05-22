@@ -276,6 +276,8 @@ def collect_citation_rankings(categories, num_runs=1):
     """
     # 結果の初期化 - 主要カテゴリの構造を作成
     results = {}
+    for category in categories.keys():
+        results[category] = {}
 
     total_categories = get_all_categories()
     processed = 0
