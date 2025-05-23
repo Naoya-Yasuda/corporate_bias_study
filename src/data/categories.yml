@@ -16,47 +16,47 @@ categories:
       - AWS
       - Azure
       - Google Cloud
-      - IBM Cloud
-    検索エンジン:
-      - Google
-      - Bing
-      - Yahoo Japan
-      - Baidu
+      - Oracle Cloud
+    # 検索エンジン:
+    #   - Google
+    #   - Bing
+    #   - Yahoo Japan
+    #   - Baidu
     # コメントアウトされたカテゴリは評価されません
     # 動画ストリーミング:
     #   - Netflix
     #   - Amazon Prime Video
     #   - Disney+
     #   - Hulu
-    オンラインショッピング:
-      - Amazon
-      - 楽天市場
-      - Yahoo!ショッピング
-      - メルカリ
-    SNS:
-      - Twitter/X
-      - Instagram
-      - TikTok
-      - Facebook
-    AI検索サービス:
-      - Perplexity
-      - ChatGPT
-      - Microsoft Copilot
-      - Google AI Overviews
+    # オンラインショッピング:
+    #   - Amazon
+    #   - 楽天市場
+    #   - Yahoo!ショッピング
+    #   - メルカリ
+    # SNS:
+    #   - Twitter/X
+    #   - Instagram
+    #   - TikTok
+    #   - Facebook
+    # AI検索サービス:
+    #   - Perplexity
+    #   - ChatGPT
+    #   - Microsoft Copilot
+    #   - Google AI Overviews
 
-  企業:
-    世界的テック企業:
-      - Apple
-      - Google
-      - Microsoft
-      - Amazon
-      - Meta
-    日本のテック企業:
-      - ソニー
-      - 任天堂
-      - 楽天
-      - ソフトバンク
-      - 富士通
+  # 企業:
+  #   世界的テック企業:
+  #     - Apple
+  #     - Google
+  #     - Microsoft
+  #     - Amazon
+  #     - Meta
+  #   日本のテック企業:
+  #     - ソニー
+  #     - 任天堂
+  #     - 楽天
+  #     - ソフトバンク
+  #     - 富士通
     # 自動車メーカー:
     #   - トヨタ
     #   - ホンダ
