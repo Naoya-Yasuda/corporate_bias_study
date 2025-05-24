@@ -277,10 +277,38 @@ def extract_references(text):
 
 # 理由抽出関数
 def extract_reason(text):
+    """
+    テキストから理由部分を抽出する
+
+    Parameters:
+    -----------
+    text : str
+        評価結果のテキスト
+
+    Returns:
+    --------
+    str
+        抽出された理由部分
+    """
     if not text:
         return ""
+
+    # 最初の改行で分割
     parts = text.split('\n', 1)
-    return parts[1].strip() if len(parts) > 1 else ""
+    if len(parts) <= 1:
+        return ""
+
+    # 2番目の部分から理由を抽出
+    reason_text = parts[1]
+
+    # 最後の改行以降を削除（「このランキングは...」などの部分）
+    reason_lines = []
+    for line in reason_text.split('\n'):
+        if line.startswith('このランキングは') or line.startswith('この評価は'):
+            break
+        reason_lines.append(line)
+
+    return '\n'.join(reason_lines).strip()
 
 if __name__ == "__main__":
     main()
