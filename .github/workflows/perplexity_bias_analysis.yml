@@ -79,7 +79,7 @@ jobs:
       - name: Run Google SERP data collection
         run: |
           echo "開始: Google SERPデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.google_serp_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/google_serp.log
+          python -m src.google_serp_loader --verbose | tee -a logs/google_serp.log
           echo "完了: Google SERPデータ取得 ($(date))" | tee -a logs/execution.log
 
       # 2. 分析ステップ
