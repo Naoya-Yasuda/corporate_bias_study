@@ -10,13 +10,14 @@ import os
 import re
 from dotenv import load_dotenv
 from src.categories import get_categories, get_viewpoints
-from src.prompts.perplexity_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
+from src.prompts.sentiment_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
 import numpy as np
 import argparse
 import logging
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_local_path
+from src.utils.perplexity_api import PerplexityAPI
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -30,34 +31,6 @@ S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 # カテゴリとサービスの定義を取得
 categories = get_categories()
-
-class PerplexityAPI:
-    def __init__(self, api_key, base_url="https://api.perplexity.ai/chat/completions"):
-        self.api_key = api_key
-        self.base_url = base_url
-        self.headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-
-    def call_ai_api(self, prompt):
-        try:
-            payload = {
-                "model": "llama-3.1-sonar-large-128k-online",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 1024,
-                "temperature": 0.0,
-                "stream": False
-            }
-            response = requests.post(self.base_url, headers=self.headers, json=payload)
-            if response.status_code == 200:
-                return response.json()["choices"][0]["message"]["content"].strip()
-            else:
-                raise Exception(f"Error {response.status_code}: {response.text}")
-        except Exception as e:
-            print(f"エラー（Perplexity）: {e}")
-            return "エラー"
 
 def process_categories(api_key, categories):
     """各カテゴリ、サブカテゴリを処理"""
@@ -74,7 +47,7 @@ def process_categories(api_key, categories):
             # プロンプトを生成
             masked_example = get_masked_prompt(subcategory)
 
-            masked_result = api.call_ai_api(masked_example)
+            masked_result = api.call_ai_api(masked_example, max_retries=3, retry_delay=1.0)
             print(f"マスク評価結果: {masked_result}")
             time.sleep(1)
 
@@ -87,7 +60,7 @@ def process_categories(api_key, categories):
                 unmasked_example = get_unmasked_prompt(subcategory, competitor)
 
                 unmasked_examples[competitor] = unmasked_example
-                unmasked_results[competitor] = api.call_ai_api(unmasked_example)
+                unmasked_results[competitor] = api.call_ai_api(unmasked_example, max_retries=3, retry_delay=1.0)
                 print(f"  {competitor}の評価結果: {unmasked_results[competitor]}")
                 time.sleep(1)
 
@@ -128,7 +101,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
                 masked_example = get_masked_prompt(subcategory)
-                masked_result = api.call_ai_api(masked_example)
+                masked_result = api.call_ai_api(masked_example, max_retries=3, retry_delay=1.0)
                 results[category][subcategory]['masked_result'] = masked_result
                 results[category][subcategory]['all_masked_results'].append(masked_result)
                 try:
@@ -149,7 +122,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             for subcategory, competitors in subcategories_data.items():
                 for competitor in competitors:
                     unmasked_example = get_unmasked_prompt(subcategory, competitor)
-                    unmasked_result = api.call_ai_api(unmasked_example)
+                    unmasked_result = api.call_ai_api(unmasked_example, max_retries=3, retry_delay=1.0)
                     results[category][subcategory]['unmasked_result'][competitor] = unmasked_result
                     try:
                         value = extract_score(unmasked_result)

@@ -131,31 +131,35 @@ MIT License
 ├─ src/                      # ソースコード
 │   ├─ __init__.py           # パッケージ初期化ファイル
 │   ├─ categories.py         # カテゴリとサービス定義読み込み機能
-│   ├─ perplexity_sentiment_loader.py # Perplexity API実行ファイル
-│   ├─ perplexity_ranking_loader.py # Perplexity ランキング抽出ファイル
-│   ├─ perplexity_citations_loader.py # Perplexity 引用リンク取得ファイル
-│   ├─ openai_bias_loader.py # OpenAI API実行ファイル
+│   ├─ perplexity_sentiment_loader.py # Perplexity APIによる感情スコア取得
+│   ├─ perplexity_ranking_loader.py # Perplexity APIによるランキング取得
+│   ├─ perplexity_citations_loader.py # Perplexity APIによる引用リンク取得
+│   ├─ google_serp_loader.py # Google SERP APIによる検索データ取得
 │   ├─ data/                 # データファイル
 │   │   ├─ __init__.py
 │   │   └─ categories.yml    # カテゴリとサービス定義（YAML）
 │   ├─ prompts/              # プロンプトテンプレート
 │   │   ├─ __init__.py
-│   │   ├─ perplexity_prompts.py # Perplexity用プロンプト
-│   │   └─ openai_prompts.py # OpenAI用プロンプト（未実装）
+│   │   └─ perplexity_prompts.py # Perplexity用プロンプト
 │   ├─ utils/                # 共通ユーティリティ
 │   │   ├─ __init__.py       # 共通ユーティリティの初期化ファイル
 │   │   ├─ s3_utils.py       # S3操作のユーティリティ
 │   │   ├─ file_utils.py     # ファイル操作のユーティリティ
 │   │   ├─ text_utils.py     # テキスト処理のユーティリティ
 │   │   ├─ rank_utils.py     # ランキング処理のユーティリティ
-│   │   └─ plot_utils.py     # 可視化のユーティリティ
+│   │   ├─ plot_utils.py     # 可視化のユーティリティ
+│   │   └─ perplexity_api.py # Perplexity API共通クラス
 │   └─ analysis/             # 分析・可視化ツール
+│       ├─ __init__.py
+│       ├─ ranking_metrics.py # ランキング指標の計算
+│       ├─ bias_sentiment_metrics.py # バイアス指標の計算
+│       ├─ serp_metrics.py   # Google検索とPerplexity結果の比較分析
+│       └─ bias_ranking_pipeline.py # 統合されたバイアス評価
 ├─ results/                  # 結果保存先（自動生成）
 ├─ .env                      # 環境変数（gitignore対象）
 ├─ .github/
 │   └─ workflows/            # GitHub Actions定義ファイル
 ├─ requirements.txt          # 依存パッケージリスト
-├─ environment.yml           # Conda環境定義ファイル
 └─ README.md                 # 本ファイル
 ```
 
@@ -173,7 +177,7 @@ MIT License
    - 再利用可能な関数として実装
    - 評価値抽出ロジックの標準化
 
-3. **API実行モジュール** (`src/perplexity_sentiment_loader.py`, `src/openai_bias_loader.py`, `src/perplexity_ranking_loader.py`, `src/perplexity_citations_loader.py`)
+3. **API実行モジュール** (`src/perplexity_sentiment_loader.py`, `src/google_serp_loader.py`, `src/perplexity_ranking_loader.py`, `src/perplexity_citations_loader.py`)
    - API呼び出し処理
    - 複数回実行と統計処理
    - 結果の保存機能
@@ -462,10 +466,10 @@ AIレスポンスに含まれる参照リンク（例：`[1][2][3]`）を自動�
    - `google_serp_loader.py`: Google検索結果取得
 
 3. **分析モジュール** (`src/analysis/`)
-   - `ranking_metrics.py`: ランキング指標分析
-   - `bias_sentiment_metrics.py`: バイアス指標分析
-   - `serp_metrics.py`: Google検索とPerplexity結果の比較分析
-   - `bias_ranking_pipeline.py`: 統合されたバイアス評価
+   - `ranking_metrics.py`: ランキング指標の計算（露出度、公平性ギャップなど）
+   - `bias_sentiment_metrics.py`: バイアス指標の計算（統計的公平性、機会均等比率など）
+   - `serp_metrics.py`: Google検索結果とPerplexity結果の比較分析
+   - `bias_ranking_pipeline.py`: 高速バイアス評価パイプライン
 
 4. **データ定義** (`src/data/`)
    - `categories.yml`: カテゴリとサービス定義
