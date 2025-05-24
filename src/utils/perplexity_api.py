@@ -44,6 +44,8 @@ class PerplexityAPI:
 
     def _get_api_url(self, endpoint: str) -> str:
         """APIエンドポイントのURLを取得"""
+        if endpoint == "chat/completions":
+            return f"https://{API_HOST}/chat/completions"
         return f"https://{API_HOST}/{API_VERSION}/{endpoint}"
 
     def search(self, query: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[Dict]:
