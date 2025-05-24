@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 from src.categories import get_categories, get_all_categories
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
+from src.analysis.ranking_metrics import extract_ranking_and_reasons
 from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
 
 # 共通ユーティリティをインポート
@@ -63,6 +64,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 continue
 
             subcategory_results = []
+            subcategory_reasons = []  # 各実行ごとの理由配列
             all_responses = []  # 全ての応答テキストを保存
 
             for run in range(num_runs):
@@ -75,14 +77,25 @@ def collect_rankings(api_key, categories, num_runs=1):
                 all_responses.append(response)  # 応答テキストを保存
                 print(f"  Perplexityからの応答:\n{response[:200]}...")  # 応答の一部を表示
 
-                # ランキング抽出
-                ranking = extract_ranking(response, services)
-                subcategory_results.append(ranking)
+                # ランキング・理由抽出
+                ranking, reasons = extract_ranking_and_reasons(response)
+                # サービス名の正規化・フィルタリングは従来通りextract_rankingで
+                filtered_ranking = extract_ranking(response, services)
+                # 理由もランキングと同じ順序でフィルタリング
+                filtered_reasons = []
+                for s in filtered_ranking:
+                    try:
+                        idx = ranking.index(s)
+                        filtered_reasons.append(reasons[idx] if idx < len(reasons) else "")
+                    except Exception:
+                        filtered_reasons.append("")
+                subcategory_results.append(filtered_ranking)
+                subcategory_reasons.append(filtered_reasons)
 
-                if len(ranking) != len(services):
-                    print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(ranking)}/{len(services)})")
+                if len(filtered_ranking) != len(services):
+                    print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(filtered_ranking)}/{len(services)})")
                 else:
-                    print(f"  ✓ ランキング抽出完了: {ranking}")
+                    print(f"  ✓ ランキング抽出完了: {filtered_ranking}")
 
                 # API制限を考慮した待機
                 if run < num_runs - 1 or processed < total_categories:
@@ -121,6 +134,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 results[category][subcategory] = {
                     "services": services,
                     "all_rankings": subcategory_results,
+                    "all_reasons": subcategory_reasons,
                     "all_responses": all_responses,  # 全ての応答テキストを保存
                     "avg_ranking": final_ranking,
                     "rank_details": rank_details
@@ -130,6 +144,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 results[category][subcategory] = {
                     "services": services,
                     "ranking": subcategory_results[0],
+                    "reasons": subcategory_reasons[0] if subcategory_reasons else [],
                     "response": all_responses[0]  # 応答テキストを保存
                 }
 

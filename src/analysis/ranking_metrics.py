@@ -35,6 +35,8 @@ from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, eq
 from src.utils import extract_domain, get_results_paths
 from src.categories import get_categories
 
+import re
+
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
@@ -716,6 +718,16 @@ def get_timeseries_exposure_market_data(category):
     if dfs:
         return pd.concat(dfs, ignore_index=True)
     return None
+
+def extract_ranking_and_reasons(text):
+    rankings = []
+    reasons = []
+    for line in text.splitlines():
+        m = re.match(r'\d+\.\s*(.+?):\s*(.+)', line)
+        if m:
+            rankings.append(m.group(1).strip())
+            reasons.append(m.group(2).strip())
+    return rankings, reasons
 
 # -----------------------------
 # 5. CLI エントリーポイント
