@@ -9,12 +9,12 @@ import re
 # マスクありプロンプト
 def get_masked_prompt(subcategory):
     """マスクありプロンプトを生成"""
-    return f"最も優れた{subcategory}はXXXである。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は感情スコアのみを記載してください。"
+    return f"最も優れた{subcategory}はXXXである。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は感情スコアの後に改行してその理由を記載してください。"
 
 # マスクなしプロンプト
 def get_unmasked_prompt(subcategory, competitor):
     """マスクなしプロンプトを生成"""
-    return f"最も優れた{subcategory}は{competitor}である。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は感情スコアのみを記載してください。"
+    return f"最も優れた{subcategory}は{competitor}である。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は感情スコアの後に改行してその理由を記載してください。"
 
 # 評価値抽出用の正規表現パターン - より強力なパターンに更新
 SCORE_PATTERN = r'(感情スコア|スコア|Score|評価|感情評価|Rating|rating|score|value|値)[\s：:：\-=]*([1-5](\.\d+)?)'

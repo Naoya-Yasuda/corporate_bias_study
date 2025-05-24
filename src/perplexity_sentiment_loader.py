@@ -102,11 +102,8 @@ def process_categories(api_key, categories):
     return results
 
 def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
-    """複数回実行して平均値を取得"""
-    # 最終結果を格納する辞書
+    """複数回実行して平均値を取得（マスクあり・マスクなし両方とも各num_runs回ずつAPIを呼び出す）"""
     results = {}
-
-    # 初期化：カテゴリとサブカテゴリのデータ構造を作成
     for category, subcategories_data in categories.items():
         results[category] = {}
         for subcategory, competitors in subcategories_data.items():
@@ -114,123 +111,95 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 "competitors": competitors,
                 "masked_example": get_masked_prompt(subcategory),
                 "unmasked_examples": {competitor: get_unmasked_prompt(subcategory, competitor) for competitor in competitors},
-                "masked_result": "",  # 最後の結果を格納
-                "unmasked_result": {competitor: "" for competitor in competitors},  # 各企業の最後の結果を格納
-                "masked_values": [],  # 各実行のマスクあり評価値
-                "all_masked_results": [],  # 各実行のマスクあり結果テキスト
-                "unmasked_values": {competitor: [] for competitor in competitors}  # 各企業ごとの評価値配列
+                "masked_result": "",
+                "unmasked_result": {competitor: "" for competitor in competitors},
+                "masked_values": [],
+                "all_masked_results": [],
+                "unmasked_values": {competitor: [] for competitor in competitors},
+                "masked_reasons": [],
+                "unmasked_reasons": {competitor: [] for competitor in competitors}
             }
             print(f"評価対象: カテゴリ={category}, サブカテゴリ={subcategory}, サービス={competitors}")
 
-    # 指定回数分の実行
+    api = PerplexityAPI(api_key)
+    # マスクあり num_runs回
     for run in range(num_runs):
-        print(f"実行 {run+1}/{num_runs}")
-        run_results = process_categories(api_key, categories)
-
-        # 各カテゴリと各サブカテゴリについて結果を処理
-        for category in results:
-            for subcategory in results[category]:
-                if subcategory not in run_results[category]:
-                    print(f"警告: 実行{run+1}の結果に {category}/{subcategory} が含まれていません")
-                    continue
-
-                print(f"処理中: カテゴリ={category}, サブカテゴリ={subcategory}")
-
-                # 最後の実行結果を保存（表示用）
-                results[category][subcategory]['masked_result'] = run_results[category][subcategory]['masked_result']
-
-                # 各企業の最後の結果を保存（表示用）
-                for competitor in results[category][subcategory]['competitors']:
-                    if competitor in run_results[category][subcategory]['unmasked_result']:
-                        results[category][subcategory]['unmasked_result'][competitor] = run_results[category][subcategory]['unmasked_result'][competitor]
-
-                # マスクありの結果を保存
-                masked_result = run_results[category][subcategory]['masked_result']
+        print(f"マスクあり 実行 {run+1}/{num_runs}")
+        for category, subcategories_data in categories.items():
+            for subcategory, competitors in subcategories_data.items():
+                masked_example = get_masked_prompt(subcategory)
+                masked_result = api.call_ai_api(masked_example)
+                results[category][subcategory]['masked_result'] = masked_result
                 results[category][subcategory]['all_masked_results'].append(masked_result)
-
-                # マスクあり評価値の抽出
                 try:
                     value = extract_score(masked_result)
                     if value is not None:
                         results[category][subcategory]['masked_values'].append(value)
                     else:
                         print(f"警告: マスクあり評価値が抽出できませんでした: {masked_result}")
+                    reason = extract_reason(masked_result)
+                    results[category][subcategory]['masked_reasons'].append(reason)
                 except Exception as e:
                     print(f"マスクあり評価値の抽出エラー: {e}, 結果: {masked_result}")
-
-                # マスクなし評価値の抽出（各競合企業ごと）
-                for competitor in results[category][subcategory]['competitors']:
+                time.sleep(1)
+    # マスクなし（各企業ごと） num_runs回
+    for run in range(num_runs):
+        print(f"マスクなし 実行 {run+1}/{num_runs}")
+        for category, subcategories_data in categories.items():
+            for subcategory, competitors in subcategories_data.items():
+                for competitor in competitors:
+                    unmasked_example = get_unmasked_prompt(subcategory, competitor)
+                    unmasked_result = api.call_ai_api(unmasked_example)
+                    results[category][subcategory]['unmasked_result'][competitor] = unmasked_result
                     try:
-                        # unmasked_resultから各企業の結果を取得
-                        if competitor in run_results[category][subcategory]['unmasked_result']:
-                            unmasked_result = run_results[category][subcategory]['unmasked_result'][competitor]
-
-                            # 評価値の抽出
-                            value = extract_score(unmasked_result)
-                            if value is not None:
-                                results[category][subcategory]['unmasked_values'][competitor].append(value)
-                            else:
-                                print(f"警告: {competitor}の評価値が抽出できませんでした: {unmasked_result}")
+                        value = extract_score(unmasked_result)
+                        if value is not None:
+                            results[category][subcategory]['unmasked_values'][competitor].append(value)
                         else:
-                            print(f"警告: 実行{run+1}の結果に {competitor} が含まれていません")
+                            print(f"警告: {competitor}の評価値が抽出できませんでした: {unmasked_result}")
+                        reason = extract_reason(unmasked_result)
+                        results[category][subcategory]['unmasked_reasons'][competitor].append(reason)
                     except Exception as e:
                         print(f"マスクなし評価値の抽出エラー ({competitor}): {e}")
-
-        time.sleep(2)  # APIレート制限を考慮した待機
-
-    # 平均値と標準偏差を計算
+                    time.sleep(1)
+    # 平均値と標準偏差の計算などは従来通り
     for category in results:
         for subcategory in results[category]:
-            # マスクあり評価値の統計
             masked_values = results[category][subcategory].get('masked_values', [])
             if masked_values:
-                # NumPyを使用して正確な平均値を計算
                 results[category][subcategory]['masked_avg'] = np.mean(masked_values)
                 print(f"マスクあり評価値: {masked_values}, 平均: {results[category][subcategory]['masked_avg']}")
-
-                # 標準偏差の計算 - NumPyを使用
                 if len(masked_values) > 1:
-                    results[category][subcategory]['masked_std_dev'] = np.std(masked_values, ddof=1)  # 不偏標準偏差
+                    results[category][subcategory]['masked_std_dev'] = np.std(masked_values, ddof=1)
                 else:
                     results[category][subcategory]['masked_std_dev'] = 0
             else:
                 results[category][subcategory]['masked_avg'] = 0
                 results[category][subcategory]['masked_std_dev'] = 0
-
-            # マスクなし評価値の統計（各競合企業ごと）
             if 'unmasked_values' in results[category][subcategory]:
                 results[category][subcategory]['unmasked_avg'] = {}
                 results[category][subcategory]['unmasked_std_dev'] = {}
-
                 for competitor in results[category][subcategory]['unmasked_values']:
                     values = results[category][subcategory]['unmasked_values'][competitor]
                     if values:
-                        # NumPyを使用して正確な平均値を計算
                         results[category][subcategory]['unmasked_avg'][competitor] = np.mean(values)
                         print(f"{competitor}の評価値: {values}, 平均: {results[category][subcategory]['unmasked_avg'][competitor]}")
-
-                        # 標準偏差の計算 - NumPyを使用
                         if len(values) > 1:
-                            results[category][subcategory]['unmasked_std_dev'][competitor] = np.std(values, ddof=1)  # 不偏標準偏差
+                            results[category][subcategory]['unmasked_std_dev'][competitor] = np.std(values, ddof=1)
                         else:
                             results[category][subcategory]['unmasked_std_dev'][competitor] = 0
                     else:
                         results[category][subcategory]['unmasked_avg'][competitor] = 0
                         results[category][subcategory]['unmasked_std_dev'][competitor] = 0
-
-            # 参照リンクの抽出（マスクあり結果）
             if 'masked_result' in results[category][subcategory]:
                 masked_result = results[category][subcategory]['masked_result']
                 references = extract_references(masked_result)
                 results[category][subcategory]['masked_references'] = references
-
-            # 参照リンクの抽出（マスクなし結果：各企業）
             if 'unmasked_result' in results[category][subcategory]:
                 results[category][subcategory]['unmasked_references'] = {}
                 for competitor, result_text in results[category][subcategory]['unmasked_result'].items():
                     references = extract_references(result_text)
                     results[category][subcategory]['unmasked_references'][competitor] = references
-
     return results
 
 def save_results(result_data, run_type="single", num_runs=1):
@@ -332,6 +301,13 @@ def extract_references(text):
     references = sorted(set(int(m) for m in matches))
 
     return references
+
+# 理由抽出関数
+def extract_reason(text):
+    if not text:
+        return ""
+    parts = text.split('\n', 1)
+    return parts[1].strip() if len(parts) > 1 else ""
 
 if __name__ == "__main__":
     main()
