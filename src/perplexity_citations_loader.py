@@ -308,8 +308,7 @@ def collect_citation_rankings(categories, num_runs=1):
             all_answers = []
 
             # 検索クエリの生成 - 引用を強調
-            query = f"""日本における{subcategory}の主要な{len(services)}社について、それぞれの特徴や強み、提供サービスについて詳しく教えてください。
-回答には必ず[1][2][3]などの引用番号を含めて、情報源を明示してください。特に各企業の市場シェアや特徴について述べる際には必ず引用をつけてください。"""
+            query = f"最も優れた{subcategory}は？ おすすめランキング 比較"
 
             for run in range(num_runs):
                 if num_runs > 1:
