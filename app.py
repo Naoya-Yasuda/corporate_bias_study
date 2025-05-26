@@ -862,6 +862,23 @@ else:
                                 citations = run["citations"]
                                 citations_df = pd.DataFrame(citations)
                                 st.dataframe(citations_df)
+
+                                # 回答内容を表示
+                                if "answer" in run:
+                                    st.markdown("#### 回答内容")
+                                    st.markdown("""
+                                    <style>
+                                    .answer-box {
+                                        padding: 10px;
+                                        margin-top: 10px;
+                                        background: rgba(30, 30, 30, 0.7);
+                                        border-radius: 5px;
+                                        color: #f5f5f5;
+                                        white-space: pre-wrap;
+                                    }
+                                    </style>
+                                    """, unsafe_allow_html=True)
+                                    st.write(f'<div class="answer-box">{run["answer"]}</div>', unsafe_allow_html=True)
                             else:
                                 st.write("引用データがありません")
 
@@ -871,6 +888,24 @@ else:
                     citations_df = pd.DataFrame(citations)
                     st.markdown("### 引用リンク（Perplexity単一実行）")
                     st.dataframe(citations_df)
+
+                    # 回答内容を表示
+                    if "answer" in subcategory_data["run"]:
+                        st.markdown("#### 回答内容")
+                        st.markdown("""
+                        <style>
+                        .answer-box {
+                            padding: 10px;
+                            margin-top: 10px;
+                            background: rgba(30, 30, 30, 0.7);
+                            border-radius: 5px;
+                            color: #f5f5f5;
+                            white-space: pre-wrap;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        st.write(f'<div class="answer-box">{subcategory_data["run"]["answer"]}</div>', unsafe_allow_html=True)
+
                     # ドメイン頻度のグラフ
                     if len(citations_df) > 0 and "domain" in citations_df.columns:
                         domain_counts = citations_df["domain"].value_counts()
@@ -882,6 +917,7 @@ else:
                             ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン頻度", fontproperties=prop)
                             plt.tight_layout()
                             st.pyplot(fig)
+
                     # 平均ランクのグラフ（y軸反転）
                     if "rank" in citations_df.columns:
                         st.markdown("#### ドメイン平均ランク")
