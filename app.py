@@ -400,10 +400,21 @@ else:
                             for service, vals in subcategory_data["unmasked_values"].items():
                                 st.write(f"  {service}: {vals}")
 
-                        # マスクありのプロンプトを表示
-                        if "masked_example" in subcategory_data:
-                            st.write("### マスクありプロンプト")
-                            st.text(subcategory_data["masked_example"])
+                    # マスクありのプロンプトを表示
+                    if "masked_example" in subcategory_data:
+                        with st.expander("プロンプトを表示"):
+                            st.markdown("""
+                            <style>
+                            .prompt-box {
+                                padding-bottom: 10px;
+                                margin-top: -1rem;
+                                background-color: transparent;
+                                color: #f5f5f5;
+                                white-space: pre-wrap;
+                            }
+                            </style>
+                            """, unsafe_allow_html=True)
+                            st.markdown(f'<div class="prompt-box">{subcategory_data["masked_example"]}</div>', unsafe_allow_html=True)
 
                     records = []
 
