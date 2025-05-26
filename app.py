@@ -796,7 +796,22 @@ else:
                 selected_subcategory = st.selectbox("サブカテゴリを選択", subcategories)
 
                 subcategory_data = category_data[selected_subcategory]
-
+                # --- プロンプト表示（queryをexpanderで表示） ---
+                if "query" in subcategory_data:
+                    with st.expander("プロンプトを表示"):
+                        st.markdown("""
+                        <style>
+                        .prompt-box {
+                            padding-bottom: 10px;
+                            margin-top: -1rem;
+                            background-color: transparent;
+                            color: #f5f5f5;
+                            white-space: pre-wrap;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        st.markdown(f'<div class="prompt-box">{subcategory_data["query"]}</div>', unsafe_allow_html=True)
+                # --- ここまでプロンプト表示 ---
                 # 複数回実行の場合
                 if "all_runs" in subcategory_data:
                     runs_data = subcategory_data["all_runs"]
@@ -862,8 +877,7 @@ else:
                                 citations = run["citations"]
                                 citations_df = pd.DataFrame(citations)
                                 st.dataframe(citations_df)
-
-                                # 回答内容を表示
+                                # 回答内容を表示（消さない）
                                 if "answer" in run:
                                     st.markdown("#### 回答内容")
                                     st.markdown("""
@@ -888,8 +902,7 @@ else:
                     citations_df = pd.DataFrame(citations)
                     st.markdown("### 引用リンク（Perplexity単一実行）")
                     st.dataframe(citations_df)
-
-                    # 回答内容を表示
+                    # 回答内容を表示（消さない）
                     if "answer" in subcategory_data["run"]:
                         st.markdown("#### 回答内容")
                         st.markdown("""
@@ -905,7 +918,6 @@ else:
                         </style>
                         """, unsafe_allow_html=True)
                         st.write(f'<div class="answer-box">{subcategory_data["run"]["answer"]}</div>', unsafe_allow_html=True)
-
                     # ドメイン頻度のグラフ
                     if len(citations_df) > 0 and "domain" in citations_df.columns:
                         domain_counts = citations_df["domain"].value_counts()
@@ -917,7 +929,6 @@ else:
                             ax.set_title(f"{selected_category} - {selected_subcategory} のドメイン頻度", fontproperties=prop)
                             plt.tight_layout()
                             st.pyplot(fig)
-
                     # 平均ランクのグラフ（y軸反転）
                     if "rank" in citations_df.columns:
                         st.markdown("#### ドメイン平均ランク")
