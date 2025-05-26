@@ -23,7 +23,8 @@ from src.utils import (
     get_today_str,
     is_s3_enabled,
     get_storage_config,
-    get_results_paths
+    get_results_paths,
+    is_official_domain
 )
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path
@@ -356,6 +357,8 @@ def collect_citation_rankings(categories, num_runs=1):
 
                         if url:
                             domain = extract_domain(url)
+                            # 公式/非公式の判定を追加
+                            is_official = is_official_domain(domain, None, services)
                             citation_data.append({
                                 "rank": i + 1,  # 1-indexed
                                 "url": url,
@@ -363,9 +366,10 @@ def collect_citation_rankings(categories, num_runs=1):
                                 "title": citation.get("title", ""),
                                 "snippet": citation.get("snippet", ""),  # スニペットを追加
                                 "last_modified": citation.get("last_modified", ""),  # 最終更新日を追加
-                                "from_api": True
+                                "from_api": True,
+                                "is_official": is_official  # 公式/非公式の判定を追加
                             })
-                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
+                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
 
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
@@ -386,7 +390,8 @@ def collect_citation_rankings(categories, num_runs=1):
                                 "url": f"ref:{ref['ref_num']}",  # 実際のURLはないので識別子として使用
                                 "context": ref.get("context", ""),  # 引用の文脈
                                 "from_text": True,
-                                "text_position": ref.get("position", 0)  # テキスト内の位置を追加
+                                "text_position": ref.get("position", 0),  # テキスト内の位置を追加
+                                "is_official": "n/a"  # テキストからの引用は公式判定不可
                             })
                         print(f"  テキストから引用参照を抽出: {len(citation_data)}件")
                     else:
