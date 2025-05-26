@@ -21,7 +21,11 @@ from urllib.parse import urlparse
 import tldextract
 
 # 共通ユーティリティをインポート
-from src.utils.text_utils import extract_domain, is_negative, is_official_domain
+from src.utils.text_utils import (
+    extract_domain,
+    is_negative,
+    is_official_domain
+)
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path, get_s3_client, get_s3_key_path, get_latest_file
@@ -152,8 +156,8 @@ def process_serp_results(data, query, category, subcategory, target_companies):
                     search_result_companies.append(company)
                 break
 
-        # 公式ドメインリストを使用して判定（categories.ymlで定義された公式ドメインと照合）
-        is_official = is_official_domain(domain, related_company, target_companies.get(related_company, []))
+        # 公式ドメインリストを使用して判定（サブカテゴリ内の全企業の公式ドメインと照合）
+        is_official = is_official_domain(domain, related_company, target_companies)
 
         # 結果を記録
         results.append({

@@ -25,7 +25,7 @@ from src.utils import (
     get_storage_config,
     get_results_paths
 )
-from src.utils.text_utils import is_official_domain
+from src.utils.text_utils import is_official_domain, collect_official_domains
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path
 from src.categories import get_categories, get_all_categories
