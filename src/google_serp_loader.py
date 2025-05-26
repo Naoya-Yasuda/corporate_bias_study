@@ -199,8 +199,8 @@ def process_categories_with_serp(categories, max_categories=None):
         results[category] = {}
 
         for subcategory, services in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            # 検索クエリを生成
-            query = f"最も優れた{subcategory}は？ おすすめランキング 比較"
+            # 検索クエリを生成（より自然な検索クエリに修正）
+            query = f"{subcategory} おすすめ 人気 比較"
 
             # SERP API で検索
             serp_data = get_serp_results(query, num_results=20)

@@ -23,9 +23,9 @@ from src.utils import (
     get_today_str,
     is_s3_enabled,
     get_storage_config,
-    get_results_paths,
-    is_official_domain
+    get_results_paths
 )
+from src.utils.text_utils import is_official_domain
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path
 from src.categories import get_categories, get_all_categories
@@ -309,7 +309,7 @@ def collect_citation_rankings(categories, num_runs=1):
             all_answers = []
 
             # 検索クエリの生成 - 引用を強調
-            query = f"最も優れた{subcategory}は？ おすすめランキング 比較"
+            query = f"{subcategory} おすすめ 人気 比較"
 
             for run in range(num_runs):
                 if num_runs > 1:
