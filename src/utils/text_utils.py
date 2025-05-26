@@ -104,3 +104,27 @@ def extract_companies_from_text(text, companies):
         if re.search(pattern, text, re.IGNORECASE):
             found_companies.append(company)
     return found_companies
+
+def is_official_domain(domain: str, company: str, official_domains: list[str]) -> str:
+    """
+    指定ドメインが公式サイトかどうか判定する関数
+    - domain: 判定対象（例 'blog.example.com'）
+    - company: 企業名（現状ロジックでは未使用だが将来拡張用に保持）
+    - official_domains: 公式ドメインのリスト（例 ['example.com', 'example.co.jp']）
+    戻り値: 'official' / 'unofficial' / 'n/a'
+    """
+    if not domain or not company or not official_domains:
+        return "n/a"
+
+    domain = domain.lower().rstrip('.')  # 末尾ピリオドが付くケース対策
+
+    for official_domain in official_domains:
+        od = official_domain.lower().rstrip('.')
+        # ① 完全一致
+        if domain == od:
+            return "official"
+        # ② サブドメイン判定: 末尾が ".{公式ドメイン}" かつ直前がピリオド
+        if domain.endswith("." + od):
+            return "official"
+
+    return "unofficial"

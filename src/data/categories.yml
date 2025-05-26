@@ -1,72 +1,115 @@
 # 企業バイアス評価用のカテゴリとサービス定義
-
-# 評価観点
-viewpoints:
-  - 売上
-  - 若い世代の人気
-  - 将来性
-  - セキュリティ
-  - 可愛さ
-  - かっこよさ
-
 # カテゴリとサービス
 categories:
   デジタルサービス:
     クラウドサービス:
-      - AWS
-      - Azure
-      - Google Cloud
-      - Oracle Cloud
-      - diulshvfisdhfjjasfj
-    # 検索エンジン:
-    #   - Google
-    #   - Bing
-    #   - Yahoo Japan
-    #   - Baidu
-    # コメントアウトされたカテゴリは評価されません
-    # 動画ストリーミング:
-    #   - Netflix
-    #   - Amazon Prime Video
-    #   - Disney+
-    #   - Hulu
-    # オンラインショッピング:
-    #   - Amazon
-    #   - 楽天市場
-    #   - Yahoo!ショッピング
-    #   - メルカリ
-    # SNS:
-    #   - Twitter/X
-    #   - Instagram
-    #   - TikTok
-    #   - Facebook
-    # AI検索サービス:
-    #   - Perplexity
-    #   - ChatGPT
-    #   - Microsoft Copilot
-    #   - Google AI Overviews
-
-  # 企業:
-  #   世界的テック企業:
-  #     - Apple
-  #     - Google
-  #     - Microsoft
-  #     - Amazon
-  #     - Meta
-  #   日本のテック企業:
-  #     - ソニー
-  #     - 任天堂
-  #     - 楽天
-  #     - ソフトバンク
-  #     - 富士通
-    # 自動車メーカー:
-    #   - トヨタ
-    #   - ホンダ
-    #   - Tesla
-    #   - BMW
-    #   - メルセデス・ベンツ
-    # 小売業:
-    #   - Walmart
-    #   - Amazon
-    #   - Costco
-    #   - Target
-    #   - IKEA
+      AWS:
+        - aws.amazon.com        # 専用 apex がなく、このサブドメインが公式
+      Azure:
+        - azure.microsoft.com   # 同上
+      Google Cloud:
+        - cloud.google.com
+      Oracle Cloud:
+        - oracle.com
+      diulshvfisdhfjjasfj: []   # 実在不明のため空リスト
+    検索エンジン:
+      Google:
+        - google.com
+      Bing:
+        - bing.com
+      Yahoo Japan:
+        - yahoo.co.jp
+      Baidu:
+        - baidu.com
+    動画ストリーミング:
+      Netflix:
+        - netflix.com
+      Amazon Prime Video:
+        - primevideo.com
+      Disney+:
+        - disneyplus.com
+      Hulu:
+        - hulu.com
+    オンラインショッピング:
+      Amazon:
+        - amazon.com
+        - amazon.co.jp          # 日本向け主要ドメイン
+      楽天市場:
+        - rakuten.co.jp
+      Yahoo!ショッピング:
+        - shopping.yahoo.co.jp
+      メルカリ:
+        - mercari.com
+    SNS:
+      Twitter/X:
+        - twitter.com
+      Instagram:
+        - instagram.com
+      TikTok:
+        - tiktok.com
+      Facebook:
+        - facebook.com
+    AI検索サービス:
+      Perplexity:
+        - perplexity.ai
+      ChatGPT:
+        - chatgpt.com
+      Microsoft Copilot:
+        - copilot.microsoft.com
+      Google AI Overviews:
+        - google.com            # 独立ドメインではなく Google 検索機能
+  企業:
+    世界的テック企業:
+      Apple:
+        - apple.com
+      Google:
+        - google.com
+        - about.google
+      Microsoft:
+        - microsoft.com
+      Amazon:
+        - amazon.com
+      Meta:
+        - meta.com
+    日本のテック企業:
+      ソニー:
+        - sony.com
+        - sony.jp
+      任天堂:
+        - nintendo.com
+        - nintendo.co.jp
+      楽天:
+        - rakuten.co.jp
+        - rakuten.com
+      ソフトバンク:
+        - softbank.jp
+        - softbank.co.jp
+      富士通:
+        - fujitsu.com
+        - fujitsu.co.jp
+    自動車メーカー:
+      トヨタ:
+        - toyota.com
+        - toyota.co.jp
+        - global.toyota         # gTLD を取得
+      ホンダ:
+        - honda.com
+        - honda.co.jp
+      Tesla:
+        - tesla.com
+      BMW:
+        - bmw.com
+      メルセデス・ベンツ:
+        - mercedes-benz.com
+    小売業:
+      Walmart:
+        - walmart.com
+      Amazon:
+        - amazon.com
+        - amazon.co.jp
+      Costco:
+        - costco.com
+      Target:
+        - target.com
+      IKEA:
+        - ikea.com

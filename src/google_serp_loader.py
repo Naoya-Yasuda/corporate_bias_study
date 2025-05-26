@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 import tldextract
 
 # 共通ユーティリティをインポート
-from src.utils.text_utils import extract_domain, is_negative
+from src.utils.text_utils import extract_domain, is_negative, is_official_domain
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path, get_s3_client, get_s3_key_path, get_latest_file
@@ -133,7 +133,7 @@ def process_serp_results(data, query, category, subcategory, target_companies):
 
     # 検索結果を解析
     results = []
-    search_result_companies = []  # 検索結果の順序に基づく企業名のリスト
+    search_result_companies = []  # 検索結果の順序に基づく企業名のリスト（categories.ymlで定義された企業名）
 
     for i, result in enumerate(organic_results):
         title = result.get("title", "")
@@ -141,7 +141,7 @@ def process_serp_results(data, query, category, subcategory, target_companies):
         snippet = result.get("snippet", "")
         domain = extract_domain(link)
 
-        # 各企業についてドメインが関連しているか確認
+        # 各企業についてドメインが関連しているか確認（categories.ymlで定義された企業名と照合）
         related_company = None
         for company in target_companies:
             if (company.lower() in title.lower() or
@@ -152,6 +152,9 @@ def process_serp_results(data, query, category, subcategory, target_companies):
                     search_result_companies.append(company)
                 break
 
+        # 公式ドメインリストを使用して判定（categories.ymlで定義された公式ドメインと照合）
+        is_official = is_official_domain(domain, related_company, target_companies.get(related_company, []))
+
         # 結果を記録
         results.append({
             "rank": i + 1,
@@ -159,8 +162,8 @@ def process_serp_results(data, query, category, subcategory, target_companies):
             "link": link,
             "domain": domain,
             "snippet": snippet,
-            "company": related_company,
-            "is_official": classify_domain(domain, related_company) if related_company else "n/a",
+            "company": related_company,  # categories.ymlで定義された企業名
+            "is_official": is_official,
             "is_negative": is_negative_content(title, snippet)
         })
 
@@ -169,8 +172,8 @@ def process_serp_results(data, query, category, subcategory, target_companies):
         "timestamp": datetime.datetime.now().isoformat(),
         "category": category,
         "subcategory": subcategory,
-        "companies": target_companies,
-        "search_result_companies": search_result_companies,  # 名前を変更
+        "companies": target_companies,  # categories.ymlで定義された企業名と公式ドメインのマッピング
+        "search_result_companies": search_result_companies,  # 検索結果で見つかった企業名のリスト
         "detailed_results": results
     }
 

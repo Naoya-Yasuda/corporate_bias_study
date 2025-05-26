@@ -12,6 +12,7 @@ import time
 import boto3
 import argparse
 from dotenv import load_dotenv
+import re
 
 from src.categories import get_categories, get_all_categories
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
@@ -22,6 +23,7 @@ from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path
+from src.utils.text_utils import extract_domain, is_official_domain
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -32,6 +34,30 @@ AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+
+def extract_domains_from_response(response, services, official_domains):
+    """Perplexityの応答からドメインを抽出し、公式/非公式を判定"""
+    # URLを抽出する正規表現パターン
+    url_pattern = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
+    urls = re.findall(url_pattern, response)
+
+    domains = []
+    for url in urls:
+        domain = extract_domain(url)
+        if domain:
+            # 各サービスについてドメインが関連しているか確認
+            for service in services:
+                if service.lower() in domain.lower():
+                    # 公式ドメインリストを使用して判定
+                    is_official = is_official_domain(domain, service, official_domains.get(service, []))
+                    domains.append({
+                        "domain": domain,
+                        "service": service,
+                        "is_official": is_official
+                    })
+                    break
+
+    return domains
 
 def collect_rankings(api_key, categories, num_runs=1):
     """
@@ -66,6 +92,7 @@ def collect_rankings(api_key, categories, num_runs=1):
             subcategory_results = []
             subcategory_reasons = []  # 各実行ごとの理由配列
             all_responses = []  # 全ての応答テキストを保存
+            all_domains = []  # 全てのドメイン情報を保存
 
             for run in range(num_runs):
                 if num_runs > 1:
@@ -76,6 +103,10 @@ def collect_rankings(api_key, categories, num_runs=1):
                 response = api.call_ai_api(prompt)
                 all_responses.append(response)  # 応答テキストを保存
                 print(f"  Perplexityからの応答:\n{response[:200]}...")  # 応答の一部を表示
+
+                # ドメイン情報を抽出（公式ドメインリストを使用して判定）
+                domains = extract_domains_from_response(response, services, services)
+                all_domains.append(domains)
 
                 # ランキング・理由抽出
                 ranking, reasons = extract_ranking_and_reasons(response)
@@ -137,6 +168,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                     "all_rankings": subcategory_results,
                     "all_reasons": subcategory_reasons,
                     "all_responses": all_responses,  # 全ての応答テキストを保存
+                    "all_domains": all_domains,  # 全てのドメイン情報を保存
                     "avg_ranking": final_ranking,
                     "rank_details": rank_details
                 }
@@ -147,7 +179,8 @@ def collect_rankings(api_key, categories, num_runs=1):
                     "query": prompt,  # プロンプトをqueryプロパティとして保存
                     "ranking": subcategory_results[0],
                     "reasons": subcategory_reasons[0] if subcategory_reasons else [],
-                    "response": all_responses[0]  # 応答テキストを保存
+                    "response": all_responses[0],  # 応答テキストを保存
+                    "domains": all_domains[0]  # ドメイン情報を保存
                 }
 
     return results
