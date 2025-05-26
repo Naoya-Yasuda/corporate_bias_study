@@ -133,6 +133,7 @@ def collect_rankings(api_key, categories, num_runs=1):
 
                 results[category][subcategory] = {
                     "services": services,
+                    "query": prompt,  # プロンプトをqueryプロパティとして保存
                     "all_rankings": subcategory_results,
                     "all_reasons": subcategory_reasons,
                     "all_responses": all_responses,  # 全ての応答テキストを保存
@@ -143,6 +144,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 # 単一実行の場合
                 results[category][subcategory] = {
                     "services": services,
+                    "query": prompt,  # プロンプトをqueryプロパティとして保存
                     "ranking": subcategory_results[0],
                     "reasons": subcategory_reasons[0] if subcategory_reasons else [],
                     "response": all_responses[0]  # 応答テキストを保存

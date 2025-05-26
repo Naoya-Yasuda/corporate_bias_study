@@ -578,6 +578,23 @@ else:
                 subcategories = list(category_data.keys())
                 selected_subcategory = st.selectbox("サブカテゴリを選択", subcategories)
                 subcategory_data = category_data[selected_subcategory]
+
+                # --- プロンプト表示（queryをexpanderで表示） ---
+                if "query" in subcategory_data:
+                    with st.expander("プロンプトを表示"):
+                        st.markdown("""
+                        <style>
+                        .prompt-box {
+                            padding-bottom: 10px;
+                            margin-top: -1rem;
+                            background-color: transparent;
+                            color: #f5f5f5;
+                            white-space: pre-wrap;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        st.markdown(f'<div class="prompt-box">{subcategory_data["query"]}</div>', unsafe_allow_html=True)
+
                 if selected_file["is_multi_run"] and "all_rankings" in subcategory_data:
                     rankings_data = subcategory_data["all_rankings"]
                     # ...（既存の複数回実行の可視化処理）...
