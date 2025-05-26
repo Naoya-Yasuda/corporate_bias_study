@@ -25,7 +25,7 @@ from src.utils import (
     get_storage_config,
     get_results_paths
 )
-from src.utils.text_utils import is_official_domain, collect_official_domains
+from src.utils.text_utils import is_official_domain, collect_official_domains, is_negative
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path
 from src.categories import get_categories, get_all_categories
@@ -308,174 +308,167 @@ def collect_citation_rankings(categories, num_runs=1):
             # 各実行の回答テキストも保存
             all_answers = []
 
-            # 検索クエリの生成 - 引用を強調
-            query = f"{subcategory} おすすめ 人気 比較"
+            # 各サービスについて公式/非公式情報を取得
+            official_results = []
+            for service in services:
+                # 公式/非公式判定用の検索
+                query = f"{service}"
 
-            for run in range(num_runs):
-                if num_runs > 1:
-                    print(f"  実行 {run+1}/{num_runs}")
+                for run in range(num_runs):
+                    if num_runs > 1:
+                        print(f"  実行 {run+1}/{num_runs}")
 
-                # すべてのモデルを試す
-                answer = None
-                citations = []
+                    # すべてのモデルを試す
+                    answer = None
+                    citations = []
 
-                for model in models_to_try:
-                    if answer:  # 既に成功していれば次のモデルはスキップ
-                        break
+                    for model in models_to_try:
+                        if answer:  # 既に成功していれば次のモデルはスキップ
+                            break
 
-                    # API呼び出し
-                    print(f"  検索クエリ実行（モデル: {model}）: {query}")
-                    answer, citations = perplexity_api(query, model=model)
+                        # API呼び出し
+                        print(f"  検索クエリ実行（モデル: {model}）: {query}")
+                        answer, citations = perplexity_api(query, model=model)
 
-                    if answer:
-                        print(f"  モデル {model} で成功")
-                        break
+                        if answer:
+                            print(f"  モデル {model} で成功")
+                            break
 
-                if not answer:
-                    print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
-                    continue
+                    if not answer:
+                        print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
+                        continue
 
-                print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
+                    print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
 
-                # 回答テキストを保存
-                all_answers.append(answer)
+                    # 回答テキストを保存
+                    all_answers.append(answer)
 
-                # 引用リンクの処理
-                citation_data = []
+                    # 引用リンクの処理
+                    citation_data = []
 
-                # APIからのcitationsがある場合はそれを使用
-                if citations:
-                    for i, citation in enumerate(citations):
-                        # URLの取得を試みる（複数の可能性を考慮）
-                        url = citation.get("url", "")
-                        if not url:
-                            url = citation.get("link", "")
-                        if not url:
-                            url = citation.get("source", "")
-                        if not url:
-                            url = citation.get("reference", "")
+                    # APIからのcitationsがある場合はそれを使用
+                    if citations:
+                        for i, citation in enumerate(citations):
+                            # URLの取得を試みる（複数の可能性を考慮）
+                            url = citation.get("url", "")
+                            if not url:
+                                url = citation.get("link", "")
+                            if not url:
+                                url = citation.get("source", "")
+                            if not url:
+                                url = citation.get("reference", "")
 
-                        if url:
-                            domain = extract_domain(url)
-                            # 公式/非公式の判定を追加
-                            is_official = is_official_domain(domain, None, services)
-                            citation_data.append({
-                                "rank": i + 1,  # 1-indexed
-                                "url": url,
-                                "domain": domain,
-                                "title": citation.get("title", ""),
-                                "snippet": citation.get("snippet", ""),  # スニペットを追加
-                                "last_modified": citation.get("last_modified", ""),  # 最終更新日を追加
-                                "from_api": True,
-                                "is_official": is_official  # 公式/非公式の判定を追加
-                            })
-                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
+                            if url:
+                                domain = extract_domain(url)
+                                # 公式/非公式の判定を追加
+                                is_official = is_official_domain(domain, None, {service: services[service]})
+                                citation_data.append({
+                                    "rank": i + 1,  # 1-indexed
+                                    "url": url,
+                                    "domain": domain,
+                                    "title": citation.get("title", ""),
+                                    "snippet": citation.get("snippet", ""),
+                                    "last_modified": citation.get("last_modified", ""),
+                                    "from_api": True,
+                                    "is_official": is_official
+                                })
+                                print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
 
-                    print(f"  APIから引用情報を取得: {len(citation_data)}件")
+                        print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
-                # テキストからも引用参照を抽出（APIから取得できた場合も念のため）
-                print("  テキストから[数字]参照を抽出します...")
-                references = extract_references_with_context(answer)
+                    if citation_data:
+                        official_results.extend(citation_data)
 
-                # テキストから参照が見つかった場合
-                if references:
-                    # APIからの引用がない場合のみ追加
-                    if not citation_data:
-                        for ref in references:
-                            # ドメインの代わりに参照番号と文脈を使用
-                            citation_data.append({
-                                "rank": ref["rank"],
-                                "ref_num": ref["ref_num"],
-                                "domain": f"引用元{ref['ref_num']}",  # ドメインの代わりに引用番号
-                                "url": f"ref:{ref['ref_num']}",  # 実際のURLはないので識別子として使用
-                                "context": ref.get("context", ""),  # 引用の文脈
-                                "from_text": True,
-                                "text_position": ref.get("position", 0),  # テキスト内の位置を追加
-                                "is_official": "n/a"  # テキストからの引用は公式判定不可
-                            })
-                        print(f"  テキストから引用参照を抽出: {len(citation_data)}件")
-                    else:
-                        # APIからの引用がある場合は、テキスト参照は補足情報として記録
-                        print(f"  テキストから引用参照を抽出: {len(references)}件（APIからの引用も存在するため参考情報）")
-                else:
-                    print("  ⚠️ 警告: テキストから引用参照が見つかりませんでした")
+                    # API制限を考慮した待機
+                    if run < num_runs - 1:
+                        print("  APIレート制限を考慮して待機中...")
+                        time.sleep(3)
 
-                if citation_data:
-                    # 各実行の回答テキストと引用データを組み合わせて保存
-                    subcategory_results.append({
-                        "run": run + 1,
-                        "answer": answer,
-                        "citations": citation_data,
-                        "references": references,  # 元のテキスト参照情報も保存
-                        "extracted_from_text": len(citations) == 0 and len(references) > 0,  # テキストから抽出したかどうか
-                        "model_used": model
-                    })
+            # 評判情報を取得
+            reputation_results = []
+            for service in services:
+                # 評判情報用の検索
+                query = f"{service} 評判 口コミ"
 
-                    # 抽出したドメインまたは参照番号のリストを表示
-                    domains = [item["domain"] for item in citation_data]
-                    print(f"  抽出された引用情報: {domains}")
-                else:
-                    print("  ⚠️ 警告: 引用情報が見つかりませんでした")
+                for run in range(num_runs):
+                    if num_runs > 1:
+                        print(f"  実行 {run+1}/{num_runs}")
 
-                # API制限を考慮した待機
-                if run < num_runs - 1 or processed < total_categories:
-                    print("  APIレート制限を考慮して待機中...")
-                    time.sleep(3)
+                    # すべてのモデルを試す
+                    answer = None
+                    citations = []
 
-            # 複数回実行の場合の集計
-            if num_runs > 1 and subcategory_results:
-                # ドメインごとの出現回数と平均順位を集計
-                domain_stats = defaultdict(lambda: {"appearances": 0, "rank_sum": 0, "ranks": []})
+                    for model in models_to_try:
+                        if answer:  # 既に成功していれば次のモデルはスキップ
+                            break
 
-                for run_result in subcategory_results:
-                    for citation in run_result["citations"]:
-                        domain = citation["domain"]
-                        rank = citation["rank"]
-                        domain_stats[domain]["appearances"] += 1
-                        domain_stats[domain]["rank_sum"] += rank
-                        domain_stats[domain]["ranks"].append(rank)
+                        # API呼び出し
+                        print(f"  検索クエリ実行（モデル: {model}）: {query}")
+                        answer, citations = perplexity_api(query, model=model)
 
-                # 平均順位を計算
-                domain_rankings = []
-                for domain, stats in domain_stats.items():
-                    avg_rank = stats["rank_sum"] / stats["appearances"]
-                    appearance_ratio = stats["appearances"] / num_runs
-                    domain_rankings.append({
-                        "domain": domain,
-                        "avg_rank": avg_rank,
-                        "appearance_ratio": appearance_ratio,
-                        "appearances": stats["appearances"],
-                        "all_ranks": stats["ranks"]
-                    })
+                        if answer:
+                            print(f"  モデル {model} で成功")
+                            break
 
-                # 平均順位でソート
-                domain_rankings.sort(key=lambda x: x["avg_rank"])
+                    if not answer:
+                        print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
+                        continue
 
-                # 複数回の実行結果を要約するプロンプトを生成
-                if len(all_answers) > 1:
-                    summary = generate_summary(subcategory, services, all_answers)
-                else:
-                    summary = all_answers[0] if all_answers else ""
+                    print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
 
+                    # 回答テキストを保存
+                    all_answers.append(answer)
+
+                    # 引用リンクの処理
+                    citation_data = []
+
+                    # APIからのcitationsがある場合はそれを使用
+                    if citations:
+                        for i, citation in enumerate(citations):
+                            # URLの取得を試みる（複数の可能性を考慮）
+                            url = citation.get("url", "")
+                            if not url:
+                                url = citation.get("link", "")
+                            if not url:
+                                url = citation.get("source", "")
+                            if not url:
+                                url = citation.get("reference", "")
+
+                            if url:
+                                domain = extract_domain(url)
+                                citation_data.append({
+                                    "rank": i + 1,  # 1-indexed
+                                    "url": url,
+                                    "domain": domain,
+                                    "title": citation.get("title", ""),
+                                    "snippet": citation.get("snippet", ""),
+                                    "last_modified": citation.get("last_modified", ""),
+                                    "from_api": True,
+                                    "is_official": "n/a",  # 評判情報では公式/非公式判定は不要
+                                    "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
+                                })
+                                print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")
+
+                        print(f"  APIから引用情報を取得: {len(citation_data)}件")
+
+                    if citation_data:
+                        reputation_results.extend(citation_data)
+
+                    # API制限を考慮した待機
+                    if run < num_runs - 1:
+                        print("  APIレート制限を考慮して待機中...")
+                        time.sleep(3)
+
+            # 結果を統合
+            if official_results or reputation_results:
                 results[target_category][subcategory] = {
-                    "query": query,
-                    "summary": summary,
-                    "all_runs": subcategory_results,
-                    "domain_rankings": domain_rankings
-                }
-            elif subcategory_results:  # 単一実行の場合
-                # ドメインのランキングを抽出
-                domains = []
-                for citation in subcategory_results[0]["citations"]:
-                    domain = citation["domain"]
-                    if domain not in domains:
-                        domains.append(domain)
-
-                results[target_category][subcategory] = {
-                    "query": query,
-                    "summary": all_answers[0] if all_answers else "",
-                    "run": subcategory_results[0],
-                    "domains": domains
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "category": category,
+                    "subcategory": subcategory,
+                    "companies": services,
+                    "official_results": official_results,
+                    "reputation_results": reputation_results,
+                    "all_answers": all_answers
                 }
 
     return results

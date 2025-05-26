@@ -78,24 +78,6 @@ def save_results(results, type_str, local_path="results"):
 
     return local_file
 
-def is_negative_content(title, snippet):
-    """タイトルとスニペットからネガティブコンテンツかを判定"""
-    # ネガティブキーワードリスト（簡易版）
-    negative_keywords = [
-        "問題", "障害", "失敗", "リスク", "欠陥", "批判", "炎上", "トラブル",
-        "不具合", "バグ", "遅延", "停止", "故障", "危険", "脆弱性", "違反",
-        "disadvantage", "problem", "issue", "bug", "risk", "fail", "error",
-        "vulnerability", "outage", "down", "criticism", "negative", "trouble"
-    ]
-
-    combined_text = (title + " " + snippet).lower()
-
-    for keyword in negative_keywords:
-        if keyword in combined_text:
-            return True
-
-    return False
-
 # -------------------------------------------------------------------
 # SERP API 関連
 # -------------------------------------------------------------------
@@ -127,7 +109,7 @@ def get_serp_results(query, num_results=10):
         print(f"SERP API リクエストエラー: {e}")
         return None
 
-def process_serp_results(data, query, category, subcategory, target_companies):
+def process_serp_results(data, query, category, subcategory, target_companies, is_official_check=True):
     """SERP API の結果から必要な情報を抽出して整形"""
     if not data or "organic_results" not in data:
         print(f"有効な検索結果がありません: {query}")
@@ -137,7 +119,7 @@ def process_serp_results(data, query, category, subcategory, target_companies):
 
     # 検索結果を解析
     results = []
-    search_result_companies = []  # 検索結果の順序に基づく企業名のリスト（categories.ymlで定義された企業名）
+    search_result_companies = []  # 検索結果の順序に基づく企業名のリスト
 
     for i, result in enumerate(organic_results):
         title = result.get("title", "")
@@ -145,7 +127,7 @@ def process_serp_results(data, query, category, subcategory, target_companies):
         snippet = result.get("snippet", "")
         domain = extract_domain(link)
 
-        # 各企業についてドメインが関連しているか確認（categories.ymlで定義された企業名と照合）
+        # 各企業についてドメインが関連しているか確認
         related_company = None
         for company in target_companies:
             if (company.lower() in title.lower() or
@@ -156,8 +138,13 @@ def process_serp_results(data, query, category, subcategory, target_companies):
                     search_result_companies.append(company)
                 break
 
-        # 公式ドメインリストを使用して判定（サブカテゴリ内の全企業の公式ドメインと照合）
-        is_official = is_official_domain(domain, related_company, target_companies)
+        # 公式/非公式判定または評判情報の判定
+        if is_official_check:
+            is_official = is_official_domain(domain, related_company, target_companies)
+            is_negative = False  # 公式/非公式判定時はネガティブ判定は不要
+        else:
+            is_official = "n/a"  # 評判情報取得時は公式/非公式判定は不要
+            is_negative = is_negative(title, snippet)
 
         # 結果を記録
         results.append({
@@ -166,9 +153,9 @@ def process_serp_results(data, query, category, subcategory, target_companies):
             "link": link,
             "domain": domain,
             "snippet": snippet,
-            "company": related_company,  # categories.ymlで定義された企業名
+            "company": related_company,
             "is_official": is_official,
-            "is_negative": is_negative_content(title, snippet)
+            "is_negative": is_negative
         })
 
     return {
@@ -176,8 +163,8 @@ def process_serp_results(data, query, category, subcategory, target_companies):
         "timestamp": datetime.datetime.now().isoformat(),
         "category": category,
         "subcategory": subcategory,
-        "companies": target_companies,  # categories.ymlで定義された企業名と公式ドメインのマッピング
-        "search_result_companies": search_result_companies,  # 検索結果で見つかった企業名のリスト
+        "companies": target_companies,
+        "search_result_companies": search_result_companies,
         "detailed_results": results
     }
 
@@ -203,23 +190,54 @@ def process_categories_with_serp(categories, max_categories=None):
         results[category] = {}
 
         for subcategory, services in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            # 検索クエリを生成（より自然な検索クエリに修正）
-            query = f"{subcategory} おすすめ 人気 比較"
+            # 各サービスについて公式/非公式情報を取得
+            official_results = []
+            for service in services:
+                # 公式/非公式判定用の検索
+                query = f"{service}"
+                serp_data = get_serp_results(query, num_results=10)
 
-            # SERP API で検索
-            serp_data = get_serp_results(query, num_results=20)
+                if serp_data:
+                    # 結果を整形
+                    processed_data = process_serp_results(
+                        serp_data, query, category, subcategory, {service: services[service]},
+                        is_official_check=True
+                    )
+                    if processed_data:
+                        official_results.extend(processed_data["detailed_results"])
 
-            if serp_data:
-                # 結果を整形
-                processed_data = process_serp_results(
-                    serp_data, query, category, subcategory, services
-                )
+                # API制限対策（1秒待機）
+                time.sleep(1)
 
-                if processed_data:
-                    results[category][subcategory] = processed_data
+            # 評判情報を取得
+            reputation_results = []
+            for service in services:
+                # 評判情報用の検索
+                query = f"{service} 評判 口コミ"
+                serp_data = get_serp_results(query, num_results=10)
 
-            # API制限対策（1秒待機）
-            time.sleep(1)
+                if serp_data:
+                    # 結果を整形
+                    processed_data = process_serp_results(
+                        serp_data, query, category, subcategory, {service: services[service]},
+                        is_official_check=False
+                    )
+                    if processed_data:
+                        reputation_results.extend(processed_data["detailed_results"])
+
+                # API制限対策（1秒待機）
+                time.sleep(1)
+
+            # 結果を統合
+            if official_results or reputation_results:
+                results[category][subcategory] = {
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "category": category,
+                    "subcategory": subcategory,
+                    "companies": services,
+                    "official_results": official_results,
+                    "reputation_results": reputation_results
+                }
 
     return results
 

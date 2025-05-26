@@ -33,33 +33,23 @@ def extract_domain(url):
     except:
         return ""
 
-def is_negative(url, title="", snippet=""):
-    '''
-    ネガティブコンテンツかどうかを簡易判定
-
-    Parameters:
-    -----------
-    url : str
-        対象URL
-    title : str, optional
-        タイトル
-    snippet : str, optional
-        スニペット
-
-    Returns:
-    --------
-    bool
-        ネガティブコンテンツの場合True
-    '''
+def is_negative(title, snippet):
+    """タイトルとスニペットからネガティブコンテンツかを判定"""
+    # ネガティブキーワードリスト（簡易版）
     negative_keywords = [
-        "lawsuit", "scam", "problem", "issue", "reddit", "complaint",
-        "negative", "review", "bad", "worst", "fail", "down", "outage",
-        "trouble", "vs", "versus", "alternative", "risk", "danger",
-        "問題", "障害", "失敗", "リスク", "欠陥", "批判", "炎上", "トラブル"
+        "問題", "障害", "失敗", "リスク", "欠陥", "批判", "炎上", "トラブル",
+        "不具合", "バグ", "遅延", "停止", "故障", "危険", "脆弱性", "違反",
+        "disadvantage", "problem", "issue", "bug", "risk", "fail", "error",
+        "vulnerability", "outage", "down", "criticism", "negative", "trouble"
     ]
 
-    combined_text = (url + " " + title + " " + snippet).lower()
-    return any(keyword in combined_text for keyword in negative_keywords)
+    combined_text = (title + " " + snippet).lower()
+
+    for keyword in negative_keywords:
+        if keyword in combined_text:
+            return True
+
+    return False
 
 def ratio(lst, pred_func):
     '''
