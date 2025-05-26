@@ -400,6 +400,11 @@ else:
                             for service, vals in subcategory_data["unmasked_values"].items():
                                 st.write(f"  {service}: {vals}")
 
+                        # マスクありのプロンプトを表示
+                        if "masked_example" in subcategory_data:
+                            st.write("### マスクありプロンプト")
+                            st.text(subcategory_data["masked_example"])
+
                     records = []
 
                     # unmasked_valuesのリストから個々のスコアを取得
