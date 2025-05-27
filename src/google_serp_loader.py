@@ -60,7 +60,7 @@ def save_results(results, type_str, local_path="results"):
     ensure_dir(local_path)
 
     # ローカルに保存
-    local_file = get_local_path(today, "google_serp", "google")
+    local_file = get_local_path(today, "google_serp", "google_serp")
 
     # JSONを保存
     save_json(results, local_file)
@@ -141,10 +141,10 @@ def process_serp_results(data, query, category, subcategory, target_companies, i
         # 公式/非公式判定または評判情報の判定
         if is_official_check:
             is_official = is_official_domain(domain, related_company, target_companies)
-            is_negative = False  # 公式/非公式判定時はネガティブ判定は不要
+            is_negative_result = False  # 公式/非公式判定時はネガティブ判定は不要
         else:
             is_official = "n/a"  # 評判情報取得時は公式/非公式判定は不要
-            is_negative = is_negative(title, snippet)
+            is_negative_result = is_negative(title, snippet)
 
         # 結果を記録
         results.append({
@@ -155,7 +155,7 @@ def process_serp_results(data, query, category, subcategory, target_companies, i
             "snippet": snippet,
             "company": related_company,
             "is_official": is_official,
-            "is_negative": is_negative
+            "is_negative": is_negative_result
         })
 
     return {

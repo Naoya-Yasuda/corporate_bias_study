@@ -25,7 +25,7 @@ from src.utils import (
     get_storage_config,
     get_results_paths
 )
-from src.utils.text_utils import is_official_domain, collect_official_domains, is_negative
+from src.utils.text_utils import is_official_domain, is_negative
 from src.utils.storage_utils import save_json
 from src.utils.s3_utils import get_local_path
 from src.categories import get_categories, get_all_categories
@@ -533,9 +533,9 @@ def save_results(result_data, run_type="single", num_runs=1):
 
     # ファイル名の生成
     if run_type == "multiple":
-        file_name = f"{today_date}_perplexity_citations_{num_runs}runs.json"
+        file_name = f"perplexity_citations_{today_date}_{num_runs}runs.json"
     else:
-        file_name = f"{today_date}_perplexity_citations.json"
+        file_name = f"perplexity_citations_{today_date}.json"
 
     # パスの取得
     local_path, s3_path = get_results_paths("perplexity_citations", today_date, file_name)

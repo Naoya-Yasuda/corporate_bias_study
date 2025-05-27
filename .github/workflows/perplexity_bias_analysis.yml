@@ -92,7 +92,7 @@ jobs:
       - name: Run Sentiment Analysis for Perplexity Citations
         run: |
           echo "開始: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
-          python -m src.sentiment_analyzer --input-file results/perplexity_citations/${{ env.TODAY_DATE }}/perplexity_citations_${{ env.TODAY_DATE }}.json --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/sentiment_analysis_perplexity_citations.log
+          python -m src.sentiment_analyzer --input-file results/perplexity_citations/${{ env.TODAY_DATE }}/${{ env.TODAY_DATE }}_perplexity_citations.json --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/sentiment_analysis_perplexity_citations.log
           echo "完了: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
 
       # 2. 分析ステップ
