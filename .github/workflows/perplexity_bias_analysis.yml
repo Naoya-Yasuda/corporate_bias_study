@@ -82,6 +82,19 @@ jobs:
           python -m src.google_serp_loader --verbose | tee -a logs/google_serp.log
           echo "完了: Google SERPデータ取得 ($(date))" | tee -a logs/execution.log
 
+      # 感情分析ステップ
+      - name: Run Sentiment Analysis for Google SERP
+        run: |
+          echo "開始: Google SERP感情分析 ($(date))" | tee -a logs/execution.log
+          python -m src.sentiment_analyzer --input-file results/google_serp/${{ env.TODAY_DATE }}/google_${{ env.TODAY_DATE }}.json --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/sentiment_analysis_google.log
+          echo "完了: Google SERP感情分析 ($(date))" | tee -a logs/execution.log
+
+      - name: Run Sentiment Analysis for Perplexity Citations
+        run: |
+          echo "開始: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
+          python -m src.sentiment_analyzer --input-file results/perplexity_citations/${{ env.TODAY_DATE }}/perplexity_citations_${{ env.TODAY_DATE }}.json --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/sentiment_analysis_perplexity_citations.log
+          echo "完了: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
+
       # 2. 分析ステップ
       # - name: Run Perplexity Sentiment Bias Analysis
       #   run: |
