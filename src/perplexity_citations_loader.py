@@ -368,8 +368,6 @@ def collect_citation_rankings(categories, num_runs=1):
                                     "domain": domain,
                                     "title": citation.get("title", ""),
                                     "snippet": citation.get("snippet", ""),
-                                    "last_modified": citation.get("last_modified", ""),
-                                    "from_api": True,
                                     "is_official": is_official
                                 })
                                 print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
@@ -442,8 +440,6 @@ def collect_citation_rankings(categories, num_runs=1):
                                     "domain": domain,
                                     "title": citation.get("title", ""),
                                     "snippet": citation.get("snippet", ""),
-                                    "last_modified": citation.get("last_modified", ""),
-                                    "from_api": True,
                                     "is_official": "n/a",  # 評判情報では公式/非公式判定は不要
                                     "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
                                 })
