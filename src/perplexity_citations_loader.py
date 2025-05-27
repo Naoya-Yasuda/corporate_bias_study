@@ -109,8 +109,10 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
                 # CitationDataがある場合の処理
                 if "citation_data" in message:
                     print(f"  citation_dataが見つかりました")
+                    print(f"  citation_dataの内容: {message['citation_data']}")
                 elif "citations" in message:
                     print(f"  citationsが見つかりました")
+                    print(f"  citationsの内容: {message['citations']}")
 
                 # リンクの検索
                 if "content" in message:
@@ -130,8 +132,10 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
         if citations:
             print(f"  citationsプロパティから{len(citations)}件の引用情報を取得")
             print("\n参照URL:")
-            for i, url in enumerate(citations):
-                print(f"{i+1}. {url}")
+            for i, citation in enumerate(citations):
+                print(f"{i+1}. {citation.get('url', '')}")
+                print(f"    title: {citation.get('title', '')}")
+                print(f"    snippet: {citation.get('snippet', '')}")
 
             # citationsが文字列のリストの場合、辞書のリストに変換
             if citations and isinstance(citations[0], str):
