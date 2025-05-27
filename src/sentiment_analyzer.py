@@ -76,21 +76,11 @@ def analyze_sentiments(texts):
 
 def process_google_serp_results(data):
     """Google SERPの結果ファイルを処理"""
-    results = {}
+    # 元のデータをそのまま使用
+    results = data
 
     for category, subcategories in data.items():
-        results[category] = {}
-
         for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            results[category][subcategory] = {
-                "timestamp": datetime.datetime.now().isoformat(),
-                "category": category,
-                "subcategory": subcategory,
-                "companies": content.get("companies", {}),
-                "official_results": content.get("official_results", []),  # 感情分析なしでそのまま保持
-                "reputation_results": []
-            }
-
             # 評判情報の感情分析（5件ずつバッチ処理）
             reputation_results = content.get("reputation_results", [])
             for i in range(0, len(reputation_results), 5):
@@ -100,7 +90,6 @@ def process_google_serp_results(data):
 
                 for result, sentiment in zip(batch, sentiments):
                     result["sentiment"] = sentiment
-                    results[category][subcategory]["reputation_results"].append(result)
 
                 time.sleep(1)  # API制限対策
 
@@ -108,20 +97,11 @@ def process_google_serp_results(data):
 
 def process_perplexity_results(data):
     """Perplexityの結果ファイルを処理"""
-    results = {}
+    # 元のデータをそのまま使用
+    results = data
 
     for category, subcategories in data.items():
-        results[category] = {}
-
         for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            results[category][subcategory] = {
-                "timestamp": datetime.datetime.now().isoformat(),
-                "category": category,
-                "subcategory": subcategory,
-                "companies": content.get("companies", {}),
-                "citations": []
-            }
-
             # citationsの感情分析（5件ずつバッチ処理）
             citations = content.get("citations", [])
             for i in range(0, len(citations), 5):
@@ -131,7 +111,6 @@ def process_perplexity_results(data):
 
                 for citation, sentiment in zip(batch, sentiments):
                     citation["sentiment"] = sentiment
-                    results[category][subcategory]["citations"].append(citation)
 
                 time.sleep(1)  # API制限対策
 
@@ -155,31 +134,30 @@ def process_results_file(file_path):
         print("不明なデータタイプです。ファイル名に'google_serp'または'perplexity'が含まれている必要があります。")
         return None
 
-def save_results(results, type_str, local_path="results"):
-    """結果を保存する（ローカルとS3）"""
-    today = get_today_str()
+def save_results(results, file_path):
+    """結果を元のファイルに保存"""
+    try:
+        # 元のファイルに保存
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=4)
+        print(f"結果を {file_path} に保存しました")
 
-    # ディレクトリがなければ作成
-    ensure_dir(local_path)
+        # S3に保存（認証情報がある場合のみ）
+        if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
+            s3_client = get_s3_client()
+            s3_key = file_path.replace("results/", "")
+            try:
+                with open(file_path, 'rb') as f:
+                    s3_client.upload_fileobj(f, S3_BUCKET_NAME, s3_key)
+                print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_key}) に保存しました")
+            except Exception as e:
+                print(f"S3への保存に失敗しました: {e}")
 
-    # ローカルに保存
-    local_file = get_local_path(today, "sentiment_analysis", "sentiment")
+    except Exception as e:
+        print(f"ファイル保存エラー: {e}")
+        return None
 
-    # JSONを保存
-    save_json(results, local_file)
-    print(f"結果を {local_file} に保存しました")
-
-    # S3に保存
-    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
-        # S3のパス
-        s3_path = f"results/sentiment_analysis/{today}/{os.path.basename(local_file)}"
-
-        # storage_utilsのsave_jsonでS3保存
-        result = save_json(results, local_file, s3_path)
-        if result["s3"]:
-            print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
-
-    return local_file
+    return file_path
 
 def main():
     """メイン関数"""
@@ -198,8 +176,8 @@ def main():
     # 感情分析を実行
     results = process_results_file(args.input_file)
     if results:
-        # 結果を保存
-        save_results(results, "sentiment_analysis")
+        # 結果を元のファイルに保存
+        save_results(results, args.input_file)
 
 if __name__ == "__main__":
     main()
