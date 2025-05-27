@@ -58,7 +58,7 @@ categories:
     #     - copilot.microsoft.com
     #   Google AI Overviews:
     #     - google.com            # 独立ドメインではなく Google 検索機能
-  企業:
+  # 企業:
     # 世界的テック企業:
     #   Apple:
     #     - apple.com
