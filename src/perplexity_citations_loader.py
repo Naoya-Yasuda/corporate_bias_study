@@ -443,7 +443,7 @@ def collect_citation_rankings(categories, num_runs=1):
                                     "domain": domain,
                                     "title": citation.get("title", ""),
                                     "snippet": citation.get("snippet", ""),
-                                    "is_official": "n/a",  # 評判情報では公式/非公式判定は不要
+                                    # "is_official": "n/a",  # 評判情報では公式/非公式判定は不要
                                     "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
                                 })
                                 print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")

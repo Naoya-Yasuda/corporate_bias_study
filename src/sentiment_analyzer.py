@@ -17,8 +17,8 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 # 共通ユーティリティをインポート
-from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json
+from src.utils.file_utils import ensure_dir, get_today_str, get_results_paths
+from src.utils.storage_utils import save_json, get_storage_config
 from src.utils.s3_utils import get_local_path, get_s3_client, get_s3_key_path, get_latest_file
 
 # 環境変数の読み込み
@@ -161,23 +161,55 @@ def save_results(results, file_path):
 
 def main():
     """メイン関数"""
-    parser = argparse.ArgumentParser(description='Google SERPデータとPerplexityデータの感情分析を実行')
-    parser.add_argument('--input-file', required=True, help='分析対象のJSONファイルパス')
-    parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
+    # 引数処理
+    parser = argparse.ArgumentParser(description='感情分析を実行')
+    parser.add_argument('--input-file', type=str, required=True, help='入力JSONファイルのパス')
+    parser.add_argument('--date', type=str, help='日付（YYYYMMDD形式）')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
 
-    # 詳細ログの設定
-    if args.verbose:
-        import logging
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        logging.info("詳細ログモードが有効になりました")
+    # 日付の設定
+    if args.date:
+        date_str = args.date
+    else:
+        date_str = datetime.datetime.now().strftime("%Y%m%d")
 
-    # 感情分析を実行
-    results = process_results_file(args.input_file)
-    if results:
-        # 結果を元のファイルに保存
-        save_results(results, args.input_file)
+    # 入力ファイルの読み込み
+    try:
+        with open(args.input_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"入力ファイルの読み込みエラー: {e}")
+        return
+
+    # 感情分析の実行
+    result = analyze_sentiment(data)
+
+    # 入力ファイルの種類を判定
+    input_filename = os.path.basename(args.input_file)
+    if "google_serp" in input_filename:
+        data_type = "google_serp"
+    elif "perplexity_citations" in input_filename:
+        data_type = "perplexity_citations"
+    else:
+        data_type = "sentiment_analysis"
+
+    # パスの取得（元のファイルと同じパスを使用）
+    local_path, s3_path = get_results_paths(data_type, date_str, input_filename)
+
+    # ストレージ設定の取得（デバッグ用）
+    storage_config = get_storage_config()
+    print(f"ストレージ設定: {storage_config}")
+
+    # 保存
+    result = save_json(result, local_path, s3_path)
+
+    if result["local"]:
+        print(f"ローカルに保存しました: {local_path}")
+    if result["s3"]:
+        print(f"S3に保存しました: s3://{s3_path}")
+
+    print("感情分析が完了しました")
 
 if __name__ == "__main__":
     main()
