@@ -46,7 +46,7 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
     query : str
         検索クエリ
     model : str
-        使用するモデル (sonar-small-chatなど)
+        使用するモデル (llama-3.1-sonar-large-128k-onlineなど)
 
     Returns:
     --------
@@ -132,14 +132,13 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
         if citations:
             print(f"  citationsプロパティから{len(citations)}件の引用情報を取得")
             print("\n参照URL:")
-            for i, citation in enumerate(citations):
-                print(f"{i+1}. {citation.get('url', '')}")
-                print(f"    title: {citation.get('title', '')}")
-                print(f"    snippet: {citation.get('snippet', '')}")
-
             # citationsが文字列のリストの場合、辞書のリストに変換
             if citations and isinstance(citations[0], str):
                 citations = [{"url": url} for url in citations]
+
+            for i, citation in enumerate(citations):
+                url = citation.get("url", "") if isinstance(citation, dict) else citation
+                print(f"{i+1}. {url}")
 
         # 引用情報が見つからない場合
         if not citations:
@@ -290,8 +289,8 @@ def collect_citation_rankings(categories, num_runs=1):
     # 試すモデル（成功するまで順に試す）
     models_to_try = [
         "llama-3.1-sonar-large-128k-online",  # デフォルトモデル
-        "sonar-medium-online",                # バックアップモデル
-        "mixtral-8x7b-instruct"               # さらにバックアップ
+        "llama-3.1-sonar-large-128k",         # バックアップモデル
+        # "mixtral-8x7b-instruct"               # さらにバックアップ
     ]
 
     for category, subcategories in categories.items():
