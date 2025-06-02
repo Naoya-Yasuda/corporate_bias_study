@@ -342,7 +342,7 @@ def collect_citation_rankings(categories, num_runs=1):
 
     Args:
         categories: カテゴリとサービスの辞書
-        num_runs: 実行回数（複数回実行で平均を取る場合）
+        num_runs: 実行回数（引用情報の取得では1回で十分）
 
     Returns:
         dict: カテゴリごとの引用リンクランキング結果
@@ -361,8 +361,9 @@ def collect_citation_rankings(categories, num_runs=1):
         "llama-3.1-sonar-large-128k",         # バックアップモデル
     ]
 
-    # 全URLを収集するリスト
+    # 全URLを収集するリストと、既に処理済みのURLのメタデータを保持する辞書
     all_urls = []
+    processed_metadata = {}
 
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")
@@ -388,73 +389,70 @@ def collect_citation_rankings(categories, num_runs=1):
                 # 公式/非公式判定用の検索
                 query = f"{service}"
 
-                for run in range(num_runs):
-                    if num_runs > 1:
-                        print(f"  実行 {run+1}/{num_runs}")
+                # 引用情報の取得は1回で十分
+                # すべてのモデルを試す
+                answer = None
+                citations = []
 
-                    # すべてのモデルを試す
-                    answer = None
-                    citations = []
+                for model in models_to_try:
+                    if answer:  # 既に成功していれば次のモデルはスキップ
+                        break
 
-                    for model in models_to_try:
-                        if answer:  # 既に成功していれば次のモデルはスキップ
-                            break
+                    # API呼び出し
+                    print(f"  検索クエリ実行（モデル: {model}）: {query}")
+                    answer, citations = perplexity_api(query, model=model)
 
-                        # API呼び出し
-                        print(f"  検索クエリ実行（モデル: {model}）: {query}")
-                        answer, citations = perplexity_api(query, model=model)
+                    if answer:
+                        print(f"  モデル {model} で成功")
+                        break
 
-                        if answer:
-                            print(f"  モデル {model} で成功")
-                            break
+                if not answer:
+                    print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
+                    continue
 
-                    if not answer:
-                        print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
-                        continue
+                print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
 
-                    print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
+                # 回答テキストを保存
+                all_answers.append(answer)
 
-                    # 回答テキストを保存
-                    all_answers.append(answer)
+                # 引用リンクの処理
+                citation_data = []
 
-                    # 引用リンクの処理
-                    citation_data = []
+                # APIからのcitationsがある場合はそれを使用
+                if citations:
+                    for i, citation in enumerate(citations):
+                        # URLの取得を試みる（複数の可能性を考慮）
+                        url = citation.get("url", "")
+                        if not url:
+                            url = citation.get("link", "")
+                        if not url:
+                            url = citation.get("source", "")
+                        if not url:
+                            url = citation.get("reference", "")
 
-                    # APIからのcitationsがある場合はそれを使用
-                    if citations:
-                        for i, citation in enumerate(citations):
-                            # URLの取得を試みる（複数の可能性を考慮）
-                            url = citation.get("url", "")
-                            if not url:
-                                url = citation.get("link", "")
-                            if not url:
-                                url = citation.get("source", "")
-                            if not url:
-                                url = citation.get("reference", "")
-
-                            if url:
-                                domain = extract_domain(url)
-                                # 公式/非公式の判定を追加
-                                is_official = is_official_domain(domain, None, {service: services[service]})
-                                citation_data.append({
-                                    "rank": i + 1,  # 1-indexed
-                                    "url": url,
-                                    "domain": domain,
-                                    "is_official": is_official
-                                })
-                                # URLを収集リストに追加
+                        if url:
+                            domain = extract_domain(url)
+                            # 公式/非公式の判定を追加
+                            is_official = is_official_domain(domain, None, {service: services[service]})
+                            citation_data.append({
+                                "rank": i + 1,  # 1-indexed
+                                "url": url,
+                                "domain": domain,
+                                "is_official": is_official
+                            })
+                            # URLを収集リストに追加（重複チェック）
+                            if url not in all_urls:
                                 all_urls.append(url)
                                 print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
 
-                        print(f"  APIから引用情報を取得: {len(citation_data)}件")
+                    print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
-                    if citation_data:
-                        official_results.extend(citation_data)
+                if citation_data:
+                    official_results.extend(citation_data)
 
-                    # API制限を考慮した待機
-                    if run < num_runs - 1:
-                        print("  APIレート制限を考慮して待機中...")
-                        time.sleep(3)
+                # API制限を考慮した待機
+                print("  APIレート制限を考慮して待機中...")
+                time.sleep(3)
 
             # 評判情報を取得
             reputation_results = []
@@ -462,71 +460,68 @@ def collect_citation_rankings(categories, num_runs=1):
                 # 評判情報用の検索
                 query = f"{service} 評判 口コミ"
 
-                for run in range(num_runs):
-                    if num_runs > 1:
-                        print(f"  実行 {run+1}/{num_runs}")
+                # 引用情報の取得は1回で十分
+                # すべてのモデルを試す
+                answer = None
+                citations = []
 
-                    # すべてのモデルを試す
-                    answer = None
-                    citations = []
+                for model in models_to_try:
+                    if answer:  # 既に成功していれば次のモデルはスキップ
+                        break
 
-                    for model in models_to_try:
-                        if answer:  # 既に成功していれば次のモデルはスキップ
-                            break
+                    # API呼び出し
+                    print(f"  検索クエリ実行（モデル: {model}）: {query}")
+                    answer, citations = perplexity_api(query, model=model)
 
-                        # API呼び出し
-                        print(f"  検索クエリ実行（モデル: {model}）: {query}")
-                        answer, citations = perplexity_api(query, model=model)
+                    if answer:
+                        print(f"  モデル {model} で成功")
+                        break
 
-                        if answer:
-                            print(f"  モデル {model} で成功")
-                            break
+                if not answer:
+                    print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
+                    continue
 
-                    if not answer:
-                        print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
-                        continue
+                print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
 
-                    print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
+                # 回答テキストを保存
+                all_answers.append(answer)
 
-                    # 回答テキストを保存
-                    all_answers.append(answer)
+                # 引用リンクの処理
+                citation_data = []
 
-                    # 引用リンクの処理
-                    citation_data = []
+                # APIからのcitationsがある場合はそれを使用
+                if citations:
+                    for i, citation in enumerate(citations):
+                        # URLの取得を試みる（複数の可能性を考慮）
+                        url = citation.get("url", "")
+                        if not url:
+                            url = citation.get("link", "")
+                        if not url:
+                            url = citation.get("source", "")
+                        if not url:
+                            url = citation.get("reference", "")
 
-                    # APIからのcitationsがある場合はそれを使用
-                    if citations:
-                        for i, citation in enumerate(citations):
-                            # URLの取得を試みる（複数の可能性を考慮）
-                            url = citation.get("url", "")
-                            if not url:
-                                url = citation.get("link", "")
-                            if not url:
-                                url = citation.get("source", "")
-                            if not url:
-                                url = citation.get("reference", "")
-
-                            if url:
-                                domain = extract_domain(url)
-                                citation_data.append({
-                                    "rank": i + 1,  # 1-indexed
-                                    "url": url,
-                                    "domain": domain,
-                                    "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
-                                })
-                                # URLを収集リストに追加
+                        if url:
+                            domain = extract_domain(url)
+                            citation_data.append({
+                                "rank": i + 1,  # 1-indexed
+                                "url": url,
+                                "domain": domain,
+                                "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
+                            })
+                            # URLを収集リストに追加（重複チェック）
+                            if url not in all_urls:
                                 all_urls.append(url)
                                 print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")
 
-                        print(f"  APIから引用情報を取得: {len(citation_data)}件")
+                    print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
-                    if citation_data:
-                        reputation_results.extend(citation_data)
+                if citation_data:
+                    reputation_results.extend(citation_data)
 
-                    # API制限を考慮した待機
-                    if run < num_runs - 1:
-                        print("  APIレート制限を考慮して待機中...")
-                        time.sleep(3)
+                # API制限を考慮した待機
+                print("  APIレート制限を考慮して待機中...")
+                time.sleep(3)
 
             # 結果を統合
             if official_results or reputation_results:
@@ -540,9 +535,12 @@ def collect_citation_rankings(categories, num_runs=1):
                     "all_answers": all_answers
                 }
 
-    # 全URLのメタデータを一括取得
-    print("\n全URLのメタデータを一括取得中...")
-    metadata_dict = get_metadata_from_serp(all_urls)
+    # 未処理のURLのみSERP APIでメタデータを取得
+    print("\n未処理のURLのメタデータを一括取得中...")
+    unprocessed_urls = [url for url in all_urls if url not in processed_metadata]
+    if unprocessed_urls:
+        new_metadata = get_metadata_from_serp(unprocessed_urls)
+        processed_metadata.update(new_metadata)
 
     # メタデータを各結果に追加
     for category in results:
@@ -552,14 +550,14 @@ def collect_citation_rankings(categories, num_runs=1):
             # 公式結果にメタデータを追加
             for result in data.get("official_results", []):
                 url = result.get("url")
-                if url and url in metadata_dict:
-                    result.update(metadata_dict[url])
+                if url and url in processed_metadata:
+                    result.update(processed_metadata[url])
 
             # 評判結果にメタデータを追加
             for result in data.get("reputation_results", []):
                 url = result.get("url")
-                if url and url in metadata_dict:
-                    result.update(metadata_dict[url])
+                if url and url in processed_metadata:
+                    result.update(processed_metadata[url])
 
     return results
 
