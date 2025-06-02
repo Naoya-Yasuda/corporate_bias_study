@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 import boto3
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_latest_file
+from src.utils.storage_utils import save_json, save_figure, get_results_paths
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -334,7 +335,11 @@ def json_to_dataframe(json_data):
 # -------------------------------------------------------------------
 # 分析結果のエクスポート
 # -------------------------------------------------------------------
-def export_results(metrics, output_dir="results/analysis"):
+def export_results(metrics, output_dir=None, date_str=None):
+    if date_str is None:
+        date_str = get_today_str()
+    if output_dir is None:
+        output_dir = get_results_paths(date_str)["analysis"]
     """分析結果をCSVとして保存"""
     os.makedirs(output_dir, exist_ok=True)
     today = datetime.datetime.now().strftime("%Y%m%d")
@@ -368,7 +373,11 @@ def export_results(metrics, output_dir="results/analysis"):
 # -------------------------------------------------------------------
 # メイン実行関数
 # -------------------------------------------------------------------
-def analyze_bias_from_file(input_file, output_dir="results/analysis", verbose=False):
+def analyze_bias_from_file(input_file, output_dir=None, date_str=None, verbose=False):
+    if date_str is None:
+        date_str = get_today_str()
+    if output_dir is None:
+        output_dir = get_results_paths(date_str)["analysis"]
     """JSONファイルからバイアス分析を実行"""
     print(f"ファイル {input_file} の分析を開始します...")
 

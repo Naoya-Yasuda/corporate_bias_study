@@ -19,8 +19,9 @@ from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
 from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
 from src.utils.file_utils import ensure_dir
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
-from src.utils.storage_utils import save_json, save_figure
+from src.utils.storage_utils import save_json, save_figure, get_results_paths
 from src.utils.s3_utils import get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
+from src.utils.date_utils import get_today_str
 
 # -------------------------------------------------------------------
 # 比較メトリクス
@@ -707,3 +708,15 @@ if __name__ == "__main__":
     with open(f"{args.output}/analysis_results.json", "w", encoding="utf-8") as f:
         json.dump(analysis_results, f, ensure_ascii=False, indent=2)
     print(f"分析が完了し、結果を {args.output} に保存しました")
+
+def analyze_citations(citations_data, output_dir=None, date_str=None):
+    if date_str is None:
+        date_str = get_today_str()
+    if output_dir is None:
+        output_dir = get_results_paths(date_str)["analysis"]["citations"]
+
+def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, upload_results=True, verbose=False):
+    if date_str is None:
+        date_str = get_today_str()
+    if output_dir is None:
+        output_dir = get_results_paths(date_str)["perplexity_analysis"]

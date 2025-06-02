@@ -29,7 +29,7 @@ import boto3
 from src.utils import extract_domain, is_negative, ratio
 from src.utils import rbo, rank_map, compute_tau, compute_delta_ranks
 from src.utils import plot_delta_ranks, plot_market_impact
-from src.utils.storage_utils import save_json, save_text_data, save_figure
+from src.utils.storage_utils import save_json, save_text_data, save_figure, get_results_paths
 from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 from src.utils.file_utils import ensure_dir
@@ -191,12 +191,13 @@ def perplexity_api(query, model="sonar-small-chat"):
 # -------------------------------------------------------------------
 # 既存データ解析関数
 # -------------------------------------------------------------------
-def analyze_existing_data(date_str, data_type="rankings", output_dir="results", verbose=False):
+def analyze_existing_data(date_str, data_type="rankings", output_dir=None, verbose=False):
     """既存のデータを分析"""
     print(f"\n=== {date_str}の既存データを分析 ===")
 
     # 出力ディレクトリの設定
-    output_dir = os.path.join(output_dir, f"bias_analysis/{date_str}")
+    if output_dir is None:
+        output_dir = get_results_paths(date_str)["bias_analysis"][data_type]
     os.makedirs(output_dir, exist_ok=True)
 
     # 詳細ログの設定
@@ -272,7 +273,7 @@ def analyze_existing_data(date_str, data_type="rankings", output_dir="results", 
 # -------------------------------------------------------------------
 # メイン処理関数
 # -------------------------------------------------------------------
-def run_bias_analysis(query, market_share, top_k=10, language="en", country="us", output_dir="results"):
+def run_bias_analysis(query, market_share, top_k=10, language="en", country="us", output_dir=None, date_str=None):
     """
     Google検索とPerplexity APIを使用して特定クエリの企業バイアスを分析
 
@@ -289,13 +290,19 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
     country : str, optional
         検索国, by default "us"
     output_dir : str, optional
-        結果出力先, by default "results"
+        結果出力先, by default None
+    date_str : str, optional
+        分析日付, by default None
 
     Returns
     -------
     dict
         分析結果のサマリー
     """
+    if date_str is None:
+        date_str = get_today_str()
+    if output_dir is None:
+        output_dir = get_results_paths(date_str)["bias_analysis"]["rankings"]
     print(f"クエリ「{query}」の企業バイアス分析を開始します...")
 
     # 出力ディレクトリの作成

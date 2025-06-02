@@ -30,7 +30,6 @@ from src.utils import (
 )
 from src.utils.text_utils import is_official_domain, is_negative
 from src.utils.storage_utils import save_json
-from src.utils.s3_utils import get_local_path
 from src.categories import get_categories, get_all_categories
 
 # .envファイルから環境変数を読み込む

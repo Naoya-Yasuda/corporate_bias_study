@@ -24,15 +24,13 @@ from tqdm import trange, tqdm
 from dotenv import load_dotenv
 import boto3
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_s3_client, get_s3_key_path, get_local_path
-from src.utils.s3_utils import upload_to_s3, get_latest_file
+from src.utils.storage_utils import save_json, get_s3_client, get_results_paths
 from src.utils.file_utils import load_json
-from src.utils.storage_utils import save_json
 from src.utils.rank_utils import compute_tau, rbo
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
 
 # ドメイン関連の機能
-from src.utils import extract_domain, get_results_paths
+from src.utils import extract_domain
 from src.categories import get_categories
 
 import re
