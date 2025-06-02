@@ -368,8 +368,8 @@ def collect_citation_rankings(categories):
         "llama-3.1-sonar-large-128k",         # バックアップモデル
     ]
 
-    # 全URLを収集するリスト
-    all_urls = []
+    # 全URLを収集するリスト（評判情報用のみ）
+    reputation_urls = []
 
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")
@@ -445,8 +445,6 @@ def collect_citation_rankings(categories):
                                 "domain": domain,
                                 "is_official": is_official
                             })
-                            # URLを収集リストに追加
-                            all_urls.append(url)
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
 
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
@@ -512,8 +510,8 @@ def collect_citation_rankings(categories):
                                 "domain": domain,
                                 "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
                             })
-                            # URLを収集リストに追加
-                            all_urls.append(url)
+                            # URLを収集リストに追加（評判情報用のみ）
+                            reputation_urls.append(url)
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")
 
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
@@ -537,20 +535,14 @@ def collect_citation_rankings(categories):
                     "all_answers": all_answers
                 }
 
-    # 全URLのメタデータを一括取得
-    print("\n全URLのメタデータを一括取得中...")
-    metadata_dict = get_metadata_from_serp(all_urls)
+    # 評判情報用のURLのメタデータを一括取得
+    print("\n評判情報用のURLのメタデータを一括取得中...")
+    metadata_dict = get_metadata_from_serp(reputation_urls)
 
-    # メタデータを各結果に追加
+    # メタデータを各結果に追加（評判情報用のみ）
     for category in results:
         for subcategory in results[category]:
             data = results[category][subcategory]
-
-            # 公式結果にメタデータを追加
-            for result in data.get("official_results", []):
-                url = result.get("url")
-                if url and url in metadata_dict:
-                    result.update(metadata_dict[url])
 
             # 評判結果にメタデータを追加
             for result in data.get("reputation_results", []):
