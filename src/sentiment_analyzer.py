@@ -188,14 +188,20 @@ def main():
 
     # 入力ファイルの読み込み
     try:
-        with open(local_path, 'r', encoding='utf-8') as f:
+        with open(args.input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
     except Exception as e:
         print(f"入力ファイルの読み込みエラー: {e}")
         return
 
     # 感情分析の実行
-    result = analyze_sentiment(data)
+    if data_type == "google_serp":
+        result = process_google_serp_results(data)
+    elif data_type == "perplexity_citations":
+        result = process_perplexity_results(data)
+    else:
+        print("不明なデータタイプです。")
+        return
 
     # ストレージ設定の取得（デバッグ用）
     storage_config = get_storage_config()

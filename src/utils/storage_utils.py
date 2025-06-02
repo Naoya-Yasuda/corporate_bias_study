@@ -258,12 +258,12 @@ def get_results_paths(data_type, date_str, file_name):
     storage_config = get_storage_config()
 
     # ローカルパスの生成
-    local_dir = os.path.join(storage_config["local_dir"], data_type)
+    local_dir = os.path.join(storage_config["local_dir"], data_type, date_str)
     local_path = os.path.join(local_dir, file_name)
     ensure_dir(local_dir)
 
     # S3パスの生成
-    s3_dir = f"results/perplexity/{data_type}/{date_str}"
+    s3_dir = f"results/{data_type}/{date_str}"
     s3_path = f"{s3_dir}/{file_name}"
 
     return local_path, s3_path
