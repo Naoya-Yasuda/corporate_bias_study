@@ -507,12 +507,11 @@ def collect_citation_rankings(categories):
                             citation_data.append({
                                 "rank": i + 1,  # 1-indexed
                                 "url": url,
-                                "domain": domain,
-                                "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
+                                "domain": domain
                             })
                             # URLを収集リストに追加（評判情報用のみ）
                             reputation_urls.append(url)
-                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")
+                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
 
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
