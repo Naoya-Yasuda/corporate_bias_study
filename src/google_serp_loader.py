@@ -60,7 +60,7 @@ def save_results(results, type_str, local_path="results"):
     save_json(results, local_file)
     print(f"結果を {local_file} に保存しました")
     if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
-        s3_path = f"results/google_serp/{today}/{file_name}"
+        s3_path = os.path.join(paths["google_serp"], file_name)
         if put_json_to_s3(results, s3_path):
             print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
         else:
