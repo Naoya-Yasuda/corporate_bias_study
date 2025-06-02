@@ -94,8 +94,8 @@ def get_google_search_results(query, num_results=10):
 
     Returns:
     --------
-    list
-        検索結果のリスト
+    dict
+        検索結果の辞書（SERP APIと互換性のある形式）
     """
     try:
         # 環境変数からAPIキーを取得
@@ -103,6 +103,8 @@ def get_google_search_results(query, num_results=10):
         GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
         if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
             raise ValueError("GOOGLE_API_KEY または GOOGLE_CSE_ID が設定されていません。.env ファイルを確認してください。")
+
+        print(f"🔍 検索クエリ: {query}")
 
         # Google Custom Search APIのエンドポイント
         endpoint = "https://www.googleapis.com/customsearch/v1"
@@ -128,22 +130,30 @@ def get_google_search_results(query, num_results=10):
 
         response.raise_for_status()
         data = response.json()
+        print(f"APIレスポンス: {data}")
 
-        # 検索結果を整形
-        results = []
+        # 検索結果を整形（SERP APIと互換性のある形式に変換）
+        results = {
+            "organic_results": []
+        }
+
         if "items" in data:
             for item in data["items"]:
-                results.append({
+                results["organic_results"].append({
                     "title": item.get("title", ""),
                     "link": item.get("link", ""),
-                    "snippet": item.get("snippet", "")
+                    "snippet": item.get("snippet", ""),
+                    "position": len(results["organic_results"]) + 1
                 })
+            print(f"✅ 検索結果: {len(results['organic_results'])}件")
+        else:
+            print("⚠️ 検索結果が見つかりませんでした")
 
         return results
 
     except Exception as e:
-        print(f"Google Custom Search API エラー: {e}")
-        return []
+        print(f"❌ Google Custom Search API エラー: {e}")
+        return {"organic_results": []}
 
 def process_serp_results(data, query, category, subcategory, target_companies, is_official_check=True):
     """SERP API の結果から必要な情報を抽出して整形"""
