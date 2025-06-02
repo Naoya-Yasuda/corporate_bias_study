@@ -60,6 +60,8 @@ def save_results(results, type_str, local_path="results"):
 
     # ローカルに保存
     local_file = get_local_path(today, "google_serp", "google_serp")
+    if not local_file.endswith('.json'):
+        local_file = f"{local_file}.json"
 
     # JSONを保存
     save_json(results, local_file)

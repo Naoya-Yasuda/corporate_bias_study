@@ -266,28 +266,35 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
 def get_s3_key_path(date_str, data_type, file_type):
     """S3のキーパスを取得"""
     paths = get_results_paths(date_str)
+    base_path = None
+
     if data_type == "perplexity_rankings":
-        return paths["perplexity_rankings"]
+        base_path = paths["perplexity_rankings"]
     elif data_type == "perplexity_sentiment":
-        return paths["perplexity_sentiment"]
+        base_path = paths["perplexity_sentiment"]
     elif data_type == "perplexity_citations":
-        return paths["perplexity_citations"]
+        base_path = paths["perplexity_citations"]
     elif data_type == "google_serp":
-        return paths["google_serp"]
+        base_path = paths["google_serp"]
     elif data_type == "perplexity_analysis":
-        return paths["perplexity_analysis"]
+        base_path = paths["perplexity_analysis"]
     elif data_type == "analysis":
         if file_type == "perplexity":
-            return paths["analysis"]["perplexity"]
+            base_path = paths["analysis"]["perplexity"]
         elif file_type == "citations":
-            return paths["analysis"]["citations"]
+            base_path = paths["analysis"]["citations"]
         elif file_type == "integrated_metrics":
-            return paths["analysis"]["integrated_metrics"]
+            base_path = paths["analysis"]["integrated_metrics"]
     elif data_type == "bias_analysis":
         if file_type == "rankings":
-            return paths["bias_analysis"]["rankings"]
+            base_path = paths["bias_analysis"]["rankings"]
         elif file_type == "citations":
-            return paths["bias_analysis"]["citations"]
+            base_path = paths["bias_analysis"]["citations"]
+
+    if base_path:
+        # ファイル名を生成（日付を先頭に、data_typeを使用）
+        filename = f"{date_str}_{data_type}.json"
+        return os.path.join(base_path, filename)
     return None
 
 def get_local_path(date_str, data_type, file_type):
