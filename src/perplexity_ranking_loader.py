@@ -21,7 +21,7 @@ from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity
 
 # 共通ユーティリティをインポート
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_local_path
+from src.utils.storage_utils import save_json, get_local_path, get_results_paths, put_json_to_s3
 from src.utils.text_utils import extract_domain, is_official_domain
 
 # .envファイルから環境変数を読み込む
@@ -186,55 +186,30 @@ def collect_rankings(api_key, categories, num_runs=1):
 
 def save_results(result_data, run_type="single", num_runs=1):
     """結果をローカルとS3に保存"""
-    # AWS認証情報を環境変数から取得
-    aws_access_key = os.environ.get("AWS_ACCESS_KEY")
-    aws_secret_key = os.environ.get("AWS_SECRET_KEY")
-    aws_region = os.environ.get("AWS_REGION", "ap-northeast-1")
-    # リージョンが空文字列の場合はデフォルト値を使用
-    if not aws_region or aws_region.strip() == '':
-        aws_region = 'ap-northeast-1'
-        print(f'AWS_REGIONが未設定または空のため、デフォルト値を使用します: {aws_region}')
-
-    s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
-
-    # 日付を取得
     today_date = datetime.datetime.now().strftime("%Y%m%d")
-
-    # ローカルに保存
-    output_dir = "results"
-    ensure_dir(output_dir)
-
-    # ファイル名の生成
+    paths = get_results_paths(today_date)
     if run_type == "multiple":
         file_name = f"{today_date}_perplexity_rankings_{num_runs}runs.json"
     else:
         file_name = f"{today_date}_perplexity_rankings.json"
-
-    # ローカルに保存
-    local_file = f"{output_dir}/{file_name}"
+    local_file = os.path.join(paths["perplexity_rankings"], file_name)
     save_json(result_data, local_file)
     print(f"ローカルに保存しました: {local_file}")
-
-    # S3に保存（認証情報がある場合のみ）
+    aws_access_key = os.environ.get("AWS_ACCESS_KEY")
+    aws_secret_key = os.environ.get("AWS_SECRET_KEY")
+    s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
     if aws_access_key and aws_secret_key and s3_bucket_name:
         try:
-            # S3のパスを設定 (results/perplexity_rankings/日付/ファイル名)
             s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
-
-            # src.utils.storage_utilsのsave_jsonを使用してS3に保存
-            result = save_json(result_data, local_file, s3_key)
-            if result["s3"]:
+            result = put_json_to_s3(result_data, s3_key)
+            if result:
                 print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")
             else:
                 print(f"S3への保存に失敗しました: 認証情報を確認してください")
-                print(f"  バケット名: {s3_bucket_name}")
-                print(f"  AWS認証キーの設定状態: ACCESS_KEY={'設定済み' if aws_access_key else '未設定'}, SECRET_KEY={'設定済み' if aws_secret_key else '未設定'}")
-                print(f"  リージョン: {aws_region}")
         except Exception as e:
             print(f"S3保存中にエラーが発生しました: {e}")
     else:
         print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
-
     return local_file
 
 def main():

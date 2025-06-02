@@ -29,7 +29,7 @@ from src.utils import (
     get_results_paths
 )
 from src.utils.text_utils import is_official_domain, is_negative
-from src.utils.storage_utils import save_json
+from src.utils.storage_utils import save_json, get_results_paths, put_json_to_s3
 from src.categories import get_categories, get_all_categories
 
 # .envファイルから環境変数を読み込む
@@ -606,79 +606,21 @@ def generate_summary(subcategory, services, all_answers):
 
 def save_results(result_data, run_type="single", num_runs=1):
     """結果をローカルとS3に保存（新しいストレージAPI使用）"""
-    # 日付を取得
     today_date = datetime.datetime.now().strftime("%Y%m%d")
-
-    # ファイル名の生成
+    paths = get_results_paths(today_date)
     if run_type == "multiple":
         file_name = f"{today_date}_perplexity_citations_{num_runs}runs.json"
     else:
         file_name = f"{today_date}_perplexity_citations.json"
-
-    # パスの取得
-    local_path, s3_path = get_results_paths("perplexity_citations", today_date, file_name)
-
-    # ストレージ設定の取得（デバッグ用）
+    local_path = os.path.join(paths["perplexity_citations"], file_name)
     storage_config = get_storage_config()
     print(f"ストレージ設定: {storage_config}")
-
-    # 保存
-    result = save_json(result_data, local_path, s3_path)
-
-    if result["local"]:
+    result = put_json_to_s3(result_data, f"results/perplexity_citations/{today_date}/{file_name}")
+    save_json(result_data, local_path)
+    if result:
+        print(f"S3に保存しました: s3://results/perplexity_citations/{today_date}/{file_name}")
+    if os.path.exists(local_path):
         print(f"ローカルに保存しました: {local_path}")
-    if result["s3"]:
-        print(f"S3に保存しました: s3://{s3_path}")
-
-    # 結果のサマリーを出力（引用情報の抽出が成功したかどうかの確認）
-    print("\n=== 引用情報の抽出結果サマリー ===")
-    total_citations = 0
-    total_runs = 0
-
-    # 各カテゴリとサブカテゴリについて
-    for category, subcategories in result_data.items():
-        if not subcategories:
-            continue
-
-        print(f"\nカテゴリ: {category}")
-
-        for subcategory, data in subcategories.items():
-            print(f"  サブカテゴリ: {subcategory}")
-
-            # 複数回実行の場合
-            if "all_runs" in data:
-                runs_with_citations = 0
-                citations_count = 0
-
-                for run in data["all_runs"]:
-                    if run.get("citations"):
-                        runs_with_citations += 1
-                        citations_count += len(run["citations"])
-
-                total_runs += len(data["all_runs"])
-                total_citations += citations_count
-
-                print(f"    引用情報あり実行: {runs_with_citations}/{len(data['all_runs'])} ({runs_with_citations/len(data['all_runs'])*100:.1f}%)")
-                print(f"    引用情報総数: {citations_count}件")
-
-                # ドメインランキングがある場合
-                if "domain_rankings" in data and data["domain_rankings"]:
-                    print(f"    トップ引用ドメイン: {', '.join([d['domain'] for d in data['domain_rankings'][:3]])}")
-
-            # 単一実行の場合
-            elif "run" in data:
-                citations_count = len(data["run"].get("citations", []))
-                total_runs += 1
-                total_citations += citations_count
-
-                print(f"    引用情報: {citations_count}件")
-                if "domains" in data and data["domains"]:
-                    print(f"    引用ドメイン: {', '.join(data['domains'][:3])}")
-
-    # 全体のサマリー
-    if total_runs > 0:
-        print(f"\n全体の引用情報密度: {total_citations/total_runs:.1f}件/実行")
-
     return local_path
 
 
@@ -711,15 +653,13 @@ def main():
         if args.verbose:
             logging.info(f"{args.runs}回の実行を開始します")
         result = collect_citation_rankings(categories)
-        result_file = get_local_path(today_date, "citations", "perplexity")
-        save_results(result, "multiple", args.runs)
+        result_file = save_results(result, "multiple", args.runs)
     else:
         print("Perplexity APIを使用して単一実行引用リンク取得を実行します")
         if args.verbose:
             logging.info("単一実行を開始します")
         result = collect_citation_rankings(categories)
-        result_file = get_local_path(today_date, "citations", "perplexity")
-        save_results(result)
+        result_file = save_results(result)
 
     print("引用リンク取得処理が完了しました")
     if args.verbose:

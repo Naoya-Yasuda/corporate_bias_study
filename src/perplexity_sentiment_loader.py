@@ -15,7 +15,7 @@ import numpy as np
 import argparse
 import logging
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json
+from src.utils.storage_utils import save_json, get_results_paths
 from src.utils.storage_utils import save_to_s3, put_json_to_s3, get_local_path
 from src.utils.perplexity_api import PerplexityAPI
 
@@ -177,44 +177,27 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
 
 def save_results(result_data, run_type="single", num_runs=1):
     """結果を保存する関数"""
-    # 日付を取得
     today_date = get_today_str()
-
-    # ファイル名の生成
+    paths = get_results_paths(today_date)
     if run_type == "multiple":
         file_name = f"{today_date}_perplexity_sentiment_results_{num_runs}runs.json"
     else:
         file_name = f"{today_date}_perplexity_sentiment_results.json"
-
-    # ローカルに保存
-    output_dir = "results"
-    ensure_dir(output_dir)
-    local_file = f"{output_dir}/{file_name}"
-
-    # JSONを保存
+    local_file = os.path.join(paths["perplexity_sentiment"], file_name)
     save_json(result_data, local_file)
     print(f"ローカルに保存しました: {local_file}")
-
-    # S3に保存（認証情報がある場合のみ）
     if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
         try:
-            # S3のパスを設定 (results/perplexity_sentiment/日付/ファイル名)
             s3_key = f"results/perplexity_sentiment/{today_date}/{file_name}"
-
-            # src.utils.storage_utilsのsave_jsonを使用してS3に保存
-            result = save_json(result_data, local_file, s3_key)
-            if result["s3"]:
+            result = put_json_to_s3(result_data, s3_key)
+            if result:
                 print(f"S3に保存完了: s3://{S3_BUCKET_NAME}/{s3_key}")
             else:
                 print(f"S3への保存に失敗しました: 認証情報を確認してください")
-                print(f"  バケット名: {S3_BUCKET_NAME}")
-                print(f"  AWS認証キーの設定状態: ACCESS_KEY={'設定済み' if AWS_ACCESS_KEY else '未設定'}, SECRET_KEY={'設定済み' if AWS_SECRET_KEY else '未設定'}")
-                print(f"  リージョン: {AWS_REGION}")
         except Exception as e:
             print(f"S3保存中にエラーが発生しました: {e}")
     else:
         print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
-
     return local_file
 
 def main():

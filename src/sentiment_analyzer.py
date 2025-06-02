@@ -181,7 +181,14 @@ def main():
         logging.info(f"分析日付: {date_str}, データタイプ: {args.data_type}")
 
     # 入力ファイルのパスを取得
-    input_filename = args.input_file or f"perplexity_{args.data_type}_{date_str}.json"
+    if args.input_file:
+        input_filename = args.input_file
+    else:
+        if args.data_type == "citations":
+            input_filename = f"{date_str}_perplexity_citations.json"
+        else:
+            input_filename = f"{date_str}_perplexity_rankings.json"
+
     if args.verbose:
         logging.info(f"入力ファイル: {input_filename}")
 
@@ -193,7 +200,7 @@ def main():
         local_path = paths["perplexity_citations"]
 
     # ファイル名を生成
-    output_filename = f"sentiment_analysis_{os.path.basename(input_filename)}"
+    output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_filename)}"
     local_path = os.path.join(local_path, output_filename)
     s3_path = f"results/sentiment_analysis/{date_str}/{args.data_type}/{output_filename}"
 

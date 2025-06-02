@@ -27,7 +27,7 @@ from src.utils.text_utils import (
     is_official_domain
 )
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_local_path, get_s3_client, get_s3_key_path, get_latest_file, put_json_to_s3
+from src.utils.storage_utils import save_json, get_local_path, get_s3_client, get_s3_key_path, get_latest_file, put_json_to_s3, get_results_paths
 
 # プロジェクト固有のモジュール
 from src.categories import get_categories
@@ -54,30 +54,17 @@ categories = get_categories()
 def save_results(results, type_str, local_path="results"):
     """結果を保存する（ローカルとS3）"""
     today = get_today_str()
-
-    # ディレクトリがなければ作成
-    ensure_dir(local_path)
-
-    # ローカルに保存
-    local_file = get_local_path(today, "google_serp", "google_serp")
-    if not local_file.endswith('.json'):
-        local_file = f"{local_file}.json"
-
-    # JSONを保存
+    paths = get_results_paths(today)
+    file_name = f"{today}_google_serp_results.json"
+    local_file = os.path.join(paths["google_serp"], file_name)
     save_json(results, local_file)
     print(f"結果を {local_file} に保存しました")
-
-    # S3に保存
     if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
-        # S3のパス
-        s3_path = f"results/google_serp/{today}/{os.path.basename(local_file)}"
-
-        # S3に保存
+        s3_path = f"results/google_serp/{today}/{file_name}"
         if put_json_to_s3(results, s3_path):
             print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
         else:
             print(f"S3への保存に失敗しました")
-
     return local_file
 
 # -------------------------------------------------------------------
