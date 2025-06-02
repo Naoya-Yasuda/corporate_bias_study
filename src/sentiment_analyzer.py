@@ -180,43 +180,43 @@ def main():
     if args.verbose:
         logging.info(f"分析日付: {date_str}, データタイプ: {args.data_type}")
 
-    # 入力ファイルのパスを取得
-    if args.input_file:
-        input_filename = args.input_file
-    else:
-        if args.data_type == "citations":
-            input_filename = f"{date_str}_perplexity_citations.json"
-        else:
-            input_filename = f"{date_str}_perplexity_rankings.json"
-
-    if args.verbose:
-        logging.info(f"入力ファイル: {input_filename}")
-
     # 結果の保存先パスを取得
     paths = get_results_paths(date_str)
-    if "google_serp" in input_filename:
-        local_path = paths["google_serp"]
-    else:
-        local_path = paths["perplexity_citations"]
 
-    # ファイル名を生成
-    output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_filename)}"
-    local_path = os.path.join(local_path, output_filename)
-    s3_path = f"results/sentiment_analysis/{date_str}/{args.data_type}/{output_filename}"
+    # 入力ファイルのパスを取得
+    if args.input_file:
+        input_file = args.input_file
+    else:
+        if args.data_type == "citations":
+            input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations.json")
+        else:
+            input_file = os.path.join(paths["perplexity_rankings"], f"{date_str}_perplexity_rankings.json")
+
+    if args.verbose:
+        logging.info(f"入力ファイル: {input_file}")
 
     # 感情分析を実行
-    result = process_results_file(input_filename)
+    result = process_results_file(input_file)
     if result is None:
         print(f"感情分析の実行に失敗しました")
         return
 
+    # 出力ファイル名を生成
+    if "google_serp" in input_file:
+        output_path = paths["google_serp"]
+        output_filename = f"{date_str}_sentiment_analysis_google_serp_results.json"
+    else:
+        output_path = paths["perplexity_sentiment"]
+        output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_file)}"
+
     # 結果を保存
+    local_path = os.path.join(output_path, output_filename)
     if save_json(result, local_path):
         print(f"結果を {local_path} に保存しました")
 
         # S3に保存
-        if put_json_to_s3(result, s3_path):
-            print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
+        if put_json_to_s3(result, local_path):
+            print(f"結果を S3 ({S3_BUCKET_NAME}/{local_path}) に保存しました")
         else:
             print(f"S3への保存に失敗しました")
     else:
