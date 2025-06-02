@@ -29,6 +29,32 @@ def get_today_str():
     """今日の日付を文字列（YYYYMMDD形式）で取得"""
     return datetime.datetime.now().strftime("%Y%m%d")
 
+def get_results_paths(data_type, date_str, file_name):
+    """
+    指定したデータタイプと日付に対応するローカルパスとS3パスを生成
+
+    Args:
+        data_type: データタイプ（perplexity_sentiment, perplexity_rankings, openai など）
+        date_str: 日付文字列（YYYYMMDD形式）
+        file_name: ファイル名
+
+    Returns:
+        tuple: (ローカルパス, S3パス)
+    """
+    # ストレージ設定を取得
+    storage_config = get_storage_config()
+
+    # ローカルパスの生成
+    local_dir = os.path.join(storage_config["local_dir"], data_type, date_str)
+    local_path = os.path.join(local_dir, file_name)
+    ensure_dir(local_dir)
+
+    # S3パスの生成
+    s3_dir = f"results/{data_type}/{date_str}"
+    s3_path = f"{s3_dir}/{file_name}"
+
+    return local_path, s3_path
+
 def save_json(data, local_path, s3_path=None):
     """
     JSONデータをローカルとS3に保存
@@ -73,6 +99,78 @@ def save_json(data, local_path, s3_path=None):
             print(f"S3保存エラー: {e}")
 
     return result
+
+def load_json(local_path, s3_path=None):
+    """
+    JSONデータをローカルまたはS3から読み込み
+
+    Parameters:
+    -----------
+    local_path : str
+        ローカルファイルパス
+    s3_path : str, optional
+        S3ファイルパス
+
+    Returns:
+    --------
+    dict | None
+        読み込んだデータ、失敗した場合はNone
+    """
+    # ローカルから読み込み
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"ローカルファイル読み込みエラー: {e}")
+
+    # S3から読み込み
+    if s3_path and is_s3_enabled():
+        try:
+            s3_client = get_s3_client()
+            response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_path)
+            return json.loads(response['Body'].read().decode('utf-8'))
+        except Exception as e:
+            print(f"S3ファイル読み込みエラー: {e}")
+
+    return None
+
+def get_latest_file(data_type, date_str=None, api_type="perplexity"):
+    """
+    指定したデータタイプの最新ファイルを取得
+
+    Parameters:
+    -----------
+    data_type : str
+        データタイプ（"rankings", "citations", "sentiment", "google_serp"）
+    date_str : str, optional
+        日付文字列（YYYYMMDD形式）
+    api_type : str, optional
+        APIタイプ（"perplexity", "google"）
+
+    Returns:
+    --------
+    tuple
+        (local_path, s3_path, data) のタプル、見つからない場合は (None, None, None)
+    """
+    if not date_str:
+        date_str = get_today_str()
+
+    # ファイル名の生成
+    if api_type == "perplexity":
+        file_name = f"{date_str}_perplexity_{data_type}.json"
+    elif api_type == "google":
+        file_name = f"{date_str}_google_serp_results.json"
+    else:
+        raise ValueError(f"未対応のAPIタイプ: {api_type}")
+
+    # パスの生成
+    local_path, s3_path = get_results_paths(data_type, date_str, file_name)
+
+    # データの読み込み
+    data = load_json(local_path, s3_path)
+
+    return local_path, s3_path, data
 
 def save_text_data(text, local_path, s3_path=None):
     """
@@ -241,29 +339,3 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
             print(f"図のS3保存エラー: {e}")
 
     return result
-
-def get_results_paths(data_type, date_str, file_name):
-    """
-    指定したデータタイプと日付に対応するローカルパスとS3パスを生成
-
-    Args:
-        data_type: データタイプ（perplexity_sentiment, perplexity_rankings, openai など）
-        date_str: 日付文字列（YYYYMMDD形式）
-        file_name: ファイル名
-
-    Returns:
-        tuple: (ローカルパス, S3パス)
-    """
-    # ストレージ設定を取得
-    storage_config = get_storage_config()
-
-    # ローカルパスの生成
-    local_dir = os.path.join(storage_config["local_dir"], data_type, date_str)
-    local_path = os.path.join(local_dir, file_name)
-    ensure_dir(local_dir)
-
-    # S3パスの生成
-    s3_dir = f"results/{data_type}/{date_str}"
-    s3_path = f"{s3_dir}/{file_name}"
-
-    return local_path, s3_path

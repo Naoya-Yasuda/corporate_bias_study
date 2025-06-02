@@ -10,6 +10,7 @@
 
 import os
 from dotenv import load_dotenv
+from .storage_utils import get_results_paths
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -57,38 +58,4 @@ def get_storage_config():
         "s3_prefix": S3_RESULTS_PREFIX if is_s3_enabled() else None
     }
 
-# パス構造の一貫性を保つためのヘルパー関数
-def get_results_paths(api_type, date_str, file_name, subdir=None):
-    """
-    結果ファイルのパスを生成
-
-    Parameters:
-    -----------
-    api_type : str
-        API種別（'perplexity', 'openai'など）
-    date_str : str
-        日付文字列（'YYYYMMDD'形式）
-    file_name : str
-        ファイル名
-    subdir : str, optional
-        サブディレクトリ名
-
-    Returns:
-    --------
-    tuple
-        (ローカルパス, S3パス)のタプル
-    """
-    # ローカルパスの構築
-    if subdir:
-        local_dir = os.path.join(LOCAL_RESULTS_DIR, api_type, date_str, subdir)
-    else:
-        local_dir = os.path.join(LOCAL_RESULTS_DIR, api_type, date_str)
-    local_path = os.path.join(local_dir, file_name)
-
-    # S3パスの構築
-    if subdir:
-        s3_path = f"{S3_RESULTS_PREFIX}/{api_type}/{date_str}/{subdir}/{file_name}"
-    else:
-        s3_path = f"{S3_RESULTS_PREFIX}/{api_type}/{date_str}/{file_name}"
-
-    return local_path, s3_path
+# get_results_paths関数を削除

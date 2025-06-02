@@ -19,7 +19,8 @@ from tqdm import tqdm
 # 共通ユーティリティをインポート
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json, get_storage_config, get_results_paths
-from src.utils.s3_utils import get_local_path, get_s3_client, get_s3_key_path, get_latest_file
+from src.utils.storage_config import is_s3_enabled, S3_BUCKET_NAME
+from src.utils.s3_utils import get_s3_client
 
 # 環境変数の読み込み
 load_dotenv()
@@ -32,7 +33,6 @@ API_HOST = "api.perplexity.ai"
 AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
-S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 def analyze_sentiments(texts):
     """Perplexity APIを使用して複数のテキストの感情分析を実行"""
@@ -163,7 +163,6 @@ def main():
     """メイン関数"""
     # 引数処理
     parser = argparse.ArgumentParser(description='感情分析を実行')
-    parser.add_argument('--input-file', type=str, required=True, help='入力JSONファイルのパス')
     parser.add_argument('--date', type=str, help='日付（YYYYMMDD形式）')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
@@ -174,34 +173,23 @@ def main():
     else:
         date_str = datetime.datetime.now().strftime("%Y%m%d")
 
-    # 入力ファイルの種類を判定
-    input_filename = os.path.basename(args.input_file)
-    if "google_serp" in input_filename:
-        data_type = "google_serp"
-    elif "perplexity_citations" in input_filename:
-        data_type = "perplexity_citations"
-    else:
-        data_type = "sentiment_analysis"
+    # データタイプの設定
+    data_type = "google_serp"
+    input_filename = f"{date_str}_google_serp_results.json"
 
     # パスの取得
     local_path, s3_path = get_results_paths(data_type, date_str, input_filename)
 
     # 入力ファイルの読み込み
     try:
-        with open(args.input_file, 'r', encoding='utf-8') as f:
+        with open(local_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
     except Exception as e:
         print(f"入力ファイルの読み込みエラー: {e}")
         return
 
     # 感情分析の実行
-    if data_type == "google_serp":
-        result = process_google_serp_results(data)
-    elif data_type == "perplexity_citations":
-        result = process_perplexity_results(data)
-    else:
-        print("不明なデータタイプです。")
-        return
+    result = process_google_serp_results(data)
 
     # ストレージ設定の取得（デバッグ用）
     storage_config = get_storage_config()
