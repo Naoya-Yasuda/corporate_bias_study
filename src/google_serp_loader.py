@@ -27,7 +27,7 @@ from src.utils.text_utils import (
     is_official_domain
 )
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_local_path, get_s3_client, get_s3_key_path, get_latest_file
+from src.utils.storage_utils import save_json, get_local_path, get_s3_client, get_s3_key_path, get_latest_file, put_json_to_s3
 
 # プロジェクト固有のモジュール
 from src.categories import get_categories
@@ -70,10 +70,11 @@ def save_results(results, type_str, local_path="results"):
         # S3のパス
         s3_path = f"results/google_serp/{today}/{os.path.basename(local_file)}"
 
-        # storage_utilsのsave_jsonでS3保存
-        result = save_json(results, local_file, s3_path)
-        if result["s3"]:
+        # S3に保存
+        if put_json_to_s3(results, s3_path):
             print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
+        else:
+            print(f"S3への保存に失敗しました")
 
     return local_file
 

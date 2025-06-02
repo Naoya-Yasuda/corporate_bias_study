@@ -161,48 +161,52 @@ def save_results(results, file_path):
 def main():
     """メイン関数"""
     # 引数処理
-    parser = argparse.ArgumentParser(description='感情分析を実行')
-    parser.add_argument('--date', type=str, help='日付（YYYYMMDD形式）')
+    parser = argparse.ArgumentParser(description='感情分析を実行し、結果を保存する')
+    parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
+    parser.add_argument('--data-type', choices=['rankings', 'citations'], default='citations',
+                        help='分析対象のデータタイプ（デフォルト: citations）')
+    parser.add_argument('--input-file', help='入力ファイルのパス')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
 
-    # 日付の設定
-    if args.date:
-        date_str = args.date
-    else:
-        date_str = datetime.datetime.now().strftime("%Y%m%d")
+    # 詳細ログの設定
+    if args.verbose:
+        import logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logging.info("詳細ログモードが有効になりました")
 
-    # データタイプの設定
-    data_type = "google_serp"
-    input_filename = f"{date_str}_google_serp_results.json"
+    # 日付を取得（指定がなければ今日の日付）
+    date_str = args.date or datetime.datetime.now().strftime("%Y%m%d")
+    if args.verbose:
+        logging.info(f"分析日付: {date_str}, データタイプ: {args.data_type}")
 
-    # パスの取得
-    local_path, s3_path = get_results_paths(data_type, date_str, input_filename)
+    # 入力ファイルのパスを取得
+    input_filename = args.input_file or f"perplexity_{args.data_type}_{date_str}.json"
+    if args.verbose:
+        logging.info(f"入力ファイル: {input_filename}")
 
-    # 入力ファイルの読み込み
-    try:
-        with open(local_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-    except Exception as e:
-        print(f"入力ファイルの読み込みエラー: {e}")
+    # 結果の保存先パスを取得
+    paths = get_results_paths(date_str)
+    local_path = paths["sentiment_analysis"][args.data_type]
+    s3_path = f"results/sentiment_analysis/{date_str}/{args.data_type}/{os.path.basename(local_path)}"
+
+    # 感情分析を実行
+    result = process_results_file(input_filename)
+    if result is None:
+        print(f"感情分析の実行に失敗しました")
         return
 
-    # 感情分析の実行
-    result = process_google_serp_results(data)
+    # 結果を保存
+    if save_json(result, local_path):
+        print(f"結果を {local_path} に保存しました")
 
-    # ストレージ設定の取得（デバッグ用）
-    storage_config = get_storage_config()
-    print(f"ストレージ設定: {storage_config}")
-
-    # 保存
-    result = save_json(result, local_path, s3_path)
-
-    if result["local"]:
-        print(f"ローカルに保存しました: {local_path}")
-    if result["s3"]:
-        print(f"S3に保存しました: s3://{s3_path}")
-
-    print("感情分析が完了しました")
+        # S3に保存
+        if put_json_to_s3(result, s3_path):
+            print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
+        else:
+            print(f"S3への保存に失敗しました")
+    else:
+        print(f"結果の保存に失敗しました")
 
 if __name__ == "__main__":
     main()
