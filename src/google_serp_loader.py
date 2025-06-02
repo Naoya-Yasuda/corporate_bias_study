@@ -59,7 +59,7 @@ def save_results(results, type_str, local_path="results"):
     ensure_dir(local_path)
 
     # ローカルに保存
-    local_file = get_local_path(today, "google_serp", "google")
+    local_file = get_local_path(today, "google_serp", "google_serp")
 
     # JSONを保存
     save_json(results, local_file)
