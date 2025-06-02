@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple, Union, Optional
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
-from src.utils.s3_utils import get_s3_client, S3_BUCKET_NAME, get_local_path, get_s3_key_path, get_latest_file
+from src.utils.storage_utils import get_s3_client, S3_BUCKET_NAME, get_local_path, get_s3_key_path, get_latest_file
 
 # 共通ユーティリティをインポート
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share, gini_coefficient

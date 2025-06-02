@@ -27,8 +27,7 @@ from src.utils.text_utils import (
     is_official_domain
 )
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json
-from src.utils.s3_utils import get_local_path, get_s3_client, get_s3_key_path, get_latest_file
+from src.utils.storage_utils import save_json, get_local_path, get_s3_client, get_s3_key_path, get_latest_file
 
 # プロジェクト固有のモジュール
 from src.categories import get_categories

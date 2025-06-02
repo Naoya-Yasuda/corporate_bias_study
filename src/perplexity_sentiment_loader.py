@@ -16,7 +16,7 @@ import argparse
 import logging
 from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json
-from src.utils.s3_utils import save_to_s3, put_json_to_s3, get_local_path
+from src.utils.storage_utils import save_to_s3, put_json_to_s3, get_local_path
 from src.utils.perplexity_api import PerplexityAPI
 
 # .envファイルから環境変数を読み込む

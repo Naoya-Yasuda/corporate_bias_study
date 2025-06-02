@@ -24,7 +24,7 @@ from tqdm import trange, tqdm
 from dotenv import load_dotenv
 import boto3
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_s3_client, get_results_paths
+from src.utils.storage_utils import save_json, get_s3_client, get_results_paths, list_s3_files
 from src.utils.file_utils import load_json
 from src.utils.rank_utils import compute_tau, rbo
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio
@@ -84,23 +84,6 @@ MARKET_SHARES = load_market_shares()
 # -----------------------------
 # S3操作ユーティリティ
 # -----------------------------
-def list_s3_files(prefix="results/perplexity_rankings/"):
-    """S3バケット内のファイル一覧を取得"""
-    s3_client = get_s3_client()
-
-    try:
-        response = s3_client.list_objects_v2(
-            Bucket=S3_BUCKET_NAME,
-            Prefix=prefix
-        )
-
-        if 'Contents' in response:
-            return [item['Key'] for item in response['Contents']]
-        return []
-    except Exception as e:
-        print(f"S3ファイル一覧取得エラー: {e}")
-        return []
-
 def download_from_s3(s3_key):
     """S3からファイルをダウンロードして内容を返す"""
     s3_client = get_s3_client()

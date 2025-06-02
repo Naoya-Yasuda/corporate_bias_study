@@ -19,8 +19,7 @@ from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
 from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
 from src.utils.file_utils import ensure_dir
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
-from src.utils.storage_utils import save_json, save_figure, get_results_paths
-from src.utils.s3_utils import get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
+from src.utils.storage_utils import save_json, save_figure, get_results_paths, get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
 from src.utils.date_utils import get_today_str
 
 # -------------------------------------------------------------------
