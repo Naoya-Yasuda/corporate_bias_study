@@ -309,6 +309,13 @@ def get_metadata_from_serp(urls):
             try:
                 # APIリクエスト
                 response = requests.get(endpoint, params=params)
+
+                # レート制限エラーの場合
+                if response.status_code == 429:
+                    print("  ⚠️ レート制限に達しました。60秒待機します...")
+                    time.sleep(60)  # 60秒待機
+                    response = requests.get(endpoint, params=params)  # 再試行
+
                 response.raise_for_status()
                 data = response.json()
 
@@ -324,11 +331,12 @@ def get_metadata_from_serp(urls):
 
                 # レート制限を考慮して待機
                 if i < len(unique_urls) - 1:
-                    time.sleep(1)  # 1秒待機
+                    time.sleep(2)  # 2秒待機
 
             except Exception as e:
                 print(f"  URL {url} のメタデータ取得エラー: {e}")
                 metadata_dict[url] = {"title": "", "snippet": ""}
+                time.sleep(5)  # エラー時は5秒待機
 
         return metadata_dict
     except Exception as e:
@@ -336,13 +344,12 @@ def get_metadata_from_serp(urls):
         return {url: {"title": "", "snippet": ""} for url in urls}
 
 
-def collect_citation_rankings(categories, num_runs=1):
+def collect_citation_rankings(categories):
     """
     各カテゴリ・サブカテゴリごとに引用リンクのランキングを取得
 
     Args:
         categories: カテゴリとサービスの辞書
-        num_runs: 実行回数（引用情報の取得では1回で十分）
 
     Returns:
         dict: カテゴリごとの引用リンクランキング結果
@@ -361,9 +368,8 @@ def collect_citation_rankings(categories, num_runs=1):
         "llama-3.1-sonar-large-128k",         # バックアップモデル
     ]
 
-    # 全URLを収集するリストと、既に処理済みのURLのメタデータを保持する辞書
+    # 全URLを収集するリスト
     all_urls = []
-    processed_metadata = {}
 
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")
@@ -389,7 +395,6 @@ def collect_citation_rankings(categories, num_runs=1):
                 # 公式/非公式判定用の検索
                 query = f"{service}"
 
-                # 引用情報の取得は1回で十分
                 # すべてのモデルを試す
                 answer = None
                 citations = []
@@ -440,10 +445,9 @@ def collect_citation_rankings(categories, num_runs=1):
                                 "domain": domain,
                                 "is_official": is_official
                             })
-                            # URLを収集リストに追加（重複チェック）
-                            if url not in all_urls:
-                                all_urls.append(url)
-                                print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
+                            # URLを収集リストに追加
+                            all_urls.append(url)
+                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
 
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
@@ -460,7 +464,6 @@ def collect_citation_rankings(categories, num_runs=1):
                 # 評判情報用の検索
                 query = f"{service} 評判 口コミ"
 
-                # 引用情報の取得は1回で十分
                 # すべてのモデルを試す
                 answer = None
                 citations = []
@@ -509,10 +512,9 @@ def collect_citation_rankings(categories, num_runs=1):
                                 "domain": domain,
                                 "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
                             })
-                            # URLを収集リストに追加（重複チェック）
-                            if url not in all_urls:
-                                all_urls.append(url)
-                                print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")
+                            # URLを収集リストに追加
+                            all_urls.append(url)
+                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")
 
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
 
@@ -535,12 +537,9 @@ def collect_citation_rankings(categories, num_runs=1):
                     "all_answers": all_answers
                 }
 
-    # 未処理のURLのみSERP APIでメタデータを取得
-    print("\n未処理のURLのメタデータを一括取得中...")
-    unprocessed_urls = [url for url in all_urls if url not in processed_metadata]
-    if unprocessed_urls:
-        new_metadata = get_metadata_from_serp(unprocessed_urls)
-        processed_metadata.update(new_metadata)
+    # 全URLのメタデータを一括取得
+    print("\n全URLのメタデータを一括取得中...")
+    metadata_dict = get_metadata_from_serp(all_urls)
 
     # メタデータを各結果に追加
     for category in results:
@@ -550,14 +549,14 @@ def collect_citation_rankings(categories, num_runs=1):
             # 公式結果にメタデータを追加
             for result in data.get("official_results", []):
                 url = result.get("url")
-                if url and url in processed_metadata:
-                    result.update(processed_metadata[url])
+                if url and url in metadata_dict:
+                    result.update(metadata_dict[url])
 
             # 評判結果にメタデータを追加
             for result in data.get("reputation_results", []):
                 url = result.get("url")
-                if url and url in processed_metadata:
-                    result.update(processed_metadata[url])
+                if url and url in metadata_dict:
+                    result.update(metadata_dict[url])
 
     return results
 
@@ -720,7 +719,7 @@ def main():
         print(f"Perplexity APIを使用して{args.runs}回の引用リンク取得を実行します")
         if args.verbose:
             logging.info(f"{args.runs}回の実行を開始します")
-        result = collect_citation_rankings(categories, args.runs)
+        result = collect_citation_rankings(categories)
         result_file = get_local_path(today_date, "citations", "perplexity")
         save_results(result, "multiple", args.runs)
     else:
