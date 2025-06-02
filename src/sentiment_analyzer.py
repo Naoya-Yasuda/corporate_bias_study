@@ -174,17 +174,6 @@ def main():
     else:
         date_str = datetime.datetime.now().strftime("%Y%m%d")
 
-    # 入力ファイルの読み込み
-    try:
-        with open(args.input_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-    except Exception as e:
-        print(f"入力ファイルの読み込みエラー: {e}")
-        return
-
-    # 感情分析の実行
-    result = analyze_sentiment(data)
-
     # 入力ファイルの種類を判定
     input_filename = os.path.basename(args.input_file)
     if "google_serp" in input_filename:
@@ -194,8 +183,19 @@ def main():
     else:
         data_type = "sentiment_analysis"
 
-    # パスの取得（元のファイルと同じパスを使用）
+    # パスの取得
     local_path, s3_path = get_results_paths(data_type, date_str, input_filename)
+
+    # 入力ファイルの読み込み
+    try:
+        with open(local_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"入力ファイルの読み込みエラー: {e}")
+        return
+
+    # 感情分析の実行
+    result = analyze_sentiment(data)
 
     # ストレージ設定の取得（デバッグ用）
     storage_config = get_storage_config()
