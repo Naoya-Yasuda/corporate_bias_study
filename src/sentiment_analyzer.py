@@ -187,8 +187,15 @@ def main():
 
     # 結果の保存先パスを取得
     paths = get_results_paths(date_str)
-    local_path = paths["sentiment_analysis"][args.data_type]
-    s3_path = f"results/sentiment_analysis/{date_str}/{args.data_type}/{os.path.basename(local_path)}"
+    if "google_serp" in input_filename:
+        local_path = paths["google_serp"]
+    else:
+        local_path = paths["perplexity_citations"]
+
+    # ファイル名を生成
+    output_filename = f"sentiment_analysis_{os.path.basename(input_filename)}"
+    local_path = os.path.join(local_path, output_filename)
+    s3_path = f"results/sentiment_analysis/{date_str}/{args.data_type}/{output_filename}"
 
     # 感情分析を実行
     result = process_results_file(input_filename)
