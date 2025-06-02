@@ -12,6 +12,9 @@ import json
 import datetime
 import time
 import argparse
+import requests
+import re
+import traceback
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 from collections import defaultdict
@@ -53,9 +56,6 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
     tuple (str, list)
         (回答テキスト, 引用のリスト)
     """
-    import requests
-    import json
-
     if not PPLX_API_KEY:
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
 
@@ -148,7 +148,6 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
         return answer, citations
     except Exception as e:
         print(f"Perplexity API 呼び出しエラー: {e}")
-        import traceback
         print(f"  スタックトレース: {traceback.format_exc()}")
         return None, []
 
@@ -167,8 +166,6 @@ def extract_references_from_text(text):
     list
         抽出された引用参照の辞書リスト（順番と番号）
     """
-    import re
-
     if not text:
         return []
 
@@ -216,8 +213,6 @@ def extract_references_with_context(text):
     list
         引用参照とその文脈を含む辞書のリスト
     """
-    import re
-
     if not text:
         return []
 
@@ -267,6 +262,80 @@ def extract_references_with_context(text):
     return references
 
 
+def get_metadata_from_serp(urls):
+    """
+    SERP APIを使用して複数のURLのメタデータを一括取得する
+
+    Parameters:
+    -----------
+    urls : list
+        メタデータを取得するURLのリスト
+
+    Returns:
+    --------
+    dict
+        URLをキーとしたメタデータの辞書
+    """
+    try:
+        # 環境変数からAPIキーを取得
+        SERP_API_KEY = os.environ.get("SERP_API_KEY")
+        if not SERP_API_KEY:
+            raise ValueError("SERP_API_KEY が設定されていません。.env ファイルを確認してください。")
+
+        # 重複を排除
+        unique_urls = list(set(urls))
+        print(f"  重複を排除: {len(urls)} -> {len(unique_urls)}件")
+
+        # 結果を格納する辞書
+        metadata_dict = {}
+
+        # SERP APIのエンドポイント
+        endpoint = "https://serpapi.com/search"
+
+        # 各URLに対してメタデータを取得
+        for i, url in enumerate(unique_urls):
+            print(f"  URL {i+1}/{len(unique_urls)} のメタデータを取得中: {url}")
+
+            # パラメータの設定
+            params = {
+                "api_key": SERP_API_KEY,
+                "engine": "google",
+                "q": url,
+                "num": 1,  # 1件のみ取得
+                "gl": "jp",  # 日本向け検索
+                "hl": "ja"   # 日本語結果
+            }
+
+            try:
+                # APIリクエスト
+                response = requests.get(endpoint, params=params)
+                response.raise_for_status()
+                data = response.json()
+
+                # 検索結果からメタデータを抽出
+                if "organic_results" in data and data["organic_results"]:
+                    result = data["organic_results"][0]
+                    metadata_dict[url] = {
+                        "title": result.get("title", ""),
+                        "snippet": result.get("snippet", "")
+                    }
+                else:
+                    metadata_dict[url] = {"title": "", "snippet": ""}
+
+                # レート制限を考慮して待機
+                if i < len(unique_urls) - 1:
+                    time.sleep(1)  # 1秒待機
+
+            except Exception as e:
+                print(f"  URL {url} のメタデータ取得エラー: {e}")
+                metadata_dict[url] = {"title": "", "snippet": ""}
+
+        return metadata_dict
+    except Exception as e:
+        print(f"SERP API メタデータ一括取得エラー: {e}")
+        return {url: {"title": "", "snippet": ""} for url in urls}
+
+
 def collect_citation_rankings(categories, num_runs=1):
     """
     各カテゴリ・サブカテゴリごとに引用リンクのランキングを取得
@@ -290,8 +359,10 @@ def collect_citation_rankings(categories, num_runs=1):
     models_to_try = [
         "llama-3.1-sonar-large-128k-online",  # デフォルトモデル
         "llama-3.1-sonar-large-128k",         # バックアップモデル
-        # "mixtral-8x7b-instruct"               # さらにバックアップ
     ]
+
+    # 全URLを収集するリスト
+    all_urls = []
 
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")
@@ -369,10 +440,10 @@ def collect_citation_rankings(categories, num_runs=1):
                                     "rank": i + 1,  # 1-indexed
                                     "url": url,
                                     "domain": domain,
-                                    "title": citation.get("title", ""),
-                                    "snippet": citation.get("snippet", ""),
                                     "is_official": is_official
                                 })
+                                # URLを収集リストに追加
+                                all_urls.append(url)
                                 print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
 
                         print(f"  APIから引用情報を取得: {len(citation_data)}件")
@@ -441,11 +512,10 @@ def collect_citation_rankings(categories, num_runs=1):
                                     "rank": i + 1,  # 1-indexed
                                     "url": url,
                                     "domain": domain,
-                                    "title": citation.get("title", ""),
-                                    "snippet": citation.get("snippet", ""),
-                                    # "is_official": "n/a",  # 評判情報では公式/非公式判定は不要
                                     "is_negative": is_negative(citation.get("title", ""), citation.get("snippet", ""))
                                 })
+                                # URLを収集リストに追加
+                                all_urls.append(url)
                                 print(f"  引用情報を取得: URL={url}, ドメイン={domain}, ネガティブ={citation_data[-1]['is_negative']}")
 
                         print(f"  APIから引用情報を取得: {len(citation_data)}件")
@@ -469,6 +539,27 @@ def collect_citation_rankings(categories, num_runs=1):
                     "reputation_results": reputation_results,
                     "all_answers": all_answers
                 }
+
+    # 全URLのメタデータを一括取得
+    print("\n全URLのメタデータを一括取得中...")
+    metadata_dict = get_metadata_from_serp(all_urls)
+
+    # メタデータを各結果に追加
+    for category in results:
+        for subcategory in results[category]:
+            data = results[category][subcategory]
+
+            # 公式結果にメタデータを追加
+            for result in data.get("official_results", []):
+                url = result.get("url")
+                if url and url in metadata_dict:
+                    result.update(metadata_dict[url])
+
+            # 評判結果にメタデータを追加
+            for result in data.get("reputation_results", []):
+                url = result.get("url")
+                if url and url in metadata_dict:
+                    result.update(metadata_dict[url])
 
     return results
 
