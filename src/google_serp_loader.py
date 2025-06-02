@@ -81,33 +81,69 @@ def save_results(results, type_str, local_path="results"):
 # -------------------------------------------------------------------
 # SERP API 関連
 # -------------------------------------------------------------------
-def get_serp_results(query, num_results=10):
-    """SERP API を使用してGoogle検索結果を取得"""
-    if not SERP_API_KEY:
-        raise ValueError("SERP_API_KEY が設定されていません。.env ファイルを確認してください。")
+def get_google_search_results(query, num_results=10):
+    """
+    Google Custom Search APIを使用して検索結果を取得する
 
-    params = {
-        "engine": "google",
-        "q": query,
-        "api_key": SERP_API_KEY,
-        "num": num_results,
-        "hl": "ja",  # 日本語で検索
-        "gl": "jp"   # 日本から検索
-    }
+    Parameters:
+    -----------
+    query : str
+        検索クエリ
+    num_results : int, optional
+        取得する結果の数（デフォルト: 10）
 
+    Returns:
+    --------
+    list
+        検索結果のリスト
+    """
     try:
-        url = f"https://{API_HOST}/search.json"
-        response = requests.get(url, params=params)
+        # 環境変数からAPIキーを取得
+        GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+        GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
+        if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+            raise ValueError("GOOGLE_API_KEY または GOOGLE_CSE_ID が設定されていません。.env ファイルを確認してください。")
+
+        # Google Custom Search APIのエンドポイント
+        endpoint = "https://www.googleapis.com/customsearch/v1"
+
+        # パラメータの設定
+        params = {
+            "key": GOOGLE_API_KEY,
+            "cx": GOOGLE_CSE_ID,
+            "q": query,
+            "num": num_results,
+            "gl": "jp",  # 日本向け検索
+            "hl": "ja"   # 日本語結果
+        }
+
+        # APIリクエスト
+        response = requests.get(endpoint, params=params)
+
+        # レート制限エラーの場合
+        if response.status_code == 429:
+            print("⚠️ レート制限に達しました。60秒待機します...")
+            time.sleep(60)  # 60秒待機
+            response = requests.get(endpoint, params=params)  # 再試行
+
+        response.raise_for_status()
         data = response.json()
 
-        if "error" in data:
-            print(f"API エラー: {data['error']}")
-            return None
+        # 検索結果を整形
+        results = []
+        if "items" in data:
+            for item in data["items"]:
+                results.append({
+                    "title": item.get("title", ""),
+                    "link": item.get("link", ""),
+                    "snippet": item.get("snippet", "")
+                })
 
-        return data
+        return results
+
     except Exception as e:
-        print(f"SERP API リクエストエラー: {e}")
-        return None
+        print(f"Google Custom Search API エラー: {e}")
+        return []
 
 def process_serp_results(data, query, category, subcategory, target_companies, is_official_check=True):
     """SERP API の結果から必要な情報を抽出して整形"""
@@ -195,7 +231,7 @@ def process_categories_with_serp(categories, max_categories=None):
             for service in services:
                 # 公式/非公式判定用の検索
                 query = f"{service}"
-                serp_data = get_serp_results(query, num_results=10)
+                serp_data = get_google_search_results(query, num_results=10)
 
                 if serp_data:
                     # 結果を整形
@@ -214,7 +250,7 @@ def process_categories_with_serp(categories, max_categories=None):
             for service in services:
                 # 評判情報用の検索
                 query = f"{service} 評判 口コミ"
-                serp_data = get_serp_results(query, num_results=10)
+                serp_data = get_google_search_results(query, num_results=10)
 
                 if serp_data:
                     # 結果を整形

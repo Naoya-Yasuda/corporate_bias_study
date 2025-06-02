@@ -12,12 +12,11 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 ## 概要
 このプロジェクトは、Google検索とPerplexity APIの結果を比較し、企業バイアスと経済的影響を分析するためのパイプラインです。
 
-## 機能
-- Google検索とPerplexity APIの結果を比較
-- 企業バイアスの定量評価
-- 市場シェアへの潜在的影響の分析
-- 複数回実行による安定性評価
-- 引用データの詳細分析（ドメイン分布、引用の質、文脈分析）
+## 必要条件
+- Python 3.8以上
+- Google Custom Search API
+- OpenAI API
+- AWSアカウント（S3を使用する場合）
 
 ## セットアップ
 

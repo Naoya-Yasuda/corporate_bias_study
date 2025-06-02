@@ -264,7 +264,7 @@ def extract_references_with_context(text):
 
 def get_metadata_from_serp(urls):
     """
-    SERP APIを使用して複数のURLのメタデータを一括取得する
+    Google Custom Search APIを使用して複数のURLのメタデータを一括取得する
 
     Parameters:
     -----------
@@ -278,9 +278,10 @@ def get_metadata_from_serp(urls):
     """
     try:
         # 環境変数からAPIキーを取得
-        SERP_API_KEY = os.environ.get("SERP_API_KEY")
-        if not SERP_API_KEY:
-            raise ValueError("SERP_API_KEY が設定されていません。.env ファイルを確認してください。")
+        GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+        GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
+        if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+            raise ValueError("GOOGLE_API_KEY または GOOGLE_CSE_ID が設定されていません。.env ファイルを確認してください。")
 
         # 重複を排除
         unique_urls = list(set(urls))
@@ -289,8 +290,8 @@ def get_metadata_from_serp(urls):
         # 結果を格納する辞書
         metadata_dict = {}
 
-        # SERP APIのエンドポイント
-        endpoint = "https://serpapi.com/search"
+        # Google Custom Search APIのエンドポイント
+        endpoint = "https://www.googleapis.com/customsearch/v1"
 
         # 各URLに対してメタデータを取得
         for i, url in enumerate(unique_urls):
@@ -298,8 +299,8 @@ def get_metadata_from_serp(urls):
 
             # パラメータの設定
             params = {
-                "api_key": SERP_API_KEY,
-                "engine": "google",
+                "key": GOOGLE_API_KEY,
+                "cx": GOOGLE_CSE_ID,
                 "q": url,
                 "num": 1,  # 1件のみ取得
                 "gl": "jp",  # 日本向け検索
@@ -320,8 +321,8 @@ def get_metadata_from_serp(urls):
                 data = response.json()
 
                 # 検索結果からメタデータを抽出
-                if "organic_results" in data and data["organic_results"]:
-                    result = data["organic_results"][0]
+                if "items" in data and data["items"]:
+                    result = data["items"][0]
                     metadata_dict[url] = {
                         "title": result.get("title", ""),
                         "snippet": result.get("snippet", "")
@@ -340,7 +341,7 @@ def get_metadata_from_serp(urls):
 
         return metadata_dict
     except Exception as e:
-        print(f"SERP API メタデータ一括取得エラー: {e}")
+        print(f"Google Custom Search API メタデータ一括取得エラー: {e}")
         return {url: {"title": "", "snippet": ""} for url in urls}
 
 

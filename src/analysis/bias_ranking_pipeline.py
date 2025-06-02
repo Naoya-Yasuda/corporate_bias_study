@@ -492,5 +492,87 @@ def main():
         verbose=args.verbose
     )
 
+def get_metadata_from_google(urls):
+    """
+    Google Custom Search APIを使用して複数のURLのメタデータを一括取得する
+
+    Parameters:
+    -----------
+    urls : list
+        メタデータを取得するURLのリスト
+
+    Returns:
+    --------
+    dict
+        URLをキーとしたメタデータの辞書
+    """
+    try:
+        # 環境変数からAPIキーを取得
+        GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+        GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
+        if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+            raise ValueError("GOOGLE_API_KEY または GOOGLE_CSE_ID が設定されていません。.env ファイルを確認してください。")
+
+        # 重複を排除
+        unique_urls = list(set(urls))
+        print(f"  重複を排除: {len(urls)} -> {len(unique_urls)}件")
+
+        # 結果を格納する辞書
+        metadata_dict = {}
+
+        # Google Custom Search APIのエンドポイント
+        endpoint = "https://www.googleapis.com/customsearch/v1"
+
+        # 各URLに対してメタデータを取得
+        for i, url in enumerate(unique_urls):
+            print(f"  URL {i+1}/{len(unique_urls)} のメタデータを取得中: {url}")
+
+            # パラメータの設定
+            params = {
+                "key": GOOGLE_API_KEY,
+                "cx": GOOGLE_CSE_ID,
+                "q": url,
+                "num": 1,  # 1件のみ取得
+                "gl": "jp",  # 日本向け検索
+                "hl": "ja"   # 日本語結果
+            }
+
+            try:
+                # APIリクエスト
+                response = requests.get(endpoint, params=params)
+
+                # レート制限エラーの場合
+                if response.status_code == 429:
+                    print("  ⚠️ レート制限に達しました。60秒待機します...")
+                    time.sleep(60)  # 60秒待機
+                    response = requests.get(endpoint, params=params)  # 再試行
+
+                response.raise_for_status()
+                data = response.json()
+
+                # 検索結果からメタデータを抽出
+                if "items" in data and data["items"]:
+                    result = data["items"][0]
+                    metadata_dict[url] = {
+                        "title": result.get("title", ""),
+                        "snippet": result.get("snippet", "")
+                    }
+                else:
+                    metadata_dict[url] = {"title": "", "snippet": ""}
+
+                # レート制限を考慮して待機
+                if i < len(unique_urls) - 1:
+                    time.sleep(2)  # 2秒待機
+
+            except Exception as e:
+                print(f"  URL {url} のメタデータ取得エラー: {e}")
+                metadata_dict[url] = {"title": "", "snippet": ""}
+                time.sleep(5)  # エラー時は5秒待機
+
+        return metadata_dict
+    except Exception as e:
+        print(f"Google Custom Search API メタデータ一括取得エラー: {e}")
+        return {url: {"title": "", "snippet": ""} for url in urls}
+
 if __name__ == "__main__":
     main()
