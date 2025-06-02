@@ -24,8 +24,9 @@ AI 検索サービス（ChatGPT、Perplexity、Copilot など）が提示する�
 `.env`ファイルに以下の環境変数を設定してください：
 
 ```
-SERP_API_KEY=your_serp_api_key
 PERPLEXITY_API_KEY=your_perplexity_api_key
+GOOGLE_API_KEY=your_google_api_key
+GOOGLE_CSE_ID=your_google_cse_id
 AWS_REGION=ap-northeast-1  # AWSリージョン（デフォルト: ap-northeast-1）
 AWS_ACCESS_KEY=your_aws_access_key
 AWS_SECRET_KEY=your_aws_secret_key
