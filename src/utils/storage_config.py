@@ -10,20 +10,15 @@
 
 import os
 from dotenv import load_dotenv
-from .storage_utils import get_results_paths
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
-# AWS S3 設定
-AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
-AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
-AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-1")
-# リージョンが空の場合はデフォルト値を使用
-if not AWS_REGION or AWS_REGION.strip() == '':
-    AWS_REGION = 'ap-northeast-1'
-    print(f'[storage_config] AWS_REGIONが未設定または空のため、デフォルト値を使用します: {AWS_REGION}')
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+# 環境変数から認証情報を取得
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
+AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 # 保存モード設定（環境変数から取得、デフォルトは両方）
 # "local_only": ローカルのみ保存
@@ -35,27 +30,38 @@ STORAGE_MODE = os.getenv("STORAGE_MODE", "both")
 LOCAL_RESULTS_DIR = os.getenv("LOCAL_RESULTS_DIR", "results")
 S3_RESULTS_PREFIX = os.getenv("S3_RESULTS_PREFIX", "results")
 
-# S3が有効かどうかを確認
 def is_s3_enabled():
-    """S3が有効かどうかを確認"""
-    has_credentials = all([AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAME])
-    return has_credentials and STORAGE_MODE in ["s3_only", "both"]
+    """S3が有効かどうかを判定"""
+    return bool(AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME)
 
-# ローカル保存が有効かどうかを確認
 def is_local_enabled():
-    """ローカル保存が有効かどうかを確認"""
-    return STORAGE_MODE in ["local_only", "both"]
+    """ローカルストレージが有効かどうかを判定"""
+    return True  # 常に有効
 
-# 保存設定の概要を取得
 def get_storage_config():
-    """現在の保存設定の概要を返す"""
+    """ストレージ設定を取得"""
     return {
-        "storage_mode": STORAGE_MODE,
         "s3_enabled": is_s3_enabled(),
         "local_enabled": is_local_enabled(),
-        "local_dir": LOCAL_RESULTS_DIR,
-        "s3_bucket": S3_BUCKET_NAME if is_s3_enabled() else None,
-        "s3_prefix": S3_RESULTS_PREFIX if is_s3_enabled() else None
+        "aws_region": AWS_REGION,
+        "s3_bucket": S3_BUCKET_NAME
     }
 
-# get_results_paths関数を削除
+def get_base_paths(date_str):
+    """基本パスを取得"""
+    return {
+        "perplexity_rankings": f"results/perplexity_rankings/{date_str}",
+        "perplexity_sentiment": f"results/perplexity_sentiment/{date_str}",
+        "perplexity_citations": f"results/perplexity_citations/{date_str}",
+        "google_serp": f"results/google_serp/{date_str}",
+        "perplexity_analysis": f"results/perplexity_analysis/{date_str}",
+        "analysis": {
+            "perplexity": f"results/analysis/perplexity/{date_str}",
+            "citations": f"results/analysis/citations/{date_str}",
+            "integrated_metrics": f"results/integrated_metrics/{date_str}"
+        },
+        "bias_analysis": {
+            "rankings": f"results/bias_analysis/rankings/{date_str}",
+            "citations": f"results/bias_analysis/citations/{date_str}"
+        }
+    }

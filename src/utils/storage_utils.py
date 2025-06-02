@@ -12,7 +12,7 @@ import os
 import json
 import datetime
 import boto3
-from .storage_config import is_s3_enabled, is_local_enabled, get_storage_config
+from .storage_config import is_s3_enabled, is_local_enabled, get_storage_config, get_base_paths
 from .storage_config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME
 from .file_utils import ensure_dir
 
@@ -29,76 +29,20 @@ def get_today_str():
     """今日の日付を文字列（YYYYMMDD形式）で取得"""
     return datetime.datetime.now().strftime("%Y%m%d")
 
-def get_results_paths(data_type, date_str, file_name):
-    """
-    指定したデータタイプと日付に対応するローカルパスとS3パスを生成
+def get_results_paths(date_str):
+    """結果ファイルのパスを取得"""
+    return get_base_paths(date_str)
 
-    Args:
-        data_type: データタイプ（perplexity_sentiment, perplexity_rankings, openai など）
-        date_str: 日付文字列（YYYYMMDD形式）
-        file_name: ファイル名
+def ensure_dir(directory):
+    """ディレクトリが存在しない場合は作成"""
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
-    Returns:
-        tuple: (ローカルパス, S3パス)
-    """
-    # ストレージ設定を取得
-    storage_config = get_storage_config()
-
-    # ローカルパスの生成
-    local_dir = os.path.join(storage_config["local_dir"], data_type, date_str)
-    local_path = os.path.join(local_dir, file_name)
-    ensure_dir(local_dir)
-
-    # S3パスの生成
-    s3_dir = f"results/{data_type}/{date_str}"
-    s3_path = f"{s3_dir}/{file_name}"
-
-    return local_path, s3_path
-
-def save_json(data, local_path, s3_path=None):
-    """
-    JSONデータをローカルとS3に保存
-
-    Parameters:
-    -----------
-    data : dict
-        保存するJSONデータ
-    local_path : str
-        ローカル保存先のパス
-    s3_path : str, optional
-        S3保存先のパス
-
-    Returns:
-    --------
-    dict
-        {"local": bool, "s3": bool} の形式で保存結果を返す
-    """
-    result = {"local": False, "s3": False}
-
-    # ローカルに保存
-    try:
-        ensure_dir(os.path.dirname(local_path))
-        with open(local_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        result["local"] = True
-    except Exception as e:
-        print(f"ローカル保存エラー: {e}")
-
-    # S3に保存
-    if s3_path and is_s3_enabled():
-        try:
-            s3_client = get_s3_client()
-            s3_client.put_object(
-                Bucket=S3_BUCKET_NAME,
-                Key=s3_path,
-                Body=json.dumps(data, ensure_ascii=False).encode('utf-8'),
-                ContentType="application/json"
-            )
-            result["s3"] = True
-        except Exception as e:
-            print(f"S3保存エラー: {e}")
-
-    return result
+def save_json(data, file_path):
+    """JSONデータを保存"""
+    ensure_dir(os.path.dirname(file_path))
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def load_json(local_path, s3_path=None):
     """
@@ -135,42 +79,21 @@ def load_json(local_path, s3_path=None):
 
     return None
 
-def get_latest_file(data_type, date_str=None, api_type="perplexity"):
-    """
-    指定したデータタイプの最新ファイルを取得
-
-    Parameters:
-    -----------
-    data_type : str
-        データタイプ（"rankings", "citations", "sentiment", "google_serp"）
-    date_str : str, optional
-        日付文字列（YYYYMMDD形式）
-    api_type : str, optional
-        APIタイプ（"perplexity", "google"）
-
-    Returns:
-    --------
-    tuple
-        (local_path, s3_path, data) のタプル、見つからない場合は (None, None, None)
-    """
-    if not date_str:
-        date_str = get_today_str()
-
-    # ファイル名の生成
-    if api_type == "perplexity":
-        file_name = f"{date_str}_perplexity_{data_type}.json"
-    elif api_type == "google":
-        file_name = f"{date_str}_google_serp_results.json"
-    else:
-        raise ValueError(f"未対応のAPIタイプ: {api_type}")
-
-    # パスの生成
-    local_path, s3_path = get_results_paths(data_type, date_str, file_name)
-
-    # データの読み込み
-    data = load_json(local_path, s3_path)
-
-    return local_path, s3_path, data
+def get_latest_file(date_str, data_type, file_type):
+    """最新のファイルを取得"""
+    if not is_s3_enabled():
+        return None, None
+    try:
+        s3_client = get_s3_client()
+        s3_key = get_s3_key_path(date_str, data_type, file_type)
+        if not s3_key:
+            return None, None
+        response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+        content = response['Body'].read().decode('utf-8')
+        return s3_key, content
+    except Exception as e:
+        print(f"S3取得エラー: {e}")
+        return None, None
 
 def save_text_data(text, local_path, s3_path=None):
     """
@@ -339,3 +262,61 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
             print(f"図のS3保存エラー: {e}")
 
     return result
+
+def get_s3_key_path(date_str, data_type, file_type):
+    """S3のキーパスを取得"""
+    paths = get_results_paths(date_str)
+    if data_type == "perplexity_rankings":
+        return paths["perplexity_rankings"]
+    elif data_type == "perplexity_sentiment":
+        return paths["perplexity_sentiment"]
+    elif data_type == "perplexity_citations":
+        return paths["perplexity_citations"]
+    elif data_type == "google_serp":
+        return paths["google_serp"]
+    elif data_type == "perplexity_analysis":
+        return paths["perplexity_analysis"]
+    elif data_type == "analysis":
+        if file_type == "perplexity":
+            return paths["analysis"]["perplexity"]
+        elif file_type == "citations":
+            return paths["analysis"]["citations"]
+        elif file_type == "integrated_metrics":
+            return paths["analysis"]["integrated_metrics"]
+    elif data_type == "bias_analysis":
+        if file_type == "rankings":
+            return paths["bias_analysis"]["rankings"]
+        elif file_type == "citations":
+            return paths["bias_analysis"]["citations"]
+    return None
+
+def get_local_path(date_str, data_type, file_type):
+    """ローカルのパスを取得"""
+    return get_s3_key_path(date_str, data_type, file_type)
+
+def save_to_s3(data, s3_key):
+    """データをS3に保存"""
+    if not is_s3_enabled():
+        return False
+    try:
+        s3_client = get_s3_client()
+        if isinstance(data, str):
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=s3_key,
+                Body=data.encode('utf-8')
+            )
+        else:
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=s3_key,
+                Body=json.dumps(data, ensure_ascii=False).encode('utf-8')
+            )
+        return True
+    except Exception as e:
+        print(f"S3保存エラー: {e}")
+        return False
+
+def put_json_to_s3(data, s3_key):
+    """JSONデータをS3に保存"""
+    return save_to_s3(data, s3_key)
