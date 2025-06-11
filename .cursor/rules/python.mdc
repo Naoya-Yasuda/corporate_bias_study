@@ -1,0 +1,40 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Python Code Style Rules
+
+## Formatting
+- Indent size: 4 spaces
+- Max line length: 100 characters
+- Quote style: double quotes
+
+## Naming Conventions
+- Classes: PascalCase
+- Functions: snake_case
+- Variables: snake_case
+- Constants: UPPER_SNAKE_CASE
+- Modules: snake_case
+
+## Import Order
+1. Standard library imports
+2. Third-party imports
+3. Local application imports
+- Group imports by package
+
+## Documentation
+- Style: Google docstring format
+- Required for:
+  - Classes
+  - Functions
+  - Modules
+
+## Linting
+### Pylint
+- Enabled: true
+- Max line length: 100
+
+### Flake8
+- Enabled: true
+- Max line length: 100

@@ -1,0 +1,58 @@
+# テキストファイルの設定
+*.py text diff=python
+*.md text diff=markdown
+*.txt text
+*.json text
+*.yml text
+*.yaml text
+*.sh text eol=lf
+*.env* text eol=lf
+
+# バイナリファイルの設定
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+
+# ドキュメントファイルの設定
+*.bib text diff=bibtex
+*.tex text diff=tex
+*.rst text diff=rst
+
+# 設定ファイルの設定
+.editorconfig text
+.gitattributes text
+.gitignore text
+.env.sample text eol=lf
+
+# 実行可能ファイルの設定
+*.sh text eol=lf executable
+*.py text eol=lf executable
+
+# その他の設定
+*.log text eol=lf
+*.csv text eol=lf
+*.tsv text eol=lf
+*.sql text eol=lf
+*.html text diff=html
+*.css text diff=css
+*.js text diff=javascript
+*.ts text diff=typescript
+
+# 自動生成ファイルの設定
+__pycache__/* binary
+*.pyc binary
+*.pyo binary
+*.pyd binary
+*.so binary
+*.dylib binary
+*.dll binary
+
+# 一時ファイルの設定
+tmp/* binary
+results/* binary

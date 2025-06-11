@@ -1,0 +1,45 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Git Rules
+
+## Branch Protection
+### main
+- Protected: true
+- Requires review: true
+
+### development
+- Protected: true
+- Requires review: true
+
+## Commit Message Format
+### Types
+- feat: New feature
+- fix: Bug fix
+- docs: Documentation changes
+- style: Code style changes
+- refactor: Code refactoring
+- test: Adding or modifying tests
+- chore: Maintenance tasks
+
+### Structure
+- Type: Required
+- Scope: Optional
+- Subject: Required
+- Body: Optional
+- Footer: Optional
+
+### Length Limits
+- Subject: 72 characters
+- Body: 100 characters
+
+## Gitignore Patterns
+- *.pyc
+- __pycache__
+- .env
+- .DS_Store
+- tmp/*
+- results/*
+- *.log
