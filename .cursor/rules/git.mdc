@@ -5,37 +5,37 @@ alwaysApply: false
 ---
 # Git Rules
 
-## Branch Protection
+## ブランチ保護
 ### main
-- Protected: true
-- Requires review: true
+- 保護: true
+- レビュー必須: true
 
 ### development
-- Protected: true
-- Requires review: true
+- 保護: true
+- レビュー必須: true
 
-## Commit Message Format
-### Types
-- feat: New feature
-- fix: Bug fix
-- docs: Documentation changes
-- style: Code style changes
-- refactor: Code refactoring
-- test: Adding or modifying tests
-- chore: Maintenance tasks
+## コミットメッセージフォーマット
+### 種別（Types）
+- feat: 新機能
+- fix: バグ修正
+- docs: ドキュメント変更
+- style: コードスタイル変更
+- refactor: リファクタリング
+- test: テスト追加・修正
+- chore: メンテナンス
 
-### Structure
-- Type: Required
-- Scope: Optional
-- Subject: Required
-- Body: Optional
-- Footer: Optional
+### 構造（Structure）
+- Type: 必須
+- Scope: 任意
+- Subject: 必須
+- Body: 任意
+- Footer: 任意
 
-### Length Limits
-- Subject: 72 characters
-- Body: 100 characters
+### 長さ制限
+- Subject: 72文字以内
+- Body: 100文字以内
 
-## Gitignore Patterns
+## gitignoreパターン
 - *.pyc
 - __pycache__
 - .env
