@@ -112,7 +112,7 @@ def extract_ranking(text, original_services):
 
     return found_services
 
-def multi_run_ranking(subcategory, services, num_runs=5):
+def multi_run_ranking(subcategory, services, num_runs=5, api_key=None):
     """複数回実行してランキングの平均を計算"""
     print(f"{subcategory}の{num_runs}回ランキング取得を開始します...")
 
@@ -126,7 +126,8 @@ def multi_run_ranking(subcategory, services, num_runs=5):
         # プロンプト生成と送信
         prompt = get_ranking_prompt(subcategory, services)
         print("プロンプト送信中...")
-        response, citations = PerplexityAPI.call_perplexity_api(prompt)
+        api = PerplexityAPI(api_key)
+        response, citations = api.call_perplexity_api(prompt)
         print(f"応答受信:\n{response[:200]}...")  # 応答の一部を表示
 
         # ランキング抽出
@@ -224,7 +225,8 @@ def main():
 
     # APIを使用して複数回実行する場合
     if args.api:
-        result = multi_run_ranking(args.subcategory, services, args.runs)
+        PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+        result = multi_run_ranking(args.subcategory, services, args.runs, api_key=PERPLEXITY_API_KEY)
 
     # 応答テキストを取得
     elif args.answer or args.file:

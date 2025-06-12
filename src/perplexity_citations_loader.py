@@ -278,7 +278,8 @@ def collect_citation_rankings(categories):
             # 各サービスについて公式/非公式情報を取得
             for service in services:
                 query = f"{service}"
-                answer, citations = PerplexityAPI.call_perplexity_api(query)
+                api = PerplexityAPI(PPLX_API_KEY)
+                answer, citations = api.call_perplexity_api(query)
                 if answer:
                     print(f"  Perplexityからの応答:\n{answer[:200]}...")
                     print(f"  サービス: {service} の citations: {citations}")
@@ -306,7 +307,8 @@ def collect_citation_rankings(categories):
 
             for service in services:
                 query = f"{service} 評判 口コミ"
-                answer, citations = PerplexityAPI.call_perplexity_api(query)
+                api = PerplexityAPI(PPLX_API_KEY)
+                answer, citations = api.call_perplexity_api(query)
                 if answer:
                     print(f"  Perplexityからの応答:\n{answer[:200]}...")
                     print(f"  サービス: {service} の citations: {citations}")
@@ -403,7 +405,8 @@ def generate_summary(subcategory, services, all_answers):
 
     # APIで要約を生成
     try:
-        summary, _ = PerplexityAPI.call_perplexity_api(prompt)
+        api = PerplexityAPI(PPLX_API_KEY)
+        summary, _ = api.call_perplexity_api(prompt)
         return summary
     except Exception as e:
         print(f"要約生成中にエラーが発生しました: {e}")

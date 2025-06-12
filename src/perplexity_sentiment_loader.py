@@ -91,6 +91,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
     """複数回実行して平均値を取得（マスクあり・マスクなし両方とも各num_runs回ずつAPIを呼び出す）
     サービス名ごとに属性をまとめて出力するように構造を変更
     """
+    api = PerplexityAPI(api_key)
     results = {}
     for category, subcategories_data in categories.items():
         results[category] = {}
@@ -121,7 +122,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
                 masked_prompt = get_masked_prompt_ja(subcategory)
-                masked_result, masked_citations = PerplexityAPI.call_perplexity_api(masked_prompt)
+                masked_result, masked_citations = api.call_perplexity_api(masked_prompt)
                 results[category][subcategory]["masked_prompt"] = masked_prompt
                 results[category][subcategory]["masked_answer"].append(masked_result)
                 # citationsがdictリストならurlのみ抽出、そうでなければそのまま
@@ -146,7 +147,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             for subcategory, competitors in subcategories_data.items():
                 for competitor in competitors:
                     unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
-                    unmasked_result, unmasked_citations = PerplexityAPI.call_perplexity_api(unmasked_prompt)
+                    unmasked_result, unmasked_citations = api.call_perplexity_api(unmasked_prompt)
                     results[category][subcategory][competitor]["unmasked_prompt"] = unmasked_prompt
                     results[category][subcategory][competitor]["unmasked_answer"].append(unmasked_result)
                     # citationsがdictリストならurlのみ抽出、そうでなければそのまま

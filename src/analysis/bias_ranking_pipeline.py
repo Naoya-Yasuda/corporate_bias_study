@@ -277,7 +277,8 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
 
     # 2. Perplexity APIの実行
     print("Perplexity APIを実行中...")
-    pplx_answer, pplx_citations = PerplexityAPI.call_perplexity_api(query)
+    api = PerplexityAPI(PPLX_API_KEY)
+    pplx_answer, pplx_citations = api.call_perplexity_api(query)
 
     if not pplx_answer:
         print("Perplexity APIからの応答が取得できませんでした。")
