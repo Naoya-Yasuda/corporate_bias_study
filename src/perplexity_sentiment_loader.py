@@ -48,6 +48,7 @@ def get_unmasked_prompt_ja(subcategory, competitor):
 def process_categories(api_key, categories):
     """各カテゴリ、サブカテゴリを処理"""
     api = PerplexityAPI(api_key)
+    model = PerplexityAPI.get_models_to_try()[0]
     results = {}
 
     for category, subcategories_data in categories.items():
@@ -58,9 +59,13 @@ def process_categories(api_key, categories):
             print(f"サブカテゴリ処理中: {subcategory}, 対象サービス: {competitors}")
 
             # プロンプトを生成
-            masked_example = get_masked_prompt_ja(subcategory)
+            masked_prompt = get_masked_prompt_ja(subcategory)
 
-            masked_result = api.call_ai_api(masked_example, max_retries=3, retry_delay=1.0)
+            masked_result = None
+            for model in PerplexityAPI.get_models_to_try():
+                masked_result = api.call_ai_api(masked_prompt, model=model, max_retries=3, retry_delay=1.0)
+                if masked_result:
+                    break
             print(f"マスク評価結果: {masked_result}")
             time.sleep(1)
 
@@ -70,10 +75,15 @@ def process_categories(api_key, categories):
                 print(f"  サービス評価中: {competitor}")
 
                 # プロンプトを生成
-                unmasked_example = get_unmasked_prompt_ja(subcategory, competitor)
+                unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
 
-                unmasked_examples[competitor] = unmasked_example
-                unmasked_results[competitor] = api.call_ai_api(unmasked_example, max_retries=3, retry_delay=1.0)
+                unmasked_examples[competitor] = unmasked_prompt
+                unmasked_result = None
+                for model in PerplexityAPI.get_models_to_try():
+                    unmasked_result = api.call_ai_api(unmasked_prompt, model=model, max_retries=3, retry_delay=1.0)
+                    if unmasked_result:
+                        break
+                unmasked_results[competitor] = unmasked_result
                 print(f"  {competitor}の評価結果: {unmasked_results[competitor]}")
                 time.sleep(1)
 

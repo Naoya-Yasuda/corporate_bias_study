@@ -34,6 +34,7 @@ from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 from src.utils.file_utils import ensure_dir
 from src.utils.storage_utils import get_s3_client, get_local_path, get_s3_key_path, get_latest_file
+from src.utils.perplexity_api import PerplexityAPI
 
 # .env ファイルから環境変数を読み込み
 load_dotenv()
@@ -137,38 +138,29 @@ def google_serp(query, top_k=10, language="ja", country="jp"):
         print(f"Google SERP API 呼び出しエラー: {e}")
         return None
 
-def perplexity_api(query, model="sonar-small-chat"):
-    """
-    Perplexity APIを使用して回答と引用を取得
+def perplexity_api(prompt, model=None):
+    models_to_try = PerplexityAPI.get_models_to_try() if model is None else [model]
+    answer, citations = None, []
+    for m in models_to_try:
+        answer, citations = _perplexity_api_call(prompt, m)
+        if answer:
+            break
+    return answer, citations
 
-    Parameters:
-    -----------
-    query : str
-        検索クエリ
-    model : str
-        使用するモデル
-
-    Returns:
-    --------
-    tuple (str, list)
-        (回答テキスト, 引用のリスト)
-    """
+def _perplexity_api_call(prompt, model):
     if not PPLX_API_KEY:
         raise ValueError("PPLX_API_KEY が設定されていません。.env ファイルを確認してください。")
-
     headers = {
         "Authorization": f"Bearer {PPLX_API_KEY}",
         "Content-Type": "application/json"
     }
-
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": query}
+            {"role": "user", "content": prompt}
         ]
     }
-
     try:
         response = requests.post(
             "https://api.perplexity.ai/chat/completions",
@@ -176,14 +168,11 @@ def perplexity_api(query, model="sonar-small-chat"):
             headers=headers
         )
         data = response.json()
-
         if "error" in data:
             print(f"API エラー: {data['error']}")
             return None, []
-
         answer = data.get("choices", [{}])[0].get("message", {}).get("content", "")
         citations = data.get("citations", [])
-
         return answer, citations
     except Exception as e:
         print(f"Perplexity API 呼び出しエラー: {e}")

@@ -18,6 +18,7 @@ from src.categories import get_categories, get_all_categories, load_yaml_categor
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
 from src.analysis.ranking_metrics import extract_ranking_and_reasons
 from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
+from src.utils.perplexity_api import PerplexityAPI
 
 # 共通ユーティリティをインポート
 from src.utils.file_utils import ensure_dir, get_today_str
@@ -104,7 +105,12 @@ def collect_rankings(api_key, categories, num_runs=1):
                     print(f"  実行 {run+1}/{num_runs}")
 
                 prompt = get_ranking_prompt(subcategory, services)
-                response = api.call_ai_api(prompt)
+                models_to_try = PerplexityAPI.get_models_to_try()
+                response = None
+                for model in models_to_try:
+                    response = api.call_ai_api(prompt, model=model)
+                    if response:
+                        break
                 all_responses.append(response)
                 print(f"  Perplexityからの応答:\n{response[:200]}...")
 
@@ -157,7 +163,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 }
 
             results[category][subcategory] = {
-                "query": prompt,
+                "prompt": prompt,
                 "ranking_summary": {
                     "avg_ranking": final_ranking,
                     "details": details,

@@ -31,6 +31,7 @@ from src.utils import (
 from src.utils.text_utils import is_official_domain, is_negative
 from src.utils.storage_utils import save_json, get_results_paths, put_json_to_s3
 from src.categories import get_categories, get_all_categories
+from src.utils.perplexity_api import PerplexityAPI
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -39,14 +40,14 @@ load_dotenv()
 PPLX_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 
 
-def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
+def perplexity_api(prompt, model=None):
     """
     Perplexity APIを使用して回答と引用を取得
 
     Parameters:
     -----------
-    query : str
-        検索クエリ
+    prompt : str
+        プロンプト
     model : str
         使用するモデル (llama-3.1-sonar-large-128k-onlineなど)
 
@@ -57,6 +58,9 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
     """
     if not PPLX_API_KEY:
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
+
+    if model is None:
+        model = PerplexityAPI.get_models_to_try()[0]
 
     headers = {
         "Authorization": f"Bearer {PPLX_API_KEY}",
@@ -70,7 +74,7 @@ def perplexity_api(query, model="llama-3.1-sonar-large-128k-online"):
                 "role": "system",
                 "content": "あなたは役立つアシスタントです。回答には必ず[1]、[2]のような番号付き引用を含めてください。情報源を明確にすることが重要です。"
             },
-            {"role": "user", "content": query}
+            {"role": "user", "content": prompt}
         ],
         "temperature": 0.0,
         "include_citations": True,  # 引用情報を明示的に要求（パラメータ名修正）
@@ -363,10 +367,7 @@ def collect_citation_rankings(categories):
     processed = 0
 
     # 試すモデル（成功するまで順に試す）
-    models_to_try = [
-        "llama-3.1-sonar-large-128k-online",  # デフォルトモデル
-        "llama-3.1-sonar-large-128k",         # バックアップモデル
-    ]
+    models_to_try = PerplexityAPI.get_models_to_try()
 
     # 全URLを収集するリスト（評判情報用のみ）
     reputation_urls = []

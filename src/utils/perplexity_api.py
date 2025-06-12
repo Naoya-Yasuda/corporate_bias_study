@@ -20,6 +20,7 @@ load_dotenv()
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 API_HOST = "api.perplexity.ai"
 API_VERSION = "v1"
+PERPLEXITY_MODELS_TO_TRY = os.environ.get("PERPLEXITY_MODELS_TO_TRY", "llama-3.1-sonar-large-128k-online,llama-3.1-sonar-large-128k").split(",")
 
 class PerplexityAPI:
     """Perplexity APIを呼び出すためのクラス"""
@@ -48,14 +49,14 @@ class PerplexityAPI:
             return f"https://{API_HOST}/chat/completions"
         return f"https://{API_HOST}/{API_VERSION}/{endpoint}"
 
-    def search(self, query: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[Dict]:
+    def search(self, prompt: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[Dict]:
         """
         Perplexity APIで検索を実行
 
         Parameters
         ----------
-        query : str
-            検索クエリ
+        prompt : str
+            プロンプト
         max_retries : int, optional
             リトライ回数の上限（デフォルト: 3）
         retry_delay : float, optional
@@ -68,7 +69,7 @@ class PerplexityAPI:
         """
         url = self._get_api_url("search")
         headers = self._get_headers()
-        data = {"query": query}
+        data = {"query": prompt}
 
         for attempt in range(max_retries):
             try:
@@ -83,55 +84,9 @@ class PerplexityAPI:
 
         return None
 
-    def get_citations(self, query: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[List[Dict]]:
+    def get_citations(self, prompt: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[List[Dict]]:
         """
-        検索クエリに対する引用リンクを取得
-
-        Parameters
-        ----------
-        query : str
-            検索クエリ
-        max_retries : int, optional
-            リトライ回数の上限（デフォルト: 3）
-        retry_delay : float, optional
-            リトライ間隔（秒）（デフォルト: 1.0）
-
-        Returns
-        -------
-        Optional[List[Dict]]
-            引用リンクのリスト。エラー時はNone
-        """
-        result = self.search(query, max_retries, retry_delay)
-        if not result or "citations" not in result:
-            return None
-        return result["citations"]
-
-    def get_rankings(self, query: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[List[str]]:
-        """
-        検索クエリに対するランキング結果を取得
-
-        Parameters
-        ----------
-        query : str
-            検索クエリ
-        max_retries : int, optional
-            リトライ回数の上限（デフォルト: 3）
-        retry_delay : float, optional
-            リトライ間隔（秒）（デフォルト: 1.0）
-
-        Returns
-        -------
-        Optional[List[str]]
-            ランキング結果のリスト。エラー時はNone
-        """
-        result = self.search(query, max_retries, retry_delay)
-        if not result or "rankings" not in result:
-            return None
-        return result["rankings"]
-
-    def call_ai_api(self, prompt: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[str]:
-        """
-        Perplexity APIでAIモデルを呼び出す
+        プロンプトに対する引用リンクを取得
 
         Parameters
         ----------
@@ -144,13 +99,63 @@ class PerplexityAPI:
 
         Returns
         -------
+        Optional[List[Dict]]
+            引用リンクのリスト。エラー時はNone
+        """
+        result = self.search(prompt, max_retries, retry_delay)
+        if not result or "citations" not in result:
+            return None
+        return result["citations"]
+
+    def get_rankings(self, prompt: str, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[List[str]]:
+        """
+        プロンプトに対するランキング結果を取得
+
+        Parameters
+        ----------
+        prompt : str
+            プロンプト
+        max_retries : int, optional
+            リトライ回数の上限（デフォルト: 3）
+        retry_delay : float, optional
+            リトライ間隔（秒）（デフォルト: 1.0）
+
+        Returns
+        -------
+        Optional[List[str]]
+            ランキング結果のリスト。エラー時はNone
+        """
+        result = self.search(prompt, max_retries, retry_delay)
+        if not result or "rankings" not in result:
+            return None
+        return result["rankings"]
+
+    def call_ai_api(self, prompt: str, model: str = None, max_retries: int = 3, retry_delay: float = 1.0) -> Optional[str]:
+        """
+        Perplexity APIでAIモデルを呼び出す
+
+        Parameters
+        ----------
+        prompt : str
+            プロンプト
+        model : str, optional
+            使用するモデル（デフォルト: get_models_to_try()[0]）
+        max_retries : int, optional
+            リトライ回数の上限（デフォルト: 3）
+        retry_delay : float, optional
+            リトライ間隔（秒）（デフォルト: 1.0）
+
+        Returns
+        -------
         Optional[str]
             AIモデルの応答。エラー時はNone
         """
         url = self._get_api_url("chat/completions")
         headers = self._get_headers()
+        if model is None:
+            model = self.get_models_to_try()[0]
         data = {
-            "model": "llama-3.1-sonar-large-128k-online",
+            "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 1024,
             "temperature": 0.0,
@@ -169,3 +174,10 @@ class PerplexityAPI:
                 time.sleep(retry_delay)
 
         return None
+
+    @staticmethod
+    def get_models_to_try():
+        """
+        利用可能なPerplexityモデルのリストを返す（.envで管理、なければデフォルト）
+        """
+        return PERPLEXITY_MODELS_TO_TRY
