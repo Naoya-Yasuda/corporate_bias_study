@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 # 共通ユーティリティをインポート
-from src.utils.storage_utils import save_json, get_results_paths, get_s3_client
+from src.utils.storage_utils import save_results, get_results_paths, get_s3_client
 from src.utils.storage_config import S3_BUCKET_NAME
 
 # 環境変数の読み込み
@@ -131,31 +131,6 @@ def process_results_file(file_path):
         print("不明なデータタイプです。ファイル名に'google_serp'または'perplexity'が含まれている必要があります。")
         return None
 
-def save_results(results, file_path):
-    """結果を元のファイルに保存"""
-    try:
-        # 元のファイルに保存
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=4)
-        print(f"結果を {file_path} に保存しました")
-
-        # S3に保存（認証情報がある場合のみ）
-        if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
-            s3_client = get_s3_client()
-            s3_key = file_path.replace("results/", "")
-            try:
-                with open(file_path, 'rb') as f:
-                    s3_client.upload_fileobj(f, S3_BUCKET_NAME, s3_key)
-                print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_key}) に保存しました")
-            except Exception as e:
-                print(f"S3への保存に失敗しました: {e}")
-
-    except Exception as e:
-        print(f"ファイル保存エラー: {e}")
-        return None
-
-    return file_path
-
 def main():
     """メイン関数"""
     # 引数処理
@@ -203,22 +178,15 @@ def main():
     if "google_serp" in input_file:
         output_path = paths["google_serp"]
         output_filename = f"{date_str}_sentiment_analysis_google_serp_results.json"
+        s3_key = f"results/google_serp/{date_str}/{output_filename}"
     else:
         output_path = paths["perplexity_sentiment"]
         output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_file)}"
+        s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
 
     # 結果を保存
     local_path = os.path.join(output_path, output_filename)
-    if save_json(result, local_path):
-        print(f"結果を {local_path} に保存しました")
-
-        # S3に保存
-        if put_json_to_s3(result, local_path):
-            print(f"結果を S3 ({S3_BUCKET_NAME}/{local_path}) に保存しました")
-        else:
-            print(f"S3への保存に失敗しました")
-    else:
-        print(f"結果の保存に失敗しました")
+    save_results(result, local_path, s3_key, verbose=args.verbose)
 
 if __name__ == "__main__":
     main()

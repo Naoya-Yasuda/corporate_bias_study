@@ -17,7 +17,7 @@ from src.utils.text_utils import (
     extract_domain
 )
 from src.utils.file_utils import get_today_str
-from src.utils.storage_utils import save_json, put_json_to_s3, get_results_paths
+from src.utils.storage_utils import save_results, get_results_paths
 from src.categories import get_categories
 
 # 環境変数の読み込み
@@ -39,21 +39,6 @@ categories = get_categories()
 # -------------------------------------------------------------------
 # ユーティリティ関数
 # -------------------------------------------------------------------
-def save_results(results, type_str, local_path="results"):
-    """結果を保存する（ローカルとS3）"""
-    today = get_today_str()
-    paths = get_results_paths(today)
-    file_name = f"{today}_google_serp_results.json"
-    local_file = os.path.join(paths["google_serp"], file_name)
-    save_json(results, local_file)
-    print(f"結果を {local_file} に保存しました")
-    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
-        s3_path = os.path.join(paths["google_serp"], file_name)
-        if put_json_to_s3(results, s3_path):
-            print(f"結果を S3 ({S3_BUCKET_NAME}/{s3_path}) に保存しました")
-        else:
-            print(f"S3への保存に失敗しました")
-    return local_file
 
 # -------------------------------------------------------------------
 # SERP API 関連
@@ -240,14 +225,16 @@ def main():
     # Google SERP結果を取得
     result = process_categories_with_serp(categories, args.max)
 
-    # 現在の日付（SERPデータの取得日時）
-    today_date = datetime.datetime.now().strftime("%Y%m%d")
-
     # 結果を保存
-    serp_file = save_results(result, "results")
+    today_date = datetime.datetime.now().strftime("%Y%m%d")
+    paths = get_results_paths(today_date)
+    file_name = f"{today_date}_google_serp_results.json"
+    local_path = os.path.join(paths["google_serp"], file_name)
+    s3_key = f"results/google_serp/{today_date}/{file_name}"
+    save_results(result, local_path, s3_key, verbose=args.verbose)
 
     if args.verbose:
-        logging.info(f"Google SERP結果をファイルに保存しました: {serp_file}")
+        logging.info(f"Google SERP結果をファイルに保存しました: {local_path}")
 
 if __name__ == "__main__":
     main()

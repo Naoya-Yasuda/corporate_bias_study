@@ -11,7 +11,7 @@ import numpy as np
 import argparse
 import logging
 from src.utils.file_utils import get_today_str
-from src.utils.storage_utils import save_json, get_results_paths
+from src.utils.storage_utils import save_results, get_results_paths
 from src.utils.storage_utils import put_json_to_s3, get_local_path
 from src.utils.perplexity_api import PerplexityAPI
 from src.perplexity_citations_loader import perplexity_api
@@ -181,31 +181,6 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     results[category][subcategory][competitor]['unmasked_std_dev'] = 0.0
     return results
 
-def save_results(result_data, run_type="single", num_runs=1):
-    """結果を保存する関数"""
-    today_date = get_today_str()
-    paths = get_results_paths(today_date)
-    if run_type == "multiple":
-        file_name = f"{today_date}_perplexity_sentiment_results_{num_runs}runs.json"
-    else:
-        file_name = f"{today_date}_perplexity_sentiment_results.json"
-    local_file = os.path.join(paths["perplexity_sentiment"], file_name)
-    save_json(result_data, local_file)
-    print(f"ローカルに保存しました: {local_file}")
-    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
-        try:
-            s3_key = f"results/perplexity_sentiment/{today_date}/{file_name}"
-            result = put_json_to_s3(result_data, s3_key)
-            if result:
-                print(f"S3に保存完了: s3://{S3_BUCKET_NAME}/{s3_key}")
-            else:
-                print(f"S3への保存に失敗しました: 認証情報を確認してください")
-        except Exception as e:
-            print(f"S3保存中にエラーが発生しました: {e}")
-    else:
-        print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
-    return local_file
-
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
@@ -224,16 +199,21 @@ def main():
 
     # 結果を保存するファイルパス
     today_date = datetime.datetime.now().strftime("%Y%m%d")
+    paths = get_results_paths(today_date)
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
         result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, args.runs)
-        result_file = get_local_path(today_date, "sentiment", "perplexity")
-        save_results(result, "multiple", args.runs)
+        file_name = f"{today_date}_perplexity_sentiment_results_{args.runs}runs.json"
+        local_path = os.path.join(paths["perplexity_sentiment"], file_name)
+        s3_key = f"results/perplexity_sentiment/{today_date}/{file_name}"
+        save_results(result, local_path, s3_key, verbose=args.verbose)
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
         result = process_categories(PERPLEXITY_API_KEY, categories)
-        result_file = get_local_path(today_date, "sentiment", "perplexity")
-        save_results(result)
+        file_name = f"{today_date}_perplexity_sentiment_results.json"
+        local_path = os.path.join(paths["perplexity_sentiment"], file_name)
+        s3_key = f"results/perplexity_sentiment/{today_date}/{file_name}"
+        save_results(result, local_path, s3_key, verbose=args.verbose)
 
     print("データ取得処理が完了しました")
 

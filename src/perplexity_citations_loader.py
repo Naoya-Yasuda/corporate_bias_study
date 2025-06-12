@@ -19,14 +19,11 @@ from dotenv import load_dotenv
 # 共通ユーティリティをインポート
 from src.utils import (
     extract_domain,
-    ensure_dir,
-    get_today_str,
-    is_s3_enabled,
     get_storage_config,
     get_results_paths
 )
-from src.utils.text_utils import is_official_domain, is_negative
-from src.utils.storage_utils import save_json, get_results_paths, put_json_to_s3
+from src.utils.text_utils import is_official_domain
+from src.utils.storage_utils import get_results_paths, save_results
 from src.categories import get_categories, get_all_categories
 from src.utils.perplexity_api import PerplexityAPI
 
@@ -550,26 +547,6 @@ def generate_summary(subcategory, services, all_answers):
         return "要約生成中にエラーが発生しました。"
 
 
-def save_results(result_data, run_type="single", num_runs=1):
-    """結果をローカルとS3に保存（新しいストレージAPI使用）"""
-    today_date = datetime.datetime.now().strftime("%Y%m%d")
-    paths = get_results_paths(today_date)
-    if run_type == "multiple":
-        file_name = f"{today_date}_perplexity_citations_{num_runs}runs.json"
-    else:
-        file_name = f"{today_date}_perplexity_citations.json"
-    local_path = os.path.join(paths["perplexity_citations"], file_name)
-    storage_config = get_storage_config()
-    print(f"ストレージ設定: {storage_config}")
-    result = put_json_to_s3(result_data, f"results/perplexity_citations/{today_date}/{file_name}")
-    save_json(result_data, local_path)
-    if result:
-        print(f"S3に保存しました: s3://results/perplexity_citations/{today_date}/{file_name}")
-    if os.path.exists(local_path):
-        print(f"ローカルに保存しました: {local_path}")
-    return local_path
-
-
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
@@ -592,20 +569,25 @@ def main():
 
     # 結果を保存するファイルパス
     today_date = datetime.datetime.now().strftime("%Y%m%d")
-
-    # 多重実行フラグがある場合は複数回実行
+    paths = get_results_paths(today_date)
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の引用リンク取得を実行します")
         if args.verbose:
             logging.info(f"{args.runs}回の実行を開始します")
         result = collect_citation_rankings(categories)
-        result_file = save_results(result, "multiple", args.runs)
+        file_name = f"{today_date}_perplexity_citations_{args.runs}runs.json"
+        local_path = os.path.join(paths["perplexity_citations"], file_name)
+        s3_key = f"results/perplexity_citations/{today_date}/{file_name}"
+        save_results(result, local_path, s3_key, verbose=args.verbose)
     else:
         print("Perplexity APIを使用して単一実行引用リンク取得を実行します")
         if args.verbose:
             logging.info("単一実行を開始します")
         result = collect_citation_rankings(categories)
-        result_file = save_results(result)
+        file_name = f"{today_date}_perplexity_citations.json"
+        local_path = os.path.join(paths["perplexity_citations"], file_name)
+        s3_key = f"results/perplexity_citations/{today_date}/{file_name}"
+        save_results(result, local_path, s3_key, verbose=args.verbose)
 
     print("引用リンク取得処理が完了しました")
     if args.verbose:

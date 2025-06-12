@@ -354,3 +354,40 @@ def list_s3_files(prefix):
     except Exception as e:
         print(f"S3ファイル一覧取得エラー: {e}")
     return files
+
+def save_results(data, local_path, s3_key=None, verbose=False):
+    """
+    結果データをローカルとS3に保存する共通関数
+    - local_path: ローカル保存先パス
+    - s3_key: S3保存先キー（省略時はローカルパスから自動変換も可）
+    - verbose: Trueなら詳細ログ
+    """
+    try:
+        ensure_dir(os.path.dirname(local_path))
+        with open(local_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        if verbose:
+            print(f"ローカルに保存しました: {local_path}")
+    except Exception as e:
+        print(f"ローカル保存エラー: {e}")
+        return None
+
+    # S3保存
+    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
+        if not s3_key:
+            # デフォルトでlocal_pathからS3キーを生成
+            s3_key = local_path.replace("\\", "/")
+            if s3_key.startswith("results/"):
+                s3_key = s3_key[8:]
+        try:
+            s3_client = get_s3_client()
+            with open(local_path, 'rb') as f:
+                s3_client.upload_fileobj(f, S3_BUCKET_NAME, s3_key)
+            if verbose:
+                print(f"S3に保存しました: s3://{S3_BUCKET_NAME}/{s3_key}")
+        except Exception as e:
+            print(f"S3保存エラー: {e}")
+    else:
+        if verbose:
+            print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
+    return local_path

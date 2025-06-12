@@ -14,7 +14,7 @@ from src.categories import get_categories, get_all_categories, load_yaml_categor
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
 from src.analysis.ranking_metrics import extract_ranking_and_reasons
 from src.utils.perplexity_api import PerplexityAPI
-from src.utils.storage_utils import save_json, get_results_paths, put_json_to_s3
+from src.utils.storage_utils import save_results, get_results_paths
 from src.utils.text_utils import extract_domain, is_official_domain
 
 # .envファイルから環境変数を読み込む
@@ -166,47 +166,6 @@ def collect_rankings(api_key, categories, num_runs=1):
 
     return results
 
-def save_results(result_data, run_type="single", num_runs=1):
-    """結果をローカルとS3に保存"""
-    today_date = datetime.datetime.now().strftime("%Y%m%d")
-    try:
-        paths = get_results_paths(today_date)
-        # print(f"[DEBUG] get_results_paths({today_date}) の戻り値: {paths}")
-        if not paths or "perplexity_rankings" not in paths:
-            print("[ERROR] get_results_pathsの戻り値に'perplexity_rankings'キーがありません")
-            return None
-        if run_type == "multiple":
-            file_name = f"{today_date}_perplexity_rankings_{num_runs}runs.json"
-        else:
-            file_name = f"{today_date}_perplexity_rankings.json"
-        local_file = os.path.join(paths["perplexity_rankings"], file_name)
-        # print(f"[DEBUG] 保存予定ローカルファイルパス: {local_file}")
-        try:
-            save_json(result_data, local_file)
-            print(f"ローカルに保存しました: {local_file}")
-        except Exception as e:
-            print(f"[ERROR] save_jsonで例外発生: {e}")
-            return None
-        aws_access_key = os.environ.get("AWS_ACCESS_KEY")
-        aws_secret_key = os.environ.get("AWS_SECRET_KEY")
-        s3_bucket_name = os.environ.get("S3_BUCKET_NAME")
-        if aws_access_key and aws_secret_key and s3_bucket_name:
-            try:
-                s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
-                result = put_json_to_s3(result_data, s3_key)
-                if result:
-                    print(f"S3に保存完了: s3://{s3_bucket_name}/{s3_key}")
-                else:
-                    print(f"S3への保存に失敗しました: 認証情報を確認してください")
-            except Exception as e:
-                print(f"[ERROR] S3保存中に例外発生: {e}")
-        else:
-            print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
-        return local_file
-    except Exception as e:
-        print(f"[ERROR] save_results全体で例外発生: {e}")
-        return None
-
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
@@ -221,6 +180,7 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
+        import logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
@@ -229,49 +189,50 @@ def main():
 
     # 結果を保存するファイルパス
     today_date = datetime.datetime.now().strftime("%Y%m%d")
+    paths = get_results_paths(today_date)
 
     # 多重実行フラグがある場合は複数回実行
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
         if args.verbose:
             logging.info(f"{args.runs}回の実行を開始します")
-
         try:
-            # collect_rankings関数呼び出し時に引数を追加
             result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
-            result_file = save_results(result, "multiple", args.runs)
+            file_name = f"{today_date}_perplexity_rankings_{args.runs}runs.json"
+            local_path = os.path.join(paths["perplexity_rankings"], file_name)
+            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
+            save_results(result, local_path, s3_key, verbose=args.verbose)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
             if args.verbose:
+                import traceback
                 traceback.print_exc()
-            result_file = None
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
         if args.verbose:
             logging.info("単一実行を開始します")
-
         try:
-            # collect_rankings関数呼び出し時に引数を追加
             result = collect_rankings(PERPLEXITY_API_KEY, categories)
-            result_file = save_results(result)
+            file_name = f"{today_date}_perplexity_rankings.json"
+            local_path = os.path.join(paths["perplexity_rankings"], file_name)
+            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
+            save_results(result, local_path, s3_key, verbose=args.verbose)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
             if args.verbose:
+                import traceback
                 traceback.print_exc()
-            result_file = None
 
     print("データ取得処理が完了しました")
     if args.verbose:
+        import logging
         logging.info("データ取得処理が完了しました")
 
     # 完了メッセージ
     print("\n処理が完了しました。")
-    if result_file is not None:
-        print(f"結果は {result_file} に保存されました。")
-        print("分析を実行するには、以下のコマンドを実行してください：")
-        print(f"python -m src.analysis.ranking_metrics {result_file}")
-    else:
-        print("結果ファイルが保存されませんでした。エラー内容を確認してください。")
+    print(f"結果は {local_path} に保存されました。")
+    print("分析を実行するには、以下のコマンドを実行してください：")
+    print(f"python -m src.analysis.ranking_metrics {local_path}")
 
 if __name__ == "__main__":
     main()
