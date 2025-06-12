@@ -286,7 +286,10 @@ def collect_citation_rankings(categories):
                     citation_data = []
                     if citations:
                         for i, citation in enumerate(citations):
-                            url = citation.get("url", "")
+                            if isinstance(citation, dict):
+                                url = citation.get("url", "")
+                            else:
+                                url = citation
                             if url:
                                 domain = extract_domain(url)
                                 is_official = is_official_domain(domain, service, {service: services[service]})
@@ -315,7 +318,10 @@ def collect_citation_rankings(categories):
                     citation_data = []
                     if citations:
                         for i, citation in enumerate(citations):
-                            url = citation.get("url", "")
+                            if isinstance(citation, dict):
+                                url = citation.get("url", "")
+                            else:
+                                url = citation
                             if url:
                                 domain = extract_domain(url)
                                 citation_item = {
