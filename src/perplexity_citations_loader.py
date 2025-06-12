@@ -483,20 +483,20 @@ def collect_citation_rankings(categories):
                     "companies": companies_results
                 }
 
-    # 評判情報用のURLのメタデータを一括取得
+    # 評判情報用のURLのメタデータのみ一括取得
     print("\n評判情報用のURLのメタデータを一括取得中...")
-    metadata_dict = get_metadata_from_serp(reputation_urls)
+    all_urls = list(set(reputation_urls))
+    metadata_dict = get_metadata_from_serp(all_urls)
 
-    # メタデータを各結果に追加（評判情報用のみ）
+    # メタデータを評判結果にのみ追加
     for category in results:
         for subcategory in results[category]:
             data = results[category][subcategory]
-
-            # 評判結果にメタデータを追加
-            for result in data.get("reputation_results", []):
-                url = result.get("url")
-                if url and url in metadata_dict:
-                    result.update(metadata_dict[url])
+            for company, company_data in data.get("companies", {}).items():
+                for result in company_data.get("reputation_results", []):
+                    url = result.get("url")
+                    if url and url in metadata_dict:
+                        result.update(metadata_dict[url])
 
     return results
 
