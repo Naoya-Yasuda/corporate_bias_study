@@ -113,8 +113,19 @@ def collect_rankings(api_key, categories, num_runs=1):
                 for s in filtered_ranking:
                     try:
                         idx = ranking.index(s)
-                        filtered_ranking_reasons.append(reasons[idx] if idx < len(reasons) else "")
+                        reason = reasons[idx] if idx < len(reasons) else ""
+                        # 空文字列の場合はall_responsesから再抽出
+                        if not reason:
+                            # 1行ずつ再探索
+                            for line in response.splitlines():
+                                if s in line:
+                                    m = re.match(r'\d+\.\s*' + re.escape(s) + r':\s*(.+)', line)
+                                    if m:
+                                        reason = m.group(1).strip()
+                                        break
+                        filtered_ranking_reasons.append(reason)
                     except Exception:
+                        print(f"  ⚠️ 警告: サービス '{s}' の理由抽出に失敗しました")
                         filtered_ranking_reasons.append("")
                 subcategory_results.append(filtered_ranking)
                 subcategory_ranking_reasons.append(filtered_ranking_reasons)
