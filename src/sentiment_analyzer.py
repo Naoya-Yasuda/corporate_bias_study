@@ -7,7 +7,6 @@ Perplexity APIを使用してテキストの感情分析を行うモジュール
 """
 
 import os
-import sys
 import json
 import datetime
 import requests
@@ -17,9 +16,8 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 # 共通ユーティリティをインポート
-from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_storage_config, get_results_paths, get_s3_client
-from src.utils.storage_config import is_s3_enabled, S3_BUCKET_NAME
+from src.utils.storage_utils import save_json, get_results_paths, get_s3_client
+from src.utils.storage_config import S3_BUCKET_NAME
 
 # 環境変数の読み込み
 load_dotenv()

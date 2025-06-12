@@ -6,23 +6,15 @@ Perplexity APIを使用してサービスのランキングを抽出するモジ
 """
 
 import os
-import json
 import datetime
 import time
-import boto3
 import argparse
 from dotenv import load_dotenv
-import re
-
 from src.categories import get_categories, get_all_categories, load_yaml_categories
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
 from src.analysis.ranking_metrics import extract_ranking_and_reasons
-from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
 from src.utils.perplexity_api import PerplexityAPI
-
-# 共通ユーティリティをインポート
-from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_local_path, get_results_paths, put_json_to_s3
+from src.utils.storage_utils import save_json, get_results_paths, put_json_to_s3
 from src.utils.text_utils import extract_domain, is_official_domain
 
 # .envファイルから環境変数を読み込む
@@ -229,7 +221,6 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
-        import logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
@@ -252,8 +243,7 @@ def main():
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
             if args.verbose:
-                import traceback
-                logging.error(f"詳細エラー情報: {traceback.format_exc()}")
+                traceback.print_exc()
             result_file = None
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
@@ -267,8 +257,7 @@ def main():
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
             if args.verbose:
-                import traceback
-                logging.error(f"詳細エラー情報: {traceback.format_exc()}")
+                traceback.print_exc()
             result_file = None
 
     print("データ取得処理が完了しました")

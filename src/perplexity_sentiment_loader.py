@@ -1,22 +1,18 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import requests
 import time
-import boto3
-import json
 import datetime
 import os
-import re
 from dotenv import load_dotenv
-from src.categories import get_categories, get_viewpoints
+from src.categories import get_categories
 from src.prompts.sentiment_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
 import numpy as np
 import argparse
 import logging
-from src.utils.file_utils import ensure_dir, get_today_str
+from src.utils.file_utils import get_today_str
 from src.utils.storage_utils import save_json, get_results_paths
-from src.utils.storage_utils import save_to_s3, put_json_to_s3, get_local_path
+from src.utils.storage_utils import put_json_to_s3, get_local_path
 from src.utils.perplexity_api import PerplexityAPI
 from src.perplexity_citations_loader import perplexity_api
 

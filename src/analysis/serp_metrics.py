@@ -16,11 +16,10 @@ from collections import defaultdict
 
 # 共通ユーティリティをインポート
 from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
-from src.utils.plot_utils import plot_delta_ranks, plot_market_impact
-from src.utils.file_utils import ensure_dir
+# plot_delta_ranks, plot_market_impact は使用されていないためimport削除
+from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
 from src.utils.storage_utils import save_json, save_figure, get_results_paths, get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
-from src.utils.date_utils import get_today_str
 
 # -------------------------------------------------------------------
 # 比較メトリクス

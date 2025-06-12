@@ -8,7 +8,6 @@ Perplexity APIを呼び出し、回答に含まれる引用リンクを順番に
 """
 
 import os
-import json
 import datetime
 import time
 import argparse
@@ -16,8 +15,6 @@ import requests
 import re
 import traceback
 from dotenv import load_dotenv
-from urllib.parse import urlparse
-from collections import defaultdict
 
 # 共通ユーティリティをインポート
 from src.utils import (

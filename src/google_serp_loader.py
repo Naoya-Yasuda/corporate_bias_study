@@ -7,29 +7,17 @@ SerpAPIを使ってGoogle検索結果を取得し、Perplexityの結果と比較
 """
 
 import os
-import sys
-import json
 import datetime
 import requests
 import time
 import argparse
-import pandas as pd
-import numpy as np
 from dotenv import load_dotenv
 from tqdm import tqdm
-from urllib.parse import urlparse
-import tldextract
-
-# 共通ユーティリティをインポート
 from src.utils.text_utils import (
-    extract_domain,
-    is_negative,
-    is_official_domain
+    extract_domain
 )
-from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_local_path, get_s3_client, get_s3_key_path, get_latest_file, put_json_to_s3, get_results_paths
-
-# プロジェクト固有のモジュール
+from src.utils.file_utils import get_today_str
+from src.utils.storage_utils import save_json, put_json_to_s3, get_results_paths
 from src.categories import get_categories
 
 # 環境変数の読み込み
