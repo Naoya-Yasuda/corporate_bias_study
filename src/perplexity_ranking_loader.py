@@ -115,7 +115,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 # 各回のランキング順に公式URLを並べる
                 url_list = [official_url_map.get(s, "") for s in filtered_ranking]
                 response_list.append({
-                    "response": response,
+                    "answer": response,
                     "url": url_list
                 })
 
@@ -163,7 +163,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                     "details": details,
                     "all_rankings": subcategory_results
                 },
-                "response_list": response_list
+                "answer_list": response_list
             }
 
     return results

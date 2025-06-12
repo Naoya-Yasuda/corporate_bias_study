@@ -242,7 +242,7 @@ def main():
     parser = argparse.ArgumentParser(description='ランキングプロンプト生成と抽出テスト')
     parser.add_argument('subcategory', help='サブカテゴリ名（例: クラウドサービス）')
     parser.add_argument('services', help='カンマ区切りのサービスリスト（例: "AWS,Azure,Google Cloud,IBM Cloud"）')
-    parser.add_argument('--response', help='Perplexityの応答テキスト（指定しない場合はプロンプトのみ出力）')
+    parser.add_argument('--answer', help='Perplexityの応答テキスト（指定しない場合はプロンプトのみ出力）')
     parser.add_argument('--file', help='Perplexityの応答テキストが含まれるファイルパス')
     parser.add_argument('--api', action='store_true', help='Perplexity APIを使用して実際に問い合わせる')
     parser.add_argument('--runs', type=int, default=5, help='API使用時の実行回数（デフォルト: 5）')
@@ -266,26 +266,26 @@ def main():
         result = multi_run_ranking(args.subcategory, services, args.runs)
 
     # 応答テキストを取得
-    elif args.response or args.file:
-        response_text = None
-        if args.response:
-            response_text = args.response
+    elif args.answer or args.file:
+        answer_text = None
+        if args.answer:
+            answer_text = args.answer
         elif args.file:
             try:
                 with open(args.file, 'r', encoding='utf-8') as f:
-                    response_text = f.read()
+                    answer_text = f.read()
                     print(f"\n応答テキストをファイル '{args.file}' から読み込みました")
             except Exception as e:
                 print(f"ファイル読み込みエラー: {e}")
 
         # 応答が指定されている場合は抽出処理も実行
-        if response_text:
+        if answer_text:
             print("\n【Perplexityの応答テキスト】")
             print("-" * 60)
-            print(response_text[:200] + "..." if len(response_text) > 200 else response_text)
+            print(answer_text[:200] + "..." if len(answer_text) > 200 else answer_text)
             print("-" * 60)
 
-            ranking = extract_ranking(response_text, services)
+            ranking = extract_ranking(answer_text, services)
             print("\n【抽出されたランキング】")
             print("-" * 60)
             if ranking:
@@ -307,7 +307,7 @@ def main():
                 "subcategory": args.subcategory,
                 "services": services,
                 "ranking": ranking,
-                "response": response_text
+                "answer": answer_text
             }
 
     # 結果をファイルに保存

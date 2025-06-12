@@ -389,7 +389,9 @@ def collect_citation_rankings(categories):
             companies_results = {}
             for service in services:
                 companies_results[service] = {
+                    "official_answer": None,
                     "official_results": [],
+                    "reputation_answer": None,
                     "reputation_results": []
                 }
 
@@ -410,6 +412,7 @@ def collect_citation_rankings(categories):
                     print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
                     continue
                 print(f"  Perplexityからの応答:\n{answer[:200]}...")
+                print(f"  サービス: {service} の citations: {citations}")
                 citation_data = []
                 if citations:
                     for i, citation in enumerate(citations):
@@ -421,14 +424,14 @@ def collect_citation_rankings(categories):
                                 "rank": i + 1,
                                 "url": url,
                                 "domain": domain,
-                                "is_official": is_official,
-                                "answer": answer
+                                "is_official": is_official
                             }
                             citation_data.append(citation_item)
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
                 if citation_data:
-                    companies_results[service]["official_results"].extend(citation_data)
+                    companies_results[service]["official_results"] = citation_data
+                    companies_results[service]["official_answer"] = answer
                 print("  APIレート制限を考慮して待機中...")
                 time.sleep(3)
 
@@ -448,6 +451,7 @@ def collect_citation_rankings(categories):
                     print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
                     continue
                 print(f"  Perplexityからの応答:\n{answer[:200]}...")
+                print(f"  サービス: {service} の citations: {citations}")
                 citation_data = []
                 if citations:
                     for i, citation in enumerate(citations):
@@ -457,15 +461,15 @@ def collect_citation_rankings(categories):
                             citation_item = {
                                 "rank": i + 1,
                                 "url": url,
-                                "domain": domain,
-                                "answer": answer
+                                "domain": domain
                             }
                             citation_data.append(citation_item)
                             reputation_urls.append(url)
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
                 if citation_data:
-                    companies_results[service]["reputation_results"].extend(citation_data)
+                    companies_results[service]["reputation_results"] = citation_data
+                    companies_results[service]["reputation_answer"] = answer
                 print("  APIレート制限を考慮して待機中...")
                 time.sleep(3)
 
