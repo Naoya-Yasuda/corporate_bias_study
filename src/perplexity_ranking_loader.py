@@ -114,14 +114,10 @@ def collect_rankings(api_key, categories, num_runs=1):
                 # citationsリストから各サービス名を含むURLをランキング順に抽出
                 url_list = []
                 for s in filtered_ranking:
-                    found_url = ""
                     for c in citations:
                         url = c["url"] if isinstance(c, dict) and "url" in c else c
-                        if s.lower() in url.lower():
-                            found_url = url
-                            break
-                    if found_url:  # 空文字でなければappend
-                        url_list.append(found_url)
+                        if s.lower() in url.lower() and url and url not in url_list:
+                            url_list.append(url)
 
                 response_list.append({
                     "answer": response,
