@@ -100,7 +100,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 "masked_answer": [],
                 "masked_values": [],
                 "masked_reasons": [],
-                "masked_citations": [],
+                "masked_url": [],
                 "masked_avg": 0.0,
                 "masked_std_dev": 0.0,
                 "masked_prompt": get_masked_prompt_ja(subcategory)
@@ -111,7 +111,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     "unmasked_answer": [],
                     "unmasked_values": [],
                     "unmasked_reasons": [],
-                    "unmasked_citations": [],
+                    "unmasked_url": [],
                     "unmasked_avg": 0.0,
                     "unmasked_std_dev": 0.0
                 }
@@ -125,7 +125,12 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 masked_result, masked_citations = perplexity_api(masked_prompt)
                 results[category][subcategory]["masked_prompt"] = masked_prompt
                 results[category][subcategory]["masked_answer"].append(masked_result)
-                results[category][subcategory]["masked_citations"].append(masked_citations)
+                # citationsがdictリストならurlのみ抽出、そうでなければそのまま
+                if masked_citations and isinstance(masked_citations, list) and isinstance(masked_citations[0], dict) and "url" in masked_citations[0]:
+                    url_list = [c["url"] for c in masked_citations]
+                else:
+                    url_list = masked_citations if masked_citations else []
+                results[category][subcategory]["masked_url"].append(url_list)
                 try:
                     value = extract_score(masked_result)
                     if value is not None:
@@ -145,7 +150,12 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     unmasked_result, unmasked_citations = perplexity_api(unmasked_prompt)
                     results[category][subcategory][competitor]["unmasked_prompt"] = unmasked_prompt
                     results[category][subcategory][competitor]["unmasked_answer"].append(unmasked_result)
-                    results[category][subcategory][competitor]["unmasked_citations"].append(unmasked_citations)
+                    # citationsがdictリストならurlのみ抽出、そうでなければそのまま
+                    if unmasked_citations and isinstance(unmasked_citations, list) and isinstance(unmasked_citations[0], dict) and "url" in unmasked_citations[0]:
+                        url_list = [c["url"] for c in unmasked_citations]
+                    else:
+                        url_list = unmasked_citations if unmasked_citations else []
+                    results[category][subcategory][competitor]["unmasked_url"].append(url_list)
                     try:
                         value = extract_score(unmasked_result)
                         if value is not None:
