@@ -385,48 +385,34 @@ def collect_citation_rankings(categories):
                 print(f"  サブカテゴリ {subcategory} はスキップします（コメントアウトまたは空）")
                 continue
 
-            subcategory_results = []
-            # 各実行の回答テキストも保存
-            all_answers = []
+            # サブカテゴリごとにcompaniesの構造を初期化
+            companies_results = {}
+            for service in services:
+                companies_results[service] = {
+                    "official_results": [],
+                    "reputation_results": []
+                }
 
             # 各サービスについて公式/非公式情報を取得
-            official_results = []
             for service in services:
-                # 公式/非公式判定用の検索
                 query = f"{service}"
-
-                # すべてのモデルを試す
                 answer = None
                 citations = []
-
                 for model in models_to_try:
-                    if answer:  # 既に成功していれば次のモデルはスキップ
+                    if answer:
                         break
-
-                    # API呼び出し
                     print(f"  検索クエリ実行（モデル: {model}）: {query}")
                     answer, citations = perplexity_api(query, model=model)
-
                     if answer:
                         print(f"  モデル {model} で成功")
                         break
-
                 if not answer:
                     print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
                     continue
-
-                print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
-
-                # 回答テキストを保存
-                all_answers.append(answer)
-
-                # 引用リンクの処理
+                print(f"  Perplexityからの応答:\n{answer[:200]}...")
                 citation_data = []
-
-                # APIからのcitationsがある場合はそれを使用
                 if citations:
                     for i, citation in enumerate(citations):
-                        # URLの取得を試みる（複数の可能性を考慮）
                         url = citation.get("url", "")
                         if not url:
                             url = citation.get("link", "")
@@ -434,66 +420,45 @@ def collect_citation_rankings(categories):
                             url = citation.get("source", "")
                         if not url:
                             url = citation.get("reference", "")
-
                         if url:
                             domain = extract_domain(url)
-                            # 公式/非公式の判定を追加
                             is_official = is_official_domain(domain, service, {service: services[service]})
-                            citation_data.append({
-                                "rank": i + 1,  # 1-indexed
+                            citation_item = {
+                                "rank": i + 1,
                                 "url": url,
                                 "domain": domain,
-                                "is_official": is_official
-                            })
+                                "is_official": is_official,
+                                "answer": answer,
+                                "query": query,
+                                "query_type": "official"
+                            }
+                            citation_data.append(citation_item)
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
-
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
-
                 if citation_data:
-                    official_results.extend(citation_data)
-
-                # API制限を考慮した待機
+                    companies_results[service]["official_results"].extend(citation_data)
                 print("  APIレート制限を考慮して待機中...")
                 time.sleep(3)
 
-            # 評判情報を取得
-            reputation_results = []
             for service in services:
-                # 評判情報用の検索
                 query = f"{service} 評判 口コミ"
-
-                # すべてのモデルを試す
                 answer = None
                 citations = []
-
                 for model in models_to_try:
-                    if answer:  # 既に成功していれば次のモデルはスキップ
+                    if answer:
                         break
-
-                    # API呼び出し
                     print(f"  検索クエリ実行（モデル: {model}）: {query}")
                     answer, citations = perplexity_api(query, model=model)
-
                     if answer:
                         print(f"  モデル {model} で成功")
                         break
-
                 if not answer:
                     print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
                     continue
-
-                print(f"  Perplexityからの応答:\n{answer[:200]}...")  # 応答の一部を表示
-
-                # 回答テキストを保存
-                all_answers.append(answer)
-
-                # 引用リンクの処理
+                print(f"  Perplexityからの応答:\n{answer[:200]}...")
                 citation_data = []
-
-                # APIからのcitationsがある場合はそれを使用
                 if citations:
                     for i, citation in enumerate(citations):
-                        # URLの取得を試みる（複数の可能性を考慮）
                         url = citation.get("url", "")
                         if not url:
                             url = citation.get("link", "")
@@ -501,37 +466,32 @@ def collect_citation_rankings(categories):
                             url = citation.get("source", "")
                         if not url:
                             url = citation.get("reference", "")
-
                         if url:
                             domain = extract_domain(url)
-                            citation_data.append({
-                                "rank": i + 1,  # 1-indexed
+                            citation_item = {
+                                "rank": i + 1,
                                 "url": url,
-                                "domain": domain
-                            })
-                            # URLを収集リストに追加（評判情報用のみ）
+                                "domain": domain,
+                                "answer": answer,
+                                "query": query,
+                                "query_type": "reputation"
+                            }
+                            citation_data.append(citation_item)
                             reputation_urls.append(url)
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
-
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
-
                 if citation_data:
-                    reputation_results.extend(citation_data)
-
-                # API制限を考慮した待機
+                    companies_results[service]["reputation_results"].extend(citation_data)
                 print("  APIレート制限を考慮して待機中...")
                 time.sleep(3)
 
             # 結果を統合
-            if official_results or reputation_results:
+            if any(companies_results[s]["official_results"] or companies_results[s]["reputation_results"] for s in services):
                 results[target_category][subcategory] = {
                     "timestamp": datetime.datetime.now().isoformat(),
                     "category": category,
                     "subcategory": subcategory,
-                    "companies": services,
-                    "official_results": official_results,
-                    "reputation_results": reputation_results,
-                    "all_answers": all_answers
+                    "companies": companies_results
                 }
 
     # 評判情報用のURLのメタデータを一括取得
@@ -585,7 +545,7 @@ def generate_summary(subcategory, services, all_answers):
     current_length = len(prompt)
 
     for i, answer in enumerate(all_answers):
-        answer_snippet = f"\n--- 回答 {i+1} ---\n{answer[:2000]}..."  # 各回答は2000文字までに制限
+        answer_snippet = f"\n--- 回答 {i+1} ---\n{answer['answer'][:2000]}..."  # 各回答は2000文字までに制限
         if current_length + len(answer_snippet) > max_length:
             prompt += "\n(回答の一部は長さの制限のため省略されました)"
             break
