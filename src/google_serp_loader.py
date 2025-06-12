@@ -145,73 +145,31 @@ def get_google_search_results(query, num_results=10):
         print(f"❌ Google Custom Search API エラー: {e}")
         return {"organic_results": []}
 
-def process_serp_results(data, query, category, subcategory, target_companies, is_official_check=True):
-    """SERP API の結果から必要な情報を抽出して整形"""
+def process_serp_results(data):
+    """SERP API の結果から必要な情報を抽出して整形（company判定は行わない）"""
     if not data or "organic_results" not in data:
-        print(f"有効な検索結果がありません: {query}")
-        return None
-
+        return []
     organic_results = data["organic_results"]
-
-    # 検索結果を解析
     results = []
-    search_result_companies = []  # 検索結果の順序に基づく企業名のリスト
-
     for i, result in enumerate(organic_results):
         title = result.get("title", "")
         link = result.get("link", "")
         snippet = result.get("snippet", "")
         domain = extract_domain(link)
-
-        # 各企業についてドメインが関連しているか確認
-        related_company = None
-        for company in target_companies:
-            if (company.lower() in title.lower() or
-                company.lower() in snippet.lower() or
-                company.lower() in domain.lower()):
-                related_company = company
-                if len(search_result_companies) < 10:  # 上位10件まで記録
-                    search_result_companies.append(company)
-                break
-
-        # 公式/非公式判定または評判情報の判定
-        if is_official_check:
-            is_official = is_official_domain(domain, related_company, target_companies)
-            is_negative_result = False  # 公式/非公式判定時はネガティブ判定は不要
-        else:
-            is_official = "n/a"  # 評判情報取得時は公式/非公式判定は不要
-            is_negative_result = is_negative(title, snippet)
-
-        # 結果を記録
         result_dict = {
             "rank": i + 1,
             "title": title,
             "link": link,
             "domain": domain,
-            "snippet": snippet,
-            "company": related_company,
-            "is_negative": is_negative_result
+            "snippet": snippet
         }
-        if is_official_check:
-            result_dict["is_official"] = is_official
         results.append(result_dict)
-
-    return {
-        "query": query,
-        "timestamp": datetime.datetime.now().isoformat(),
-        "category": category,
-        "subcategory": subcategory,
-        "companies": target_companies,
-        "search_result_companies": search_result_companies,
-        "detailed_results": results
-    }
+    return results
 
 def process_categories_with_serp(categories, max_categories=None):
-    """カテゴリごとにSERP検索を実行"""
+    """カテゴリごとにSERP検索を実行し、companies属性の下に格納"""
     results = {}
     count = 0
-
-    # 処理するカテゴリの絞り込み
     if max_categories:
         filtered_categories = {}
         for toplevel, subcats in categories.items():
@@ -226,57 +184,30 @@ def process_categories_with_serp(categories, max_categories=None):
 
     for category, subcategories in categories_to_process.items():
         results[category] = {}
-
         for subcategory, services in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            # 各サービスについて公式/非公式情報を取得
-            official_results = []
+            companies = {}
             for service in services:
                 # 公式/非公式判定用の検索
                 query = f"{service}"
                 serp_data = get_google_search_results(query, num_results=10)
-
-                if serp_data:
-                    # 結果を整形
-                    processed_data = process_serp_results(
-                        serp_data, query, category, subcategory, {service: services[service]},
-                        is_official_check=True
-                    )
-                    if processed_data:
-                        official_results.extend(processed_data["detailed_results"])
-
-                # API制限対策（1秒待機）
+                official_results = process_serp_results(serp_data) if serp_data else []
                 time.sleep(2)
-
-            # 評判情報を取得
-            reputation_results = []
-            for service in services:
                 # 評判情報用の検索
-                query = f"{service} 評判 口コミ"
-                serp_data = get_google_search_results(query, num_results=10)
-
-                if serp_data:
-                    # 結果を整形
-                    processed_data = process_serp_results(
-                        serp_data, query, category, subcategory, {service: services[service]},
-                        is_official_check=False
-                    )
-                    if processed_data:
-                        reputation_results.extend(processed_data["detailed_results"])
-
-                # API制限対策（2秒待機）
+                query_rep = f"{service} 評判 口コミ"
+                serp_data_rep = get_google_search_results(query_rep, num_results=10)
+                reputation_results = process_serp_results(serp_data_rep) if serp_data_rep else []
                 time.sleep(2)
-
-            # 結果を統合
-            if official_results or reputation_results:
-                results[category][subcategory] = {
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "category": category,
-                    "subcategory": subcategory,
-                    "companies": services,
+                companies[service] = {
                     "official_results": official_results,
                     "reputation_results": reputation_results
                 }
-
+            # 結果を格納
+            results[category][subcategory] = {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "category": category,
+                "subcategory": subcategory,
+                "companies": companies
+            }
     return results
 
 # -------------------------------------------------------------------
