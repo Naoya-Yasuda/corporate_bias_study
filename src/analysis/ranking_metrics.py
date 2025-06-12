@@ -24,7 +24,7 @@ from tqdm import trange, tqdm
 from dotenv import load_dotenv
 import boto3
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_s3_client, get_results_paths, list_s3_files
+from src.utils.storage_utils import save_json, get_s3_client
 from src.utils.file_utils import load_json
 from src.utils.rank_utils import compute_tau, rbo
 from src.utils.metrics_utils import gini_coefficient, statistical_parity_gap, equal_opportunity_ratio

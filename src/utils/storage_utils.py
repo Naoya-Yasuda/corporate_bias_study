@@ -327,3 +327,30 @@ def save_to_s3(data, s3_key):
 def put_json_to_s3(data, s3_key):
     """JSONデータをS3に保存"""
     return save_to_s3(data, s3_key)
+
+def list_s3_files(prefix):
+    """
+    指定したprefix配下のS3ファイル一覧を取得
+
+    Parameters:
+    -----------
+    prefix : str
+        S3バケット内のプレフィックス（例: 'results/rankings/'）
+
+    Returns:
+    --------
+    list[str]
+        ファイルキーのリスト
+    """
+    if not is_s3_enabled():
+        return []
+    s3_client = get_s3_client()
+    paginator = s3_client.get_paginator('list_objects_v2')
+    files = []
+    try:
+        for page in paginator.paginate(Bucket=S3_BUCKET_NAME, Prefix=prefix):
+            for obj in page.get('Contents', []):
+                files.append(obj['Key'])
+    except Exception as e:
+        print(f"S3ファイル一覧取得エラー: {e}")
+    return files
