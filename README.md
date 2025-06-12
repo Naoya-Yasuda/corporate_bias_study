@@ -215,6 +215,13 @@ MIT License
 * `results/analysis/citations/` : 引用データの分析結果
 * 同様の結果がS3バケットにも保存されます
 
+## 7.2 感情スコアの参照リンク（引用URL）情報の保存形式
+
+- `masked_references`, `unmasked_references` には、AI出力内の参照番号（[1], [2], ...）と実際のURLのペア（辞書型）が保存されます。
+  - 例: `{"1": "https://example.com/1", "2": "https://example.com/2"}`
+- これにより、AIがどのURLを根拠として回答したかを直接確認できます。
+- マスクあり（masked）・マスクなし（unmasked）で引用される情報源の違いも容易に比較できます。
+
 ## 8. ロードマップ
 
 * ✅ Python スクリプト化 & Poetry / Actions テンプレート

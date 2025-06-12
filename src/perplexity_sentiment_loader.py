@@ -18,6 +18,7 @@ from src.utils.file_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json, get_results_paths
 from src.utils.storage_utils import save_to_s3, put_json_to_s3, get_local_path
 from src.utils.perplexity_api import PerplexityAPI
+from src.perplexity_citations_loader import perplexity_api
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -102,20 +103,22 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 "all_masked_results": [],
                 "unmasked_values": {competitor: [] for competitor in competitors},
                 "masked_reasons": [],
-                "unmasked_reasons": {competitor: [] for competitor in competitors}
+                "unmasked_reasons": {competitor: [] for competitor in competitors},
+                "masked_citations": [],
+                "unmasked_citations": {competitor: [] for competitor in competitors}
             }
             print(f"評価対象: カテゴリ={category}, サブカテゴリ={subcategory}, サービス={competitors}")
 
-    api = PerplexityAPI(api_key)
     # マスクあり num_runs回
     for run in range(num_runs):
         print(f"マスクあり 実行 {run+1}/{num_runs}")
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
                 masked_example = get_masked_prompt_ja(subcategory)
-                masked_result = api.call_ai_api(masked_example, max_retries=3, retry_delay=1.0)
+                masked_result, masked_citations = perplexity_api(masked_example)
                 results[category][subcategory]['masked_result'] = masked_result
                 results[category][subcategory]['all_masked_results'].append(masked_result)
+                results[category][subcategory]['masked_citations'].append(masked_citations)
                 try:
                     value = extract_score(masked_result)
                     if value is not None:
@@ -134,8 +137,9 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             for subcategory, competitors in subcategories_data.items():
                 for competitor in competitors:
                     unmasked_example = get_unmasked_prompt_ja(subcategory, competitor)
-                    unmasked_result = api.call_ai_api(unmasked_example, max_retries=3, retry_delay=1.0)
+                    unmasked_result, unmasked_citations = perplexity_api(unmasked_example)
                     results[category][subcategory]['unmasked_result'][competitor] = unmasked_result
+                    results[category][subcategory]['unmasked_citations'][competitor].append(unmasked_citations)
                     try:
                         value = extract_score(unmasked_result)
                         if value is not None:
@@ -176,15 +180,31 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     else:
                         results[category][subcategory]['unmasked_avg'][competitor] = 0
                         results[category][subcategory]['unmasked_std_dev'][competitor] = 0
-            if 'masked_result' in results[category][subcategory]:
-                masked_result = results[category][subcategory]['masked_result']
-                references = extract_references(masked_result)
-                results[category][subcategory]['masked_references'] = references
-            if 'unmasked_result' in results[category][subcategory]:
-                results[category][subcategory]['unmasked_references'] = {}
-                for competitor, result_text in results[category][subcategory]['unmasked_result'].items():
-                    references = extract_references(result_text)
-                    results[category][subcategory]['unmasked_references'][competitor] = references
+            # 参照番号とURLのペアを保存
+            # マスクあり
+            masked_citations_list = results[category][subcategory].get('masked_citations', [])
+            masked_references = {}
+            if masked_citations_list:
+                for citations in masked_citations_list:
+                    for idx, citation in enumerate(citations):
+                        ref_num = idx + 1
+                        url = citation.get('url', '')
+                        if url:
+                            masked_references[str(ref_num)] = url
+            results[category][subcategory]['masked_references'] = masked_references
+            # マスクなし
+            unmasked_citations_dict = results[category][subcategory].get('unmasked_citations', {})
+            unmasked_references = {}
+            for competitor, citations_list in unmasked_citations_dict.items():
+                competitor_refs = {}
+                for citations in citations_list:
+                    for idx, citation in enumerate(citations):
+                        ref_num = idx + 1
+                        url = citation.get('url', '')
+                        if url:
+                            competitor_refs[str(ref_num)] = url
+                unmasked_references[competitor] = competitor_refs
+            results[category][subcategory]['unmasked_references'] = unmasked_references
     return results
 
 def save_results(result_data, run_type="single", num_runs=1):
@@ -242,33 +262,6 @@ def main():
         save_results(result)
 
     print("データ取得処理が完了しました")
-
-# 参照リンクを抽出する関数
-def extract_references(text):
-    """
-    テキストから [数字] パターンを抽出する
-
-    Parameters:
-    -----------
-    text : str
-        参照リンクを含むテキスト
-
-    Returns:
-    --------
-    list
-        抽出された参照リンク番号のリスト
-    """
-    if not text:
-        return []
-
-    # 正規表現で [数字] パターンを抽出
-    pattern = r'\[(\d+)\]'
-    matches = re.findall(pattern, text)
-
-    # 重複を排除して数値順にソート
-    references = sorted(set(int(m) for m in matches))
-
-    return references
 
 # 理由抽出関数
 def extract_reason(text):
