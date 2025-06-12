@@ -74,6 +74,7 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 - APIキーは必ず環境変数として設定してください
 - AWSリージョンは必要に応じて変更可能です（デフォルト: ap-northeast-1）
 - 大量のリクエストを送信する場合は、APIのレート制限に注意してください
+- ランキングデータ取得時にエラーが発生した場合、結果ファイルが保存されないことがあります。その際はエラーメッセージを確認してください。
 
 ## ライセンス
 MIT License
