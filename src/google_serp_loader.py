@@ -146,7 +146,7 @@ def get_google_search_results(query, num_results=10):
         return {"organic_results": []}
 
 def process_serp_results(data):
-    """SERP API の結果から必要な情報を抽出して整形（company判定は行わない）"""
+    """SERP API の結果から必要な情報を抽出して整形"""
     if not data or "organic_results" not in data:
         return []
     organic_results = data["organic_results"]
@@ -167,7 +167,7 @@ def process_serp_results(data):
     return results
 
 def process_categories_with_serp(categories, max_categories=None):
-    """カテゴリごとにSERP検索を実行し、companies属性の下に格納"""
+    """カテゴリごとにSERP検索を実行し、entities属性の下に格納"""
     results = {}
     count = 0
     if max_categories:
@@ -185,7 +185,7 @@ def process_categories_with_serp(categories, max_categories=None):
     for category, subcategories in categories_to_process.items():
         results[category] = {}
         for subcategory, services in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            companies = {}
+            entities = {}
             for service in services:
                 # 公式/非公式判定用の検索
                 query = f"{service}"
@@ -197,7 +197,7 @@ def process_categories_with_serp(categories, max_categories=None):
                 serp_data_rep = get_google_search_results(query_rep, num_results=10)
                 reputation_results = process_serp_results(serp_data_rep) if serp_data_rep else []
                 time.sleep(2)
-                companies[service] = {
+                entities[service] = {
                     "official_results": official_results,
                     "reputation_results": reputation_results
                 }
@@ -206,7 +206,7 @@ def process_categories_with_serp(categories, max_categories=None):
                 "timestamp": datetime.datetime.now().isoformat(),
                 "category": category,
                 "subcategory": subcategory,
-                "companies": companies
+                "entities": entities
             }
     return results
 

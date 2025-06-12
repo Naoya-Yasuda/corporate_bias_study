@@ -386,10 +386,10 @@ def collect_citation_rankings(categories):
                 print(f"  サブカテゴリ {subcategory} はスキップします（コメントアウトまたは空）")
                 continue
 
-            # サブカテゴリごとにcompaniesの構造を初期化
-            companies_results = {}
+            # サブカテゴリごとにentitiesの構造を初期化
+            entities_results = {}
             for service in services:
-                companies_results[service] = {
+                entities_results[service] = {
                     "official_answer": None,
                     "official_results": [],
                     "reputation_answer": None,
@@ -431,8 +431,8 @@ def collect_citation_rankings(categories):
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
                 if citation_data:
-                    companies_results[service]["official_results"] = citation_data
-                    companies_results[service]["official_answer"] = answer
+                    entities_results[service]["official_results"] = citation_data
+                    entities_results[service]["official_answer"] = answer
                 print("  APIレート制限を考慮して待機中...")
                 time.sleep(3)
 
@@ -469,18 +469,18 @@ def collect_citation_rankings(categories):
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
                     print(f"  APIから引用情報を取得: {len(citation_data)}件")
                 if citation_data:
-                    companies_results[service]["reputation_results"] = citation_data
-                    companies_results[service]["reputation_answer"] = answer
+                    entities_results[service]["reputation_results"] = citation_data
+                    entities_results[service]["reputation_answer"] = answer
                 print("  APIレート制限を考慮して待機中...")
                 time.sleep(3)
 
             # 結果を統合
-            if any(companies_results[s]["official_results"] or companies_results[s]["reputation_results"] for s in services):
+            if any(entities_results[s]["official_results"] or entities_results[s]["reputation_results"] for s in services):
                 results[target_category][subcategory] = {
                     "timestamp": datetime.datetime.now().isoformat(),
                     "category": category,
                     "subcategory": subcategory,
-                    "companies": companies_results
+                    "entities": entities_results
                 }
 
     # 評判情報用のURLのメタデータのみ一括取得
@@ -492,8 +492,8 @@ def collect_citation_rankings(categories):
     for category in results:
         for subcategory in results[category]:
             data = results[category][subcategory]
-            for company, company_data in data.get("companies", {}).items():
-                for result in company_data.get("reputation_results", []):
+            for entity, entity_data in data.get("entities", {}).items():
+                for result in entity_data.get("reputation_results", []):
                     url = result.get("url")
                     if url and url in metadata_dict:
                         result.update(metadata_dict[url])
