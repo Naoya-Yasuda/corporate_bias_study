@@ -438,7 +438,7 @@ def collect_citation_rankings(categories):
                         if url:
                             domain = extract_domain(url)
                             # 公式/非公式の判定を追加
-                            is_official = is_official_domain(domain, None, {service: services[service]})
+                            is_official = is_official_domain(domain, service, {service: services[service]})
                             citation_data.append({
                                 "rank": i + 1,  # 1-indexed
                                 "url": url,
