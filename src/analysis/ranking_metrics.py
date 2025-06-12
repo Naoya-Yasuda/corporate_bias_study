@@ -718,7 +718,7 @@ def extract_ranking_and_reasons(text, original_services=None):
     # 区切り文字のバリエーション
     sep_pattern = r'[:：\-→]'  # コロン、全角コロン、ハイフン、矢印
     # 1. サービス名: 理由（複数行理由対応）
-    pattern = re.compile(r'^(\d+)[.、)]?\s*(.+?)\s*' + sep_pattern + '\s*(.+)$')
+    pattern = re.compile(r'^(d+)[.、)]?\s*(.+?)\s*' + sep_pattern + r'\s*(.+)$')
 
     lines = text.splitlines()
     rankings = []
