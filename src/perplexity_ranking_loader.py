@@ -107,7 +107,9 @@ def collect_rankings(api_key, categories, num_runs=1):
                 # all_domains.append(domains)
 
                 # ランキング・理由抽出
-                ranking, reasons = extract_ranking_and_reasons(response)
+                ranking, reasons = extract_ranking_and_reasons(response, original_services=services)
+                print(f"ranking: {ranking}")
+                print(f"reasons: {reasons}")
                 filtered_ranking = extract_ranking(response, services)
                 filtered_ranking_reasons = []
                 for s in filtered_ranking:

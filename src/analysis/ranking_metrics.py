@@ -34,6 +34,7 @@ from src.utils import extract_domain
 from src.categories import get_categories
 
 import re
+import unicodedata
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -700,14 +701,61 @@ def get_timeseries_exposure_market_data(category):
         return pd.concat(dfs, ignore_index=True)
     return None
 
-def extract_ranking_and_reasons(text):
+def extract_ranking_and_reasons(text, original_services=None):
+    """
+    Perplexity等のAI応答からランキングと理由を堅牢に抽出する
+    - 区切り文字のバリエーション対応
+    - サービス名の揺れ・曖昧一致
+    - 理由の複数行対応
+    - サービス名リストがあれば優先的にマッチ
+    """
+    def normalize(s):
+        # 全角→半角、空白除去、小文字化
+        s = unicodedata.normalize('NFKC', s)
+        s = s.replace(' ', '').replace('　', '').lower()
+        return s
+
+    # 区切り文字のバリエーション
+    sep_pattern = r'[:：\-→]'  # コロン、全角コロン、ハイフン、矢印
+    # 1. サービス名: 理由（複数行理由対応）
+    pattern = re.compile(r'^(\d+)[.、)]?\s*(.+?)\s*' + sep_pattern + '\s*(.+)$')
+
+    lines = text.splitlines()
     rankings = []
     reasons = []
-    for line in text.splitlines():
-        m = re.match(r'\d+\.\s*(.+?):\s*(.+)', line)
+    buffer_reason = []
+    buffer_service = None
+    service_set = set(normalize(s) for s in original_services) if original_services else None
+
+    for i, line in enumerate(lines):
+        m = pattern.match(line)
         if m:
-            rankings.append(m.group(1).strip())
-            reasons.append(m.group(2).strip())
+            # 直前のバッファをflush
+            if buffer_service is not None:
+                rankings.append(buffer_service)
+                reasons.append('\n'.join(buffer_reason).strip())
+            # サービス名抽出
+            service = m.group(2).strip()
+            # サービス名リストがあれば曖昧一致
+            if service_set:
+                n_service = normalize(service)
+                match = None
+                for orig in original_services:
+                    if normalize(orig) in n_service or n_service in normalize(orig):
+                        match = orig
+                        break
+                if match:
+                    service = match
+            buffer_service = service
+            buffer_reason = [m.group(3).strip()]
+        else:
+            # 理由の続き行
+            if buffer_service is not None and line.strip():
+                buffer_reason.append(line.strip())
+    # 最後のバッファをflush
+    if buffer_service is not None:
+        rankings.append(buffer_service)
+        reasons.append('\n'.join(buffer_reason).strip())
     return rankings, reasons
 
 # -----------------------------
