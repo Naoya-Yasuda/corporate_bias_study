@@ -242,7 +242,7 @@ def process_categories_with_serp(categories, max_categories=None):
                         official_results.extend(processed_data["detailed_results"])
 
                 # API制限対策（1秒待機）
-                time.sleep(1)
+                time.sleep(2)
 
             # 評判情報を取得
             reputation_results = []
@@ -260,8 +260,8 @@ def process_categories_with_serp(categories, max_categories=None):
                     if processed_data:
                         reputation_results.extend(processed_data["detailed_results"])
 
-                # API制限対策（1秒待機）
-                time.sleep(1)
+                # API制限対策（2秒待機）
+                time.sleep(2)
 
             # 結果を統合
             if official_results or reputation_results:
