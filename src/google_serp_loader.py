@@ -105,8 +105,8 @@ def get_google_search_results(query, num_results=10):
             "q": query,
             "num": num_results,
             "gl": "jp",  # 日本向け検索
-            "hl": "ja"   # 日本語結果
-            # 日本語ページのみに限定すると英語の有用な情報も除外されてしまうため、言語指定は行わない
+            "hl": "ja",   # 日本語結果
+            "lr": "lang_ja"  # 日本語ページ限定
         }
 
         # APIリクエスト
