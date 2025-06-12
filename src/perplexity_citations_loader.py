@@ -34,121 +34,6 @@ load_dotenv()
 PPLX_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 
 
-def perplexity_api(prompt, model=None):
-    """
-    Perplexity APIを使用して回答と引用を取得
-
-    Parameters:
-    -----------
-    prompt : str
-        プロンプト
-    model : str
-        使用するモデル (llama-3.1-sonar-large-128k-onlineなど)
-
-    Returns:
-    --------
-    tuple (str, list)
-        (回答テキスト, 引用のリスト)
-    """
-    if not PPLX_API_KEY:
-        raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
-
-    if model is None:
-        model = PerplexityAPI.get_models_to_try()[0]
-
-    headers = {
-        "Authorization": f"Bearer {PPLX_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": "あなたは役立つアシスタントです。回答には必ず[1]、[2]のような番号付き引用を含めてください。情報源を明確にすることが重要です。引用元は日本語ページ（.jpドメインや日本語サイト）を優先してください。"
-            },
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.0,
-        "include_citations": True,  # 引用情報を明示的に要求（パラメータ名修正）
-        "stream": False  # 必ずストリーミングを無効化
-    }
-
-    try:
-        print(f"  リクエスト送信中: {payload['model']}")
-        response = requests.post(
-            "https://api.perplexity.ai/chat/completions",
-            json=payload,
-            headers=headers
-        )
-
-        # デバッグ: ステータスコードの確認
-        print(f"  API ステータスコード: {response.status_code}")
-
-        # レスポンスの解析
-        try:
-            data = response.json()
-        except Exception as e:
-            print(f"  JSONパース失敗: {e}")
-            print(f"  レスポンス本文: {response.text[:500]}")
-            return None, []
-
-        # レスポンス全体の詳細デバッグ（機密情報に注意）
-        print(f"  レスポンスの構造: {list(data.keys())}")
-        if "choices" in data and data["choices"]:
-            choice = data["choices"][0]
-            print(f"  choiceの構造: {list(choice.keys())}")
-            if "message" in choice:
-                message = choice["message"]
-                print(f"  messageの構造: {list(message.keys())}")
-
-                # CitationDataがある場合の処理
-                if "citation_data" in message:
-                    print(f"  citation_dataが見つかりました")
-                    print(f"  citation_dataの内容: {message['citation_data']}")
-                elif "citations" in message:
-                    print(f"  citationsが見つかりました")
-                    print(f"  citationsの内容: {message['citations']}")
-
-                # リンクの検索
-                if "content" in message:
-                    content_preview = message["content"][:100]
-                    links_exist = "[1]" in message["content"] or "[2]" in message["content"]
-                    print(f"  回答に引用リンクあり: {links_exist}, プレビュー: {content_preview}...")
-
-        if "error" in data:
-            print(f"API エラー: {data['error']}")
-            return None, []
-
-        # 回答テキストを取得
-        answer = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-
-        # 引用情報の検索 - citationsプロパティから直接取得
-        citations = data.get("citations", [])
-        if citations:
-            print(f"  citationsプロパティから{len(citations)}件の引用情報を取得")
-            print("\n参照URL:")
-            # citationsが文字列のリストの場合、辞書のリストに変換
-            if citations and isinstance(citations[0], str):
-                citations = [{"url": url} for url in citations]
-
-            for i, citation in enumerate(citations):
-                url = citation.get("url", "") if isinstance(citation, dict) else citation
-                print(f"{i+1}. {url}")
-
-        # 引用情報が見つからない場合
-        if not citations:
-            print("  APIレスポンスから引用情報を取得できませんでした")
-            print(f"  利用可能なプロパティ: {list(data.keys())}")
-
-        return answer, citations
-    except Exception as e:
-        print(f"Perplexity API 呼び出しエラー: {e}")
-        print(f"  スタックトレース: {traceback.format_exc()}")
-        return None, []
-
-
 def extract_references_from_text(text):
     """
     テキストから[1][2][3]形式の引用参照を抽出する
@@ -393,80 +278,58 @@ def collect_citation_rankings(categories):
             # 各サービスについて公式/非公式情報を取得
             for service in services:
                 query = f"{service}"
-                answer = None
-                citations = []
-                for model in models_to_try:
-                    if answer:
-                        break
-                    print(f"  検索クエリ実行（モデル: {model}）: {query}")
-                    answer, citations = perplexity_api(query, model=model)
-                    if answer:
-                        print(f"  モデル {model} で成功")
-                        break
-                if not answer:
-                    print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
-                    continue
-                print(f"  Perplexityからの応答:\n{answer[:200]}...")
-                print(f"  サービス: {service} の citations: {citations}")
-                citation_data = []
-                if citations:
-                    for i, citation in enumerate(citations):
-                        url = citation.get("url", "")
-                        if url:
-                            domain = extract_domain(url)
-                            is_official = is_official_domain(domain, service, {service: services[service]})
-                            citation_item = {
-                                "rank": i + 1,
-                                "url": url,
-                                "domain": domain,
-                                "is_official": is_official
-                            }
-                            citation_data.append(citation_item)
-                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
-                    print(f"  APIから引用情報を取得: {len(citation_data)}件")
-                if citation_data:
-                    entities_results[service]["official_results"] = citation_data
-                    entities_results[service]["official_answer"] = answer
-                print("  APIレート制限を考慮して待機中...")
-                time.sleep(3)
+                answer, citations = PerplexityAPI.call_perplexity_api(query)
+                if answer:
+                    print(f"  Perplexityからの応答:\n{answer[:200]}...")
+                    print(f"  サービス: {service} の citations: {citations}")
+                    citation_data = []
+                    if citations:
+                        for i, citation in enumerate(citations):
+                            url = citation.get("url", "")
+                            if url:
+                                domain = extract_domain(url)
+                                is_official = is_official_domain(domain, service, {service: services[service]})
+                                citation_item = {
+                                    "rank": i + 1,
+                                    "url": url,
+                                    "domain": domain,
+                                    "is_official": is_official
+                                }
+                                citation_data.append(citation_item)
+                                print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
+                        print(f"  APIから引用情報を取得: {len(citation_data)}件")
+                    if citation_data:
+                        entities_results[service]["official_results"] = citation_data
+                        entities_results[service]["official_answer"] = answer
+                    print("  APIレート制限を考慮して待機中...")
+                    time.sleep(3)
 
             for service in services:
                 query = f"{service} 評判 口コミ"
-                answer = None
-                citations = []
-                for model in models_to_try:
-                    if answer:
-                        break
-                    print(f"  検索クエリ実行（モデル: {model}）: {query}")
-                    answer, citations = perplexity_api(query, model=model)
-                    if answer:
-                        print(f"  モデル {model} で成功")
-                        break
-                if not answer:
-                    print("  ⚠️ 警告: すべてのモデルでAPIからの応答が取得できませんでした")
-                    continue
-                print(f"  Perplexityからの応答:\n{answer[:200]}...")
-                print(f"  サービス: {service} の citations: {citations}")
-                citation_data = []
-                if citations:
-                    for i, citation in enumerate(citations):
-                        url = citation.get("url", "")
-                        if url:
-                            domain = extract_domain(url)
-                            citation_item = {
-                                "rank": i + 1,
-                                "url": url,
-                                "domain": domain
-                            }
-                            citation_data.append(citation_item)
-                            reputation_urls.append(url)
-                            print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
-                    print(f"  APIから引用情報を取得: {len(citation_data)}件")
-                if citation_data:
-                    entities_results[service]["reputation_results"] = citation_data
-                    entities_results[service]["reputation_answer"] = answer
-                print("  APIレート制限を考慮して待機中...")
-                time.sleep(3)
+                answer, citations = PerplexityAPI.call_perplexity_api(query)
+                if answer:
+                    print(f"  Perplexityからの応答:\n{answer[:200]}...")
+                    print(f"  サービス: {service} の citations: {citations}")
+                    citation_data = []
+                    if citations:
+                        for i, citation in enumerate(citations):
+                            url = citation.get("url", "")
+                            if url:
+                                domain = extract_domain(url)
+                                citation_item = {
+                                    "rank": i + 1,
+                                    "url": url,
+                                    "domain": domain
+                                }
+                                citation_data.append(citation_item)
+                                reputation_urls.append(url)
+                                print(f"  引用情報を取得: URL={url}, ドメイン={domain}")
+                        print(f"  APIから引用情報を取得: {len(citation_data)}件")
+                    if citation_data:
+                        entities_results[service]["reputation_results"] = citation_data
+                        entities_results[service]["reputation_answer"] = answer
+                    print("  APIレート制限を考慮して待機中...")
+                    time.sleep(3)
 
             # 結果を統合
             if any(entities_results[s]["official_results"] or entities_results[s]["reputation_results"] for s in services):
@@ -540,7 +403,7 @@ def generate_summary(subcategory, services, all_answers):
 
     # APIで要約を生成
     try:
-        summary, _ = perplexity_api(prompt)
+        summary, _ = PerplexityAPI.call_perplexity_api(prompt)
         return summary
     except Exception as e:
         print(f"要約生成中にエラーが発生しました: {e}")

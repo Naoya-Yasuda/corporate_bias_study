@@ -14,7 +14,6 @@ from src.utils.file_utils import get_today_str
 from src.utils.storage_utils import save_results, get_results_paths
 from src.utils.storage_utils import put_json_to_s3, get_local_path
 from src.utils.perplexity_api import PerplexityAPI
-from src.perplexity_citations_loader import perplexity_api
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -122,7 +121,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
                 masked_prompt = get_masked_prompt_ja(subcategory)
-                masked_result, masked_citations = perplexity_api(masked_prompt)
+                masked_result, masked_citations = PerplexityAPI.call_perplexity_api(masked_prompt)
                 results[category][subcategory]["masked_prompt"] = masked_prompt
                 results[category][subcategory]["masked_answer"].append(masked_result)
                 # citationsがdictリストならurlのみ抽出、そうでなければそのまま
@@ -147,7 +146,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             for subcategory, competitors in subcategories_data.items():
                 for competitor in competitors:
                     unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
-                    unmasked_result, unmasked_citations = perplexity_api(unmasked_prompt)
+                    unmasked_result, unmasked_citations = PerplexityAPI.call_perplexity_api(unmasked_prompt)
                     results[category][subcategory][competitor]["unmasked_prompt"] = unmasked_prompt
                     results[category][subcategory][competitor]["unmasked_answer"].append(unmasked_result)
                     # citationsがdictリストならurlのみ抽出、そうでなければそのまま

@@ -138,46 +138,6 @@ def google_serp(query, top_k=10, language="ja", country="jp"):
         print(f"Google SERP API 呼び出しエラー: {e}")
         return None
 
-def perplexity_api(prompt, model=None):
-    models_to_try = PerplexityAPI.get_models_to_try() if model is None else [model]
-    answer, citations = None, []
-    for m in models_to_try:
-        answer, citations = _perplexity_api_call(prompt, m)
-        if answer:
-            break
-    return answer, citations
-
-def _perplexity_api_call(prompt, model):
-    if not PPLX_API_KEY:
-        raise ValueError("PPLX_API_KEY が設定されていません。.env ファイルを確認してください。")
-    headers = {
-        "Authorization": f"Bearer {PPLX_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ]
-    }
-    try:
-        response = requests.post(
-            "https://api.perplexity.ai/chat/completions",
-            json=payload,
-            headers=headers
-        )
-        data = response.json()
-        if "error" in data:
-            print(f"API エラー: {data['error']}")
-            return None, []
-        answer = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        citations = data.get("citations", [])
-        return answer, citations
-    except Exception as e:
-        print(f"Perplexity API 呼び出しエラー: {e}")
-        return None, []
-
 # -------------------------------------------------------------------
 # 既存データ解析関数
 # -------------------------------------------------------------------
@@ -317,7 +277,7 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
 
     # 2. Perplexity APIの実行
     print("Perplexity APIを実行中...")
-    pplx_answer, pplx_citations = perplexity_api(query)
+    pplx_answer, pplx_citations = PerplexityAPI.call_perplexity_api(query)
 
     if not pplx_answer:
         print("Perplexity APIからの応答が取得できませんでした。")

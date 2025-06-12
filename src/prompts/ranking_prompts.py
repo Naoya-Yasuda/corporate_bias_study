@@ -17,6 +17,8 @@ import argparse
 import statistics
 from dotenv import load_dotenv
 
+from src.utils.perplexity_api import PerplexityAPI
+
 # .envファイルから環境変数を読み込む（APIキー取得のため）
 load_dotenv()
 
@@ -110,47 +112,6 @@ def extract_ranking(text, original_services):
 
     return found_services
 
-def call_perplexity_api(prompt, api_key=None):
-    """Perplexity APIを呼び出す関数"""
-    # 依存関係のインポート（必要なときだけ）
-    import requests
-
-    # APIキーの取得
-    if api_key is None:
-        api_key = os.environ.get("PERPLEXITY_API_KEY")
-        if not api_key:
-            raise ValueError("PERPLEXITY_API_KEYが設定されていません")
-
-    # APIリクエスト設定
-    headers = {
-        "accept": "application/json",
-        "content-type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-
-    payload = {
-        "model": "llama-3.1-sonar-large-128k-online",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1024,
-        "temperature": 0.0,
-        "stream": False
-    }
-
-    # APIコール
-    try:
-        response = requests.post(
-            "https://api.perplexity.ai/chat/completions",
-            headers=headers,
-            json=payload
-        )
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"]["content"].strip()
-        else:
-            raise Exception(f"Error {response.status_code}: {response.text}")
-    except Exception as e:
-        print(f"エラー（Perplexity API）: {e}")
-        return f"エラー: {e}"
-
 def multi_run_ranking(subcategory, services, num_runs=5):
     """複数回実行してランキングの平均を計算"""
     print(f"{subcategory}の{num_runs}回ランキング取得を開始します...")
@@ -165,7 +126,7 @@ def multi_run_ranking(subcategory, services, num_runs=5):
         # プロンプト生成と送信
         prompt = get_ranking_prompt(subcategory, services)
         print("プロンプト送信中...")
-        response = call_perplexity_api(prompt)
+        response, citations = PerplexityAPI.call_perplexity_api(prompt)
         print(f"応答受信:\n{response[:200]}...")  # 応答の一部を表示
 
         # ランキング抽出

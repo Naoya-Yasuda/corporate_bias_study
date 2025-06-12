@@ -99,8 +99,9 @@ def collect_rankings(api_key, categories, num_runs=1):
                 prompt = get_ranking_prompt(subcategory, services)
                 models_to_try = PerplexityAPI.get_models_to_try()
                 response = None
+                citations = []
                 for model in models_to_try:
-                    response = api.call_ai_api(prompt, model=model)
+                    response, citations = api.call_perplexity_api(prompt, model=model)
                     if response:
                         break
                 all_responses.append(response)
@@ -110,8 +111,17 @@ def collect_rankings(api_key, categories, num_runs=1):
                 filtered_ranking = extract_ranking(response, services)
                 subcategory_results.append(filtered_ranking)
 
-                # 各回のランキング順に公式URLを並べる
-                url_list = [official_url_map.get(s, "") for s in filtered_ranking]
+                # citationsリストから各サービス名を含むURLをランキング順に抽出
+                url_list = []
+                for s in filtered_ranking:
+                    found_url = ""
+                    for c in citations:
+                        url = c["url"] if isinstance(c, dict) and "url" in c else c
+                        if s.lower() in url.lower():
+                            found_url = url
+                            break
+                    url_list.append(found_url)
+
                 response_list.append({
                     "answer": response,
                     "url": url_list
