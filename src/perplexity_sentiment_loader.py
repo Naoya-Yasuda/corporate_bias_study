@@ -32,6 +32,18 @@ S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 # カテゴリとサービスの定義を取得
 categories = get_categories()
 
+def get_masked_prompt_ja(subcategory):
+    prompt = get_masked_prompt(subcategory)
+    if "日本語で" not in prompt:
+        prompt += "\n必ず日本語で回答してください。"
+    return prompt
+
+def get_unmasked_prompt_ja(subcategory, competitor):
+    prompt = get_unmasked_prompt(subcategory, competitor)
+    if "日本語で" not in prompt:
+        prompt += "\n必ず日本語で回答してください。"
+    return prompt
+
 def process_categories(api_key, categories):
     """各カテゴリ、サブカテゴリを処理"""
     api = PerplexityAPI(api_key)
@@ -45,7 +57,7 @@ def process_categories(api_key, categories):
             print(f"サブカテゴリ処理中: {subcategory}, 対象サービス: {competitors}")
 
             # プロンプトを生成
-            masked_example = get_masked_prompt(subcategory)
+            masked_example = get_masked_prompt_ja(subcategory)
 
             masked_result = api.call_ai_api(masked_example, max_retries=3, retry_delay=1.0)
             print(f"マスク評価結果: {masked_result}")
@@ -57,7 +69,7 @@ def process_categories(api_key, categories):
                 print(f"  サービス評価中: {competitor}")
 
                 # プロンプトを生成
-                unmasked_example = get_unmasked_prompt(subcategory, competitor)
+                unmasked_example = get_unmasked_prompt_ja(subcategory, competitor)
 
                 unmasked_examples[competitor] = unmasked_example
                 unmasked_results[competitor] = api.call_ai_api(unmasked_example, max_retries=3, retry_delay=1.0)
@@ -82,8 +94,8 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         for subcategory, competitors in subcategories_data.items():
             results[category][subcategory] = {
                 "competitors": competitors,
-                "masked_example": get_masked_prompt(subcategory),
-                "unmasked_examples": {competitor: get_unmasked_prompt(subcategory, competitor) for competitor in competitors},
+                "masked_example": get_masked_prompt_ja(subcategory),
+                "unmasked_examples": {competitor: get_unmasked_prompt_ja(subcategory, competitor) for competitor in competitors},
                 "masked_result": "",
                 "unmasked_result": {competitor: "" for competitor in competitors},
                 "masked_values": [],
@@ -100,7 +112,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         print(f"マスクあり 実行 {run+1}/{num_runs}")
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
-                masked_example = get_masked_prompt(subcategory)
+                masked_example = get_masked_prompt_ja(subcategory)
                 masked_result = api.call_ai_api(masked_example, max_retries=3, retry_delay=1.0)
                 results[category][subcategory]['masked_result'] = masked_result
                 results[category][subcategory]['all_masked_results'].append(masked_result)
@@ -121,7 +133,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
                 for competitor in competitors:
-                    unmasked_example = get_unmasked_prompt(subcategory, competitor)
+                    unmasked_example = get_unmasked_prompt_ja(subcategory, competitor)
                     unmasked_result = api.call_ai_api(unmasked_example, max_retries=3, retry_delay=1.0)
                     results[category][subcategory]['unmasked_result'][competitor] = unmasked_result
                     try:

@@ -87,7 +87,7 @@ def compute_top_probability(domain_rank, market_domains, top_k):
 # -------------------------------------------------------------------
 # API呼び出し関数
 # -------------------------------------------------------------------
-def google_serp(query, top_k=10, language="en", country="us"):
+def google_serp(query, top_k=10, language="ja", country="jp"):
     """
     Google SERP APIを使用して検索結果を取得
 
@@ -116,7 +116,8 @@ def google_serp(query, top_k=10, language="en", country="us"):
         "num": top_k,
         "api_key": SERP_API_KEY,
         "hl": language,
-        "gl": country
+        "gl": country,
+        "lr": "lang_ja"
     }
 
     try:
