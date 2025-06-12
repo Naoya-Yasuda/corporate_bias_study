@@ -57,15 +57,15 @@ def process_categories(api_key, categories):
             # プロンプトを生成
             masked_prompt = get_masked_prompt_ja(subcategory)
 
-            masked_result = None
+            masked_answer = None
             for model in PerplexityAPI.get_models_to_try():
-                masked_result = api.call_ai_api(masked_prompt, model=model, max_retries=3, retry_delay=1.0)
-                if masked_result:
+                masked_answer = api.call_ai_api(masked_prompt, model=model, max_retries=3, retry_delay=1.0)
+                if masked_answer:
                     break
-            print(f"マスク評価結果: {masked_result}")
+            print(f"マスク評価結果: {masked_answer}")
             time.sleep(1)
 
-            unmasked_results = {}
+            unmasked_answer = {}
             unmasked_examples = {}
             for competitor in competitors:
                 print(f"  サービス評価中: {competitor}")
@@ -74,13 +74,13 @@ def process_categories(api_key, categories):
                 unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
 
                 unmasked_examples[competitor] = unmasked_prompt
-                unmasked_result = None
+                answer = None
                 for model in PerplexityAPI.get_models_to_try():
-                    unmasked_result = api.call_ai_api(unmasked_prompt, model=model, max_retries=3, retry_delay=1.0)
-                    if unmasked_result:
+                    answer = api.call_ai_api(unmasked_prompt, model=model, max_retries=3, retry_delay=1.0)
+                    if answer:
                         break
-                unmasked_results[competitor] = unmasked_result
-                print(f"  {competitor}の評価結果: {unmasked_results[competitor]}")
+                unmasked_answer[competitor] = answer
+                print(f"  {competitor}の評価結果: {unmasked_answer[competitor]}")
                 time.sleep(1)
 
             # results[category][subcategory]やcompetitorごとの初期化は削除
@@ -97,7 +97,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         results[category] = {}
         for subcategory, competitors in subcategories_data.items():
             results[category][subcategory] = {
-                "masked_results": [],
+                "masked_answer": [],
                 "masked_values": [],
                 "masked_reasons": [],
                 "masked_citations": [],
@@ -108,7 +108,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             for competitor in competitors:
                 results[category][subcategory][competitor] = {
                     "unmasked_prompt": get_unmasked_prompt_ja(subcategory, competitor),
-                    "unmasked_results": [],
+                    "unmasked_answer": [],
                     "unmasked_values": [],
                     "unmasked_reasons": [],
                     "unmasked_citations": [],
@@ -124,7 +124,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 masked_prompt = get_masked_prompt_ja(subcategory)
                 masked_result, masked_citations = perplexity_api(masked_prompt)
                 results[category][subcategory]["masked_prompt"] = masked_prompt
-                results[category][subcategory]["masked_results"].append(masked_result)
+                results[category][subcategory]["masked_answer"].append(masked_result)
                 results[category][subcategory]["masked_citations"].append(masked_citations)
                 try:
                     value = extract_score(masked_result)
@@ -144,7 +144,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
                     unmasked_result, unmasked_citations = perplexity_api(unmasked_prompt)
                     results[category][subcategory][competitor]["unmasked_prompt"] = unmasked_prompt
-                    results[category][subcategory][competitor]["unmasked_results"].append(unmasked_result)
+                    results[category][subcategory][competitor]["unmasked_answer"].append(unmasked_result)
                     results[category][subcategory][competitor]["unmasked_citations"].append(unmasked_citations)
                     try:
                         value = extract_score(unmasked_result)

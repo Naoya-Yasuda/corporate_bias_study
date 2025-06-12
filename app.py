@@ -392,8 +392,8 @@ else:
                         st.write("### データ処理ステップ")
                         if "masked_values" in subcategory_data:
                             st.write(f"masked_values: {subcategory_data['masked_values']}")
-                        if "all_masked_results" in subcategory_data:
-                            st.write(f"all_masked_results: {subcategory_data['all_masked_results']}")
+                        if "all_masked_answer" in subcategory_data:
+                            st.write(f"all_masked_answer: {subcategory_data['all_masked_answer']}")
 
                         if "unmasked_values" in subcategory_data:
                             st.write("unmasked_values:")
