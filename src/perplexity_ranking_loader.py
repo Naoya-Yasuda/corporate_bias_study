@@ -14,7 +14,7 @@ import argparse
 from dotenv import load_dotenv
 import re
 
-from src.categories import get_categories, get_all_categories
+from src.categories import get_categories, get_all_categories, load_yaml_categories
 from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
 from src.analysis.ranking_metrics import extract_ranking_and_reasons
 from src.perplexity_sentiment_loader import PerplexityAPI  # 既存のPerplexity API Clientを再利用
@@ -61,17 +61,13 @@ def extract_domains_from_response(response, services, official_domains):
 def collect_rankings(api_key, categories, num_runs=1):
     """
     各カテゴリ・サブカテゴリごとにサービスランキングを取得
-
-    Args:
-        api_key: Perplexity API Key
-        categories: カテゴリとサービスの辞書
-        num_runs: 実行回数（複数回実行で平均を取る場合）
-
-    Returns:
-        dict: カテゴリごとのランキング結果
+    新しいデータ形式（ranking_summary＋official_url＋response_list）で出力
     """
     api = PerplexityAPI(api_key)
     results = {}
+
+    # YAMLから公式URL情報を取得
+    _, yaml_categories = load_yaml_categories()
 
     total_categories = get_all_categories()
     processed = 0
@@ -84,111 +80,91 @@ def collect_rankings(api_key, categories, num_runs=1):
             processed += 1
             print(f"サブカテゴリ処理中 ({processed}/{total_categories}): {subcategory}, サービス数: {len(services)}")
 
-            if not services or subcategory.startswith('#'):  # コメントアウトされたカテゴリは無視
+            if not services or subcategory.startswith('#'):
                 print(f"  サブカテゴリ {subcategory} はスキップします（コメントアウトまたは空）")
                 continue
 
-            subcategory_results = []
-            subcategory_ranking_reasons = []  # 各実行ごとの理由配列
-            all_responses = []  # 全ての応答テキストを保存
+            # 公式URLリストを取得
+            # yaml_categories[category][subcategory]はdict型
+            service_url_dict = {}
+            try:
+                service_url_dict = yaml_categories[category][subcategory]
+            except Exception:
+                service_url_dict = {s: [] for s in services}
+
+            # 公式URLを1つだけ official_url として使う（なければ空文字）
+            official_url_map = {s: (service_url_dict.get(s, [""])[0] if service_url_dict.get(s) else "") for s in services}
+
+            subcategory_results = []  # 各回のランキング
+            all_responses = []        # 各回の応答全文
+            response_list = []        # 新形式: 各回のresponse＋url
 
             for run in range(num_runs):
                 if num_runs > 1:
                     print(f"  実行 {run+1}/{num_runs}")
 
-                # プロンプト生成と送信
                 prompt = get_ranking_prompt(subcategory, services)
                 response = api.call_ai_api(prompt)
-                all_responses.append(response)  # 応答テキストを保存
-                print(f"  Perplexityからの応答:\n{response[:200]}...")  # 応答の一部を表示
+                all_responses.append(response)
+                print(f"  Perplexityからの応答:\n{response[:200]}...")
 
-                # ドメイン情報を抽出（公式ドメインリストを使用して判定）
-                # domains = extract_domains_from_response(response, services, services)
-                # all_domains.append(domains)
-
-                # ランキング・理由抽出
-                ranking, reasons = extract_ranking_and_reasons(response, original_services=services)
-                print(f"ranking: {ranking}")
-                print(f"reasons: {reasons}")
+                ranking, _ = extract_ranking_and_reasons(response, original_services=services)
                 filtered_ranking = extract_ranking(response, services)
-                filtered_ranking_reasons = []
-                for s in filtered_ranking:
-                    try:
-                        idx = ranking.index(s)
-                        reason = reasons[idx] if idx < len(reasons) else ""
-                        # 空文字列の場合はall_responsesから再抽出
-                        if not reason:
-                            # 1行ずつ再探索
-                            for line in response.splitlines():
-                                if s in line:
-                                    m = re.match(r'\d+\.\s*' + re.escape(s) + r':\s*(.+)', line)
-                                    if m:
-                                        reason = m.group(1).strip()
-                                        break
-                        filtered_ranking_reasons.append(reason)
-                    except Exception:
-                        print(f"  ⚠️ 警告: サービス '{s}' の理由抽出に失敗しました")
-                        filtered_ranking_reasons.append("")
                 subcategory_results.append(filtered_ranking)
-                subcategory_ranking_reasons.append(filtered_ranking_reasons)
+
+                # 各回のランキング順に公式URLを並べる
+                url_list = [official_url_map.get(s, "") for s in filtered_ranking]
+                response_list.append({
+                    "response": response,
+                    "url": url_list
+                })
 
                 if len(filtered_ranking) != len(services):
                     print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(filtered_ranking)}/{len(services)})")
                 else:
                     print(f"  ✓ ランキング抽出完了: {filtered_ranking}")
 
-                # API制限を考慮した待機
                 if run < num_runs - 1 or processed < total_categories:
                     print("  APIレート制限を考慮して待機中...")
                     time.sleep(2)
 
-            # 結果の集計（複数回実行の場合）
-            if num_runs > 1:
-                # 各サービスごとの順位を集計
-                service_ranks = {service: [] for service in services}
-                for ranking in subcategory_results:
-                    for idx, service in enumerate(ranking):
-                        if service in service_ranks:
-                            service_ranks[service].append(idx + 1)  # 順位は1始まり
+            # 各サービスごとの順位を集計
+            service_ranks = {service: [] for service in services}
+            for ranking in subcategory_results:
+                for idx, service in enumerate(ranking):
+                    if service in service_ranks:
+                        service_ranks[service].append(idx + 1)
 
-                # 平均順位を計算して並べ替え
-                avg_ranks = []
-                for service, ranks in service_ranks.items():
-                    # ランキングに現れた場合は平均順位を計算、そうでなければ特別な値を使用
-                    if ranks:
-                        avg_rank = sum(ranks) / len(ranks)
-                    else:
-                        # JSON互換の値を使用（Infinityは使わない）
-                        avg_rank = -1  # または高い値（例: len(services) + 1）
-                        print(f"  ⚠️ 警告: サービス '{service}' はどのランキングにも現れませんでした")
+            # 平均順位を計算して並べ替え
+            avg_ranks = []
+            for service, ranks in service_ranks.items():
+                if ranks:
+                    avg_rank = sum(ranks) / len(ranks)
+                else:
+                    avg_rank = -1
+                    print(f"  ⚠️ 警告: サービス '{service}' はどのランキングにも現れませんでした")
+                avg_ranks.append((service, avg_rank, ranks))
+            avg_ranks.sort(key=lambda x: (x[1] < 0, x[1]))
+            final_ranking = [item[0] for item in avg_ranks]
 
-                    avg_ranks.append((service, avg_rank, ranks))
+            # ranking_summary.detailsを作成
+            details = {}
+            for service, avg_rank, all_ranks in avg_ranks:
+                details[service] = {
+                    "official_url": official_url_map.get(service, ""),
+                    "avg_rank": avg_rank if avg_rank != -1 else "未ランク",
+                    "all_ranks": all_ranks
+                }
 
-                # 平均順位でソート（未ランクのサービスは最後に）
-                avg_ranks.sort(key=lambda x: (x[1] < 0, x[1]))
-
-                # 最終ランキング
-                final_ranking = [item[0] for item in avg_ranks]
-                rank_details = {item[0]: {"avg_rank": item[1], "all_ranks": item[2]} for item in avg_ranks}
-
-                results[category][subcategory] = {
-                    "services": services,
-                    "query": prompt,  # プロンプトをqueryプロパティとして保存
-                    "all_rankings": subcategory_results,
-                    "ranking_reasons": subcategory_ranking_reasons,
-                    "all_responses": all_responses,  # 全ての応答テキストを保存
+            results[category][subcategory] = {
+                "query": prompt,
+                "ranking_summary": {
                     "avg_ranking": final_ranking,
-                    "rank_details": rank_details
-                }
-            else:
-                # 単一実行の場合
-                results[category][subcategory] = {
-                    "services": services,
-                    "query": prompt,  # プロンプトをqueryプロパティとして保存
-                    "ranking": subcategory_results[0],
-                    "reasons": subcategory_ranking_reasons[0] if subcategory_ranking_reasons else [],
-                    "response": all_responses[0]  # 応答テキストを保存
-                }
+                    "details": details,
+                    "all_rankings": subcategory_results
+                },
+                "response_list": response_list
+            }
 
     return results
 
@@ -266,13 +242,6 @@ def main():
         try:
             # collect_rankings関数呼び出し時に引数を追加
             result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
-            # Infinity値を修正（平均順位が-1などの場合、JSONシリアライズ前に文字列に変換）
-            for category in result:
-                for subcategory in result[category]:
-                    if 'rank_details' in result[category][subcategory]:
-                        for service, details in result[category][subcategory]['rank_details'].items():
-                            if details.get('avg_rank') == float('inf') or details.get('avg_rank') == -1:
-                                details['avg_rank'] = "未ランク"  # InfinityをJSON対応文字列に変換
             result_file = save_results(result, "multiple", args.runs)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
@@ -288,13 +257,6 @@ def main():
         try:
             # collect_rankings関数呼び出し時に引数を追加
             result = collect_rankings(PERPLEXITY_API_KEY, categories)
-            # Infinity値を修正
-            for category in result:
-                for subcategory in result[category]:
-                    if 'rank_details' in result[category][subcategory]:
-                        for service, details in result[category][subcategory]['rank_details'].items():
-                            if details.get('avg_rank') == float('inf') or details.get('avg_rank') == -1:
-                                details['avg_rank'] = "未ランク"  # InfinityをJSON対応文字列に変換
             result_file = save_results(result)
         except Exception as e:
             print(f"ランキングデータ収集中にエラーが発生しました: {e}")
