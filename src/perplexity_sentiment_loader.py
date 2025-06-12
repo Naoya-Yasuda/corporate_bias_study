@@ -127,9 +127,9 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 results[category][subcategory]["masked_answer"].append(masked_result)
                 # citationsがdictリストならurlのみ抽出、そうでなければそのまま
                 if masked_citations and isinstance(masked_citations, list) and isinstance(masked_citations[0], dict) and "url" in masked_citations[0]:
-                    url_list = [c["url"] for c in masked_citations]
+                    url_list = [c["url"] for c in masked_citations if c["url"]]
                 else:
-                    url_list = masked_citations if masked_citations else []
+                    url_list = [u for u in masked_citations if u] if masked_citations else []
                 results[category][subcategory]["masked_url"].append(url_list)
                 try:
                     value = extract_score(masked_result)
@@ -152,9 +152,9 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     results[category][subcategory][competitor]["unmasked_answer"].append(unmasked_result)
                     # citationsがdictリストならurlのみ抽出、そうでなければそのまま
                     if unmasked_citations and isinstance(unmasked_citations, list) and isinstance(unmasked_citations[0], dict) and "url" in unmasked_citations[0]:
-                        url_list = [c["url"] for c in unmasked_citations]
+                        url_list = [c["url"] for c in unmasked_citations if c["url"]]
                     else:
-                        url_list = unmasked_citations if unmasked_citations else []
+                        url_list = [u for u in unmasked_citations if u] if unmasked_citations else []
                     results[category][subcategory][competitor]["unmasked_url"].append(url_list)
                     try:
                         value = extract_score(unmasked_result)

@@ -120,7 +120,8 @@ def collect_rankings(api_key, categories, num_runs=1):
                         if s.lower() in url.lower():
                             found_url = url
                             break
-                    url_list.append(found_url)
+                    if found_url:  # 空文字でなければappend
+                        url_list.append(found_url)
 
                 response_list.append({
                     "answer": response,
