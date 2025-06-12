@@ -77,56 +77,55 @@ def process_categories(api_key, categories):
                 print(f"  {competitor}の評価結果: {unmasked_results[competitor]}")
                 time.sleep(1)
 
-            results[category][subcategory] = {
-                "competitors": competitors,
-                "masked_example": masked_example,
-                "unmasked_examples": unmasked_examples,
-                "masked_result": masked_result,
-                "unmasked_result": unmasked_results,
-            }
+            # results[category][subcategory]やcompetitorごとの初期化は削除
+            # 必要ならここでresultsに値を格納する処理のみ記述
 
     return results
 
 def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
-    """複数回実行して平均値を取得（マスクあり・マスクなし両方とも各num_runs回ずつAPIを呼び出す）"""
+    """複数回実行して平均値を取得（マスクあり・マスクなし両方とも各num_runs回ずつAPIを呼び出す）
+    サービス名ごとに属性をまとめて出力するように構造を変更
+    """
     results = {}
     for category, subcategories_data in categories.items():
         results[category] = {}
         for subcategory, competitors in subcategories_data.items():
             results[category][subcategory] = {
-                "competitors": competitors,
-                "masked_example": get_masked_prompt_ja(subcategory),
-                "unmasked_examples": {competitor: get_unmasked_prompt_ja(subcategory, competitor) for competitor in competitors},
-                "masked_result": "",
-                "unmasked_result": {competitor: "" for competitor in competitors},
+                "masked_results": [],
                 "masked_values": [],
-                "all_masked_results": [],
-                "unmasked_values": {competitor: [] for competitor in competitors},
                 "masked_reasons": [],
-                "unmasked_reasons": {competitor: [] for competitor in competitors},
                 "masked_citations": [],
-                "unmasked_citations": {competitor: [] for competitor in competitors}
+                "masked_avg": 0.0,
+                "masked_std_dev": 0.0,
+                "masked_prompt": get_masked_prompt_ja(subcategory)
             }
-            print(f"評価対象: カテゴリ={category}, サブカテゴリ={subcategory}, サービス={competitors}")
+            for competitor in competitors:
+                results[category][subcategory][competitor] = {
+                    "unmasked_prompt": get_unmasked_prompt_ja(subcategory, competitor),
+                    "unmasked_results": [],
+                    "unmasked_values": [],
+                    "unmasked_reasons": [],
+                    "unmasked_citations": [],
+                    "unmasked_avg": 0.0,
+                    "unmasked_std_dev": 0.0
+                }
 
     # マスクあり num_runs回
     for run in range(num_runs):
         print(f"マスクあり 実行 {run+1}/{num_runs}")
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
-                masked_example = get_masked_prompt_ja(subcategory)
-                masked_result, masked_citations = perplexity_api(masked_example)
-                results[category][subcategory]['masked_result'] = masked_result
-                results[category][subcategory]['all_masked_results'].append(masked_result)
-                results[category][subcategory]['masked_citations'].append(masked_citations)
+                masked_prompt = get_masked_prompt_ja(subcategory)
+                masked_result, masked_citations = perplexity_api(masked_prompt)
+                results[category][subcategory]["masked_prompt"] = masked_prompt
+                results[category][subcategory]["masked_results"].append(masked_result)
+                results[category][subcategory]["masked_citations"].append(masked_citations)
                 try:
                     value = extract_score(masked_result)
                     if value is not None:
-                        results[category][subcategory]['masked_values'].append(value)
-                    else:
-                        print(f"警告: マスクあり評価値が抽出できませんでした: {masked_result}")
+                        results[category][subcategory]["masked_values"].append(value)
                     reason = extract_reason(masked_result)
-                    results[category][subcategory]['masked_reasons'].append(reason)
+                    results[category][subcategory]["masked_reasons"].append(reason)
                 except Exception as e:
                     print(f"マスクあり評価値の抽出エラー: {e}, 結果: {masked_result}")
                 time.sleep(1)
@@ -136,75 +135,44 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
                 for competitor in competitors:
-                    unmasked_example = get_unmasked_prompt_ja(subcategory, competitor)
-                    unmasked_result, unmasked_citations = perplexity_api(unmasked_example)
-                    results[category][subcategory]['unmasked_result'][competitor] = unmasked_result
-                    results[category][subcategory]['unmasked_citations'][competitor].append(unmasked_citations)
+                    unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
+                    unmasked_result, unmasked_citations = perplexity_api(unmasked_prompt)
+                    results[category][subcategory][competitor]["unmasked_prompt"] = unmasked_prompt
+                    results[category][subcategory][competitor]["unmasked_results"].append(unmasked_result)
+                    results[category][subcategory][competitor]["unmasked_citations"].append(unmasked_citations)
                     try:
                         value = extract_score(unmasked_result)
                         if value is not None:
-                            results[category][subcategory]['unmasked_values'][competitor].append(value)
-                        else:
-                            print(f"警告: {competitor}の評価値が抽出できませんでした: {unmasked_result}")
+                            results[category][subcategory][competitor]["unmasked_values"].append(value)
                         reason = extract_reason(unmasked_result)
-                        results[category][subcategory]['unmasked_reasons'][competitor].append(reason)
+                        results[category][subcategory][competitor]["unmasked_reasons"].append(reason)
                     except Exception as e:
                         print(f"マスクなし評価値の抽出エラー ({competitor}): {e}")
                     time.sleep(1)
-    # 平均値と標準偏差の計算などは従来通り
+    # 平均値と標準偏差の計算など
     for category in results:
         for subcategory in results[category]:
             masked_values = results[category][subcategory].get('masked_values', [])
             if masked_values:
-                results[category][subcategory]['masked_avg'] = np.mean(masked_values)
-                print(f"マスクあり評価値: {masked_values}, 平均: {results[category][subcategory]['masked_avg']}")
+                results[category][subcategory]['masked_avg'] = float(np.mean(masked_values))
                 if len(masked_values) > 1:
-                    results[category][subcategory]['masked_std_dev'] = np.std(masked_values, ddof=1)
+                    results[category][subcategory]['masked_std_dev'] = float(np.std(masked_values, ddof=1))
                 else:
-                    results[category][subcategory]['masked_std_dev'] = 0
+                    results[category][subcategory]['masked_std_dev'] = 0.0
             else:
-                results[category][subcategory]['masked_avg'] = 0
-                results[category][subcategory]['masked_std_dev'] = 0
-            if 'unmasked_values' in results[category][subcategory]:
-                results[category][subcategory]['unmasked_avg'] = {}
-                results[category][subcategory]['unmasked_std_dev'] = {}
-                for competitor in results[category][subcategory]['unmasked_values']:
-                    values = results[category][subcategory]['unmasked_values'][competitor]
-                    if values:
-                        results[category][subcategory]['unmasked_avg'][competitor] = np.mean(values)
-                        print(f"{competitor}の評価値: {values}, 平均: {results[category][subcategory]['unmasked_avg'][competitor]}")
-                        if len(values) > 1:
-                            results[category][subcategory]['unmasked_std_dev'][competitor] = np.std(values, ddof=1)
-                        else:
-                            results[category][subcategory]['unmasked_std_dev'][competitor] = 0
+                results[category][subcategory]['masked_avg'] = 0.0
+                results[category][subcategory]['masked_std_dev'] = 0.0
+            for competitor in competitors:
+                unmasked_values = results[category][subcategory][competitor].get('unmasked_values', [])
+                if unmasked_values:
+                    results[category][subcategory][competitor]['unmasked_avg'] = float(np.mean(unmasked_values))
+                    if len(unmasked_values) > 1:
+                        results[category][subcategory][competitor]['unmasked_std_dev'] = float(np.std(unmasked_values, ddof=1))
                     else:
-                        results[category][subcategory]['unmasked_avg'][competitor] = 0
-                        results[category][subcategory]['unmasked_std_dev'][competitor] = 0
-            # 参照番号とURLのペアを保存
-            # マスクあり
-            masked_citations_list = results[category][subcategory].get('masked_citations', [])
-            masked_references = {}
-            if masked_citations_list:
-                for citations in masked_citations_list:
-                    for idx, citation in enumerate(citations):
-                        ref_num = idx + 1
-                        url = citation.get('url', '')
-                        if url:
-                            masked_references[str(ref_num)] = url
-            results[category][subcategory]['masked_references'] = masked_references
-            # マスクなし
-            unmasked_citations_dict = results[category][subcategory].get('unmasked_citations', {})
-            unmasked_references = {}
-            for competitor, citations_list in unmasked_citations_dict.items():
-                competitor_refs = {}
-                for citations in citations_list:
-                    for idx, citation in enumerate(citations):
-                        ref_num = idx + 1
-                        url = citation.get('url', '')
-                        if url:
-                            competitor_refs[str(ref_num)] = url
-                unmasked_references[competitor] = competitor_refs
-            results[category][subcategory]['unmasked_references'] = unmasked_references
+                        results[category][subcategory][competitor]['unmasked_std_dev'] = 0.0
+                else:
+                    results[category][subcategory][competitor]['unmasked_avg'] = 0.0
+                    results[category][subcategory][competitor]['unmasked_std_dev'] = 0.0
     return results
 
 def save_results(result_data, run_type="single", num_runs=1):
