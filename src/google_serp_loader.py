@@ -182,16 +182,18 @@ def process_serp_results(data, query, category, subcategory, target_companies, i
             is_negative_result = is_negative(title, snippet)
 
         # 結果を記録
-        results.append({
+        result_dict = {
             "rank": i + 1,
             "title": title,
             "link": link,
             "domain": domain,
             "snippet": snippet,
             "company": related_company,
-            "is_official": is_official,
             "is_negative": is_negative_result
-        })
+        }
+        if is_official_check:
+            result_dict["is_official"] = is_official
+        results.append(result_dict)
 
     return {
         "query": query,
