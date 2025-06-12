@@ -97,9 +97,13 @@ class PerplexityAPI:
         headers = self._get_headers()
         if model is None:
             model = self.get_models_to_try()[0]
+        messages = [
+            {"role": "system", "content": "情報は日本語ページ（.jpドメインや日本語サイト）を優先してください。"},
+            {"role": "user", "content": prompt}
+        ]
         data = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": 1024,
             "temperature": 0.0,
             "stream": False
