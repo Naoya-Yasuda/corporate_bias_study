@@ -414,12 +414,6 @@ def collect_citation_rankings(categories):
                 if citations:
                     for i, citation in enumerate(citations):
                         url = citation.get("url", "")
-                        if not url:
-                            url = citation.get("link", "")
-                        if not url:
-                            url = citation.get("source", "")
-                        if not url:
-                            url = citation.get("reference", "")
                         if url:
                             domain = extract_domain(url)
                             is_official = is_official_domain(domain, service, {service: services[service]})
@@ -428,9 +422,7 @@ def collect_citation_rankings(categories):
                                 "url": url,
                                 "domain": domain,
                                 "is_official": is_official,
-                                "answer": answer,
-                                "query": query,
-                                "query_type": "official"
+                                "answer": answer
                             }
                             citation_data.append(citation_item)
                             print(f"  引用情報を取得: URL={url}, ドメイン={domain}, 公式={is_official}")
@@ -460,21 +452,13 @@ def collect_citation_rankings(categories):
                 if citations:
                     for i, citation in enumerate(citations):
                         url = citation.get("url", "")
-                        if not url:
-                            url = citation.get("link", "")
-                        if not url:
-                            url = citation.get("source", "")
-                        if not url:
-                            url = citation.get("reference", "")
                         if url:
                             domain = extract_domain(url)
                             citation_item = {
                                 "rank": i + 1,
                                 "url": url,
                                 "domain": domain,
-                                "answer": answer,
-                                "query": query,
-                                "query_type": "reputation"
+                                "answer": answer
                             }
                             citation_data.append(citation_item)
                             reputation_urls.append(url)
