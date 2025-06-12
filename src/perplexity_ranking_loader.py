@@ -89,9 +89,8 @@ def collect_rankings(api_key, categories, num_runs=1):
                 continue
 
             subcategory_results = []
-            subcategory_reasons = []  # 各実行ごとの理由配列
+            subcategory_ranking_reasons = []  # 各実行ごとの理由配列
             all_responses = []  # 全ての応答テキストを保存
-            all_domains = []  # 全てのドメイン情報を保存
 
             for run in range(num_runs):
                 if num_runs > 1:
@@ -104,23 +103,21 @@ def collect_rankings(api_key, categories, num_runs=1):
                 print(f"  Perplexityからの応答:\n{response[:200]}...")  # 応答の一部を表示
 
                 # ドメイン情報を抽出（公式ドメインリストを使用して判定）
-                domains = extract_domains_from_response(response, services, services)
-                all_domains.append(domains)
+                # domains = extract_domains_from_response(response, services, services)
+                # all_domains.append(domains)
 
                 # ランキング・理由抽出
                 ranking, reasons = extract_ranking_and_reasons(response)
-                # サービス名の正規化・フィルタリングは従来通りextract_rankingで
                 filtered_ranking = extract_ranking(response, services)
-                # 理由もランキングと同じ順序でフィルタリング
-                filtered_reasons = []
+                filtered_ranking_reasons = []
                 for s in filtered_ranking:
                     try:
                         idx = ranking.index(s)
-                        filtered_reasons.append(reasons[idx] if idx < len(reasons) else "")
+                        filtered_ranking_reasons.append(reasons[idx] if idx < len(reasons) else "")
                     except Exception:
-                        filtered_reasons.append("")
+                        filtered_ranking_reasons.append("")
                 subcategory_results.append(filtered_ranking)
-                subcategory_reasons.append(filtered_reasons)
+                subcategory_ranking_reasons.append(filtered_ranking_reasons)
 
                 if len(filtered_ranking) != len(services):
                     print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(filtered_ranking)}/{len(services)})")
@@ -165,9 +162,8 @@ def collect_rankings(api_key, categories, num_runs=1):
                     "services": services,
                     "query": prompt,  # プロンプトをqueryプロパティとして保存
                     "all_rankings": subcategory_results,
-                    "all_reasons": subcategory_reasons,
+                    "ranking_reasons": subcategory_ranking_reasons,
                     "all_responses": all_responses,  # 全ての応答テキストを保存
-                    "all_domains": all_domains,  # 全てのドメイン情報を保存
                     "avg_ranking": final_ranking,
                     "rank_details": rank_details
                 }
@@ -177,9 +173,8 @@ def collect_rankings(api_key, categories, num_runs=1):
                     "services": services,
                     "query": prompt,  # プロンプトをqueryプロパティとして保存
                     "ranking": subcategory_results[0],
-                    "reasons": subcategory_reasons[0] if subcategory_reasons else [],
-                    "response": all_responses[0],  # 応答テキストを保存
-                    "domains": all_domains[0]  # ドメイン情報を保存
+                    "reasons": subcategory_ranking_reasons[0] if subcategory_ranking_reasons else [],
+                    "response": all_responses[0]  # 応答テキストを保存
                 }
 
     return results
@@ -189,7 +184,7 @@ def save_results(result_data, run_type="single", num_runs=1):
     today_date = datetime.datetime.now().strftime("%Y%m%d")
     try:
         paths = get_results_paths(today_date)
-        print(f"[DEBUG] get_results_paths({today_date}) の戻り値: {paths}")
+        # print(f"[DEBUG] get_results_paths({today_date}) の戻り値: {paths}")
         if not paths or "perplexity_rankings" not in paths:
             print("[ERROR] get_results_pathsの戻り値に'perplexity_rankings'キーがありません")
             return None
@@ -198,7 +193,7 @@ def save_results(result_data, run_type="single", num_runs=1):
         else:
             file_name = f"{today_date}_perplexity_rankings.json"
         local_file = os.path.join(paths["perplexity_rankings"], file_name)
-        print(f"[DEBUG] 保存予定ローカルファイルパス: {local_file}")
+        # print(f"[DEBUG] 保存予定ローカルファイルパス: {local_file}")
         try:
             save_json(result_data, local_file)
             print(f"ローカルに保存しました: {local_file}")
