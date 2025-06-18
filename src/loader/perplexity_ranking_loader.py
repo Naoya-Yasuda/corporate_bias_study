@@ -11,7 +11,7 @@ import time
 import argparse
 from dotenv import load_dotenv
 from ..categories import get_categories, get_all_categories, load_yaml_categories
-from ..prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
+from ..prompts.prompt_manager import PromptManager
 from ..analysis.ranking_metrics import extract_ranking_and_reasons
 from ..utils.perplexity_api import PerplexityAPI
 from ..utils.storage_utils import save_results, get_results_paths
@@ -26,6 +26,9 @@ AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+
+# PromptManagerのインスタンスを作成
+prompt_manager = PromptManager()
 
 def extract_domains_from_response(response, services, official_domains):
     """Perplexityの応答からドメインを抽出し、公式/非公式を判定"""
@@ -96,7 +99,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 if num_runs > 1:
                     print(f"  実行 {run+1}/{num_runs}")
 
-                prompt = get_ranking_prompt(subcategory, services)
+                prompt = prompt_manager.get_ranking_prompt(subcategory, services)
                 models_to_try = PerplexityAPI.get_models_to_try()
                 response = None
                 citations = []

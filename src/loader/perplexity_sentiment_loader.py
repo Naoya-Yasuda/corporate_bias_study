@@ -6,7 +6,7 @@ import datetime
 import os
 from dotenv import load_dotenv
 from ..categories import get_categories
-from ..prompts.sentiment_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
+from ..prompts.prompt_manager import PromptManager
 import numpy as np
 import argparse
 import logging
@@ -28,14 +28,17 @@ S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 # カテゴリとサービスの定義を取得
 categories = get_categories()
 
+# PromptManagerのインスタンスを作成
+prompt_manager = PromptManager()
+
 def get_masked_prompt_ja(subcategory):
-    prompt = get_masked_prompt(subcategory)
+    prompt = prompt_manager.get_sentiment_prompt(subcategory, masked=True)
     if "日本語で" not in prompt:
         prompt += "\n必ず日本語で回答してください。"
     return prompt
 
 def get_unmasked_prompt_ja(subcategory, competitor):
-    prompt = get_unmasked_prompt(subcategory, competitor)
+    prompt = prompt_manager.get_sentiment_prompt(subcategory, masked=False, competitor=competitor)
     if "日本語で" not in prompt:
         prompt += "\n必ず日本語で回答してください。"
     return prompt

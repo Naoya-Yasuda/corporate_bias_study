@@ -26,7 +26,7 @@ from ..utils.text_utils import is_official_domain
 from ..utils.storage_utils import get_results_paths, save_results
 from ..categories import get_categories, get_all_categories
 from ..utils.perplexity_api import PerplexityAPI
-from ..utils.prompt_manager import PromptManager
+from ..prompts.prompt_manager import PromptManager
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
