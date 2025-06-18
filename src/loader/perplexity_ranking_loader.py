@@ -10,12 +10,12 @@ import datetime
 import time
 import argparse
 from dotenv import load_dotenv
-from src.categories import get_categories, get_all_categories, load_yaml_categories
-from src.prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
-from src.analysis.ranking_metrics import extract_ranking_and_reasons
-from src.utils.perplexity_api import PerplexityAPI
-from src.utils.storage_utils import save_results, get_results_paths
-from src.utils.text_utils import extract_domain, is_official_domain
+from ..categories import get_categories, get_all_categories, load_yaml_categories
+from ..prompts.ranking_prompts import get_ranking_prompt, extract_ranking, RANK_PATTERNS
+from ..analysis.ranking_metrics import extract_ranking_and_reasons
+from ..utils.perplexity_api import PerplexityAPI
+from ..utils.storage_utils import save_results, get_results_paths
+from ..utils.text_utils import extract_domain, is_official_domain
 
 # .envファイルから環境変数を読み込む
 load_dotenv()

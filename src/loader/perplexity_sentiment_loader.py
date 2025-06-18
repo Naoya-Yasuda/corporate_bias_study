@@ -5,15 +5,15 @@ import time
 import datetime
 import os
 from dotenv import load_dotenv
-from src.categories import get_categories
-from src.prompts.sentiment_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
+from ..categories import get_categories
+from ..prompts.sentiment_prompts import get_masked_prompt, get_unmasked_prompt, extract_score, SCORE_PATTERN
 import numpy as np
 import argparse
 import logging
-from src.utils.file_utils import get_today_str
-from src.utils.storage_utils import save_results, get_results_paths
-from src.utils.storage_utils import put_json_to_s3, get_local_path
-from src.utils.perplexity_api import PerplexityAPI
+from ..utils.file_utils import get_today_str
+from ..utils.storage_utils import save_results, get_results_paths
+from ..utils.storage_utils import put_json_to_s3, get_local_path
+from ..utils.perplexity_api import PerplexityAPI
 
 # .envファイルから環境変数を読み込む
 load_dotenv()

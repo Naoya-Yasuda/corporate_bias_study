@@ -7,19 +7,13 @@ Google SERP とPerplexity の結果を比較して分析するためのメトリ
 
 import os
 import json
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import kendalltau
 from collections import defaultdict
 
 # 共通ユーティリティをインポート
 from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
-# plot_delta_ranks, plot_market_impact は使用されていないためimport削除
 from src.utils.file_utils import ensure_dir, get_today_str
-from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
-from src.utils.storage_utils import save_json, save_figure, get_results_paths, get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
+from src.utils.storage_utils import save_json, get_results_paths, get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
 
 # -------------------------------------------------------------------
 # 比較メトリクス
@@ -659,7 +653,6 @@ if __name__ == "__main__":
 
     # Google SERPファイルパス
     def resolve_path(date_str, data_type, file_type, runs=None):
-        from src.utils.s3_utils import get_s3_key_path
         # ファイル名生成
         if data_type == "google_serp":
             file_name = f"{date_str}_google_serp_results.json"

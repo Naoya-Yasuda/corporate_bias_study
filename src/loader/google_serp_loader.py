@@ -13,12 +13,12 @@ import time
 import argparse
 from dotenv import load_dotenv
 from tqdm import tqdm
-from src.utils.text_utils import (
+from ..utils.text_utils import (
     extract_domain
 )
-from src.utils.file_utils import get_today_str
-from src.utils.storage_utils import save_results, get_results_paths
-from src.categories import get_categories
+from ..utils.file_utils import get_today_str
+from ..utils.storage_utils import save_results, get_results_paths
+from ..categories import get_categories
 
 # 環境変数の読み込み
 load_dotenv()

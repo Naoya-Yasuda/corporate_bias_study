@@ -14,7 +14,6 @@ Google検索とPerplexity API等の結果を比較し、企業バイアスと経
 ## 必要条件
 - Python 3.8以上
 - Google Custom Search API
-- OpenAI API
 - Perplexity API
 - AWSアカウント（S3を使用する場合）
 
@@ -149,7 +148,6 @@ MIT License
 ├─ src/
 │   ├─ __init__.py
 │   ├─ categories.py
-│   ├─ sentiment_analyzer.py
 │   ├─ perplexity_sentiment_loader.py
 │   ├─ perplexity_ranking_loader.py
 │   ├─ perplexity_citations_loader.py
@@ -178,6 +176,7 @@ MIT License
 │       ├─ bias_sentiment_metrics.py
 │       ├─ serp_metrics.py
 │       ├─ bias_ranking_pipeline.py
+│       ├─ sentiment_analyzer.py
 │       └─ integrated_metrics.py
 ├─ results/
 ├─ .env_sample
@@ -235,6 +234,6 @@ MIT License
 ---
 
 > **Maintainer:** Naoya Yasuda (安田直也) – Graduate Special Research Project
-> **Supervisor:** Prof. Yorito Tanaka
+> **Supervisor:** Prof. Yorihito Tanaka（田中頼人）
 >
 > 本リポジトリおよび成果物は学術目的で公開しており、ソースコードは MIT License、レポート類は CC‑BY‑NC‑SA 4.0 で配布予定です.

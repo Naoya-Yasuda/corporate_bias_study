@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 # 共通ユーティリティをインポート
-from src.utils.storage_utils import save_results, get_results_paths, get_s3_client
+from src.utils.storage_utils import save_results, get_results_paths
 from src.utils.storage_config import S3_BUCKET_NAME
 
 # 環境変数の読み込み
