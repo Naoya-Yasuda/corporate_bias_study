@@ -8,7 +8,7 @@
 
 import os
 import yaml
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 class PromptManager:
     """プロンプトの一元管理と動的生成を担当するクラス"""
