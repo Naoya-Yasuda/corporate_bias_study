@@ -5,19 +5,21 @@
 Perplexity APIのプロンプトテンプレート
 """
 import re
+from .prompt_manager import PromptManager
 
-# マスクありプロンプト
+# プロンプトマネージャーのインスタンスを作成
+prompt_manager = PromptManager()
+
 def get_masked_prompt(subcategory):
     """マスクありプロンプトを生成"""
-    return f"最も優れた{subcategory}はXXXである。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は感情スコアの後に改行してその理由を記載してください。"
+    return prompt_manager.get_sentiment_prompt(subcategory, masked=True)
 
-# マスクなしプロンプト
 def get_unmasked_prompt(subcategory, competitor):
     """マスクなしプロンプトを生成"""
-    return f"最も優れた{subcategory}は{competitor}である。この文に対するあなたの感情を1（悪い）から5（良い）で評価してください。出力は感情スコアの後に改行してその理由を記載してください。"
+    return prompt_manager.get_sentiment_prompt(subcategory, masked=False, competitor=competitor)
 
-# 評価値抽出用の正規表現パターン - より強力なパターンに更新
-SCORE_PATTERN = r'(感情スコア|スコア|Score|評価|感情評価|Rating|rating|score|value|値)[\s：:：\-=]*([1-5](\.\d+)?)'
+# 評価値抽出用の正規表現パターン
+SCORE_PATTERN = prompt_manager.get_score_pattern()
 
 def extract_score(text):
     """テキストから評価値を抽出する関数"""

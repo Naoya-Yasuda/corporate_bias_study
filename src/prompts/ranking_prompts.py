@@ -18,99 +18,56 @@ import statistics
 from dotenv import load_dotenv
 
 from src.utils.perplexity_api import PerplexityAPI
+from .prompt_manager import PromptManager
 
 # .envファイルから環境変数を読み込む（APIキー取得のため）
 load_dotenv()
 
+# プロンプトマネージャーのインスタンスを作成
+prompt_manager = PromptManager()
+
 # ランキング抽出用プロンプト
 def get_ranking_prompt(subcategory, services):
     """ランキング抽出用のプロンプトを生成"""
-    services_str = ', '.join(services)
-    return (
-        f"あなたは{subcategory}の専門家です。以下のサービスを「おすすめ順」に正確にランク付けしてください。\n\n"
-        f"対象サービス: {services_str}\n\n"
-        "【重要】以下の条件を厳守してください：\n"
-        "1. 必ず全てのサービスをランク付けしてください。1つも省略しないでください。\n"
-        "2. 番号付きリスト形式で回答してください（例: 1. サービスA: 理由A）\n"
-        "3. 各行に1つのサービスのみを記載してください。\n"
-        "4. 各サービスの順位ごとに、その理由も簡潔に記載してください。\n"
-        "5. 余計な説明は不要です。ランキングと理由のみを出力してください。\n"
-        "6. 必ず日本語で回答してください。\n\n"
-        "出力例:\n1. サービスA: 理由A\n2. サービスB: 理由B\n3. サービスC: 理由C\n..."
-    )
+    return prompt_manager.get_ranking_prompt(subcategory, services)
 
-# ランキング抽出用の正規表現パターン - より柔軟に異なる形式に対応
-RANK_PATTERNS = [
-    re.compile(r"^\s*\d+\.\s*([^\n]+)", re.MULTILINE),  # 1. Service
-    re.compile(r"^\s*（?\d+）?\.\s*([^\n]+)", re.MULTILINE),  # （1）. Service や 1）. Service
-    re.compile(r"^\s*\d+\s*[:：]\s*([^\n]+)", re.MULTILINE),  # 1: Service や 1：Service
-    re.compile(r"^\s*[•●・]\s*([^\n]+)", re.MULTILINE),  # • Service や ● Service や ・Service
-    re.compile(r"^\s*#{1,3}\s*([^\n]+)", re.MULTILINE),  # # Service や ## Service や ### Service
-    re.compile(r"\*\*([^*\n]+)\*\*", re.MULTILINE),  # **Service**
-    re.compile(r"「([^」\n]+)」", re.MULTILINE),  # 「Service」
-]
+# ランキング抽出用の正規表現パターン
+RANK_PATTERNS = prompt_manager.get_rank_patterns()
 
-def extract_ranking(text, original_services):
-    """Perplexityの回答から順位付きリストを抽出し、元のリストでフィルタリング"""
-    # サービス名の正規化関数
-    norm = lambda s: re.sub(r"[\s　]+", "", s).lower()
+def extract_ranking(text, services):
+    """テキストからランキングを抽出する関数"""
+    if not text:
+        return []
 
-    # 元のサービス名を正規化して辞書に格納
-    orig_map = {norm(s): s for s in original_services}
+    # 各行を処理
+    lines = text.strip().split('\n')
+    ranking = []
+    seen_services = set()
 
-    # 各サービスが出現する順序をトラッキング
-    found_services = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
 
-    # まず順序付きリストのパターンを試す
-    for pattern in RANK_PATTERNS:
-        matches = [m.group(1).strip() for m in pattern.finditer(text)]
-        if matches:
-            # マッチした各項目について、サービス名が含まれるかを確認
-            for match in matches:
-                for service in original_services:
-                    if service in match or norm(service) in norm(match):
-                        if service not in found_services:
-                            found_services.append(service)
-                            break
+        # 各パターンでマッチングを試みる
+        for pattern in RANK_PATTERNS:
+            match = re.match(pattern, line)
+            if match:
+                rank = int(match.group(1))
+                service = match.group(2).strip()
 
-    # パターンマッチで十分な結果が得られない場合、サービス名の出現順を確認
-    if len(found_services) < len(original_services) * 0.8:  # 80%未満の場合
-        print("⚠️ パターンマッチの結果が不十分です。サービス名の出現順で抽出します。")
+                # サービス名の正規化（大文字小文字を無視）
+                normalized_service = next(
+                    (s for s in services if s.lower() == service.lower()),
+                    None
+                )
 
-        # 文章全体から各サービス名の出現位置を特定
-        service_positions = []
-        for service in original_services:
-            pos = text.find(service)
-            if pos >= 0:
-                service_positions.append((pos, service))
-            else:
-                # 正規化した名前で探す
-                for word in re.findall(r'\b\w+\b', text):
-                    if norm(word) == norm(service):
-                        pos = text.find(word)
-                        if pos >= 0:
-                            service_positions.append((pos, service))
-                            break
+                if normalized_service and normalized_service not in seen_services:
+                    ranking.append(normalized_service)
+                    seen_services.add(normalized_service)
+                break
 
-        # 出現位置でソート
-        service_positions.sort()
-        new_found = [service for _, service in service_positions]
-
-        # 既に見つかったサービスと組み合わせ
-        for service in new_found:
-            if service not in found_services:
-                found_services.append(service)
-
-    # 見つからなかったサービスを最後に追加
-    missing_services = [s for s in original_services if s not in found_services]
-    if missing_services:
-        print(f"⚠️ 一部のサービスが見つかりませんでした。見つかったサービス数: {len(found_services)}/{len(original_services)}")
-        print(f"  見つからなかったサービス: {missing_services}")
-        print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(found_services)}/{len(original_services)})")
-        # 見つからなかったサービスを最後に追加
-        found_services.extend(missing_services)
-
-    return found_services
+    return ranking
 
 def multi_run_ranking(subcategory, services, num_runs=5, api_key=None):
     """複数回実行してランキングの平均を計算"""
@@ -144,58 +101,36 @@ def multi_run_ranking(subcategory, services, num_runs=5, api_key=None):
             print("APIレート制限を考慮して待機中...")
             time.sleep(2)
 
-    # 結果の集計（平均ランキング計算）
+    # 結果の集計
     if all_rankings:
-        print("\n=== 結果集計 ===")
-
-        # 各サービスごとの順位を集計
-        service_ranks = {service: [] for service in services}
-        for ranking in all_rankings:
-            for idx, service in enumerate(ranking):
-                if service in service_ranks:
-                    service_ranks[service].append(idx + 1)  # 順位は1始まり
-
-        # 平均順位を計算して並べ替え
-        avg_ranks = []
-        for service, ranks in service_ranks.items():
+        # 各サービスの平均順位を計算
+        service_ranks = {}
+        for service in services:
+            ranks = []
+            for ranking in all_rankings:
+                if service in ranking:
+                    ranks.append(ranking.index(service) + 1)
             if ranks:
-                avg_rank = sum(ranks) / len(ranks)
-                std_dev = statistics.stdev(ranks) if len(ranks) > 1 else 0
-                avg_ranks.append((service, avg_rank, std_dev, ranks))
-            else:
-                print(f"⚠️ サービス '{service}' はランキングに含まれていませんでした")
+                service_ranks[service] = {
+                    "mean": statistics.mean(ranks),
+                    "median": statistics.median(ranks),
+                    "std": statistics.stdev(ranks) if len(ranks) > 1 else 0
+                }
 
         # 平均順位でソート
-        avg_ranks.sort(key=lambda x: x[1])
+        sorted_services = sorted(
+            service_ranks.items(),
+            key=lambda x: x[1]["mean"]
+        )
 
-        # 結果表示
-        print("\n【最終ランキング（平均順位）】")
-        print("-" * 60)
-        print(f"{'サービス名':<20} {'平均順位':<10} {'標準偏差':<10} {'全順位'}")
-        print("-" * 60)
-        for service, avg, std, ranks in avg_ranks:
-            print(f"{service:<20} {avg:<10.2f} {std:<10.2f} {ranks}")
-
-        # 最終ランキング（サービス名のみ）
-        final_ranking = [item[0] for item in avg_ranks]
-        print("\n最終ランキング:", final_ranking)
-
-        # 結果をJSON形式で返却
-        result = {
+        return {
             "subcategory": subcategory,
             "services": services,
-            "all_rankings": all_rankings,
-            "avg_ranking": final_ranking,
-            "rank_details": {
-                item[0]: {
-                    "avg_rank": item[1],
-                    "std_dev": item[2],
-                    "all_ranks": item[3]
-                } for item in avg_ranks
+            "rankings": all_rankings,
+            "summary": {
+                service: stats for service, stats in sorted_services
             }
         }
-
-        return result
 
     return {"error": "ランキングを取得できませんでした"}
 

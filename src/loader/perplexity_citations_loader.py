@@ -26,12 +26,16 @@ from ..utils.text_utils import is_official_domain
 from ..utils.storage_utils import get_results_paths, save_results
 from ..categories import get_categories, get_all_categories
 from ..utils.perplexity_api import PerplexityAPI
+from ..utils.prompt_manager import PromptManager
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
 # 環境変数から認証情報を取得
 PPLX_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+
+# プロンプトマネージャーのインスタンスを作成
+prompt_manager = PromptManager()
 
 
 def extract_references_from_text(text):
@@ -380,34 +384,8 @@ def generate_summary(subcategory, services, all_answers):
     """
     print(f"複数回の実行結果を要約中: {subcategory}")
 
-    # 要約用のプロンプトを作成
-    prompt = f"""
-あなたは以下の{len(all_answers)}回分の回答を要約する専門家です。
-日本における{subcategory}の主要企業（{', '.join(services)}）についての情報を要約してください。
-
-各企業について:
-1. 主な特徴と強み
-2. 提供サービスの特色
-3. 市場での位置づけ
-
-これらをコンパクトにまとめてください。以下が要約対象の回答です:
-
-"""
-
-    # 全回答を追加（文字数制限に注意）
-    max_length = 16000  # 安全のため適切な文字数に制限
-    current_length = len(prompt)
-
-    for i, answer in enumerate(all_answers):
-        answer_snippet = f"\n--- 回答 {i+1} ---\n{answer['answer'][:2000]}..."  # 各回答は2000文字までに制限
-        if current_length + len(answer_snippet) > max_length:
-            prompt += "\n(回答の一部は長さの制限のため省略されました)"
-            break
-        prompt += answer_snippet
-        current_length += len(answer_snippet)
-
-    # 要約の指示を追加
-    prompt += "\n\n上記の回答に基づいて、各企業の特徴、強み、サービスについて簡潔に要約してください。矛盾点があれば、より一般的な見解を優先してください。"
+    # プロンプトを取得
+    prompt = prompt_manager.get_citations_summary_prompt(subcategory, services, all_answers)
 
     # APIで要約を生成
     try:

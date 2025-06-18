@@ -3,7 +3,7 @@
 
 """
 感情分析モジュール
-Perplexity APIを使用してテキストの感情分析を行うモジュール
+Perplexity APIを使用してテキストの感情分析を実行するモジュール
 """
 
 import os
@@ -14,6 +14,7 @@ import time
 import argparse
 from dotenv import load_dotenv
 from tqdm import tqdm
+from ..prompts.prompt_manager import PromptManager
 
 # 共通ユーティリティをインポート
 from src.utils.storage_utils import save_results, get_results_paths
@@ -22,7 +23,7 @@ from src.utils.storage_config import S3_BUCKET_NAME
 # 環境変数の読み込み
 load_dotenv()
 
-# Perplexity API の設定
+# 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 API_HOST = "api.perplexity.ai"
 
@@ -31,22 +32,16 @@ AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
 AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 
+# プロンプトマネージャーのインスタンスを作成
+prompt_manager = PromptManager()
+
 def analyze_sentiments(texts):
     """Perplexity APIを使用して複数のテキストの感情分析を実行"""
     if not PERPLEXITY_API_KEY:
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
 
-    # テキストを番号付きで結合
-    numbered_texts = "\n".join([f"{i+1}. {text}" for i, text in enumerate(texts)])
-
-    prompt = f"""
-    以下のテキストがそれぞれポジティブかネガティブかを判定してください。
-    回答は必ず各テキストの番号に対応する「positive」または「negative」をカンマ区切りで返してください。
-    理由は不要です。
-
-    テキスト:
-    {numbered_texts}
-    """
+    # プロンプトを取得
+    prompt = prompt_manager.get_sentiment_analysis_prompt(texts)
 
     headers = {
         "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
