@@ -13,13 +13,11 @@ import time
 import argparse
 import requests
 import re
-import traceback
 from dotenv import load_dotenv
 
 # 共通ユーティリティをインポート
 from ..utils import (
     extract_domain,
-    get_storage_config,
     get_results_paths
 )
 from ..utils.text_utils import is_official_domain

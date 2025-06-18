@@ -9,7 +9,6 @@
 - テキスト抽出: python -m src.prompts.ranking_prompts クラウドサービス "AWS,Azure,Google Cloud" --response "..."
 """
 import re
-import sys
 import os
 import json
 import time

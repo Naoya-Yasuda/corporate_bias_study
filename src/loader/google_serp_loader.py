@@ -16,7 +16,6 @@ from tqdm import tqdm
 from ..utils.text_utils import (
     extract_domain
 )
-from ..utils.file_utils import get_today_str
 from ..utils.storage_utils import save_results, get_results_paths
 from ..categories import get_categories
 

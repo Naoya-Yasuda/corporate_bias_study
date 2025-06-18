@@ -12,10 +12,13 @@ import argparse
 from dotenv import load_dotenv
 from ..categories import get_categories, get_all_categories, load_yaml_categories
 from ..prompts.prompt_manager import PromptManager
+from ..prompts.ranking_prompts import extract_ranking
 from ..analysis.ranking_metrics import extract_ranking_and_reasons
 from ..utils.perplexity_api import PerplexityAPI
 from ..utils.storage_utils import save_results, get_results_paths
 from ..utils.text_utils import extract_domain, is_official_domain
+import logging
+import sys
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -179,70 +182,54 @@ def collect_rankings(api_key, categories, num_runs=1):
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
-    parser = argparse.ArgumentParser(description='Perplexityを使用してランキングデータを取得')
+    parser = argparse.ArgumentParser(description='Perplexityを使用して企業ランキングデータを取得')
     parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
     parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
+    parser.add_argument('--no-analysis', action='store_true', help='バイアス分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     parser.add_argument('--skip-openai', action='store_true', help='OpenAIの実行をスキップする（分析の一部として実行される場合）')
-    parser.add_argument('--max-retries', type=int, default=3, help='ランキング抽出に失敗した場合の最大再試行回数')
-    parser.add_argument('--save-responses', action='store_true', help='完全な応答テキストを保存する')
     args = parser.parse_args()
 
     # 詳細ログの設定
     if args.verbose:
-        import logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
-    # カテゴリとサービスの取得
-    categories = get_categories()
+    try:
+        # カテゴリとサービスの取得
+        categories = get_categories()
 
-    # 結果を保存するファイルパス
-    today_date = datetime.datetime.now().strftime("%Y%m%d")
-    paths = get_results_paths(today_date)
+        # 結果を保存するファイルパス
+        today_date = datetime.datetime.now().strftime("%Y%m%d")
+        paths = get_results_paths(today_date)
 
-    # 多重実行フラグがある場合は複数回実行
-    if args.multiple:
-        print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
-        if args.verbose:
-            logging.info(f"{args.runs}回の実行を開始します")
-        try:
+        if args.multiple:
+            print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
+            if args.verbose:
+                logging.info(f"{args.runs}回の実行を開始します")
             result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
-            file_name = f"{today_date}_perplexity_rankings_{args.runs}runs.json"
-            local_path = os.path.join(paths["perplexity_rankings"], file_name)
-            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
+            file_name = f"{today_date}_perplexity_ranking_results_{args.runs}runs.json"
+            local_path = os.path.join(paths["perplexity_ranking"], file_name)
+            s3_key = f"results/perplexity_ranking/{today_date}/{file_name}"
             save_results(result, local_path, s3_key, verbose=args.verbose)
-        except Exception as e:
-            print(f"ランキングデータ収集中にエラーが発生しました: {e}")
-            if args.verbose:
-                import traceback
-                traceback.print_exc()
-    else:
-        print("Perplexity APIを使用して単一実行データを取得します")
+        else:
+            print("Perplexity APIを使用して単一実行データを取得します")
+            result = process_categories(PERPLEXITY_API_KEY, categories)
+            file_name = f"{today_date}_perplexity_ranking_results.json"
+            local_path = os.path.join(paths["perplexity_ranking"], file_name)
+            s3_key = f"results/perplexity_ranking/{today_date}/{file_name}"
+            save_results(result, local_path, s3_key, verbose=args.verbose)
+
+        print("データ取得処理が完了しました")
         if args.verbose:
-            logging.info("単一実行を開始します")
-        try:
-            result = collect_rankings(PERPLEXITY_API_KEY, categories)
-            file_name = f"{today_date}_perplexity_rankings.json"
-            local_path = os.path.join(paths["perplexity_rankings"], file_name)
-            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
-            save_results(result, local_path, s3_key, verbose=args.verbose)
-        except Exception as e:
-            print(f"ランキングデータ収集中にエラーが発生しました: {e}")
-            if args.verbose:
-                import traceback
-                traceback.print_exc()
+            logging.info("データ取得処理が完了しました")
+        print(f"結果は {local_path} に保存されました。")
 
-    print("データ取得処理が完了しました")
-    if args.verbose:
-        import logging
-        logging.info("データ取得処理が完了しました")
-
-    # 完了メッセージ
-    print("\n処理が完了しました。")
-    print(f"結果は {local_path} に保存されました。")
-    print("分析を実行するには、以下のコマンドを実行してください：")
-    print(f"python -m src.analysis.ranking_metrics {local_path}")
+    except Exception as e:
+        print(f"エラーが発生しました: {str(e)}")
+        if args.verbose:
+            logging.error(f"エラーが発生しました: {str(e)}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

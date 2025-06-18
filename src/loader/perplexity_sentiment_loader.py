@@ -7,12 +7,11 @@ import os
 from dotenv import load_dotenv
 from ..categories import get_categories
 from ..prompts.prompt_manager import PromptManager
+from ..prompts.sentiment_prompts import extract_score
 import numpy as np
 import argparse
 import logging
-from ..utils.file_utils import get_today_str
 from ..utils.storage_utils import save_results, get_results_paths
-from ..utils.storage_utils import put_json_to_s3, get_local_path
 from ..utils.perplexity_api import PerplexityAPI
 
 # .envファイルから環境変数を読み込む
