@@ -209,15 +209,15 @@ def main():
                 logging.info(f"{args.runs}回の実行を開始します")
             result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
             file_name = f"{today_date}_perplexity_ranking_results_{args.runs}runs.json"
-            local_path = os.path.join(paths["perplexity_ranking"], file_name)
-            s3_key = f"results/perplexity_ranking/{today_date}/{file_name}"
+            local_path = os.path.join(paths["perplexity_rankings"], file_name)
+            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
             save_results(result, local_path, s3_key, verbose=args.verbose)
         else:
             print("Perplexity APIを使用して単一実行データを取得します")
             result = process_categories(PERPLEXITY_API_KEY, categories)
             file_name = f"{today_date}_perplexity_ranking_results.json"
-            local_path = os.path.join(paths["perplexity_ranking"], file_name)
-            s3_key = f"results/perplexity_ranking/{today_date}/{file_name}"
+            local_path = os.path.join(paths["perplexity_rankings"], file_name)
+            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
             save_results(result, local_path, s3_key, verbose=args.verbose)
 
         print("データ取得処理が完了しました")
