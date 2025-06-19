@@ -39,7 +39,8 @@ def load_json(file_path):
     if file_path.startswith('s3://'):
         # S3パスの場合
         import re
-        from .s3_utils import get_s3_client, S3_BUCKET_NAME
+        from .storage_utils import get_s3_client
+        from .storage_config import S3_BUCKET_NAME
         s3_client = get_s3_client()
         # s3://bucket/key の形式を想定
         m = re.match(r's3://([^/]+)/(.+)', file_path)
