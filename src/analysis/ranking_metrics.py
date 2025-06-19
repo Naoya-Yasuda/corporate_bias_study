@@ -79,8 +79,15 @@ def load_market_shares():
     print("デフォルトの市場シェアデータを使用します")
     return default_market_shares
 
-# 市場シェアデータの読み込み
-MARKET_SHARES = load_market_shares()
+# 市場シェアデータのキャッシュ
+_MARKET_SHARES_CACHE = None
+
+def get_market_shares():
+    """市場シェアデータを取得（キャッシュ付き）"""
+    global _MARKET_SHARES_CACHE
+    if _MARKET_SHARES_CACHE is None:
+        _MARKET_SHARES_CACHE = load_market_shares()
+    return _MARKET_SHARES_CACHE
 
 # -----------------------------
 # S3操作ユーティリティ
@@ -530,7 +537,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
             continue
 
         # カテゴリに応じた市場シェアを選択
-        market_share = MARKET_SHARES.get(category, None)
+        market_share = get_market_shares().get(category, None)
         if verbose:
             if market_share:
                 logging.info(f"市場シェアデータを使用: {len(market_share)}企業")
@@ -648,7 +655,7 @@ def get_exposure_market_data(category):
             return None
 
         # 市場シェアデータを取得
-        market_share = MARKET_SHARES.get(category)
+        market_share = get_market_shares().get(category)
         if not market_share:
             print(f"カテゴリ '{category}' の市場シェアデータが見つかりません。")
             return None
@@ -687,7 +694,7 @@ def get_timeseries_exposure_market_data(category):
                 print(f"カテゴリ '{category}' のランキングデータが見つかりません。")
                 continue
             runs = rankings_data[category]
-            market_share = MARKET_SHARES.get(category)
+            market_share = get_market_shares().get(category)
             if not runs or not market_share:
                 print(f"カテゴリ '{category}' のランキングデータが空です。")
                 continue
@@ -791,7 +798,7 @@ if __name__ == "__main__":
         # 各カテゴリの分析と結果保存
         summaries = []
         for category, runs in ranked_json.items():
-            market_share = MARKET_SHARES.get(category, None)
+            market_share = get_market_shares().get(category, None)
             df_metrics, summary = compute_rank_metrics(category, runs, market_share)
             df_metrics.to_csv(f"{output_dir}/{category}_rank_metrics.csv", index=False)
             plot_rank_distribution(df_metrics, category, output_dir)

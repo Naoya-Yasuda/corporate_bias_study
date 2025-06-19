@@ -576,12 +576,14 @@ def analyze_serp_results(serp_results, pplx_results, comparison_results):
                 print(f"市場シェアデータを {market_shares_path} から読み込みました")
         else:
             # ranking_metrics.pyからインポート（フォールバック）
-            from src.analysis.ranking_metrics import MARKET_SHARES
+            from src.analysis.ranking_metrics import get_market_shares
+            MARKET_SHARES = get_market_shares()
             print("ranking_metrics.pyから市場シェアデータを使用します")
     except Exception as e:
         print(f"市場シェアデータの読み込みに失敗しました: {e}")
         # ranking_metrics.pyからインポート（フォールバック）
-        from src.analysis.ranking_metrics import MARKET_SHARES
+        from src.analysis.ranking_metrics import get_market_shares
+        MARKET_SHARES = get_market_shares()
         print("エラーのため、ranking_metrics.pyから市場シェアデータを使用します")
 
     # カテゴリごとに分析
