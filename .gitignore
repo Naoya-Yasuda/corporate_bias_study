@@ -6,6 +6,7 @@ cu_study/
 env/
 venv/
 ENV/
+tmp/
 
 # Python関連
 __pycache__/
