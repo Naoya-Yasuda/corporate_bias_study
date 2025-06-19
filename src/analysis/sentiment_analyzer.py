@@ -151,8 +151,9 @@ def process_results_file(file_path, date_str, args):
             if args.verbose:
                 logging.info(f"S3からの読み込み試行: s3://{S3_BUCKET_NAME}/{s3_key}")
 
-            # file_utils.load_json()のS3対応機能を使用
-            data = load_json(file_path, s3_key)
+            # S3パスを使用してfile_utils.load_json()を呼び出し
+            s3_full_path = f"s3://{S3_BUCKET_NAME}/{s3_key}"
+            data = load_json(s3_full_path)
 
             if data and args.verbose:
                 logging.info(f"S3読み込み成功: {len(data) if isinstance(data, dict) else 'データ取得'}件")
@@ -215,15 +216,21 @@ def main():
     if args.input_file:
         input_file = args.input_file
     else:
-        # 実行回数が指定されていない場合はエラー
-        if not args.runs:
-            logging.error("--input-file または --runs オプションが必要です")
-            return
-
         if args.data_type == "citations":
+            # citationsの場合は実行回数が必要
+            if not args.runs:
+                logging.error("citationsの場合、--runs オプションが必要です")
+                return
             input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations_{args.runs}runs.json")
-        else:
+        elif args.data_type == "rankings":
+            # rankingsの場合は実行回数が必要
+            if not args.runs:
+                logging.error("rankingsの場合、--runs オプションが必要です")
+                return
             input_file = os.path.join(paths["perplexity_rankings"], f"{date_str}_perplexity_rankings_{args.runs}runs.json")
+        else:
+            # Google SERPなどの場合は実行回数不要
+            input_file = os.path.join(paths["google_serp"], f"{date_str}_google_serp_results.json")
 
     if args.verbose:
         logging.info(f"対象ファイル: {input_file}")
