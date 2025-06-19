@@ -2,11 +2,11 @@
 # coding: utf-8
 
 """
-ランキングメトリクス分析モジュール
+ランキング分析モジュール
 
-ランキングデータを分析し、様々な公平性・多様性の指標を計算します。
+ランキングデータを分析し、様々な公平性指標を計算します。
 特に露出度（Exposure）、機会均等性（Equal Opportunity）、ランキング安定性などの
-指標を実装しています。
+指標を計算します。
 """
 
 import os
@@ -36,13 +36,13 @@ from src.categories import get_categories
 import re
 import unicodedata
 
-# .envファイルから環境変数を読み込む
+# .envファイルから環境変数を読み込み
 load_dotenv()
 
 # -----------------------------
 # 0. パラメータ
 # -----------------------------
-TOP_K        = 5                       # 「上位 k 位」を陽性扱い
+TOP_K        = 5                       # 上位 k 位を対象とする
 EXPOSURE_WTS = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}      # 1位=5pt, 2位=4pt, 3位=3pt, 4位=2pt, 5位=1pt
 
 # 環境変数から認証情報を取得
@@ -53,7 +53,7 @@ S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 # カテゴリ別市場シェアデータの読み込み
 def load_market_shares():
-    # デフォルトの市場シェアデータ（フォールバック用）
+    # デフォルトの市場シェアデータ（ファイル用）
     default_market_shares = {
         "クラウドサービス": {
             "AWS": 0.32, "Azure": 0.23, "Google Cloud": 0.10,
@@ -65,7 +65,7 @@ def load_market_shares():
         }
     }
 
-    # JSONファイルからの読み込みを試みる
+    # JSONファイルからの読み込みを試行
     market_shares_path = "src/data/market_shares.json"
     try:
         if os.path.exists(market_shares_path):
@@ -102,10 +102,10 @@ def download_from_s3(s3_key):
         return None
 
 # -----------------------------
-# 1. 上位出現確率・露出度
+# 1. 上位出現確率と露出度
 # -----------------------------
 def topk_probabilities(runs: list[list[str]], k: int = TOP_K):
-    """各サービスが上位k位以内に現れる確率を計算"""
+    """各ランが上位k位内に現れる確率を計算"""
     counter = collections.Counter()
     for lst in runs:
         counter.update(lst[:k])
@@ -113,7 +113,7 @@ def topk_probabilities(runs: list[list[str]], k: int = TOP_K):
     return {c: counter[c] / n_runs for c in counter}
 
 def exposure_index(runs: list[list[str]], wts=EXPOSURE_WTS):
-    """各サービスの露出度指数を計算（ランク別重み付けスコア）"""
+    """各ランクの露出度指標を計算（ランク重み付き）"""
     expo = collections.Counter()
     for lst in runs:
         for rank, name in enumerate(lst, 1):
@@ -123,7 +123,7 @@ def exposure_index(runs: list[list[str]], wts=EXPOSURE_WTS):
     return {c: expo[c] / total for c in expo}
 
 def rank_distribution(runs: list[list[str]], max_rank: int = 5):
-    """各サービスの順位分布を計算"""
+    """各ランクの順位分布を計算"""
     # 全てのサービス名を抽出
     all_services = set()
     for run in runs:
@@ -132,7 +132,7 @@ def rank_distribution(runs: list[list[str]], max_rank: int = 5):
     # 結果を格納する辞書を初期化
     dist = {service: [0.0] * max_rank for service in all_services}
 
-    # 各サービスの順位分布を計算
+    # 各ランクの順位分布を計算
     n_runs = len(runs)
     for run in runs:
         for rank, service in enumerate(run[:max_rank]):
@@ -142,10 +142,10 @@ def rank_distribution(runs: list[list[str]], max_rank: int = 5):
     return dist
 
 # -----------------------------
-# 2. 指標 (SP・EO・Correlation・Gini)
+# 2. 指標 (SP、EO、Correlation、Gini)
 # -----------------------------
 def kendall_tau_correlation(ranked_runs, market_share):
-    """Kendallのタウ順位相関係数（ランキングと市場シェアの相関度）"""
+    """Kendallのτ順位相関係数（ランキングと市場シェアの相関性）"""
     # 平均ランキングを計算
     rank_counts = collections.defaultdict(list)
     for run in ranked_runs:
@@ -159,17 +159,17 @@ def kendall_tau_correlation(ranked_runs, market_share):
     if len(common_services) < 2:
         return 0.0  # 相関を計算するには少なくとも2つのサービスが必要
 
-    # 順位と市場シェアのリストを作成
+    # 順位と市場シェアのペアを作成
     x = [avg_ranks[service] for service in common_services]
-    y = [-market_share[service] for service in common_services]  # シェアは大きいほど順位が上位なので負にする
+    y = [-market_share[service] for service in common_services]  # シェアが大きいほど順位が上位なので負号
 
-    # Kendallのタウ相関係数を計算
+    # Kendallのτ相関係数を計算
     tau, _ = stats.kendalltau(x, y)
     return tau
 
 def calculate_ranking_stability(rankings):
     """
-    ランキング結果の安定性を評価
+    ランキング結果の安定性を計算
 
     Parameters
     ----------
@@ -180,7 +180,7 @@ def calculate_ranking_stability(rankings):
     -------
     dict
         stability_score: 平均安定性スコア（-1〜1）
-        pairwise_stability: ペアごとの安定性スコア
+        pairwise_stability: ペア間の安定性スコア
         stability_matrix: 全ペア間の安定性行列
     """
     if len(rankings) <= 1:
@@ -190,7 +190,7 @@ def calculate_ranking_stability(rankings):
             "stability_matrix": None
         }
 
-    # 全てのランキングに登場するサービス名を収集
+    # 全てのランキングに含まれるサービス名を収集
     all_services = set()
     for ranking in rankings:
         all_services.update(ranking)
@@ -199,13 +199,13 @@ def calculate_ranking_stability(rankings):
     rank_maps = []
     for ranking in rankings:
         rank_map = {service: idx for idx, service in enumerate(ranking)}
-        # ランキングに含まれていないサービスには大きな順位を割り当て
+        # ランキングに含まれないサービスには大きい順位を仮定
         for service in all_services:
             if service not in rank_map:
                 rank_map[service] = len(ranking)
         rank_maps.append(rank_map)
 
-    # すべてのペア間の安定性を計算
+    # ペア間の安定性を計算
     n = len(rankings)
     stability_matrix = np.ones((n, n))
     pairwise_stability = []
@@ -215,12 +215,12 @@ def calculate_ranking_stability(rankings):
             # 共通のサービス名のみを抽出
             common_services = set(rank_maps[i].keys()) & set(rank_maps[j].keys())
             if len(common_services) < 2:
-                tau = 0.0  # 共通サービスが1つ以下の場合は相関を計算できない
+                tau = 0.0  # 共通サービスが1個以下の場合相関を計算できない
             else:
                 ranks_i = [rank_maps[i][s] for s in common_services]
                 ranks_j = [rank_maps[j][s] for s in common_services]
                 tau, _ = stats.kendalltau(ranks_i, ranks_j)
-                if np.isnan(tau):  # NANの場合は0として扱う
+                if np.isnan(tau):  # NANの場合0として扱う
                     tau = 0.0
 
             stability_matrix[i, j] = tau
@@ -252,22 +252,22 @@ def interpret_stability(score):
         return "非常に不安定（逆相関）"
 
 # -----------------------------
-# 3. 集約＋保存
+# 3. 集計・保存
 # -----------------------------
 def compute_rank_metrics(category: str,
                          ranked_runs: list[list[str]],
                          market_share: dict[str, float] = None):
-    """ランキング結果から各種指標を計算"""
+    """ランキング結果から各指標を計算"""
     # サービスの一覧を抽出
     services = set()
     for run in ranked_runs:
         services.update(run)
 
-    # 市場シェアが未指定の場合は均等配分
+    # 市場シェアが指定されない場合は均等配分
     if market_share is None:
         market_share = {service: 1.0 / len(services) for service in services}
 
-    # 上位確率と露出度指数を計算
+    # 上位確率と露出度指標を計算
     top_probs = topk_probabilities(ranked_runs, TOP_K)
     expo_idx = exposure_index(ranked_runs)
     rank_dist = rank_distribution(ranked_runs)
@@ -301,7 +301,7 @@ def compute_rank_metrics(category: str,
     stability_score = stability_data["stability_score"]
     stability_interp = interpret_stability(stability_score)
 
-    # 統計概要を作成
+    # 集計状況を作成
     summary = {
         "category": category,
         "n_runs": len(ranked_runs),
@@ -350,7 +350,7 @@ def plot_exposure_vs_market(df: pd.DataFrame, category: str, output_dir: str):
     """露出度と市場シェアの散布図をプロット"""
     plt.figure(figsize=(8, 6))
 
-    # 対角線（完全公平ライン）
+    # 対角線（完全公平）
     max_val = max(df["exposure_idx"].max(), df["market_share"].max()) * 1.1
     plt.plot([0, max_val], [0, max_val], 'k--', alpha=0.5, label="Perfect fairness")
 
@@ -363,7 +363,7 @@ def plot_exposure_vs_market(df: pd.DataFrame, category: str, output_dir: str):
                     xytext=(5, 5), textcoords="offset points")
 
     plt.xlabel("市場シェア")
-    plt.ylabel("AI露出度指数")
+    plt.ylabel("AI露出度指標")
     plt.title(f"{category}の市場シェアとAI露出度の関係")
     plt.grid(alpha=0.3)
     plt.tight_layout()
@@ -402,25 +402,25 @@ def plot_stability_matrix(stability_matrix, category, output_dir):
 # -----------------------------
 def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, upload_results=True, verbose=False):
     """
-    S3から指定日付のランキングデータを取得して分析
+    S3から指定日のランキングデータを取得して分析
 
     Parameters
     ----------
     date_str : str, optional
-        YYYYMMDD形式の日付文字列、未指定時は最新日付
+        YYYYMMDD形式の日付文字列、指定しない場合は最新日付
     api_type : str, optional
         "perplexity" または "openai"
     output_dir : str, optional
-        出力ディレクトリ、未指定時は "results/perplexity_analysis/{date_str}"
+        出力ディレクトリ、指定しない場合は "results/perplexity_analysis/{date_str}"
     upload_results : bool, optional
-        分析結果をS3にアップロードするかどうか
+        分析結果をS3にアップロードするか
     verbose : bool, optional
-        詳細なログ出力を有効にするかどうか
+        詳細なログ出力を行うか
 
     Returns
     -------
     pd.DataFrame
-        全カテゴリの概要指標
+        全カテゴリの集計指標
     """
     # 詳細ログの設定
     if verbose:
@@ -429,7 +429,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         logger.setLevel(logging.INFO)
         logger.info(f"詳細ログモードでランキング分析を実行中: {api_type}, 日付: {date_str}")
 
-    # 日付が未指定の場合は今日の日付を使用
+    # 日付が指定されない場合は今日の日付を使用
     if date_str is None:
         date_str = datetime.datetime.now().strftime("%Y%m%d")
 
@@ -445,7 +445,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
     s3_key, content = get_latest_file(date_str, "rankings", api_type)
 
     if not content:
-        print(f"⚠️ {date_str}のランキングデータが見つかりません")
+        print(f"⚠️  {date_str}のランキングデータが見つかりません")
         if verbose:
             logging.error(f"ランキングデータが見つかりません: {s3_key}")
         return None
@@ -460,14 +460,14 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         if verbose:
             logging.info(f"JSONをパース: {len(ranked_json)}個のカテゴリを検出")
     except json.JSONDecodeError as e:
-        print(f"⚠️ JSONパースエラー: {e}")
+        print(f"⚠️  JSONパースエラー: {e}")
         if verbose:
             logging.error(f"JSONパースエラー: {e}")
         return None
 
     print(f"🔍 {len(ranked_json)}個のカテゴリを分析します")
 
-    # カテゴリごとに分析
+    # カテゴリごとの分析
     summaries = []
     uploaded_files = []
 
@@ -476,17 +476,17 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         if verbose:
             logging.info(f"カテゴリの分析開始: {category}")
 
-        # カテゴリデータの構造を確認（ランキング結果を取得）
+        # カテゴリデータの形式を確認（ランキング結果を取得）
         runs = []
         if isinstance(data, dict):
             # サブカテゴリの処理
             for subcategory, subdata in data.items():
                 if isinstance(subdata, dict):
                     if "all_rankings" in subdata:
-                        # 複数実行結果の場合（recommended）
+                        # 複数回実行結果の場合（recommended）
                         runs.extend(subdata["all_rankings"])
                         if verbose:
-                            logging.info(f"複数実行データを検出: {len(subdata['all_rankings'])}回分のランキング")
+                            logging.info(f"複数回実行データを検出: {len(subdata['all_rankings'])}回分のランキング")
                     elif "ranking" in subdata:
                         # 単一実行結果の場合
                         runs.append(subdata["ranking"])
@@ -498,7 +498,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
                         if verbose:
                             logging.info("search_result_companiesデータを検出")
                     else:
-                        print(f"  ⚠️ 不明な辞書形式: {list(subdata.keys())}")
+                        print(f"  ⚠️  不明な辞書形式: {list(subdata.keys())}")
                         if verbose:
                             logging.warning(f"不明な辞書形式: {list(subdata.keys())}")
                         continue
@@ -508,13 +508,13 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
                     if verbose:
                         logging.info(f"ランキングリストを検出: {len(subdata)}項目")
                 else:
-                    print(f"  ⚠️ 不明なデータ形式: {type(subdata)}")
+                    print(f"  ⚠️  不明なデータ形式: {type(subdata)}")
                     if verbose:
                         logging.warning(f"不明なデータ形式: {type(subdata)}")
                     continue
 
             if not runs:
-                print(f"  ⚠️ 有効なランキングデータが見つかりません")
+                print(f"  ⚠️  有効なランキングデータが見つかりません")
                 if verbose:
                     logging.warning("有効なランキングデータが見つかりません")
                 continue
@@ -524,12 +524,12 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
             if verbose:
                 logging.info(f"ランキングリストを検出: {len(runs)}項目")
         else:
-            print(f"  ⚠️ 不明なデータ形式: {type(data)}")
+            print(f"  ⚠️  不明なデータ形式: {type(data)}")
             if verbose:
                 logging.warning(f"不明なデータ形式: {type(data)}")
             continue
 
-        # カテゴリに合った市場シェアを選択
+        # カテゴリに応じた市場シェアを選択
         market_share = MARKET_SHARES.get(category, None)
         if verbose:
             if market_share:
@@ -570,7 +570,7 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
             if verbose:
                 logging.info(f"散布図を生成: {scatter_file}")
 
-        # 安定性行列のプロット（2回以上実行された場合のみ）
+        # 安定性行列のプロット（2回以上実行した場合のみ）
         if len(runs) > 1:
             stability_data = calculate_ranking_stability(runs)
             stability_matrix = stability_data["stability_matrix"]
@@ -584,10 +584,10 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
                 if verbose:
                     logging.info(f"安定性行列を生成: {stability_file}")
 
-        # 概要を集計
+        # 集計を収集
         summaries.append(summary)
 
-    # 概要をデータフレームに変換して保存
+    # 集計をデータフレームに変換して保存
     summary_df = pd.DataFrame(summaries)
     summary_path = os.path.join(output_dir, f"{date_str}_{api_type}_rank_summary.csv")
     summary_df.to_csv(summary_path, index=False)
@@ -597,20 +597,20 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
         "text/csv"
     ))
     if verbose:
-        logging.info(f"概要を保存: {summary_path}, {len(summaries)}カテゴリ")
+        logging.info(f"集計を保存: {summary_path}, {len(summaries)}カテゴリ")
 
-    # S3にアップロード
+    # S3へのアップロード
     if upload_results and AWS_ACCESS_KEY and AWS_SECRET_KEY:
         print("📤 分析結果をS3にアップロード中...")
         if verbose:
             logging.info("S3へのアップロード開始")
         for local_path, s3_key, content_type in uploaded_files:
             if upload_to_s3(local_path, s3_key, content_type):
-                print(f"  ✓ {s3_key}")
+                print(f"  ✅ {s3_key}")
                 if verbose:
                     logging.info(f"S3アップロード成功: {s3_key}")
             else:
-                print(f"  ✗ {s3_key}")
+                print(f"  ❌ {s3_key}")
                 if verbose:
                     logging.error(f"S3アップロード失敗: {s3_key}")
 
@@ -618,8 +618,8 @@ def analyze_s3_rankings(date_str=None, api_type="perplexity", output_dir=None, u
     if verbose:
         logging.info(f"ランキング分析完了: {len(summary_df)}カテゴリ")
 
-    # 概要を表示
-    print("\n=== ランキング分析の概要 ===")
+    # 集計を表示
+    print("\n=== ランキング分析の集計 ===")
     display_cols = ['category', 'SP_gap', 'EO_gap', 'kendall_tau', 'gini_coef', 'stability_score', 'stability_interpretation']
     display_cols = [col for col in display_cols if col in summary_df.columns]
     print(summary_df[display_cols])
@@ -666,7 +666,7 @@ def get_exposure_market_data(category):
         return None
 
 def get_timeseries_exposure_market_data(category):
-    """指定カテゴリの露出度・市場シェアの時系列データをS3から集約"""
+    """指定カテゴリの露出度と市場シェアの時系列データをS3から収集"""
     from src.utils.s3_utils import list_s3_files
     dfs = []
     # ランキングデータのS3キー一覧を取得
@@ -703,11 +703,11 @@ def get_timeseries_exposure_market_data(category):
 
 def extract_ranking_and_reasons(text, original_services=None):
     """
-    Perplexity等のAI応答からランキングと理由を堅牢に抽出する
-    - 区切り文字のバリエーション対応
-    - サービス名の揺れ・曖昧一致
-    - 理由の複数行対応
-    - サービス名リストがあれば優先的にマッチ
+    Perplexity等のAI回答からランキングと理由を正確に抽出
+    - 区切り文字のパターン認識
+    - サービス名の正規化一貫
+    - 理由の複数行処理
+    - サービス名リストがあれば優先的マッチ
     """
     def normalize(s):
         # 全角→半角、空白除去、小文字化
@@ -715,10 +715,10 @@ def extract_ranking_and_reasons(text, original_services=None):
         s = s.replace(' ', '').replace('　', '').lower()
         return s
 
-    # 区切り文字のバリエーション
+    # 区切り文字のパターン
     sep_pattern = r'[:：\-→]'  # コロン、全角コロン、ハイフン、矢印
     # 1. サービス名: 理由（複数行理由対応）
-    pattern = re.compile(r'^(d+)[.、)]?\s*(.+?)\s*' + sep_pattern + r'\s*(.+)$')
+    pattern = re.compile(r'^(\d+)[.　)]?\s*(.+?)\s*' + sep_pattern + r'\s*(.+)$')
 
     lines = text.splitlines()
     rankings = []
@@ -736,7 +736,7 @@ def extract_ranking_and_reasons(text, original_services=None):
                 reasons.append('\n'.join(buffer_reason).strip())
             # サービス名抽出
             service = m.group(2).strip()
-            # サービス名リストがあれば曖昧一致
+            # サービス名リストがあれば正規化一貫
             if service_set:
                 n_service = normalize(service)
                 match = None
@@ -752,7 +752,7 @@ def extract_ranking_and_reasons(text, original_services=None):
             # 理由の続き行
             if buffer_service is not None and line.strip():
                 buffer_reason.append(line.strip())
-    # 最後のバッファをflush
+    # 最終のバッファをflush
     if buffer_service is not None:
         rankings.append(buffer_service)
         reasons.append('\n'.join(buffer_reason).strip())
@@ -769,7 +769,7 @@ if __name__ == "__main__":
                         help='APIタイプ（デフォルト: perplexity）')
     parser.add_argument('--output', help='出力ディレクトリ（デフォルト: results/perplexity_analysis/YYYYMMDD）')
     parser.add_argument('--no-upload', action='store_true', help='S3への結果アップロードを無効化')
-    parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効にする')
+    parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を行う')
     parser.add_argument('input_file', nargs='?', help='ローカルJSONファイルから直接分析する場合のパス')
 
     args = parser.parse_args()
