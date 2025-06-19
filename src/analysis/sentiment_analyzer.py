@@ -36,29 +36,25 @@ AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 prompt_manager = PromptManager()
 
 def analyze_sentiments(texts):
-    """Perplexity APIを使用して複数のテキストの感情分析を実行"""
+    """共通化されたPerplexity APIを使用して複数のテキストの感情分析を実行"""
     if not PERPLEXITY_API_KEY:
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
 
-    # プロンプトを取得
-    prompt = prompt_manager.get_sentiment_analysis_prompt(texts)
-
-    headers = {
-        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "model": "mixtral-8x7b-instruct",
-        "messages": [{"role": "user", "content": prompt}]
-    }
+    # 共通化されたPerplexity APIクラスを使用
+    from ..utils.perplexity_api import PerplexityAPI
 
     try:
-        response = requests.post(f"https://{API_HOST}/chat/completions", headers=headers, json=data)
-        result = response.json()
+        # プロンプトを取得
+        prompt = prompt_manager.get_sentiment_analysis_prompt(texts)
 
-        if "choices" in result and len(result["choices"]) > 0:
-            sentiments = result["choices"][0]["message"]["content"].strip().lower().split(",")
+        # PerplexityAPIを初期化
+        api = PerplexityAPI(PERPLEXITY_API_KEY)
+
+        # API呼び出し（model引数のデフォルト値は "llama-3.1-sonar-large-128k-online" に統一）
+        response_text, _ = api.call_perplexity_api(prompt, model="llama-3.1-sonar-large-128k-online")
+
+        if response_text:
+            sentiments = response_text.strip().lower().split(",")
             # 結果をブール値に変換
             return [sentiment.strip() == "positive" for sentiment in sentiments]
         return [None] * len(texts)
@@ -88,23 +84,43 @@ def process_google_serp_results(data):
     return results
 
 def process_perplexity_results(data):
-    """Perplexityの結果ファイルを処理"""
+    """Perplexityの結果ファイルを処理（新しいentities構造に対応）"""
     # 元のデータをそのまま使用
     results = data
 
     for category, subcategories in data.items():
         for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            # citationsの感情分析（5件ずつバッチ処理）
-            citations = content.get("citations", [])
-            for i in range(0, len(citations), 5):
-                batch = citations[i:i+5]
-                texts = [f"{citation['title']} {citation['snippet']}" for citation in batch]
-                sentiments = analyze_sentiments(texts)
+            # 新しい構造: entities内の各サービスのreputation_resultsを処理
+            entities = content.get("entities", {})
 
-                for citation, sentiment in zip(batch, sentiments):
-                    citation["sentiment"] = sentiment
+            for entity_name, entity_data in entities.items():
+                # official_resultsは感情分析対象外（titleやsnippetがないため）
+                # reputation_resultsのみ感情分析対象（titleとsnippetがある）
+                reputation_results = entity_data.get("reputation_results", [])
 
-                time.sleep(1)  # API制限対策
+                # titleとsnippetがあるもののみを対象とする（データ構造に基づく厳格なフィルタリング）
+                valid_results = [
+                    r for r in reputation_results
+                    if r.get("title") and r.get("snippet") and
+                    isinstance(r.get("title"), str) and isinstance(r.get("snippet"), str) and
+                    r.get("title").strip() and r.get("snippet").strip()
+                ]
+
+                if valid_results:
+                    print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
+
+                    # 5件ずつバッチ処理
+                    for i in range(0, len(valid_results), 5):
+                        batch = valid_results[i:i+5]
+                        texts = [f"{result['title']} {result['snippet']}" for result in batch]
+                        sentiments = analyze_sentiments(texts)
+
+                        for result, sentiment in zip(batch, sentiments):
+                            result["sentiment"] = sentiment
+
+                        time.sleep(1)  # API制限対策
+                else:
+                    print(f"  {entity_name}: 感情分析対象のデータがありません（titleやsnippetが不足）")
 
     return results
 
