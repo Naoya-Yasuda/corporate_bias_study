@@ -229,7 +229,8 @@ def main():
     paths = get_results_paths(today_date)
     file_name = f"{today_date}_google_serp_results.json"
     local_path = os.path.join(paths["google_serp"], file_name)
-    s3_key = f"results/google_serp/{today_date}/{file_name}"
+    from src.utils.storage_config import get_s3_key
+    s3_key = get_s3_key(file_name, today_date, "google_serp")
     save_results(result, local_path, s3_key, verbose=args.verbose)
 
     if args.verbose:

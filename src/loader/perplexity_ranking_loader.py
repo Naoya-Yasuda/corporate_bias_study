@@ -210,14 +210,15 @@ def main():
             result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
             file_name = f"{today_date}_perplexity_ranking_results_{args.runs}runs.json"
             local_path = os.path.join(paths["perplexity_rankings"], file_name)
-            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
+            from src.utils.storage_config import get_s3_key
+            s3_key = get_s3_key(file_name, today_date, "perplexity_rankings")
             save_results(result, local_path, s3_key, verbose=args.verbose)
         else:
             print("Perplexity APIを使用して単一実行データを取得します")
             result = process_categories(PERPLEXITY_API_KEY, categories)
             file_name = f"{today_date}_perplexity_ranking_results.json"
             local_path = os.path.join(paths["perplexity_rankings"], file_name)
-            s3_key = f"results/perplexity_rankings/{today_date}/{file_name}"
+            s3_key = get_s3_key(file_name, today_date, "perplexity_rankings")
             save_results(result, local_path, s3_key, verbose=args.verbose)
 
         print("データ取得処理が完了しました")

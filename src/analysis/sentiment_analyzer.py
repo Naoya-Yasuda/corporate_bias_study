@@ -26,7 +26,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.prompts.prompt_manager import PromptManager
 from src.utils.storage_utils import save_results, get_results_paths
 from src.utils.file_utils import load_json
-from src.utils.storage_config import S3_BUCKET_NAME
+from src.utils.storage_config import S3_BUCKET_NAME, get_s3_key
 
 # 環境変数の読み込み
 load_dotenv()
@@ -141,12 +141,8 @@ def process_results_file(file_path, date_str, args):
             if args.verbose:
                 logging.info(f"ローカルファイルが見つかりません: {file_path}")
 
-            # S3から読み込み試行
-            s3_key = f"results/perplexity_citations/{date_str}/{os.path.basename(file_path)}"
-            if "perplexity_rankings" in file_path:
-                s3_key = f"results/perplexity_rankings/{date_str}/{os.path.basename(file_path)}"
-            elif "google_serp" in file_path:
-                s3_key = f"results/google_serp/{date_str}/{os.path.basename(file_path)}"
+                        # S3から読み込み試行（パス管理システムを使用）
+            s3_key = get_s3_key(os.path.basename(file_path), date_str, args.data_type)
 
             if args.verbose:
                 logging.info(f"S3からの読み込み試行: s3://{S3_BUCKET_NAME}/{s3_key}")
@@ -187,8 +183,8 @@ def main():
     # 引数処理
     parser = argparse.ArgumentParser(description='感情分析を実行し、結果を保存する')
     parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
-    parser.add_argument('--data-type', choices=['citations', 'google_serp'], default='citations',
-                        help='分析対象のデータタイプ（デフォルト: citations）')
+    parser.add_argument('--data-type', choices=['perplexity_citations', 'google_serp'], default='perplexity_citations',
+                        help='分析対象のデータタイプ（デフォルト: perplexity_citations）')
     parser.add_argument('--runs', type=int, help='実行回数（ファイル名に含まれる）')
     parser.add_argument('--input-file', help='入力ファイルのパス')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
@@ -216,10 +212,10 @@ def main():
     if args.input_file:
         input_file = args.input_file
     else:
-        if args.data_type == "citations":
-            # citationsの場合は実行回数が必要
+        if args.data_type == "perplexity_citations":
+            # perplexity_citationsの場合は実行回数が必要
             if not args.runs:
-                logging.error("citationsの場合、--runs オプションが必要です")
+                logging.error("perplexity_citationsの場合、--runs オプションが必要です")
                 return
             input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations_{args.runs}runs.json")
         elif args.data_type == "google_serp":
@@ -259,17 +255,16 @@ def main():
         # その他のファイル
         output_path = paths["perplexity_sentiment"]
 
-    # パス管理システムから相対パスを取得してS3キーを生成
+                # パス管理システムを使用した保存パス構築
     local_path = os.path.join(output_path, input_filename)
-    # パス管理システムに合わせてS3キーを生成（resultsプレフィックスを除去）
-    s3_key = local_path.replace("\\", "/")
-    if s3_key.startswith("results/"):
-        s3_key = s3_key[8:]  # "results/"を除去
+
+    s3_key = get_s3_key(input_filename, date_str, args.data_type)
 
     if args.verbose:
         logging.info(f"上書き保存: {input_filename}")
         logging.info(f"保存パス: {local_path}")
         logging.info(f"S3キー: {s3_key}")
+
     try:
         save_results(result, local_path, s3_key, verbose=args.verbose)
         if args.verbose:

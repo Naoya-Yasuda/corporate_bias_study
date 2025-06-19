@@ -130,7 +130,7 @@ jobs:
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_citations_sentiment == 'true' }}
         run: |
           echo "開始: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type citations --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/sentiment_analysis_perplexity_citations.log
+          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type perplexity_citations --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/sentiment_analysis_perplexity_citations.log
           echo "完了: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
 
       # 2. 分析ステップ

@@ -65,3 +65,31 @@ def get_base_paths(date_str):
             "citations": f"results/bias_analysis/citations/{date_str}"
         }
     }
+
+def get_s3_key(filename, date_str, data_type):
+    """
+    ファイル名とデータタイプからS3キーを生成する共通関数
+
+    Parameters:
+    -----------
+    filename : str
+        ファイル名
+    date_str : str
+        日付文字列（YYYYMMDD形式）
+    data_type : str
+        データタイプ（perplexity_citations, google_serp等）
+
+    Returns:
+    --------
+    str
+        S3キー
+    """
+    paths = get_base_paths(date_str)
+
+    if data_type in paths:
+        # パス管理システムから直接取得
+        base_path = paths[data_type]
+        return f"{base_path}/{filename}"
+    else:
+        # フォールバック: 標準パターンで生成
+        return f"results/{data_type}/{date_str}/{filename}"
