@@ -248,27 +248,28 @@ def main():
     if args.verbose:
         logging.info("感情分析が完了しました")
 
-    # 出力ファイル名を生成（実行回数を含む）
+        # 元のファイル名で上書き保存（パス管理システムを使用）
+    input_filename = os.path.basename(input_file)
+
     if "google_serp" in input_file:
         output_path = paths["google_serp"]
-        output_filename = f"{date_str}_sentiment_analysis_google_serp_results.json"
-        s3_key = f"results/google_serp/{date_str}/{output_filename}"
     elif "perplexity_citations" in input_file:
-        output_path = paths["perplexity_sentiment"]
-        runs_suffix = f"_{args.runs}runs" if args.runs else ""
-        output_filename = f"{date_str}_sentiment_analysis_perplexity_citations{runs_suffix}.json"
-        s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
+        output_path = paths["perplexity_citations"]
     else:
         # その他のファイル
         output_path = paths["perplexity_sentiment"]
-        output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_file)}"
-        s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
+
+    # パス管理システムから相対パスを取得してS3キーを生成
+    local_path = os.path.join(output_path, input_filename)
+    # パス管理システムに合わせてS3キーを生成（resultsプレフィックスを除去）
+    s3_key = local_path.replace("\\", "/")
+    if s3_key.startswith("results/"):
+        s3_key = s3_key[8:]  # "results/"を除去
 
     if args.verbose:
-        logging.info(f"保存先: {output_filename}")
-
-    # 結果を保存
-    local_path = os.path.join(output_path, output_filename)
+        logging.info(f"上書き保存: {input_filename}")
+        logging.info(f"保存パス: {local_path}")
+        logging.info(f"S3キー: {s3_key}")
     try:
         save_results(result, local_path, s3_key, verbose=args.verbose)
         if args.verbose:
