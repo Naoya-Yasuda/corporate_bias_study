@@ -18,12 +18,15 @@ import argparse
 import sys
 from dotenv import load_dotenv
 from tqdm import tqdm
+import logging
 
 # パスの設定
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.prompts.prompt_manager import PromptManager
 from src.utils.storage_utils import save_results, get_results_paths
+from src.utils.file_utils import load_json
+from src.utils.storage_config import S3_BUCKET_NAME
 
 # 環境変数の読み込み
 load_dotenv()
@@ -123,24 +126,59 @@ def process_perplexity_results(data):
 
     return results
 
-def process_results_file(file_path):
-    """結果ファイルを読み込んで感情分析を実行"""
+def process_results_file(file_path, date_str, args):
+    """結果ファイルを読み込んで感情分析を実行（S3対応）"""
+    data = None
+
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        # ローカルファイル読み込み試行
+        if os.path.exists(file_path):
+            if args.verbose:
+                logging.info(f"ローカルファイルから読み込み: {file_path}")
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            if args.verbose:
+                logging.info(f"ローカルファイルが見つかりません: {file_path}")
+
+            # S3から読み込み試行
+            s3_key = f"results/perplexity_citations/{date_str}/{os.path.basename(file_path)}"
+            if "perplexity_rankings" in file_path:
+                s3_key = f"results/perplexity_rankings/{date_str}/{os.path.basename(file_path)}"
+            elif "google_serp" in file_path:
+                s3_key = f"results/google_serp/{date_str}/{os.path.basename(file_path)}"
+
+            if args.verbose:
+                logging.info(f"S3からの読み込み試行: s3://{S3_BUCKET_NAME}/{s3_key}")
+
+            # file_utils.load_json()のS3対応機能を使用
+            data = load_json(file_path, s3_key)
+
+            if data and args.verbose:
+                logging.info(f"S3読み込み成功: {len(data) if isinstance(data, dict) else 'データ取得'}件")
+
     except Exception as e:
-        print(f"ファイル読み込みエラー: {e}")
+        if args.verbose:
+            logging.error(f"ファイル読み込みエラー: {e}")
+        return None
+
+    if not data:
+        if args.verbose:
+            logging.error(f"データが読み込めませんでした: {file_path}")
         return None
 
     # ファイル名からデータタイプを判定
     if "google_serp" in file_path:
-        print("Google SERPデータを処理しています...")
+        if args.verbose:
+            logging.info("Google SERPデータを処理しています...")
         return process_google_serp_results(data)
     elif "perplexity_citations" in file_path:
-        print("Perplexity Citations（新構造）データを処理しています...")
+        if args.verbose:
+            logging.info("Perplexity Citations（新構造）データを処理しています...")
         return process_perplexity_results(data)
     else:
-        print(f"感情分析対象外のファイルです: {os.path.basename(file_path)}")
+        if args.verbose:
+            logging.info(f"感情分析対象外のファイルです: {os.path.basename(file_path)}")
         return None
 
 def main():
@@ -163,19 +201,23 @@ def main():
 
     # 日付を取得（指定がなければ今日の日付）
     date_str = args.date or datetime.datetime.now().strftime("%Y%m%d")
+
     if args.verbose:
+        logging.info(f"=== 感情分析開始 ===")
         logging.info(f"分析日付: {date_str}, データタイプ: {args.data_type}")
+        if args.runs:
+            logging.info(f"実行回数: {args.runs}")
 
     # 結果の保存先パスを取得
     paths = get_results_paths(date_str)
 
-        # 入力ファイルのパスを取得
+    # 入力ファイルのパスを取得
     if args.input_file:
         input_file = args.input_file
     else:
         # 実行回数が指定されていない場合はエラー
         if not args.runs:
-            print("--input-file または --runs オプションが必要です")
+            logging.error("--input-file または --runs オプションが必要です")
             return
 
         if args.data_type == "citations":
@@ -184,28 +226,33 @@ def main():
             input_file = os.path.join(paths["perplexity_rankings"], f"{date_str}_perplexity_rankings_{args.runs}runs.json")
 
     if args.verbose:
-        logging.info(f"入力ファイル: {input_file}")
+        logging.info(f"対象ファイル: {input_file}")
+        logging.info(f"期待するS3パス: s3://{S3_BUCKET_NAME}/results/{args.data_type}/{date_str}/{os.path.basename(input_file)}")
 
     # 入力ファイルが感情分析対象かチェック
     if not ("google_serp" in input_file or "perplexity_citations" in input_file):
-        print(f"感情分析対象外のファイルです: {os.path.basename(input_file)}")
-        print("対象ファイル: google_serp または perplexity_citations を含むファイル名")
+        logging.error(f"感情分析対象外のファイルです: {os.path.basename(input_file)}")
+        logging.info("対象ファイル: google_serp または perplexity_citations を含むファイル名")
         return
 
     # 感情分析を実行
-    result = process_results_file(input_file)
+    result = process_results_file(input_file, date_str, args)
     if result is None:
-        print(f"感情分析をスキップしました")
+        logging.error(f"感情分析をスキップしました")
         return
 
-    # 出力ファイル名を生成（新しいデータタイプに対応）
+    if args.verbose:
+        logging.info("感情分析が完了しました")
+
+    # 出力ファイル名を生成（実行回数を含む）
     if "google_serp" in input_file:
         output_path = paths["google_serp"]
         output_filename = f"{date_str}_sentiment_analysis_google_serp_results.json"
         s3_key = f"results/google_serp/{date_str}/{output_filename}"
     elif "perplexity_citations" in input_file:
         output_path = paths["perplexity_sentiment"]
-        output_filename = f"{date_str}_sentiment_analysis_perplexity_citations.json"
+        runs_suffix = f"_{args.runs}runs" if args.runs else ""
+        output_filename = f"{date_str}_sentiment_analysis_perplexity_citations{runs_suffix}.json"
         s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
     else:
         # 旧形式またはその他のperplexityファイル
@@ -213,9 +260,17 @@ def main():
         output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_file)}"
         s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
 
+    if args.verbose:
+        logging.info(f"保存先: {output_filename}")
+
     # 結果を保存
     local_path = os.path.join(output_path, output_filename)
-    save_results(result, local_path, s3_key, verbose=args.verbose)
+    try:
+        save_results(result, local_path, s3_key, verbose=args.verbose)
+        if args.verbose:
+            logging.info(f"=== 感情分析完了 ===")
+    except Exception as e:
+        logging.error(f"結果保存エラー: {e}")
 
 if __name__ == "__main__":
     main()
