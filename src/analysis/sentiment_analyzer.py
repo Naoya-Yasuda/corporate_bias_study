@@ -15,11 +15,14 @@ import json
 import datetime
 import time
 import argparse
+import sys
 from dotenv import load_dotenv
 from tqdm import tqdm
-from ..prompts.prompt_manager import PromptManager
 
-# 共通ユーティリティをインポート
+# パスの設定
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+from src.prompts.prompt_manager import PromptManager
 from src.utils.storage_utils import save_results, get_results_paths
 
 # 環境変数の読み込み
@@ -37,7 +40,7 @@ def analyze_sentiments(texts):
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
 
     # 共通化されたPerplexity APIクラスを使用
-    from ..utils.perplexity_api import PerplexityAPI
+    from src.utils.perplexity_api import PerplexityAPI
 
     try:
         # プロンプトを取得
@@ -147,6 +150,7 @@ def main():
     parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
     parser.add_argument('--data-type', choices=['rankings', 'citations'], default='citations',
                         help='分析対象のデータタイプ（デフォルト: citations）')
+    parser.add_argument('--runs', type=int, help='実行回数（ファイル名に含まれる）')
     parser.add_argument('--input-file', help='入力ファイルのパス')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
@@ -165,14 +169,19 @@ def main():
     # 結果の保存先パスを取得
     paths = get_results_paths(date_str)
 
-    # 入力ファイルのパスを取得
+        # 入力ファイルのパスを取得
     if args.input_file:
         input_file = args.input_file
     else:
+        # 実行回数が指定されていない場合はエラー
+        if not args.runs:
+            print("--input-file または --runs オプションが必要です")
+            return
+
         if args.data_type == "citations":
-            input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations.json")
+            input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations_{args.runs}runs.json")
         else:
-            input_file = os.path.join(paths["perplexity_rankings"], f"{date_str}_perplexity_rankings.json")
+            input_file = os.path.join(paths["perplexity_rankings"], f"{date_str}_perplexity_rankings_{args.runs}runs.json")
 
     if args.verbose:
         logging.info(f"入力ファイル: {input_file}")
