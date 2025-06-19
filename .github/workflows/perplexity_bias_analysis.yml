@@ -123,7 +123,7 @@ jobs:
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_serp_sentiment == 'true' }}
         run: |
           echo "開始: Google SERP感情分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/sentiment_analysis_google.log
+          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_serp --verbose | tee -a logs/sentiment_analysis_google.log
           echo "完了: Google SERP感情分析 ($(date))" | tee -a logs/execution.log
 
       - name: Run Sentiment Analysis for Perplexity Citations

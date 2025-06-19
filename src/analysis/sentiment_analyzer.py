@@ -187,7 +187,7 @@ def main():
     # 引数処理
     parser = argparse.ArgumentParser(description='感情分析を実行し、結果を保存する')
     parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
-    parser.add_argument('--data-type', choices=['rankings', 'citations'], default='citations',
+    parser.add_argument('--data-type', choices=['citations', 'google_serp'], default='citations',
                         help='分析対象のデータタイプ（デフォルト: citations）')
     parser.add_argument('--runs', type=int, help='実行回数（ファイル名に含まれる）')
     parser.add_argument('--input-file', help='入力ファイルのパス')
@@ -222,15 +222,12 @@ def main():
                 logging.error("citationsの場合、--runs オプションが必要です")
                 return
             input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations_{args.runs}runs.json")
-        elif args.data_type == "rankings":
-            # rankingsの場合は実行回数が必要
-            if not args.runs:
-                logging.error("rankingsの場合、--runs オプションが必要です")
-                return
-            input_file = os.path.join(paths["perplexity_rankings"], f"{date_str}_perplexity_rankings_{args.runs}runs.json")
-        else:
-            # Google SERPなどの場合は実行回数不要
+        elif args.data_type == "google_serp":
+            # Google SERPの場合は実行回数不要
             input_file = os.path.join(paths["google_serp"], f"{date_str}_google_serp_results.json")
+        else:
+            logging.error(f"未対応のデータタイプです: {args.data_type}")
+            return
 
     if args.verbose:
         logging.info(f"対象ファイル: {input_file}")
@@ -262,7 +259,7 @@ def main():
         output_filename = f"{date_str}_sentiment_analysis_perplexity_citations{runs_suffix}.json"
         s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
     else:
-        # 旧形式またはその他のperplexityファイル
+        # その他のファイル
         output_path = paths["perplexity_sentiment"]
         output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_file)}"
         s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
