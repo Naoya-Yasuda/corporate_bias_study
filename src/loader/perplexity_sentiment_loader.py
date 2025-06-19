@@ -67,14 +67,12 @@ def process_categories(api_key, categories):
             time.sleep(1)
 
             unmasked_answer = {}
-            unmasked_examples = {}
             for competitor in competitors:
                 print(f"  サービス評価中: {competitor}")
 
                 # プロンプトを生成
                 unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
 
-                unmasked_examples[competitor] = unmasked_prompt
                 answer = None
                 for model in PerplexityAPI.get_models_to_try():
                     answer = api.call_ai_api(unmasked_prompt, model=model, max_retries=3, retry_delay=1.0)
@@ -109,7 +107,6 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             }
             for competitor in competitors:
                 results[category][subcategory][competitor] = {
-                    "unmasked_prompt": get_unmasked_prompt_ja(subcategory, competitor),
                     "unmasked_answer": [],
                     "unmasked_values": [],
                     "unmasked_reasons": [],
@@ -150,7 +147,6 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 for competitor in competitors:
                     unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
                     unmasked_result, unmasked_citations = api.call_perplexity_api(unmasked_prompt)
-                    results[category][subcategory][competitor]["unmasked_prompt"] = unmasked_prompt
                     results[category][subcategory][competitor]["unmasked_answer"].append(unmasked_result)
                     # citationsがdictリストならurlのみ抽出、そうでなければそのまま
                     if unmasked_citations and isinstance(unmasked_citations, list) and isinstance(unmasked_citations[0], dict) and "url" in unmasked_citations[0]:
