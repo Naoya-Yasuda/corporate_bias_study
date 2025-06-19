@@ -4,12 +4,15 @@
 """
 感情分析モジュール
 Perplexity APIを使用してテキストの感情分析を実行するモジュール
+
+新しいPerplexity citationsデータ構造に対応：
+- official_results: titleやsnippetがないため感情分析対象外
+- reputation_results: titleとsnippetがあるため感情分析対象
 """
 
 import os
 import json
 import datetime
-import requests
 import time
 import argparse
 from dotenv import load_dotenv
@@ -18,19 +21,12 @@ from ..prompts.prompt_manager import PromptManager
 
 # 共通ユーティリティをインポート
 from src.utils.storage_utils import save_results, get_results_paths
-from src.utils.storage_config import S3_BUCKET_NAME
 
 # 環境変数の読み込み
 load_dotenv()
 
 # 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
-API_HOST = "api.perplexity.ai"
-
-# S3 設定情報
-AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
-AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
-AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 
 # プロンプトマネージャーのインスタンスを作成
 prompt_manager = PromptManager()
@@ -135,11 +131,13 @@ def process_results_file(file_path):
 
     # ファイル名からデータタイプを判定
     if "google_serp" in file_path:
+        print("Google SERPデータを処理しています...")
         return process_google_serp_results(data)
-    elif "perplexity" in file_path:
+    elif "perplexity_citations" in file_path:
+        print("Perplexity Citations（新構造）データを処理しています...")
         return process_perplexity_results(data)
     else:
-        print("不明なデータタイプです。ファイル名に'google_serp'または'perplexity'が含まれている必要があります。")
+        print(f"感情分析対象外のファイルです: {os.path.basename(file_path)}")
         return None
 
 def main():
@@ -179,18 +177,29 @@ def main():
     if args.verbose:
         logging.info(f"入力ファイル: {input_file}")
 
+    # 入力ファイルが感情分析対象かチェック
+    if not ("google_serp" in input_file or "perplexity_citations" in input_file):
+        print(f"感情分析対象外のファイルです: {os.path.basename(input_file)}")
+        print("対象ファイル: google_serp または perplexity_citations を含むファイル名")
+        return
+
     # 感情分析を実行
     result = process_results_file(input_file)
     if result is None:
-        print(f"感情分析の実行に失敗しました")
+        print(f"感情分析をスキップしました")
         return
 
-    # 出力ファイル名を生成
+    # 出力ファイル名を生成（新しいデータタイプに対応）
     if "google_serp" in input_file:
         output_path = paths["google_serp"]
         output_filename = f"{date_str}_sentiment_analysis_google_serp_results.json"
         s3_key = f"results/google_serp/{date_str}/{output_filename}"
+    elif "perplexity_citations" in input_file:
+        output_path = paths["perplexity_sentiment"]
+        output_filename = f"{date_str}_sentiment_analysis_perplexity_citations.json"
+        s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
     else:
+        # 旧形式またはその他のperplexityファイル
         output_path = paths["perplexity_sentiment"]
         output_filename = f"{date_str}_sentiment_analysis_{os.path.basename(input_file)}"
         s3_key = f"results/perplexity_sentiment/{date_str}/{output_filename}"
