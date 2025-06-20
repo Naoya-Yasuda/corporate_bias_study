@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 
 from src.utils.perplexity_api import PerplexityAPI
 from .prompt_manager import PromptManager
+from src.analysis.ranking_metrics import extract_ranking_and_reasons
 
 # .envファイルから環境変数を読み込む（APIキー取得のため）
 load_dotenv()
@@ -30,42 +31,12 @@ def get_ranking_prompt(subcategory, services):
     """ランキング抽出用のプロンプトを生成"""
     return prompt_manager.get_ranking_prompt(subcategory, services)
 
-# ランキング抽出用の正規表現パターン
-RANK_PATTERNS = prompt_manager.get_rank_patterns()
-
 def extract_ranking(text, services):
-    """テキストからランキングを抽出する関数"""
-    if not text:
-        return []
-
-    # 各行を処理
-    lines = text.strip().split('\n')
-    ranking = []
-    seen_services = set()
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        # 各パターンでマッチングを試みる
-        for pattern in RANK_PATTERNS:
-            match = re.match(pattern, line)
-            if match:
-                rank = int(match.group(1))
-                service = match.group(2).strip()
-
-                # サービス名の正規化（大文字小文字を無視）
-                normalized_service = next(
-                    (s for s in services if s.lower() == service.lower()),
-                    None
-                )
-
-                if normalized_service and normalized_service not in seen_services:
-                    ranking.append(normalized_service)
-                    seen_services.add(normalized_service)
-                break
-
+    """
+    テキストからランキングを抽出する関数
+    ranking_metricsのextract_ranking_and_reasons関数を使用
+    """
+    ranking, _ = extract_ranking_and_reasons(text, original_services=services)
     return ranking
 
 def multi_run_ranking(subcategory, services, num_runs=5, api_key=None):
@@ -199,20 +170,19 @@ def main():
                 for service in missing:
                     print(f"・{service}")
 
-            # 結果をJSON形式で保存
             result = {
                 "subcategory": args.subcategory,
                 "services": services,
                 "ranking": ranking,
-                "answer": answer_text
+                "missing_services": list(missing) if missing else []
             }
 
-    # 結果をファイルに保存
+    # 結果をJSONファイルに保存
     if result and args.output:
         try:
             with open(args.output, 'w', encoding='utf-8') as f:
                 json.dump(result, f, ensure_ascii=False, indent=2)
-            print(f"\n結果を '{args.output}' に保存しました")
+            print(f"\n結果を {args.output} に保存しました")
         except Exception as e:
             print(f"ファイル保存エラー: {e}")
 

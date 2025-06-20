@@ -711,59 +711,148 @@ def get_timeseries_exposure_market_data(category):
 def extract_ranking_and_reasons(text, original_services=None):
     """
     Perplexity等のAI回答からランキングと理由を正確に抽出
-    - 区切り文字のパターン認識
-    - サービス名の正規化一貫
-    - 理由の複数行処理
-    - サービス名リストがあれば優先的マッチ
+    - 多様なパターンに対応（マークダウン、見出し記法等）
+    - サービス名の正規化とマッチング強化
+    - デバッグ情報の詳細化
+    - original_servicesリストとの厳密な照合
     """
-    def normalize(s):
-        # 全角→半角、空白除去、小文字化
+    def normalize_service_name(s):
+        """サービス名を正規化（全角→半角、空白除去、小文字化）"""
         s = unicodedata.normalize('NFKC', s)
-        s = s.replace(' ', '').replace('　', '').lower()
-        return s
+        s = s.replace(' ', '').replace('　', '').strip()
+        return s.lower()
 
-    # 区切り文字のパターン
-    sep_pattern = r'[:：\-→]'  # コロン、全角コロン、ハイフン、矢印
-    # 1. サービス名: 理由（複数行理由対応）
-    pattern = re.compile(r'^(\d+)[.　)]?\s*(.+?)\s*' + sep_pattern + r'\s*(.+)$')
+    def find_matching_service(extracted_name, original_services):
+        """抽出されたサービス名をoriginal_servicesと照合"""
+        if not original_services:
+            return extracted_name.strip()
+
+        normalized_extracted = normalize_service_name(extracted_name)
+
+        # 完全一致を最優先
+        for service in original_services:
+            if normalize_service_name(service) == normalized_extracted:
+                return service
+
+        # 部分一致（抽出名が正式名に含まれる）
+        for service in original_services:
+            normalized_service = normalize_service_name(service)
+            if normalized_extracted in normalized_service or normalized_service in normalized_extracted:
+                return service
+
+        # マッチしない場合はNone
+        return None
+
+    def clean_service_name(name):
+        """サービス名から不要な記号を除去"""
+        # マークダウン記法を除去
+        name = re.sub(r'\*\*([^*]+)\*\*', r'\1', name)  # **text** -> text
+        name = re.sub(r'\*([^*]+)\*', r'\1', name)      # *text* -> text
+        name = re.sub(r'#+\s*(.+)', r'\1', name)        # # text -> text
+
+        # 前後の空白と句読点を除去
+        name = name.strip().strip('.,。、')
+        return name
+
+    # 改良されたパターンリスト（prompt_config.ymlから取得）
+    from ..prompts.prompt_manager import PromptManager
+    prompt_manager = PromptManager()
+    patterns = prompt_manager.get_rank_patterns()
 
     lines = text.splitlines()
     rankings = []
     reasons = []
-    buffer_reason = []
-    buffer_service = None
-    service_set = set(normalize(s) for s in original_services) if original_services else None
+    matched_lines = []
+    unmatched_lines = []
+    debug_info = []
 
-    for i, line in enumerate(lines):
-        m = pattern.match(line)
-        if m:
-            # 直前のバッファをflush
-            if buffer_service is not None:
-                rankings.append(buffer_service)
-                reasons.append('\n'.join(buffer_reason).strip())
-            # サービス名抽出
-            service = m.group(2).strip()
-            # サービス名リストがあれば正規化一貫
-            if service_set:
-                n_service = normalize(service)
-                match = None
-                for orig in original_services:
-                    if normalize(orig) in n_service or n_service in normalize(orig):
-                        match = orig
-                        break
+    for i, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line:
+            continue
+
+        matched = False
+
+        for pattern_idx, pattern in enumerate(patterns):
+            try:
+                match = re.match(pattern, line)
                 if match:
-                    service = match
-            buffer_service = service
-            buffer_reason = [m.group(3).strip()]
-        else:
-            # 理由の続き行
-            if buffer_service is not None and line.strip():
-                buffer_reason.append(line.strip())
-    # 最終のバッファをflush
-    if buffer_service is not None:
-        rankings.append(buffer_service)
-        reasons.append('\n'.join(buffer_reason).strip())
-    return rankings, reasons
+                    rank = int(match.group(1))
+                    raw_service = match.group(2).strip()
+                    reason = match.group(3).strip() if len(match.groups()) >= 3 else ""
+
+                    # サービス名をクリーンアップ
+                    cleaned_service = clean_service_name(raw_service)
+
+                    # original_servicesと照合
+                    matched_service = find_matching_service(cleaned_service, original_services)
+
+                    if matched_service:
+                        # 重複チェック
+                        if matched_service not in [r[0] for r in rankings]:
+                            rankings.append((matched_service, rank))
+                            reasons.append(reason)
+                            matched_lines.append(f"行{i}: {line}")
+                            debug_info.append(f"✓ パターン{pattern_idx+1}でマッチ: '{raw_service}' -> '{matched_service}'")
+                        else:
+                            debug_info.append(f"⚠️ 重複スキップ: '{matched_service}' (行{i})")
+                    else:
+                        debug_info.append(f"⚠️ サービス名が未知: '{cleaned_service}' (行{i})")
+
+                    matched = True
+                    break
+
+            except Exception as e:
+                debug_info.append(f"❌ パターン{pattern_idx+1}でエラー (行{i}): {e}")
+                continue
+
+        if not matched and line.strip():
+            # ノイズ行かどうかチェック（注意書きなど）
+            noise_patterns = [
+                r'^##?\s*注意',
+                r'^注意[:：]',
+                r'以下は.*ランキング',
+                r'.*は有効なサービス名ではない',
+                r'ランキングから除外',
+                r'^[\-=]+$',  # 区切り線
+            ]
+
+            is_noise = any(re.search(pattern, line, re.IGNORECASE) for pattern in noise_patterns)
+            if not is_noise:
+                unmatched_lines.append(f"行{i}: {line}")
+
+    # ランキングを順位でソート
+    rankings.sort(key=lambda x: x[1])
+    final_ranking = [service for service, _ in rankings]
+
+    # デバッグ情報を出力
+    if original_services:
+        missing_services = set(original_services) - set(final_ranking)
+        if missing_services:
+            debug_info.append(f"⚠️ 抽出できなかったサービス: {list(missing_services)}")
+
+        extracted_count = len(final_ranking)
+        expected_count = len(original_services)
+        if extracted_count != expected_count:
+            debug_info.append(f"⚠️ 抽出数不一致: {extracted_count}/{expected_count}")
+
+    # デバッグ情報の表示（詳細レベルに応じて）
+    if not final_ranking:
+        print("❌ ランキング抽出失敗")
+        if unmatched_lines:
+            print("未マッチ行:")
+            for line in unmatched_lines[:5]:  # 最初の5行のみ表示
+                print(f"  {line}")
+        if debug_info:
+            print("デバッグ情報:")
+            for info in debug_info[-3:]:  # 最後の3つのみ表示
+                print(f"  {info}")
+    elif len(final_ranking) < len(original_services or []):
+        print(f"⚠️ 部分抽出: {len(final_ranking)}/{len(original_services or [])}件")
+        for info in debug_info[-2:]:  # 最後の2つのデバッグ情報を表示
+            print(f"  {info}")
+
+    return final_ranking, reasons
 
 # -----------------------------
 # 5. CLI エントリーポイント

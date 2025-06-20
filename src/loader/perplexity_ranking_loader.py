@@ -12,11 +12,9 @@ import argparse
 from dotenv import load_dotenv
 from ..categories import get_categories, get_all_categories, load_yaml_categories
 from ..prompts.prompt_manager import PromptManager
-from ..prompts.ranking_prompts import extract_ranking
 from ..analysis.ranking_metrics import extract_ranking_and_reasons
 from ..utils.perplexity_api import PerplexityAPI
 from ..utils.storage_utils import save_results, get_results_paths
-from ..utils.text_utils import extract_domain, is_official_domain
 import logging
 import sys
 
@@ -32,30 +30,6 @@ S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
 # PromptManagerのインスタンスを作成
 prompt_manager = PromptManager()
-
-def extract_domains_from_response(response, services, official_domains):
-    """Perplexityの応答からドメインを抽出し、公式/非公式を判定"""
-    # URLを抽出する正規表現パターン
-    url_pattern = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
-    urls = re.findall(url_pattern, response)
-
-    domains = []
-    for url in urls:
-        domain = extract_domain(url)
-        if domain:
-            # 各サービスについてドメインが関連しているか確認
-            for service in services:
-                if service.lower() in domain.lower():
-                    # 公式ドメインリストを使用して判定
-                    is_official = is_official_domain(domain, service, official_domains.get(service, []))
-                    domains.append({
-                        "domain": domain,
-                        "service": service,
-                        "is_official": is_official
-                    })
-                    break
-
-    return domains
 
 def collect_rankings(api_key, categories, num_runs=1):
     """
@@ -113,13 +87,13 @@ def collect_rankings(api_key, categories, num_runs=1):
                 all_responses.append(response)
                 print(f"  Perplexityからの応答:\n{response[:200]}...")
 
+                # 改良された抽出関数を使用
                 ranking, _ = extract_ranking_and_reasons(response, original_services=services)
-                filtered_ranking = extract_ranking(response, services)
-                subcategory_results.append(filtered_ranking)
+                subcategory_results.append(ranking)
 
                 # citationsリストから各サービス名を含むURLをランキング順に抽出
                 url_list = []
-                for s in filtered_ranking:
+                for s in ranking:
                     for c in citations:
                         url = c["url"] if isinstance(c, dict) and "url" in c else c
                         if s.lower() in url.lower() and url and url not in url_list:
@@ -130,10 +104,10 @@ def collect_rankings(api_key, categories, num_runs=1):
                     "url": url_list
                 })
 
-                if len(filtered_ranking) != len(services):
-                    print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(filtered_ranking)}/{len(services)})")
+                if len(ranking) != len(services):
+                    print(f"  ⚠️ 警告: 抽出されたランキングが完全ではありません ({len(ranking)}/{len(services)})")
                 else:
-                    print(f"  ✓ ランキング抽出完了: {filtered_ranking}")
+                    print(f"  ✓ ランキング抽出完了: {ranking}")
 
                 if run < num_runs - 1 or processed < total_categories:
                     print("  APIレート制限を考慮して待機中...")
@@ -215,7 +189,7 @@ def main():
             save_results(result, local_path, s3_key, verbose=args.verbose)
         else:
             print("Perplexity APIを使用して単一実行データを取得します")
-            result = process_categories(PERPLEXITY_API_KEY, categories)
+            result = collect_rankings(PERPLEXITY_API_KEY, categories, 1)
             file_name = f"{today_date}_perplexity_ranking_results.json"
             local_path = os.path.join(paths["perplexity_rankings"], file_name)
             s3_key = get_s3_key(file_name, today_date, "perplexity_rankings")
