@@ -57,12 +57,21 @@ def analyze_sentiments(texts):
 
         if response_text:
             sentiments = response_text.strip().lower().split(",")
-            # 結果をブール値に変換
-            return [sentiment.strip() == "positive" for sentiment in sentiments]
-        return [None] * len(texts)
+            # 結果を文字列値で返す（"positive"/"negative"/"unknown"）
+            result = []
+            for sentiment in sentiments:
+                sentiment = sentiment.strip()
+                if sentiment == "positive":
+                    result.append("positive")
+                elif sentiment == "negative":
+                    result.append("negative")
+                else:
+                    result.append("unknown")  # 不明な場合
+            return result
+        return ["unknown"] * len(texts)
     except Exception as e:
         print(f"Perplexity API リクエストエラー: {e}")
-        return [None] * len(texts)
+        return ["unknown"] * len(texts)
 
 def process_google_serp_results(data):
     """Google SERPの結果ファイルを処理"""
