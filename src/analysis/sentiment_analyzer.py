@@ -74,23 +74,42 @@ def analyze_sentiments(texts):
         return ["unknown"] * len(texts)
 
 def process_google_serp_results(data):
-    """Google SERPの結果ファイルを処理"""
+    """Google SERPの結果ファイルを処理（entities構造に対応）"""
     # 元のデータをそのまま使用
     results = data
 
     for category, subcategories in data.items():
         for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}"):
-            # 評判情報の感情分析（5件ずつバッチ処理）
-            reputation_results = content.get("reputation_results", [])
-            for i in range(0, len(reputation_results), 5):
-                batch = reputation_results[i:i+5]
-                texts = [f"{result['title']} {result['snippet']}" for result in batch]
-                sentiments = analyze_sentiments(texts)
+            # entities構造: 各サービスのreputation_resultsを処理
+            entities = content.get("entities", {})
 
-                for result, sentiment in zip(batch, sentiments):
-                    result["sentiment"] = sentiment
+            for entity_name, entity_data in entities.items():
+                # reputation_resultsのみ感情分析対象（titleとsnippetがある）
+                reputation_results = entity_data.get("reputation_results", [])
 
-                time.sleep(1)  # API制限対策
+                # titleとsnippetがあるもののみを対象とする（データ構造に基づく厳格なフィルタリング）
+                valid_results = [
+                    r for r in reputation_results
+                    if r.get("title") and r.get("snippet") and
+                    isinstance(r.get("title"), str) and isinstance(r.get("snippet"), str) and
+                    r.get("title").strip() and r.get("snippet").strip()
+                ]
+
+                if valid_results:
+                    print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
+
+                    # 5件ずつバッチ処理
+                    for i in range(0, len(valid_results), 5):
+                        batch = valid_results[i:i+5]
+                        texts = [f"{result['title']} {result['snippet']}" for result in batch]
+                        sentiments = analyze_sentiments(texts)
+
+                        for result, sentiment in zip(batch, sentiments):
+                            result["sentiment"] = sentiment
+
+                        time.sleep(1)  # API制限対策
+                else:
+                    print(f"  {entity_name}: 感情分析対象のデータがありません（titleやsnippetが不足）")
 
     return results
 
