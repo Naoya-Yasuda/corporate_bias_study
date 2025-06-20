@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 from src.utils.perplexity_api import PerplexityAPI
 from .prompt_manager import PromptManager
-from src.analysis.ranking_metrics import extract_ranking_and_reasons
+from src.utils.text_utils import extract_ranking_and_reasons
 
 # .envファイルから環境変数を読み込む（APIキー取得のため）
 load_dotenv()

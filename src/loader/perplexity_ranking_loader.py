@@ -12,7 +12,7 @@ import argparse
 from dotenv import load_dotenv
 from ..categories import get_categories, get_all_categories, load_yaml_categories
 from ..prompts.prompt_manager import PromptManager
-from ..analysis.ranking_metrics import extract_ranking_and_reasons
+from ..utils.text_utils import extract_ranking_and_reasons
 from ..utils.perplexity_api import PerplexityAPI
 from ..utils.storage_utils import save_results, get_results_paths
 import logging
