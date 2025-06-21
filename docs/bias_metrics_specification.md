@@ -903,3 +903,516 @@ Month 2-3: 第4段階（拡張機能）
 **文書バージョン**: 2.0
 **作成日**: 2025年6月20日
 **最終更新**: 2025年6月20日
+
+## 13. API横断対応ディレクトリ構造仕様
+
+### 13.1 設計思想
+
+**基本原則**:
+- **API中立性**: 特定のAPIに依存しない汎用的な構造
+- **データ分離**: 生データと分析結果の明確な分離
+- **拡張性**: 新しいAPIの追加が容易
+- **再現性**: データ収集から分析まで完全に追跡可能
+- **研究標準**: 学術研究での利用を前提とした構造
+
+**データフロー**:
+```
+生データ収集 → 統合データセット作成 → 分析実行 → 研究成果公開
+```
+
+### 13.2 ディレクトリ構造全体図
+
+```
+corporate_bias_datasets/
+├── raw_data/                          # 生データ（API別・日付別）
+│   └── YYYYMMDD/
+│       ├── google/                    # Google系API
+│       ├── perplexity/               # Perplexity API
+│       ├── openai/                   # OpenAI API（将来対応）
+│       ├── anthropic/                # Anthropic API（将来対応）
+│       └── metadata/                 # 収集メタデータ
+├── integrated/                       # 統合データセット（生データのみ）
+│   └── YYYYMMDD/
+├── analysis/                         # 分析結果（統合データとは分離）
+│   └── YYYYMMDD/
+├── publications/                     # 研究成果物
+│   ├── datasets/                     # 公開用データセット
+│   └── papers/                       # 論文・分析結果
+└── temp/                            # 一時ファイル・キャッシュ
+```
+
+### 13.3 raw_data/ - 生データディレクトリ
+
+#### 13.3.1 構造
+
+```
+raw_data/
+└── YYYYMMDD/                         # 収集日付
+    ├── google/                       # Google系API結果
+    │   ├── serp_results.json         # Google SERP検索結果
+    │   └── custom_search.json        # Google Custom Search結果
+    ├── perplexity/                   # Perplexity API結果
+    │   ├── rankings.json             # ランキング抽出結果
+    │   ├── citations.json            # 引用リンク収集結果
+    │   └── sentiment.json            # 感情スコア分析結果
+    ├── openai/                       # OpenAI API結果（将来対応）
+    │   ├── rankings.json             # GPTによるランキング
+    │   └── sentiment.json            # GPTによる感情分析
+    ├── anthropic/                    # Anthropic API結果（将来対応）
+    │   └── sentiment.json            # Claudeによる感情分析
+    └── metadata/                     # 収集メタデータ
+        ├── collection_info.json      # 収集実行情報
+        ├── api_versions.json         # 使用APIバージョン情報
+        └── quality_checks.json       # データ品質チェック結果
+```
+
+#### 13.3.2 各ファイルの詳細説明
+
+##### **google/serp_results.json**
+**目的**: Google検索結果の取得（SerpAPI経由）
+**内容**: 企業名での検索結果とその順位情報
+**データ構造**:
+```json
+{
+  "クラウドサービス": {
+    "IaaS": {
+      "timestamp": "2025-06-20T10:00:00",
+      "category": "クラウドサービス",
+      "subcategory": "IaaS",
+      "entities": {
+        "AWS": {
+          "official_results": [
+            {
+              "rank": 1,
+              "title": "Amazon Web Services (AWS) - クラウドコンピューティングサービス",
+              "link": "https://aws.amazon.com/",
+              "domain": "aws.amazon.com",
+              "snippet": "Amazon Web Services offers reliable, scalable..."
+            }
+          ],
+          "reputation_results": [
+            {
+              "rank": 1,
+              "title": "AWS 評判 - ITエンジニア口コミサイト",
+              "link": "https://example.com/aws-review",
+              "domain": "example.com",
+              "snippet": "AWSの評判について..."
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+##### **google/custom_search.json**
+**目的**: Google Custom Search APIによる詳細検索
+**内容**: 特定のクエリに対するより精密な検索結果とメタデータ
+**用途**: SerpAPIで取得できない詳細情報（ページのメタデータ、スニペット詳細など）の補完
+**データ構造**:
+```json
+{
+  "search_queries": [
+    {
+      "query": "AWS クラウドサービス 評価",
+      "search_timestamp": "2025-06-20T10:30:00",
+      "results": [
+        {
+          "title": "AWS総合評価レポート 2025",
+          "link": "https://tech-review.com/aws-2025",
+          "snippet": "2025年最新のAWS評価...",
+          "metadata": {
+            "page_title": "AWS総合評価レポート 2025 | TechReview",
+            "meta_description": "AWSの最新評価と競合比較...",
+            "publication_date": "2025-01-15",
+            "author": "Tech Review編集部"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+##### **perplexity/rankings.json**
+**目的**: Perplexity APIによる企業ランキングの抽出
+**内容**: 複数回実行によるランキング結果と生の応答
+**データ構造**:
+```json
+{
+  "クラウドサービス": {
+    "IaaS": {
+      "timestamp": "2025-06-20T11:00:00",
+      "category": "クラウドサービス",
+      "subcategory": "IaaS",
+      "services": ["AWS", "Google Cloud", "Azure"],
+      "ranking_summary": {
+        "AWS": {"average_rank": 1.2, "rank_counts": [5, 0, 0]},
+        "Google Cloud": {"average_rank": 2.4, "rank_counts": [0, 3, 2]},
+        "Azure": {"average_rank": 2.4, "rank_counts": [0, 2, 3]}
+      },
+      "official_url": {
+        "AWS": "https://aws.amazon.com/",
+        "Google Cloud": "https://cloud.google.com/",
+        "Azure": "https://azure.microsoft.com/"
+      },
+      "response_list": [
+        {
+          "run": 1,
+          "answer": "クラウドサービスの比較において...",
+          "extracted_ranking": ["AWS", "Azure", "Google Cloud"],
+          "url": ["https://aws.amazon.com/", "https://azure.microsoft.com/"]
+        }
+      ]
+    }
+  }
+}
+```
+
+##### **perplexity/citations.json**
+**目的**: Perplexity APIの引用リンク収集
+**内容**: 回答に含まれる引用URLとその詳細情報
+**データ構造**:
+```json
+{
+  "クラウドサービス": {
+    "IaaS": {
+      "timestamp": "2025-06-20T11:30:00",
+      "category": "クラウドサービス",
+      "subcategory": "IaaS",
+      "entities": {
+        "AWS": {
+          "official_answer": "AWSは世界最大のクラウドプロバイダーで...",
+          "official_results": [
+            {
+              "rank": 1,
+              "url": "https://aws.amazon.com/about/",
+              "domain": "aws.amazon.com",
+              "is_official": true
+            }
+          ],
+          "reputation_answer": "AWSの評判は一般的に高く...",
+          "reputation_results": [
+            {
+              "rank": 1,
+              "url": "https://review-site.com/aws",
+              "domain": "review-site.com",
+              "title": "AWS利用者レビュー",
+              "snippet": "実際の利用者による評価..."
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+##### **perplexity/sentiment.json**
+**目的**: Perplexity APIによる感情スコア分析
+**内容**: 企業名マスク有無での感情スコア比較データ
+**データ構造**:
+```json
+{
+  "クラウドサービス": {
+    "IaaS": {
+      "masked_prompt": "クラウドサービスの総合的な評価を1-5点で...",
+      "masked_values": [3.2, 3.1, 3.3, 3.0, 3.2],
+      "masked_avg": 3.16,
+      "masked_answer": ["評価は3点です。理由は...", "3点と評価します..."],
+      "masked_url": [["https://example1.com"], ["https://example2.com"]],
+      "masked_reasons": ["汎用的な評価", "標準的なサービス"],
+      "unmasked_values": {
+        "AWS": [4.5, 4.3, 4.6, 4.2, 4.4],
+        "Google Cloud": [4.1, 4.0, 4.2, 3.9, 4.1],
+        "Azure": [3.8, 3.7, 3.9, 3.6, 3.8]
+      },
+      "unmasked_avg": {
+        "AWS": 4.4,
+        "Google Cloud": 4.06,
+        "Azure": 3.76
+      }
+    }
+  }
+}
+```
+
+##### **metadata/collection_info.json**
+**目的**: データ収集実行時の詳細情報記録
+**内容**: 実行パラメータ、エラー情報、実行時間等
+**データ構造**:
+```json
+{
+  "collection_metadata": {
+    "start_time": "2025-06-20T09:00:00",
+    "end_time": "2025-06-20T12:30:00",
+    "total_duration": "3.5 hours",
+    "execution_parameters": {
+      "num_runs": 5,
+      "apis_enabled": ["google", "perplexity"],
+      "categories_processed": 8,
+      "total_entities": 45
+    },
+    "execution_status": {
+      "google_serp": {"status": "success", "items_collected": 450},
+      "perplexity_rankings": {"status": "success", "queries_executed": 40},
+      "perplexity_citations": {"status": "success", "citations_collected": 1200},
+      "perplexity_sentiment": {"status": "success", "scores_extracted": 225}
+    },
+    "errors_encountered": [
+      {
+        "timestamp": "2025-06-20T10:15:00",
+        "api": "google_serp",
+        "error_type": "rate_limit",
+        "message": "Rate limit exceeded, waiting 60 seconds",
+        "resolution": "automatic_retry"
+      }
+    ],
+    "data_quality_summary": {
+      "completeness_rate": 0.95,
+      "missing_data_count": 12,
+      "outliers_detected": 3
+    }
+  }
+}
+```
+
+##### **metadata/api_versions.json**
+**目的**: 使用したAPIとモデルのバージョン記録
+**内容**: 再現性確保のための技術情報
+**データ構造**:
+```json
+{
+  "api_versions": {
+    "collection_date": "2025-06-20",
+    "google": {
+      "serp_api": {
+        "version": "1.0",
+        "endpoint": "https://serpapi.com/search",
+        "parameters": {
+          "engine": "google",
+          "gl": "jp",
+          "hl": "ja",
+          "num": 10
+        }
+      },
+      "custom_search": {
+        "version": "v1",
+        "endpoint": "https://www.googleapis.com/customsearch/v1",
+        "search_engine_id": "your_cse_id"
+      }
+    },
+    "perplexity": {
+      "api_version": "2024-12",
+      "default_model": "llama-3.1-sonar-large-128k-online",
+      "models_used": {
+        "rankings": "llama-3.1-sonar-large-128k-online",
+        "citations": "llama-3.1-sonar-large-128k-online",
+        "sentiment": "llama-3.1-sonar-large-128k-online"
+      },
+      "endpoint": "https://api.perplexity.ai/chat/completions"
+    }
+  },
+  "system_environment": {
+    "python_version": "3.9.7",
+    "key_packages": {
+      "requests": "2.28.1",
+      "pandas": "1.5.2",
+      "numpy": "1.24.1"
+    },
+    "collection_system": "Ubuntu 20.04 LTS"
+  }
+}
+```
+
+##### **metadata/quality_checks.json**
+**目的**: データ品質チェック結果の記録
+**内容**: 自動品質チェックの結果と推奨アクション
+**データ構造**:
+```json
+{
+  "quality_assessment": {
+    "check_timestamp": "2025-06-20T13:00:00",
+    "overall_quality_score": 0.92,
+    "checks_performed": [
+      {
+        "check_name": "data_completeness",
+        "status": "pass",
+        "score": 0.95,
+        "details": {
+          "total_expected_records": 1000,
+          "actual_records": 950,
+          "missing_records": 50,
+          "missing_categories": ["一部のサブカテゴリ"]
+        }
+      },
+      {
+        "check_name": "response_format_validation",
+        "status": "pass",
+        "score": 0.98,
+        "details": {
+          "valid_json_responses": 245,
+          "invalid_responses": 5,
+          "parsing_errors": ["sentiment extraction failed for 3 responses"]
+        }
+      },
+      {
+        "check_name": "outlier_detection",
+        "status": "warning",
+        "score": 0.85,
+        "details": {
+          "outliers_found": 8,
+          "outlier_categories": ["sentiment_scores", "ranking_positions"],
+          "recommended_action": "manual_review"
+        }
+      }
+    ],
+    "recommendations": [
+      "手動レビューが必要な外れ値が8件検出されました",
+      "一部APIの応答形式が変更されている可能性があります",
+      "次回収集時はレート制限をより慎重に管理してください"
+    ]
+  }
+}
+```
+
+### 13.4 integrated/ - 統合データセットディレクトリ
+
+#### 13.4.1 構造
+
+```
+integrated/
+└── YYYYMMDD/
+    ├── corporate_bias_dataset.json    # 統合生データセット
+    ├── dataset_schema.json           # データ構造定義
+    ├── data_quality_report.json      # データ品質レポート
+    └── collection_summary.json       # 収集サマリー
+```
+
+##### **corporate_bias_dataset.json**
+**目的**: 全API の生データを統合した研究用データセット
+**内容**: 分析に必要な全ての生データ（分析結果は含まない）
+**特徴**:
+- 研究者が直接利用可能
+- 分析手法に依存しない
+- 完全な再現性を保証
+
+##### **dataset_schema.json**
+**目的**: データセットの構造定義とドキュメント
+**内容**: フィールド定義、データ型、制約条件等
+
+##### **data_quality_report.json**
+**目的**: 統合データセットの品質評価レポート
+**内容**: 完全性、一貫性、正確性の評価結果
+
+### 13.5 analysis/ - 分析結果ディレクトリ
+
+#### 13.5.1 構造
+
+```
+analysis/
+└── YYYYMMDD/
+    ├── bias_metrics/                 # バイアス指標分析
+    │   ├── perplexity_bias.json     # Perplexity APIのバイアス分析
+    │   ├── openai_bias.json         # OpenAI APIのバイアス分析（将来）
+    │   └── cross_api_comparison.json # API間比較分析
+    ├── ranking_analysis/             # ランキング分析
+    │   ├── consistency_metrics.json  # 一貫性指標
+    │   └── stability_analysis.json   # 安定性分析
+    ├── comparative_studies/          # 比較研究
+    │   ├── serp_vs_ai.json          # 検索結果 vs AI応答比較
+    │   └── temporal_trends.json     # 時系列トレンド分析
+    └── summary/                     # 総合レポート
+        ├── executive_summary.json    # エグゼクティブサマリー
+        └── technical_report.json     # 技術レポート
+```
+
+### 13.6 publications/ - 研究成果ディレクトリ
+
+#### 13.6.1 構造
+
+```
+publications/
+├── datasets/                        # 公開用データセット
+│   ├── v2025.1/
+│   │   ├── corporate_bias_dataset.json  # 公開用統合データ
+│   │   ├── README.md                    # データセット説明
+│   │   ├── LICENSE                      # ライセンス情報
+│   │   └── CITATION.cff                 # 引用情報
+│   └── v2025.2/
+└── papers/                          # 論文・研究成果
+    ├── bias_analysis_2025/
+    │   ├── results.json             # 分析結果データ
+    │   ├── figures/                 # 図表
+    │   │   ├── bias_heatmap.png
+    │   │   └── ranking_comparison.svg
+    │   ├── tables/                  # 表データ
+    │   │   └── summary_statistics.csv
+    │   └── paper.pdf                # 論文PDF
+    └── methodology_2025/
+        ├── technical_appendix.json  # 技術付録
+        └── supplementary_data.csv   # 補足データ
+```
+
+### 13.7 temp/ - 一時ファイルディレクトリ
+
+#### 13.7.1 構造
+
+```
+temp/
+├── api_cache/                       # API応答キャッシュ
+│   └── YYYYMMDD/
+├── processing_logs/                 # 処理ログ
+│   └── YYYYMMDD/
+└── intermediate_files/              # 中間処理ファイル
+    └── YYYYMMDD/
+```
+
+### 13.8 ファイル命名規則
+
+#### 13.8.1 基本形式
+
+```
+{date}_{data_type}_{version}.{extension}
+```
+
+#### 13.8.2 バージョン管理
+
+- **v1.0**: 初期実装
+- **v1.x**: バグ修正・軽微な改善
+- **v2.0**: 大幅な機能追加・構造変更
+- **vYYYY.x**: 年次バージョン（データセット公開用）
+
+### 13.9 API拡張ガイドライン
+
+#### 13.9.1 新API追加時の手順
+
+1. **設定ファイル更新**: `config/apis.yml`に新API情報を追加
+2. **ディレクトリ作成**: `raw_data/YYYYMMDD/{new_api}/`
+3. **データ形式定義**: 新APIの出力形式を定義
+4. **収集システム拡張**: `MultiAPIDataCollector`に新API対応を追加
+5. **統合システム更新**: 統合データセット作成時の処理を追加
+
+#### 13.9.2 API固有データの考慮事項
+
+- **レート制限**: API毎の制限に応じた調整
+- **データ形式**: 各APIの出力形式の正規化
+- **エラーハンドリング**: API固有のエラー対応
+- **認証方式**: API毎の認証方法への対応
+
+### 13.10 運用・保守ガイドライン
+
+#### 13.10.1 定期メンテナンス
+
+- **月次**: データ品質チェック結果の確認
+- **四半期**: API仕様変更の確認と対応
+- **年次**: ディレクトリ構造の見直しと最適化
+
+#### 13.10.2 障害対応
+
+- **API障害**: 代替API の自動切り替え
+- **データ欠損**: 品質チェックでの早期検出
+- **容量不足**: 古いデータの自動アーカイブ
+
+---
