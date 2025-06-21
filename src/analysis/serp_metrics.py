@@ -401,14 +401,14 @@ def extract_domains_from_citations(citations_data, subcategory):
 
     return []
 
-def compare_with_perplexity(serp_results, pplx_results):
+def compare_with_perplexity(serp_search, pplx_results):
     """
     Google検索結果とPerplexity APIの結果を比較
     引用リンク（citations）データを使用
 
     Parameters
     ----------
-    serp_results : dict
+    serp_search : dict
         Google検索結果の辞書
     pplx_results : dict
         Perplexity APIの結果辞書
@@ -422,10 +422,10 @@ def compare_with_perplexity(serp_results, pplx_results):
     comparison = {}
 
     # カテゴリごとに比較
-    categories = set(serp_results.keys()) & set(pplx_results.keys())
+    categories = set(serp_search.keys()) & set(pplx_results.keys())
 
     for category in categories:
-        google_data = serp_results[category]
+        google_data = serp_search[category]
         pplx_data = pplx_results[category]
 
         # Googleからドメインランキングを抽出
@@ -547,13 +547,13 @@ def compute_citation_metrics(pplx_data):
 # -------------------------------------------------------------------
 # 分析実行関数
 # -------------------------------------------------------------------
-def analyze_serp_results(serp_results, pplx_results, comparison_results):
+def analyze_serp_search(serp_search, pplx_results, comparison_results):
     """
     Google SERP結果とPerplexity結果の比較分析を実行
 
     Parameters
     ----------
-    serp_results : dict
+    serp_search : dict
         Google検索結果
     pplx_results : dict
         Perplexity API結果
@@ -657,7 +657,7 @@ if __name__ == "__main__":
     def resolve_path(date_str, data_type, file_type, runs=None):
         # ファイル名生成
         if data_type == "google_serp":
-            file_name = f"{date_str}_google_serp_results.json"
+            file_name = f"{date_str}_google_serp_search.json"
         elif data_type == "citations":
             if runs and runs > 1:
                 file_name = f"{date_str}_perplexity_citations_{runs}runs.json"
@@ -686,13 +686,13 @@ if __name__ == "__main__":
 
     # JSONファイルを読み込み
     with open(serp_file, "r", encoding="utf-8") as f:
-        serp_results = json.load(f)
+        serp_search = json.load(f)
     with open(pplx_file, "r", encoding="utf-8") as f:
         pplx_results = json.load(f)
 
     # 比較と分析
-    comparison_results = compare_with_perplexity(serp_results, pplx_results)
-    analysis_results = analyze_serp_results(serp_results, pplx_results, comparison_results)
+    comparison_results = compare_with_perplexity(serp_search, pplx_results)
+    analysis_results = analyze_serp_search(serp_search, pplx_results, comparison_results)
 
     # 結果をJSONに保存
     os.makedirs(args.output, exist_ok=True)

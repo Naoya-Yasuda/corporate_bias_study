@@ -48,22 +48,31 @@ def get_storage_config():
     }
 
 def get_base_paths(date_str):
-    """基本パスを取得"""
+    """基本パスを取得 - 新しいディレクトリ構造 raw_data/YYYYMMDD/api_name/ に対応"""
     return {
-        "perplexity_rankings": f"results/perplexity_rankings/{date_str}",
-        "perplexity_sentiment": f"results/perplexity_sentiment/{date_str}",
-        "perplexity_citations": f"results/perplexity_citations/{date_str}",
-        "google_serp": f"results/google_serp/{date_str}",
-        "perplexity_analysis": f"results/perplexity_analysis/{date_str}",
-        "analysis": {
-            "perplexity": f"results/analysis/perplexity/{date_str}",
-            "citations": f"results/analysis/citations/{date_str}",
-            "integrated_metrics": f"results/integrated_metrics/{date_str}"
+        # 生データディレクトリ（API別）
+        "raw_data": {
+            "google": f"raw_data/{date_str}/google",
+            "perplexity": f"raw_data/{date_str}/perplexity"
         },
-        "bias_analysis": {
-            "rankings": f"results/bias_analysis/rankings/{date_str}",
-            "citations": f"results/bias_analysis/citations/{date_str}"
-        }
+        # 従来の結果ディレクトリ（後方互換性のため残す）
+        "perplexity_rankings": f"raw_data/{date_str}/perplexity",
+        "perplexity_sentiment": f"raw_data/{date_str}/perplexity",
+        "perplexity_citations": f"raw_data/{date_str}/perplexity",
+        "google_serp": f"raw_data/{date_str}/google",
+        # 分析結果ディレクトリ
+        "analysis": {
+            "perplexity": f"analysis/{date_str}",
+            "citations": f"analysis/{date_str}",
+            "integrated_metrics": f"analysis/{date_str}",
+            "bias_analysis": f"analysis/{date_str}"
+        },
+        # 統合データセット
+        "integrated": f"integrated/{date_str}",
+        # 研究成果・出版物
+        "publications": "publications",
+        # 一時ファイル
+        "temp": "temp"
     }
 
 def get_s3_key(filename, date_str, data_type):
@@ -77,19 +86,28 @@ def get_s3_key(filename, date_str, data_type):
     date_str : str
         日付文字列（YYYYMMDD形式）
     data_type : str
-        データタイプ（perplexity_citations, google_serp等）
+        データタイプ（raw_data/google, raw_data/perplexity等）
 
     Returns:
     --------
     str
         S3キー
     """
-    paths = get_base_paths(date_str)
-
-    if data_type in paths:
-        # パス管理システムから直接取得
-        base_path = paths[data_type]
-        return f"{base_path}/{filename}"
+    # 新しいディレクトリ構造に対応
+    if data_type == "raw_data/google":
+        return f"raw_data/{date_str}/google/{filename}"
+    elif data_type == "raw_data/perplexity":
+        return f"raw_data/{date_str}/perplexity/{filename}"
+    elif data_type.startswith("analysis/"):
+        return f"analysis/{date_str}/{filename}"
+    elif data_type == "integrated":
+        return f"integrated/{date_str}/{filename}"
     else:
-        # フォールバック: 標準パターンで生成
-        return f"results/{data_type}/{date_str}/{filename}"
+        # 後方互換性のための従来パス
+        paths = get_base_paths(date_str)
+        if data_type in paths:
+            base_path = paths[data_type]
+            return f"{base_path}/{filename}"
+        else:
+            # フォールバック: 標準パターンで生成
+            return f"results/{data_type}/{date_str}/{filename}"

@@ -73,7 +73,7 @@ def analyze_sentiments(texts):
         print(f"Perplexity API リクエストエラー: {e}")
         return ["unknown"] * len(texts)
 
-def process_google_serp_results(data):
+def process_google_serp_search(data):
     """Google SERPの結果ファイルを処理（entities構造に対応）"""
     # 元のデータをそのまま使用
     results = data
@@ -196,7 +196,7 @@ def process_results_file(file_path, date_str, args):
     if "google_serp" in file_path:
         if args.verbose:
             logging.info("Google SERPデータを処理しています...")
-        return process_google_serp_results(data)
+        return process_google_serp_search(data)
     elif "perplexity_citations" in file_path:
         if args.verbose:
             logging.info("Perplexity Citations（新構造）データを処理しています...")
@@ -248,7 +248,7 @@ def main():
             input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations_{args.runs}runs.json")
         elif args.data_type == "google_serp":
             # Google SERPの場合は実行回数不要
-            input_file = os.path.join(paths["google_serp"], f"{date_str}_google_serp_results.json")
+            input_file = os.path.join(paths["google_serp"], f"{date_str}_google_serp_search.json")
         else:
             logging.error(f"未対応のデータタイプです: {args.data_type}")
             return

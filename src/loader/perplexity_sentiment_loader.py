@@ -211,17 +211,17 @@ def main():
     if args.multiple:
         print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
         result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, args.runs)
-        file_name = f"{today_date}_perplexity_sentiment_results_{args.runs}runs.json"
-        local_path = os.path.join(paths["perplexity_sentiment"], file_name)
+        file_name = f"sentiment_{args.runs}runs.json"
+        local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
         from src.utils.storage_config import get_s3_key
-        s3_key = get_s3_key(file_name, today_date, "perplexity_sentiment")
+        s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
         save_results(result, local_path, s3_key, verbose=args.verbose)
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
         result = process_categories(PERPLEXITY_API_KEY, categories)
-        file_name = f"{today_date}_perplexity_sentiment_results.json"
-        local_path = os.path.join(paths["perplexity_sentiment"], file_name)
-        s3_key = get_s3_key(file_name, today_date, "perplexity_sentiment")
+        file_name = "sentiment.json"
+        local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
+        s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
         save_results(result, local_path, s3_key, verbose=args.verbose)
 
     print("データ取得処理が完了しました")

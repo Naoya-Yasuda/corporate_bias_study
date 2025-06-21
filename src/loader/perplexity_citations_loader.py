@@ -423,19 +423,19 @@ def main():
         if args.verbose:
             logging.info(f"{args.runs}回の実行を開始します")
         result = collect_citation_rankings(categories)
-        file_name = f"{today_date}_perplexity_citations_{args.runs}runs.json"
-        local_path = os.path.join(paths["perplexity_citations"], file_name)
+        file_name = f"citations_{args.runs}runs.json"
+        local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
         from src.utils.storage_config import get_s3_key
-        s3_key = get_s3_key(file_name, today_date, "perplexity_citations")
+        s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
         save_results(result, local_path, s3_key, verbose=args.verbose)
     else:
         print("Perplexity APIを使用して単一実行引用リンク取得を実行します")
         if args.verbose:
             logging.info("単一実行を開始します")
         result = collect_citation_rankings(categories)
-        file_name = f"{today_date}_perplexity_citations.json"
-        local_path = os.path.join(paths["perplexity_citations"], file_name)
-        s3_key = get_s3_key(file_name, today_date, "perplexity_citations")
+        file_name = "citations.json"
+        local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
+        s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
         save_results(result, local_path, s3_key, verbose=args.verbose)
 
     print("引用リンク取得処理が完了しました")

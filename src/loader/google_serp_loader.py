@@ -117,7 +117,7 @@ def get_google_search_results(query, num_results=10):
         print(f"❌ Google Custom Search API エラー: {e}")
         return {"organic_results": []}
 
-def process_serp_results(data):
+def process_serp_search(data):
     """SERP API の結果から必要な情報を抽出して整形"""
     if not data or "organic_results" not in data:
         return []
@@ -162,12 +162,12 @@ def process_categories_with_serp(categories, max_categories=None):
                 # 公式/非公式判定用の検索
                 query = f"{service}"
                 serp_data = get_google_search_results(query, num_results=10)
-                official_results = process_serp_results(serp_data) if serp_data else []
+                official_results = process_serp_search(serp_data) if serp_data else []
                 time.sleep(2)
                 # 評判情報用の検索
                 query_rep = f"{service} 評判 口コミ"
                 serp_data_rep = get_google_search_results(query_rep, num_results=10)
-                reputation_results = process_serp_results(serp_data_rep) if serp_data_rep else []
+                reputation_results = process_serp_search(serp_data_rep) if serp_data_rep else []
                 time.sleep(2)
                 entities[service] = {
                     "official_results": official_results,
@@ -227,10 +227,10 @@ def main():
     # 結果を保存
     today_date = datetime.datetime.now().strftime("%Y%m%d")
     paths = get_results_paths(today_date)
-    file_name = f"{today_date}_google_serp_results.json"
-    local_path = os.path.join(paths["google_serp"], file_name)
+    file_name = "serp_search.json"
+    local_path = os.path.join(paths["raw_data"]["google"], file_name)
     from src.utils.storage_config import get_s3_key
-    s3_key = get_s3_key(file_name, today_date, "google_serp")
+    s3_key = get_s3_key(file_name, today_date, "raw_data/google")
     save_results(result, local_path, s3_key, verbose=args.verbose)
 
     if args.verbose:

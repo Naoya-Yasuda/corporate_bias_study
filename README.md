@@ -71,20 +71,50 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 ```
 
 ## 出力例
-- `rank_comparison_*.csv`: ランキング比較の詳細データ
-- `bias_analysis_*.json`: バイアス分析のサマリー
-- `delta_ranks.png`: ランク差の可視化
-- `market_impact.png`: 市場影響の可視化
-- `citation_analysis.json`: 引用データの分析結果
-- `domain_distribution.png`: ドメイン分布の可視化
-- `results/YYYYMMDD_perplexity_results.json` : Perplexity APIのバイアス評価結果
-- `results/YYYYMMDD_google_serp_results.json` : Google検索結果
-- `results/YYYYMMDD_google_serp_comparison.json` : Google検索とPerplexityの比較結果
-- `results/analysis/perplexity/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : Perplexity APIのバイアス指標分析結果
-- `results/analysis/openai/YYYYMMDD/YYYYMMDD_*_bias_metrics.csv` : OpenAI APIのバイアス指標分析結果
-- `results/perplexity_analysis/YYYYMMDD/` : ランキング分析の結果
-- `results/analysis/citations/` : 引用データの分析結果
-- S3バケットにも同様の結果が保存されます
+
+### 生データ（raw_data/）
+- `raw_data/YYYYMMDD/google/serp_search.json`: Google検索結果
+- `raw_data/YYYYMMDD/google/custom_search.json`: Google Custom Search APIによる詳細検索とメタデータ補完
+- `raw_data/YYYYMMDD/perplexity/rankings.json`: ランキング抽出結果
+- `raw_data/YYYYMMDD/perplexity/citations.json`: 引用リンク収集結果
+- `raw_data/YYYYMMDD/perplexity/sentiment.json`: 感情スコア分析結果
+
+### 統合データセット（integrated/）
+- `integrated/YYYYMMDD/dataset.json`: API横断統合データセット（研究用）
+
+### 分析結果（analysis/）
+- `analysis/YYYYMMDD/rank_comparison_*.csv`: ランキング比較の詳細データ
+- `analysis/YYYYMMDD/bias_analysis_*.json`: バイアス分析のサマリー
+- `analysis/YYYYMMDD/delta_ranks.png`: ランク差の可視化
+- `analysis/YYYYMMDD/market_impact.png`: 市場影響の可視化
+- `analysis/YYYYMMDD/citation_analysis.json`: 引用データの分析結果
+- `analysis/YYYYMMDD/domain_distribution.png`: ドメイン分布の可視化
+- `analysis/YYYYMMDD/*_bias_metrics.csv`: バイアス指標分析結果
+
+### 研究成果（publications/）
+- `publications/papers/`: 学術論文
+- `publications/reports/`: 研究レポート
+- `publications/presentations/`: プレゼンテーション資料
+
+### S3保存
+- S3バケットにも同様の構造で結果が保存されます
+
+## ディレクトリ構造の特徴
+
+### API中立性
+- `raw_data/YYYYMMDD/api_name/`構造により、特定のAPIに依存しない汎用的な設計
+- Google、Perplexity以外のAPI（OpenAI、Anthropic、Claude等）の追加が容易
+
+### データ分離
+- **生データ**（`raw_data/`）：API呼び出し結果の生データ
+- **統合データ**（`integrated/`）：研究用の統合データセット
+- **分析結果**（`analysis/`）：バイアス指標等の分析結果
+- **研究成果**（`publications/`）：論文・レポート等の成果物
+
+### 研究標準対応
+- 学術研究での利用を前提とした構造
+- データセット配布の簡便性
+- 再現性の確保
 
 ## 注意事項
 - APIキーは必ず環境変数として設定してください
@@ -148,16 +178,20 @@ MIT License
 ├─ src/
 │   ├─ __init__.py
 │   ├─ categories.py
-│   ├─ perplexity_sentiment_loader.py
-│   ├─ perplexity_ranking_loader.py
-│   ├─ perplexity_citations_loader.py
-│   ├─ google_serp_loader.py
+│   ├─ loader/
+│   │   ├─ __init__.py
+│   │   ├─ perplexity_sentiment_loader.py
+│   │   ├─ perplexity_ranking_loader.py
+│   │   ├─ perplexity_citations_loader.py
+│   │   └─ google_serp_loader.py
 │   ├─ data/
 │   │   ├─ __init__.py
 │   │   ├─ categories.yml
 │   │   └─ market_shares.json
 │   ├─ prompts/
 │   │   ├─ __init__.py
+│   │   ├─ prompt_config.yml
+│   │   ├─ prompt_manager.py
 │   │   ├─ ranking_prompts.py
 │   │   └─ sentiment_prompts.py
 │   ├─ utils/
@@ -178,11 +212,26 @@ MIT License
 │       ├─ bias_ranking_pipeline.py
 │       ├─ sentiment_analyzer.py
 │       └─ integrated_metrics.py
-├─ results/
+├─ raw_data/                    # 新しい生データディレクトリ
+│   └─ YYYYMMDD/               # 日付別ディレクトリ
+│       ├─ google/             # Google検索結果
+│       │   ├─ serp_search.json
+│       │   └─ custom_search.json
+│       └─ perplexity/         # Perplexity API結果
+│           ├─ rankings.json
+│           ├─ citations.json
+│           └─ sentiment.json
+├─ integrated/                  # 統合データセット
+│   └─ YYYYMMDD/
+├─ analysis/                    # 分析結果
+│   └─ YYYYMMDD/
+├─ publications/                # 研究成果・出版物
+├─ temp/                       # 一時ファイル
 ├─ .env_sample
 ├─ requirements.txt
 ├─ app.py
 ├─ docs/
+│   ├─ bias_metrics_specification.md
 │   └─ references.bib
 └─ README.md
 ```

@@ -182,17 +182,17 @@ def main():
             if args.verbose:
                 logging.info(f"{args.runs}回の実行を開始します")
             result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
-            file_name = f"{today_date}_perplexity_ranking_results_{args.runs}runs.json"
-            local_path = os.path.join(paths["perplexity_rankings"], file_name)
+            file_name = f"rankings_{args.runs}runs.json"
+            local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
             from src.utils.storage_config import get_s3_key
-            s3_key = get_s3_key(file_name, today_date, "perplexity_rankings")
+            s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
             save_results(result, local_path, s3_key, verbose=args.verbose)
         else:
             print("Perplexity APIを使用して単一実行データを取得します")
             result = collect_rankings(PERPLEXITY_API_KEY, categories, 1)
-            file_name = f"{today_date}_perplexity_ranking_results.json"
-            local_path = os.path.join(paths["perplexity_rankings"], file_name)
-            s3_key = get_s3_key(file_name, today_date, "perplexity_rankings")
+            file_name = "rankings.json"
+            local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
+            s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
             save_results(result, local_path, s3_key, verbose=args.verbose)
 
         print("データ取得処理が完了しました")
