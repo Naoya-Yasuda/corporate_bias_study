@@ -927,6 +927,8 @@ corporate_bias_datasets/
 ├── raw_data/                          # 生データ（API別・日付別）
 │   └── YYYYMMDD/
 │       ├── google/                    # Google系API
+│       │   ├── google_search_results.json   # Google検索結果
+│       │   └── custom_search.json        # Google Custom Search結果
 │       ├── perplexity/               # Perplexity API
 │       ├── openai/                   # OpenAI API（将来対応）
 │       ├── anthropic/                # Anthropic API（将来対応）
@@ -968,8 +970,8 @@ raw_data/
 
 #### 13.3.2 各ファイルの詳細説明
 
-##### **google/serp_search.json**
-**目的**: Google検索結果の取得（SerpAPI経由）
+##### **google/google_search_results.json**
+**目的**: Google検索結果の取得
 **内容**: 企業名での検索結果とその順位情報
 **データ構造**:
 ```json

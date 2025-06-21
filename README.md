@@ -73,7 +73,7 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 ## 出力例
 
 ### 生データ（corporate_bias_datasets/raw_data/）
-- `corporate_bias_datasets/raw_data/YYYYMMDD/google/serp_search.json`: Google検索結果
+- `corporate_bias_datasets/raw_data/YYYYMMDD/google/google_search_results.json`: Google検索結果
 - `corporate_bias_datasets/raw_data/YYYYMMDD/google/custom_search.json`: Google Custom Search APIによる詳細検索とメタデータ補完
 - `corporate_bias_datasets/raw_data/YYYYMMDD/perplexity/rankings.json`: ランキング抽出結果
 - `corporate_bias_datasets/raw_data/YYYYMMDD/perplexity/citations.json`: 引用リンク収集結果
@@ -221,7 +221,7 @@ MIT License
 │   ├─ raw_data/               # 生データ（API別・日付別）
 │   │   └─ YYYYMMDD/
 │   │       ├─ google/         # Google系API
-│   │       │   ├─ serp_search.json
+│   │       │   ├─ google_search_results.json
 │   │       │   └─ custom_search.json
 │   │       ├─ perplexity/     # Perplexity API
 │   │       │   ├─ rankings.json
