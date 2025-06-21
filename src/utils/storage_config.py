@@ -48,31 +48,31 @@ def get_storage_config():
     }
 
 def get_base_paths(date_str):
-    """基本パスを取得 - 新しいディレクトリ構造 raw_data/YYYYMMDD/api_name/ に対応"""
+    """基本パスを取得 - corporate_bias_datasets/ 階層を含む新しいディレクトリ構造に対応"""
     return {
         # 生データディレクトリ（API別）
         "raw_data": {
-            "google": f"raw_data/{date_str}/google",
-            "perplexity": f"raw_data/{date_str}/perplexity"
+            "google": f"corporate_bias_datasets/raw_data/{date_str}/google",
+            "perplexity": f"corporate_bias_datasets/raw_data/{date_str}/perplexity"
         },
         # 従来の結果ディレクトリ（後方互換性のため残す）
-        "perplexity_rankings": f"raw_data/{date_str}/perplexity",
-        "perplexity_sentiment": f"raw_data/{date_str}/perplexity",
-        "perplexity_citations": f"raw_data/{date_str}/perplexity",
-        "google_serp": f"raw_data/{date_str}/google",
+        "perplexity_rankings": f"corporate_bias_datasets/raw_data/{date_str}/perplexity",
+        "perplexity_sentiment": f"corporate_bias_datasets/raw_data/{date_str}/perplexity",
+        "perplexity_citations": f"corporate_bias_datasets/raw_data/{date_str}/perplexity",
+        "google_serp": f"corporate_bias_datasets/raw_data/{date_str}/google",
         # 分析結果ディレクトリ
         "analysis": {
-            "perplexity": f"analysis/{date_str}",
-            "citations": f"analysis/{date_str}",
-            "integrated_metrics": f"analysis/{date_str}",
-            "bias_analysis": f"analysis/{date_str}"
+            "perplexity": f"corporate_bias_datasets/analysis/{date_str}",
+            "citations": f"corporate_bias_datasets/analysis/{date_str}",
+            "integrated_metrics": f"corporate_bias_datasets/analysis/{date_str}",
+            "bias_analysis": f"corporate_bias_datasets/analysis/{date_str}"
         },
         # 統合データセット
-        "integrated": f"integrated/{date_str}",
+        "integrated": f"corporate_bias_datasets/integrated/{date_str}",
         # 研究成果・出版物
-        "publications": "publications",
+        "publications": "corporate_bias_datasets/publications",
         # 一時ファイル
-        "temp": "temp"
+        "temp": "corporate_bias_datasets/temp"
     }
 
 def get_s3_key(filename, date_str, data_type):
@@ -93,15 +93,15 @@ def get_s3_key(filename, date_str, data_type):
     str
         S3キー
     """
-    # 新しいディレクトリ構造に対応
+    # corporate_bias_datasets/ 階層を含む新しいディレクトリ構造に対応
     if data_type == "raw_data/google":
-        return f"raw_data/{date_str}/google/{filename}"
+        return f"corporate_bias_datasets/raw_data/{date_str}/google/{filename}"
     elif data_type == "raw_data/perplexity":
-        return f"raw_data/{date_str}/perplexity/{filename}"
+        return f"corporate_bias_datasets/raw_data/{date_str}/perplexity/{filename}"
     elif data_type.startswith("analysis/"):
-        return f"analysis/{date_str}/{filename}"
+        return f"corporate_bias_datasets/analysis/{date_str}/{filename}"
     elif data_type == "integrated":
-        return f"integrated/{date_str}/{filename}"
+        return f"corporate_bias_datasets/integrated/{date_str}/{filename}"
     else:
         # 後方互換性のための従来パス
         paths = get_base_paths(date_str)
