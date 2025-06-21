@@ -2,8 +2,8 @@
 # coding: utf-8
 
 """
-Google SERP Loader モジュール
-SerpAPIを使ってGoogle検索結果を取得し、Perplexityの結果と比較分析するためのモジュール
+Google Search Loader モジュール
+Google Custom Search APIを使ってGoogle検索結果を取得し、Perplexityの結果と比較分析するためのモジュール
 """
 
 import os
@@ -24,9 +24,9 @@ from ..categories import get_categories, get_all_categories
 # 環境変数の読み込み
 load_dotenv()
 
-# SERP API の設定
-SERP_API_KEY = os.environ.get("SERP_API_KEY")
-API_HOST = "serpapi.com"
+# Google Custom Search API の設定
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
 
 # S3 設定情報
 AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
@@ -42,7 +42,7 @@ categories = get_categories()
 # -------------------------------------------------------------------
 
 # -------------------------------------------------------------------
-# SERP API 関連
+# Google Custom Search API 関連
 # -------------------------------------------------------------------
 def get_google_search_results(query, num_results=10):
     """
@@ -58,12 +58,10 @@ def get_google_search_results(query, num_results=10):
     Returns:
     --------
     dict
-        検索結果の辞書（SERP APIと互換性のある形式）
+        検索結果の辞書
     """
     try:
         # 環境変数からAPIキーを取得
-        GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
-        GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
         if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
             raise ValueError("GOOGLE_API_KEY または GOOGLE_CSE_ID が設定されていません。.env ファイルを確認してください。")
 
@@ -96,7 +94,7 @@ def get_google_search_results(query, num_results=10):
         data = response.json()
         print(f"APIレスポンス: {data}")
 
-        # 検索結果を整形（SERP APIと互換性のある形式に変換）
+        # 検索結果を整形
         results = {
             "organic_results": []
         }
@@ -119,8 +117,8 @@ def get_google_search_results(query, num_results=10):
         print(f"❌ Google Custom Search API エラー: {e}")
         return {"organic_results": []}
 
-def process_serp_search(data):
-    """SERP API の結果から必要な情報を抽出して整形"""
+def process_search_results(data):
+    """Google Custom Search API の結果から必要な情報を抽出して整形"""
     if not data or "organic_results" not in data:
         return []
     organic_results = data["organic_results"]
@@ -140,8 +138,8 @@ def process_serp_search(data):
         results.append(result_dict)
     return results
 
-def process_categories_with_serp(categories, max_categories=None):
-    """カテゴリごとにSERP検索を実行し、entities属性の下に格納"""
+def process_categories_with_search(categories, max_categories=None):
+    """カテゴリごとにGoogle検索を実行し、entities属性の下に格納"""
     results = {}
     count = 0
     if max_categories:
@@ -163,13 +161,13 @@ def process_categories_with_serp(categories, max_categories=None):
             for service in services:
                 # 公式/非公式判定用の検索
                 query = f"{service}"
-                serp_data = get_google_search_results(query, num_results=10)
-                official_results = process_serp_search(serp_data) if serp_data else []
+                search_data = get_google_search_results(query, num_results=10)
+                official_results = process_search_results(search_data) if search_data else []
                 time.sleep(2)
                 # 評判情報用の検索
                 query_rep = f"{service} 評判 口コミ"
-                serp_data_rep = get_google_search_results(query_rep, num_results=10)
-                reputation_results = process_serp_search(serp_data_rep) if serp_data_rep else []
+                search_data_rep = get_google_search_results(query_rep, num_results=10)
+                reputation_results = process_search_results(search_data_rep) if search_data_rep else []
                 time.sleep(2)
                 entities[service] = {
                     "official_results": official_results,
@@ -190,12 +188,12 @@ def process_categories_with_serp(categories, max_categories=None):
 def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
-    parser = argparse.ArgumentParser(description='Google SERPデータを取得し、Perplexityとの比較分析を行う')
+    parser = argparse.ArgumentParser(description='Google検索データを取得し、Perplexityとの比較分析を行う')
     parser.add_argument('--perplexity-date', help='分析対象のPerplexityデータ日付（YYYYMMDD形式）')
     parser.add_argument('--data-type', choices=['rankings', 'citations'], default='citations',
                         help='比較するPerplexityデータのタイプ（デフォルト: citations）')
     parser.add_argument('--max', type=int, help='処理するカテゴリ数の上限')
-    parser.add_argument('--no-analysis', action='store_true', help='SERPメトリクス分析を実行しない')
+    parser.add_argument('--no-analysis', action='store_true', help='検索メトリクス分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
 
@@ -223,19 +221,19 @@ def main():
     if args.verbose:
         logging.info(f"Perplexity分析日付: {perplexity_date}, データタイプ: {args.data_type}")
 
-    # Google SERP結果を取得
-    result = process_categories_with_serp(categories, args.max)
+    # Google検索結果を取得
+    result = process_categories_with_search(categories, args.max)
 
     # 結果を保存
     today_date = datetime.datetime.now().strftime("%Y%m%d")
     paths = get_results_paths(today_date)
-    file_name = "serp_search.json"
+    file_name = "search_results.json"
     local_path = os.path.join(paths["raw_data"]["google"], file_name)
     s3_key = get_s3_key(file_name, today_date, "raw_data/google")
     save_results(result, local_path, s3_key, verbose=args.verbose)
 
     if args.verbose:
-        logging.info(f"Google SERP結果をファイルに保存しました: {local_path}")
+        logging.info(f"Google検索結果をファイルに保存しました: {local_path}")
 
 if __name__ == "__main__":
     main()

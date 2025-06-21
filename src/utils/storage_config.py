@@ -59,7 +59,7 @@ def get_base_paths(date_str):
         "perplexity_rankings": f"corporate_bias_datasets/raw_data/{date_str}/perplexity",
         "perplexity_sentiment": f"corporate_bias_datasets/raw_data/{date_str}/perplexity",
         "perplexity_citations": f"corporate_bias_datasets/raw_data/{date_str}/perplexity",
-        "google_serp": f"corporate_bias_datasets/raw_data/{date_str}/google",
+        "google": f"corporate_bias_datasets/raw_data/{date_str}/google",
         # 分析結果ディレクトリ
         "analysis": {
             "perplexity": f"corporate_bias_datasets/analysis/{date_str}",

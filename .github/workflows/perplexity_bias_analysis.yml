@@ -111,12 +111,16 @@ jobs:
           python -m src.loader.perplexity_citations_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_citations.log
           echo "完了: Perplexity 引用リンクデータ取得 ($(date))" | tee -a logs/execution.log
 
-      - name: Run Google SERP data collection
-        if: ${{ github.event_name == 'schedule' || github.event.inputs.run_serp_collection == 'true' }}
+      - name: Google検索データの収集
         run: |
-          echo "開始: Google SERPデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.loader.google_serp_loader --verbose | tee -a logs/google_serp.log
-          echo "完了: Google SERPデータ取得 ($(date))" | tee -a logs/execution.log
+          python -m src.loader.google_search_loader --verbose | tee -a logs/google_search.log
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_CSE_ID: ${{ secrets.GOOGLE_CSE_ID }}
+
+      - name: Google検索データの感情分析
+        run: |
+          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_search --verbose | tee -a logs/sentiment_analysis_google.log
 
       # 感情分析ステップ
       - name: Run Sentiment Analysis for Google SERP

@@ -20,65 +20,74 @@ from src.utils.storage_utils import save_json, get_results_paths, get_local_path
 # -------------------------------------------------------------------
 def compute_ranking_metrics(google_ranking, pplx_ranking, max_k=10):
     """
-    Googleランキングと Perplexity ランキングを比較するメトリクス計算
+    GoogleとPerplexityのランキング間の類似度メトリクスを計算
 
     Parameters
     ----------
     google_ranking : list
-        Google検索結果の企業ランキング
+        Googleの検索結果ランキング（ドメインのリスト）
     pplx_ranking : list
-        Perplexity APIの企業ランキング
+        Perplexityの引用ランキング（ドメインのリスト）
     max_k : int
-        最大比較ランク
+        比較する上位ランキング数
 
     Returns
     -------
     dict
-        比較メトリクス
+        類似度メトリクス
     """
-    # リストが空の場合のハンドリング
-    if not google_ranking or not pplx_ranking:
-        return {
-            "rbo": 0.0,
-            "kendall_tau": 0.0,
-            "delta_ranks": {},
-            "overlap_ratio": 0.0
-        }
+    # 上位k件に制限
+    google_top_k = google_ranking[:max_k]
+    pplx_top_k = pplx_ranking[:max_k]
 
-    # k以内に絞る
-    g_top_k = google_ranking[:max_k]
-    p_top_k = pplx_ranking[:max_k]
+    # 重複ドメインの削除（順序保持）
+    google_unique = []
+    seen = set()
+    for domain in google_top_k:
+        if domain not in seen and domain:
+            google_unique.append(domain)
+            seen.add(domain)
 
-    # RBOスコア
-    rbo_score = rbo(g_top_k, p_top_k, p=0.9)
+    pplx_unique = []
+    seen = set()
+    for domain in pplx_top_k:
+        if domain not in seen and domain:
+            pplx_unique.append(domain)
+            seen.add(domain)
 
-    # Kendallのタウ係数
-    tau = compute_tau(g_top_k, p_top_k)
+    # RBO計算
+    rbo_score = rbo(google_unique, pplx_unique, p=0.9)
 
-    # ΔRank計算（Google - PPLX）
-    delta_ranks = compute_delta_ranks(g_top_k, p_top_k)
+    # Kendall's tau計算
+    kendall_tau_score = compute_tau(google_unique, pplx_unique)
 
-    # 共通アイテムを計算
-    common_items = list(set(g_top_k).intersection(set(p_top_k)))
+    # 重複率計算
+    google_set = set(google_unique)
+    pplx_set = set(pplx_unique)
+    overlap = len(google_set & pplx_set)
+    union = len(google_set | pplx_set)
+    overlap_ratio = overlap / union if union > 0 else 0
 
-    # オーバーラップ比率（共通アイテム数/max_k）
-    overlap_ratio = len(common_items) / max_k if max_k > 0 else 0.0
+    # ランク差分計算
+    delta_ranks = compute_delta_ranks(google_unique, pplx_unique)
 
     return {
         "rbo": rbo_score,
-        "kendall_tau": tau,
+        "kendall_tau": kendall_tau_score,
+        "overlap_ratio": overlap_ratio,
         "delta_ranks": delta_ranks,
-        "overlap_ratio": overlap_ratio
+        "google_domains": google_unique,
+        "pplx_domains": pplx_unique
     }
 
-def compute_content_metrics(serp_detailed_results, top_k=10):
+def compute_content_metrics(search_detailed_results, top_k=10):
     """
-    SERPの詳細結果から公式/非公式、ポジ/ネガ比率などを計算
+    検索の詳細結果から公式/非公式、ポジ/ネガ比率などを計算
 
     Parameters
     ----------
-    serp_detailed_results : list
-        SERPの詳細検索結果リスト
+    search_detailed_results : list
+        検索の詳細検索結果リスト
     top_k : int
         分析対象の上位結果数
 
@@ -87,7 +96,7 @@ def compute_content_metrics(serp_detailed_results, top_k=10):
     dict
         コンテンツメトリクス
     """
-    results = serp_detailed_results[:top_k]
+    results = search_detailed_results[:top_k]
 
     # 公式/非公式、ポジ/ネガ結果の数
     official_count = sum(1 for r in results if r.get("is_official") == "official")
@@ -128,16 +137,16 @@ def compute_content_metrics(serp_detailed_results, top_k=10):
 # -------------------------------------------------------------------
 def analyze_citations_from_file(citations_file, output_dir=None, verbose=False):
     """
-    引用リンク (Citations) データファイルを分析
+    引用リンクファイルから分析を実行
 
     Parameters
     ----------
     citations_file : str
-        引用リンクデータのJSONファイルパス
+        引用リンクファイルのパス
     output_dir : str, optional
-        分析結果の出力ディレクトリ
+        出力ディレクトリ
     verbose : bool, optional
-        詳細な出力を表示するかどうか
+        詳細ログの出力
 
     Returns
     -------
@@ -145,197 +154,156 @@ def analyze_citations_from_file(citations_file, output_dir=None, verbose=False):
         分析結果
     """
     if verbose:
-        print(f"引用リンクデータファイル {citations_file} の分析を開始します")
+        print(f"引用リンク分析を開始: {citations_file}")
 
-    # 出力ディレクトリの設定
-    if output_dir is None:
-        output_dir = "results/analysis/citations"
-
-    ensure_dir(output_dir)
-
-    if verbose:
-        print(f"出力ディレクトリ: {output_dir}")
-
-    # ファイルの読み込み
+    # ファイル読み込み
     try:
-        with open(citations_file, "r", encoding="utf-8") as f:
+        with open(citations_file, 'r', encoding='utf-8') as f:
             citations_data = json.load(f)
-            if verbose:
-                print(f"引用リンクデータを読み込みました（サイズ: {len(json.dumps(citations_data))} バイト）")
     except Exception as e:
-        print(f"引用リンクデータファイルの読み込みに失敗しました: {e}")
+        print(f"ファイル読み込みエラー: {e}")
         return None
 
-    # 分析結果を格納する辞書
+    if verbose:
+        print(f"データ読み込み完了: {len(citations_data)}カテゴリ")
+
     analysis_results = {}
 
-    # カテゴリとサブカテゴリの分析
+    # カテゴリごとに分析
     for category, subcategories in citations_data.items():
         if verbose:
-            print(f"カテゴリ {category} の分析を開始します")
+            print(f"カテゴリ分析中: {category}")
 
-        analysis_results[category] = {}
+        category_results = {}
 
         for subcategory, data in subcategories.items():
             if verbose:
-                print(f"  サブカテゴリ {subcategory} の分析を開始します")
+                print(f"  サブカテゴリ: {subcategory}")
 
-            # サブカテゴリごとの分析結果
-            subcategory_analysis = {
-                "citation_metrics": {},
-                "domain_distribution": {},
-                "summary": {}
-            }
+            # 引用メトリクスの計算
+            citation_metrics = compute_citation_metrics(data)
+            category_results[subcategory] = citation_metrics
 
-            # 複数回実行の場合（all_runsキーがある場合）
-            if "all_runs" in data:
-                # ドメインごとの出現回数と平均順位を分析
-                domain_stats = defaultdict(lambda: {"count": 0, "ranks": []})
-                total_citations = 0
-                successful_runs = 0
+        analysis_results[category] = category_results
 
-                for run in data["all_runs"]:
-                    citations = run.get("citations", [])
-                    if citations:
-                        successful_runs += 1
-                        total_citations += len(citations)
+    # 結果の保存
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, "citation_analysis.json")
 
-                        for citation in citations:
-                            domain = citation.get("domain", "unknown")
-                            rank = citation.get("rank", 0)
-                            domain_stats[domain]["count"] += 1
-                            domain_stats[domain]["ranks"].append(rank)
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(analysis_results, f, ensure_ascii=False, indent=2)
 
-                # ドメイン分布の計算
-                domain_distribution = []
-                for domain, stats in domain_stats.items():
-                    avg_rank = sum(stats["ranks"]) / len(stats["ranks"]) if stats["ranks"] else 0
-                    frequency = stats["count"] / total_citations if total_citations > 0 else 0
-                    domain_distribution.append({
-                        "domain": domain,
-                        "count": stats["count"],
-                        "frequency": frequency,
-                        "avg_rank": avg_rank
-                    })
-
-                # ドメイン分布を平均ランクでソート
-                domain_distribution.sort(key=lambda x: x["avg_rank"])
-
-                # メトリクスの計算
-                citation_metrics = {
-                    "total_citations": total_citations,
-                    "successful_runs": successful_runs,
-                    "avg_citations_per_run": total_citations / successful_runs if successful_runs > 0 else 0,
-                    "unique_domains": len(domain_stats)
-                }
-
-                # 分析結果の保存
-                subcategory_analysis["citation_metrics"] = citation_metrics
-                subcategory_analysis["domain_distribution"] = domain_distribution
-                subcategory_analysis["summary"] = {
-                    "query": data.get("query", ""),
-                    "top_domains": [d["domain"] for d in domain_distribution[:5]],
-                    "run_success_rate": successful_runs / len(data["all_runs"]) if data["all_runs"] else 0
-                }
-
-                # ドメイン分布の可視化（上位10ドメイン）
-                if domain_distribution:
-                    top_domains = domain_distribution[:10]
-                    domain_names = [d["domain"] for d in top_domains]
-                    frequencies = [d["frequency"] * 100 for d in top_domains]  # パーセンテージに変換
-
-                    plt.figure(figsize=(10, 6))
-                    bars = plt.barh(domain_names, frequencies, color='skyblue')
-                    plt.xlabel('引用頻度 (%)')
-                    plt.ylabel('ドメイン')
-                    plt.title(f'{subcategory} の引用ドメイン分布')
-                    plt.tight_layout()
-
-                    # 各バーに値をラベル付け
-                    for i, bar in enumerate(bars):
-                        plt.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height()/2,
-                                f"{frequencies[i]:.1f}%", va='center')
-
-                    # グラフを保存
-                    plot_path = os.path.join(output_dir, f"{category}_{subcategory}_domain_distribution.png")
-                    plt.savefig(plot_path, dpi=100)
-                    plt.close()
-
-                    subcategory_analysis["plots"] = {
-                        "domain_distribution": plot_path
-                    }
-
-            # 単一実行の場合（runキーがある場合）
-            elif "run" in data:
-                run = data["run"]
-                citations = run.get("citations", [])
-
-                # ドメインカウントの計算
-                domain_counts = {}
-                for citation in citations:
-                    domain = citation.get("domain", "unknown")
-                    domain_counts[domain] = domain_counts.get(domain, 0) + 1
-
-                # ドメイン分布の作成
-                domain_distribution = []
-                total_citations = len(citations)
-                for domain, count in domain_counts.items():
-                    frequency = count / total_citations if total_citations > 0 else 0
-                    domain_distribution.append({
-                        "domain": domain,
-                        "count": count,
-                        "frequency": frequency
-                    })
-
-                # ドメイン分布をカウントでソート
-                domain_distribution.sort(key=lambda x: x["count"], reverse=True)
-
-                # メトリクスの計算
-                citation_metrics = {
-                    "total_citations": total_citations,
-                    "unique_domains": len(domain_counts)
-                }
-
-                # 分析結果の保存
-                subcategory_analysis["citation_metrics"] = citation_metrics
-                subcategory_analysis["domain_distribution"] = domain_distribution
-                subcategory_analysis["summary"] = {
-                    "query": data.get("query", ""),
-                    "top_domains": [d["domain"] for d in domain_distribution[:5]]
-                }
-
-            # サブカテゴリの分析結果を追加
-            analysis_results[category][subcategory] = subcategory_analysis
-
-    # 全体の分析結果をJSONに保存
-    result_path = os.path.join(output_dir, "citations_analysis.json")
-    save_json(analysis_results, result_path)
-    if verbose:
-        print(f"分析結果を {result_path} に保存しました")
-
-    # 分析結果のサマリーを出力
-    print("\n=== 引用リンク分析結果サマリー ===")
-    for category, subcategories in analysis_results.items():
-        print(f"\nカテゴリ: {category}")
-
-        for subcategory, analysis in subcategories.items():
-            metrics = analysis.get("citation_metrics", {})
-            summary = analysis.get("summary", {})
-
-            print(f"  サブカテゴリ: {subcategory}")
-            print(f"    引用数: {metrics.get('total_citations', 0)}")
-            print(f"    ユニークドメイン: {metrics.get('unique_domains', 0)}")
-
-            if "top_domains" in summary and summary["top_domains"]:
-                print(f"    トップドメイン: {', '.join(summary['top_domains'][:3])}")
-
-            if "run_success_rate" in summary:
-                print(f"    成功率: {summary['run_success_rate']*100:.1f}%")
+        if verbose:
+            print(f"分析結果を保存: {output_file}")
 
     return analysis_results
 
+def process_perplexity_citations(citations_data, output_dir=None, verbose=False):
+    """
+    Perplexity引用データの処理と分析
+
+    Parameters
+    ----------
+    citations_data : dict
+        引用データ
+    output_dir : str, optional
+        出力ディレクトリ
+    verbose : bool, optional
+        詳細ログの出力
+
+    Returns
+    -------
+    dict
+        分析結果
+    """
+    if verbose:
+        print("Perplexity引用データの処理を開始")
+
+    analysis_results = {}
+
+    # カテゴリごとに処理
+    for category, subcategories in citations_data.items():
+        if verbose:
+            print(f"処理中: {category}")
+
+        category_results = {}
+
+        for subcategory, data in subcategories.items():
+            # 引用メトリクスの計算
+            metrics = compute_citation_metrics(data)
+            category_results[subcategory] = metrics
+
+        analysis_results[category] = category_results
+
+    return analysis_results
+
+def process_entities_citations(entities_data, output_dir=None, verbose=False):
+    """
+    Entitiesベースの引用データの処理
+
+    Parameters
+    ----------
+    entities_data : dict
+        entitiesベースの引用データ
+    output_dir : str, optional
+        出力ディレクトリ
+    verbose : bool, optional
+        詳細ログの出力
+
+    Returns
+    -------
+    dict
+        処理結果
+    """
+    if verbose:
+        print("Entitiesベース引用データの処理を開始")
+
+    processed_results = {}
+
+    # カテゴリごとに処理
+    for category, subcategories in entities_data.items():
+        if verbose:
+            print(f"処理中: {category}")
+
+        category_results = {}
+
+        for subcategory, content in subcategories.items():
+            # entities構造の処理
+            entities = content.get("entities", {})
+
+            subcategory_results = {
+                "timestamp": content.get("timestamp"),
+                "category": content.get("category"),
+                "subcategory": content.get("subcategory"),
+                "entities_analysis": {}
+            }
+
+            for entity_name, entity_data in entities.items():
+                # 各エンティティの引用分析
+                official_results = entity_data.get("official_results", [])
+                reputation_results = entity_data.get("reputation_results", [])
+
+                entity_analysis = {
+                    "official_count": len(official_results),
+                    "reputation_count": len(reputation_results),
+                    "total_results": len(official_results) + len(reputation_results),
+                    "domains": {
+                        "official": [r.get("domain") for r in official_results if r.get("domain")],
+                        "reputation": [r.get("domain") for r in reputation_results if r.get("domain")]
+                    }
+                }
+
+                subcategory_results["entities_analysis"][entity_name] = entity_analysis
+
+            category_results[subcategory] = subcategory_results
+
+        processed_results[category] = category_results
+
+    return processed_results
+
 # -------------------------------------------------------------------
-# PerplexityとGoogle SERPの比較
+# PerplexityとGoogle検索の比較
 # -------------------------------------------------------------------
 def is_citations_data(pplx_data):
     """
@@ -361,54 +329,45 @@ def is_citations_data(pplx_data):
 
 def extract_domains_from_citations(citations_data, subcategory):
     """
-    引用リンクデータからドメインのランキングを抽出
+    引用データからドメインのランキングを抽出
 
     Parameters
     ----------
     citations_data : dict
-        引用リンクデータ
+        引用データ
     subcategory : str
         サブカテゴリ名
 
     Returns
     -------
     list
-        ドメインのリスト（順位順）
+        ドメインのランキングリスト
     """
     if subcategory not in citations_data:
         return []
 
     data = citations_data[subcategory]
 
-    # 複数回実行の結果がある場合（domain_rankingsがある場合）
-    if 'domain_rankings' in data:
-        # 平均ランクでソート済みのドメインリストを使用
-        return [item['domain'] for item in data['domain_rankings']]
+    # 複数回実行の場合
+    if "all_runs" in data:
+        domain_rankings = data.get("domain_rankings", [])
+        return [item["domain"] for item in domain_rankings]
 
     # 単一実行の場合
-    elif 'citations' in data:
-        # すでに順序付けされたcitationsからドメインを抽出
-        domains = []
-        for citation in data['citations']:
-            domain = citation.get('domain')
-            if domain and domain not in domains:
-                domains.append(domain)
-        return domains
-
-    # 'domains'キーが直接ある場合
-    elif 'domains' in data:
-        return data['domains']
+    elif "run" in data:
+        citations = data["run"].get("citations", [])
+        return [citation["domain"] for citation in citations]
 
     return []
 
-def compare_with_perplexity(serp_search, pplx_results):
+def compare_with_perplexity(search_search, pplx_results):
     """
     Google検索結果とPerplexity APIの結果を比較
     引用リンク（citations）データを使用
 
     Parameters
     ----------
-    serp_search : dict
+    search_search : dict
         Google検索結果の辞書
     pplx_results : dict
         Perplexity APIの結果辞書
@@ -422,10 +381,10 @@ def compare_with_perplexity(serp_search, pplx_results):
     comparison = {}
 
     # カテゴリごとに比較
-    categories = set(serp_search.keys()) & set(pplx_results.keys())
+    categories = set(search_search.keys()) & set(pplx_results.keys())
 
     for category in categories:
-        google_data = serp_search[category]
+        google_data = search_search[category]
         pplx_data = pplx_results[category]
 
         # Googleからドメインランキングを抽出
@@ -470,7 +429,7 @@ def compute_citation_metrics(pplx_data):
     Parameters
     ----------
     pplx_data : dict
-        Perplexity APIの結果辞書
+        Perplexityの引用データ
 
     Returns
     -------
@@ -480,22 +439,28 @@ def compute_citation_metrics(pplx_data):
     metrics = {
         "total_citations": 0,
         "unique_domains": 0,
-        "domain_distribution": [],
         "citation_quality": {
             "with_snippet": 0,
             "with_last_modified": 0,
             "with_context": 0
-        }
+        },
+        "domain_distribution": []
     }
 
+    # 複数回実行の場合
     if "all_runs" in pplx_data:
-        # 複数回実行の場合
         all_citations = []
-        for run in pplx_data["all_runs"]:
-            citations = run.get("citations", [])
+        for run_data in pplx_data["all_runs"]:
+            citations = run_data.get("citations", [])
             all_citations.extend(citations)
 
-        # ドメイン分布の計算
+        metrics["total_citations"] = len(all_citations)
+        metrics["unique_domains"] = len(set(c.get("domain", "unknown") for c in all_citations))
+        metrics["citation_quality"]["with_snippet"] = sum(1 for c in all_citations if c.get("snippet"))
+        metrics["citation_quality"]["with_last_modified"] = sum(1 for c in all_citations if c.get("last_modified"))
+        metrics["citation_quality"]["with_context"] = sum(1 for c in all_citations if c.get("context"))
+
+        # ドメイン分布の作成
         domain_stats = defaultdict(lambda: {"count": 0, "snippets": 0, "last_modified": 0})
         for citation in all_citations:
             domain = citation.get("domain", "unknown")
@@ -505,14 +470,6 @@ def compute_citation_metrics(pplx_data):
             if citation.get("last_modified"):
                 domain_stats[domain]["last_modified"] += 1
 
-        # メトリクスの計算
-        metrics["total_citations"] = len(all_citations)
-        metrics["unique_domains"] = len(domain_stats)
-        metrics["citation_quality"]["with_snippet"] = sum(1 for c in all_citations if c.get("snippet"))
-        metrics["citation_quality"]["with_last_modified"] = sum(1 for c in all_citations if c.get("last_modified"))
-        metrics["citation_quality"]["with_context"] = sum(1 for c in all_citations if c.get("context"))
-
-        # ドメイン分布の作成
         for domain, stats in domain_stats.items():
             metrics["domain_distribution"].append({
                 "domain": domain,
@@ -547,13 +504,13 @@ def compute_citation_metrics(pplx_data):
 # -------------------------------------------------------------------
 # 分析実行関数
 # -------------------------------------------------------------------
-def analyze_serp_search(serp_search, pplx_results, comparison_results):
+def analyze_search_results(search_search, pplx_results, comparison_results):
     """
-    Google SERP結果とPerplexity結果の比較分析を実行
+    Google検索結果とPerplexity結果の比較分析を実行
 
     Parameters
     ----------
-    serp_search : dict
+    search_search : dict
         Google検索結果
     pplx_results : dict
         Perplexity API結果
@@ -644,7 +601,7 @@ def analyze_serp_search(serp_search, pplx_results, comparison_results):
 # CLIから直接実行する場合のエントリポイント
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Google SERPとPerplexityの結果を分析")
+    parser = argparse.ArgumentParser(description="Google検索とPerplexityの結果を分析")
     parser.add_argument("--date", required=True, help="分析対象の日付（YYYYMMDD形式）")
     parser.add_argument("--runs", type=int, default=10, help="Perplexity API実行回数（デフォルト: 10）")
     parser.add_argument("--output", default="results/perplexity_analysis", help="出力ディレクトリ")
@@ -653,11 +610,11 @@ if __name__ == "__main__":
     date_str = args.date
     runs = args.runs
 
-    # Google SERPファイルパス
+    # Google検索ファイルパス
     def resolve_path(date_str, data_type, file_type, runs=None):
         # ファイル名生成
-        if data_type == "google_serp":
-            file_name = f"{date_str}_google_serp_search.json"
+        if data_type == "google_search" or data_type == "google":
+            file_name = f"{date_str}_google_search_results.json"
         elif data_type == "citations":
             if runs and runs > 1:
                 file_name = f"{date_str}_perplexity_citations_{runs}runs.json"
@@ -681,18 +638,18 @@ if __name__ == "__main__":
             print(f"ファイルが見つかりません: {local_path} / S3: {s3_key}")
             raise e
 
-    serp_file = resolve_path(date_str, "google_serp", "google")
+    search_file = resolve_path(date_str, "google_search", "google")
     pplx_file = resolve_path(date_str, "citations", "perplexity", runs)
 
     # JSONファイルを読み込み
-    with open(serp_file, "r", encoding="utf-8") as f:
-        serp_search = json.load(f)
+    with open(search_file, "r", encoding="utf-8") as f:
+        search_search = json.load(f)
     with open(pplx_file, "r", encoding="utf-8") as f:
         pplx_results = json.load(f)
 
     # 比較と分析
-    comparison_results = compare_with_perplexity(serp_search, pplx_results)
-    analysis_results = analyze_serp_search(serp_search, pplx_results, comparison_results)
+    comparison_results = compare_with_perplexity(search_search, pplx_results)
+    analysis_results = analyze_search_results(search_search, pplx_results, comparison_results)
 
     # 結果をJSONに保存
     os.makedirs(args.output, exist_ok=True)

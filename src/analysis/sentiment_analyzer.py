@@ -73,8 +73,8 @@ def analyze_sentiments(texts):
         print(f"Perplexity API リクエストエラー: {e}")
         return ["unknown"] * len(texts)
 
-def process_google_serp_search(data):
-    """Google SERPの結果ファイルを処理（entities構造に対応）"""
+def process_google_search_results(data):
+    """Google検索結果ファイルを処理（entities構造に対応）"""
     # 元のデータをそのまま使用
     results = data
 
@@ -193,10 +193,10 @@ def process_results_file(file_path, date_str, args):
         return None
 
     # ファイル名からデータタイプを判定
-    if "google_serp" in file_path:
+    if "google_search" in file_path:
         if args.verbose:
-            logging.info("Google SERPデータを処理しています...")
-        return process_google_serp_search(data)
+            logging.info("Google検索データを処理しています...")
+        return process_google_search_results(data)
     elif "perplexity_citations" in file_path:
         if args.verbose:
             logging.info("Perplexity Citations（新構造）データを処理しています...")
@@ -211,7 +211,7 @@ def main():
     # 引数処理
     parser = argparse.ArgumentParser(description='感情分析を実行し、結果を保存する')
     parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
-    parser.add_argument('--data-type', choices=['perplexity_citations', 'google_serp'], default='perplexity_citations',
+    parser.add_argument('--data-type', choices=['perplexity_citations', 'google_search'], default='perplexity_citations',
                         help='分析対象のデータタイプ（デフォルト: perplexity_citations）')
     parser.add_argument('--runs', type=int, help='実行回数（ファイル名に含まれる）')
     parser.add_argument('--input-file', help='入力ファイルのパス')
@@ -246,9 +246,9 @@ def main():
                 logging.error("perplexity_citationsの場合、--runs オプションが必要です")
                 return
             input_file = os.path.join(paths["perplexity_citations"], f"{date_str}_perplexity_citations_{args.runs}runs.json")
-        elif args.data_type == "google_serp":
-            # Google SERPの場合は実行回数不要
-            input_file = os.path.join(paths["google_serp"], f"{date_str}_google_serp_search.json")
+        elif args.data_type == "google_search":
+            # Google検索の場合は実行回数不要
+            input_file = os.path.join(paths["google"], f"{date_str}_google_search_results.json")
         else:
             logging.error(f"未対応のデータタイプです: {args.data_type}")
             return
@@ -258,9 +258,9 @@ def main():
         logging.info(f"期待するS3パス: s3://{S3_BUCKET_NAME}/results/{args.data_type}/{date_str}/{os.path.basename(input_file)}")
 
     # 入力ファイルが感情分析対象かチェック
-    if not ("google_serp" in input_file or "perplexity_citations" in input_file):
+    if not ("google_search" in input_file or "perplexity_citations" in input_file):
         logging.error(f"感情分析対象外のファイルです: {os.path.basename(input_file)}")
-        logging.info("対象ファイル: google_serp または perplexity_citations を含むファイル名")
+        logging.info("対象ファイル: google_search または perplexity_citations を含むファイル名")
         return
 
     # 感情分析を実行
@@ -275,8 +275,8 @@ def main():
         # 元のファイル名で上書き保存（パス管理システムを使用）
     input_filename = os.path.basename(input_file)
 
-    if "google_serp" in input_file:
-        output_path = paths["google_serp"]
+    if "google_search" in input_file:
+        output_path = paths["google"]
     elif "perplexity_citations" in input_file:
         output_path = paths["perplexity_citations"]
     else:

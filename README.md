@@ -188,7 +188,7 @@ MIT License
 │   │   ├─ perplexity_sentiment_loader.py
 │   │   ├─ perplexity_ranking_loader.py
 │   │   ├─ perplexity_citations_loader.py
-│   │   └─ google_serp_loader.py
+│   │   └─ google_search_loader.py
 │   ├─ data/
 │   │   ├─ __init__.py
 │   │   ├─ categories.yml
@@ -256,7 +256,7 @@ MIT License
    - 各APIごとにプロンプトを分離
    - 再利用可能な関数として実装
    - 評価値抽出ロジックの標準化
-3. **API実行モジュール** (`src/perplexity_sentiment_loader.py`, `src/google_serp_loader.py`, `src/perplexity_ranking_loader.py`, `src/perplexity_citations_loader.py`, `src/sentiment_analyzer.py`)
+3. **API実行モジュール** (`src/perplexity_sentiment_loader.py`, `src/google_search_loader.py`, `src/perplexity_ranking_loader.py`, `src/perplexity_citations_loader.py`, `src/sentiment_analyzer.py`)
    - API呼び出し・複数回実行・統計処理・結果保存
 4. **分析モジュール** (`src/analysis/`)
    - `ranking_metrics.py`: ランキング指標の計算

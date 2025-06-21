@@ -291,31 +291,31 @@ def load_and_integrate_metrics(
         print(f"Perplexityデータの読み込みエラー: {e}")
         return None
 
-    # Google SERPデータの読み込み
+    # Google検索データの読み込み
     try:
-        serp_key, serp_content = get_latest_file(date_str, "google_serp", "google")
+        search_key, search_content = get_latest_file(date_str, "google", "google")
 
-        if serp_content:
-            serp_data = json.loads(serp_content)
-            serp_path = os.path.join(output_dir, f"{date_str}_google_serp.json")
-            with open(serp_path, 'w', encoding='utf-8') as f:
-                json.dump(serp_data, f, ensure_ascii=False, indent=4)
+        if search_content:
+            search_data = json.loads(search_content)
+            search_path = os.path.join(output_dir, f"{date_str}_google_search.json")
+            with open(search_path, 'w', encoding='utf-8') as f:
+                json.dump(search_data, f, ensure_ascii=False, indent=4)
             if verbose:
-                print(f"S3からGoogle SERPデータをダウンロードしました: {serp_key}")
+                print(f"S3からGoogle検索データをダウンロードしました: {search_key}")
         else:
             # ローカルファイルを確認
-            serp_path = get_local_path(date_str, "google_serp", "google")
-            if not os.path.exists(serp_path):
-                print(f"Google SERPデータが見つかりません: {date_str}のSERPデータを先に生成してください。")
+            search_path = get_local_path(date_str, "google", "google")
+            if not os.path.exists(search_path):
+                print(f"Google検索データが見つかりません: {date_str}の検索データを先に生成してください。")
                 return None
-            with open(serp_path, "r", encoding="utf-8") as f:
-                serp_data = json.load(f)
+            with open(search_path, "r", encoding="utf-8") as f:
+                search_data = json.load(f)
 
         if verbose:
-            print(f"Google SERPデータを読み込みました: {serp_path}")
-            print(f"  カテゴリ数: {len(serp_data)}")
+            print(f"Google検索データを読み込みました: {search_path}")
+            print(f"  カテゴリ数: {len(search_data)}")
     except Exception as e:
-        print(f"Google SERPデータの読み込みエラー: {e}")
+        print(f"Google検索データの読み込みエラー: {e}")
         return None
 
     # 引用リンクデータの読み込み

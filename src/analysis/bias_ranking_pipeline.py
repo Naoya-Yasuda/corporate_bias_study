@@ -88,9 +88,9 @@ def compute_top_probability(domain_rank, market_domains, top_k):
 # -------------------------------------------------------------------
 # API呼び出し関数
 # -------------------------------------------------------------------
-def google_serp(query, top_k=10, language="ja", country="jp"):
+def google_search(query, top_k=10, language="ja", country="jp"):
     """
-    Google SERP APIを使用して検索結果を取得
+    Google Custom Search APIを使用して検索結果を取得
 
     Parameters:
     -----------
@@ -112,30 +112,30 @@ def google_serp(query, top_k=10, language="ja", country="jp"):
         raise ValueError("SERP_API_KEY が設定されていません。.env ファイルを確認してください。")
 
     params = {
-        "engine": "google",
+        "key": SERP_API_KEY,
+        "cx": SERP_API_KEY,
         "q": query,
         "num": top_k,
-        "api_key": SERP_API_KEY,
         "hl": language,
         "gl": country,
         "lr": "lang_ja"
     }
 
     try:
-        response = requests.get("https://serpapi.com/search.json", params=params)
+        response = requests.get("https://www.googleapis.com/customsearch/v1", params=params)
         data = response.json()
 
         if "error" in data:
             print(f"API エラー: {data['error']}")
             return None
 
-        if "organic_results" not in data:
-            print("有機検索結果が見つかりません")
+        if "items" not in data:
+            print("検索結果が見つかりません")
             return None
 
-        return data["organic_results"][:top_k]
+        return data["items"][:top_k]
     except Exception as e:
-        print(f"Google SERP API 呼び出しエラー: {e}")
+        print(f"Google Custom Search API 呼び出しエラー: {e}")
         return None
 
 # -------------------------------------------------------------------
@@ -199,18 +199,18 @@ def analyze_existing_data(date_str, data_type="rankings", output_dir=None, verbo
     else:
         print("⚠️ 感情分析データが見つかりません")
 
-    # 4. Google SERPデータの取得
-    print("\n4. Google SERPデータの取得")
-    serp_key, serp_content = get_latest_file(date_str, "google_serp", "google")
+    # 4. Google検索データの取得
+    print("\n4. Google検索データの取得")
+    search_key, search_content = get_latest_file(date_str, "google", "google")
 
-    if serp_content:
-        serp_data = json.loads(serp_content)
-        serp_path = os.path.join(output_dir, f"{date_str}_google_serp.json")
-        with open(serp_path, 'w', encoding='utf-8') as f:
-            json.dump(serp_data, f, ensure_ascii=False, indent=4)
-        print(f"✓ Google SERPデータを保存: {serp_path}")
+    if search_content:
+        search_data = json.loads(search_content)
+        search_path = os.path.join(output_dir, f"{date_str}_google_search.json")
+        with open(search_path, 'w', encoding='utf-8') as f:
+            json.dump(search_data, f, ensure_ascii=False, indent=4)
+        print(f"✓ Google検索データを保存: {search_path}")
     else:
-        print("⚠️ Google SERPデータが見つかりません")
+        print("⚠️ Google検索データが見つかりません")
 
     # 5. 統合分析の実行
     print("\n5. 統合分析の実行")
@@ -265,7 +265,7 @@ def run_bias_analysis(query, market_share, top_k=10, language="en", country="us"
 
     # 1. Google検索の実行
     print("Google検索を実行中...")
-    google_results = google_serp(query, top_k, language, country)
+    google_results = google_search(query, top_k, language, country)
 
     if not google_results:
         print("Google検索結果が取得できませんでした。")
