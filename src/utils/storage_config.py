@@ -78,6 +78,7 @@ def get_base_paths(date_str):
 def get_s3_key(filename, date_str, data_type):
     """
     ファイル名とデータタイプからS3キーを生成する共通関数
+    get_base_paths()で一元管理されたパスを使用
 
     Parameters:
     -----------
@@ -93,18 +94,29 @@ def get_s3_key(filename, date_str, data_type):
     str
         S3キー
     """
-    # corporate_bias_datasets/ 階層を含む新しいディレクトリ構造に対応
+    paths = get_base_paths(date_str)
+
+    # get_base_pathsで一元管理されたパスを使用
     if data_type == "raw_data/google":
-        return f"corporate_bias_datasets/raw_data/{date_str}/google/{filename}"
+        return f"{paths['raw_data']['google']}/{filename}"
     elif data_type == "raw_data/perplexity":
-        return f"corporate_bias_datasets/raw_data/{date_str}/perplexity/{filename}"
+        return f"{paths['raw_data']['perplexity']}/{filename}"
     elif data_type.startswith("analysis/"):
-        return f"corporate_bias_datasets/analysis/{date_str}/{filename}"
+        # 分析タイプを取得（例: analysis/perplexity -> perplexity）
+        analysis_type = data_type.split("/", 1)[1] if "/" in data_type else "perplexity"
+        if analysis_type in paths["analysis"]:
+            return f"{paths['analysis'][analysis_type]}/{filename}"
+        else:
+            # デフォルトの分析パスを使用
+            return f"{paths['analysis']['perplexity']}/{filename}"
     elif data_type == "integrated":
-        return f"corporate_bias_datasets/integrated/{date_str}/{filename}"
+        return f"{paths['integrated']}/{filename}"
+    elif data_type == "publications":
+        return f"{paths['publications']}/{filename}"
+    elif data_type == "temp":
+        return f"{paths['temp']}/{filename}"
     else:
         # 後方互換性のための従来パス
-        paths = get_base_paths(date_str)
         if data_type in paths:
             base_path = paths[data_type]
             return f"{base_path}/{filename}"
