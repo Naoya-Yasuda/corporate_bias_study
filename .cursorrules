@@ -1,0 +1,66 @@
+# Cursor Rules for Corporate Bias Study Project
+
+## Git & Version Control Rules
+- **NEVER commit automatically without explicit user permission**
+- Always ask for confirmation before making any git commits
+- Use conventional commit messages: type(scope): description
+- Commit types: feat, fix, docs, style, refactor, test, chore
+- Subject line: max 72 characters
+- Body: max 100 characters per line
+
+## Branch Protection
+- main: protected, requires review
+- development: protected, requires review
+- Create feature branches for new work
+
+## File Management
+- Always update requirements.txt when adding/removing dependencies
+- Update .env_sample when modifying environment variables
+- Don't hardcode file paths - use centralized configuration
+- Remove unused imports and functions completely
+
+## Code Standards
+- Follow PEP8 (max line length: 100)
+- Use type hints
+- Use Google-style docstrings
+- One responsibility per function
+- Prefer centralized utility functions over duplication
+
+## API Integration Rules
+- Use unified call_ai_api function for Perplexity API calls
+- Prefer Japanese sources (.jp domains) for Perplexity citations
+- Use 'entity/entities' instead of 'company/companies'
+- Use 'query' for Google Search, 'prompt' for Perplexity API
+- Use 'answer' for AI responses, 'official_url' for official URLs
+- Default Perplexity model: "llama-3.1-sonar-large-128k-online"
+
+## Data Processing
+- Extract ALL matching elements, not just the first match
+- Remove duplicates when necessary
+- Don't add new attributes without user approval
+- Avoid redundant data structures
+
+## Development Workflow
+- Implement changes step by step carefully
+- Always perform self-review after implementation
+- Check loader save paths and imports
+- Apply changes horizontally across similar code
+- Clean up temporary files after tasks
+
+## Streamlit Development
+- Use st.set_page_config() at page start
+- Leverage @st.cache_data for caching
+- Use st.session_state for state management
+- Handle errors with try-except blocks
+
+## Security & Environment
+- Keep API keys in .env files
+- Never commit sensitive data
+- Use gitignore patterns for generated data
+
+## Communication
+- Always respond in Japanese
+- Don't ask "Should I proceed?" - implement changes directly
+- Provide concise summaries of code modifications
+- Update README.md when making relevant changes
+- No modification history needed in README.md

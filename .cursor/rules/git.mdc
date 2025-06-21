@@ -3,43 +3,30 @@ description:
 globs:
 alwaysApply: false
 ---
-# Git Rules
+---
+description: Git & Version Control Rules - NEVER commit automatically without explicit user permission
+globs:
+alwaysApply: true
+---
 
-## ブランチ保護
-### main
-- 保護: true
-- レビュー必須: true
+# Git & Version Control Rules
 
-### development
-- 保護: true
-- レビュー必須: true
+## Critical Rule: NO AUTOMATIC COMMITS
+- **NEVER commit automatically without explicit user permission**
+- Always ask for confirmation before making any git commits
+- This is a non-negotiable security requirement
 
-## コミットメッセージフォーマット
-### 種別（Types）
-- feat: 新機能
-- fix: バグ修正
-- docs: ドキュメント変更
-- style: コードスタイル変更
-- refactor: リファクタリング
-- test: テスト追加・修正
-- chore: メンテナンス
+## Commit Message Format
+- Use conventional commit messages: type(scope): description
+- Types: feat, fix, docs, style, refactor, test, chore
+- Subject line: max 72 characters
+- Body: max 100 characters per line
 
-### 構造（Structure）
-- Type: 必須
-- Scope: 任意
-- Subject: 必須
-- Body: 任意
-- Footer: 任意
+## Branch Protection
+- main: protected, requires review
+- development: protected, requires review
+- Create feature branches for new work
 
-### 長さ制限
-- Subject: 72文字以内
-- Body: 100文字以内
-
-## gitignoreパターン
-- *.pyc
-- __pycache__
-- .env
-- .DS_Store
-- tmp/*
-- results/*
-- *.log
+## Examples
+Good commit: `feat(loader): add perplexity citations loader`
+Bad commit: `updated files`

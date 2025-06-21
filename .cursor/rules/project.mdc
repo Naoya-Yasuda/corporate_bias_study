@@ -1,0 +1,53 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+---
+description: Corporate Bias Study Project Rules - File management, coding standards, and API integration
+globs:
+alwaysApply: true
+---
+
+# Corporate Bias Study Project Rules
+
+## File Management
+- Always update requirements.txt when adding/removing dependencies
+- Update .env_sample when modifying environment variables
+- Don't hardcode file paths - use centralized configuration
+- Remove unused imports and functions completely
+
+## Code Standards
+- Follow PEP8 (max line length: 100)
+- Use type hints
+- Use Google-style docstrings
+- One responsibility per function
+- Prefer centralized utility functions over duplication
+
+## API Integration Rules
+- Use unified call_ai_api function for Perplexity API calls
+- Prefer Japanese sources (.jp domains) for Perplexity citations
+- Use 'entity/entities' instead of 'company/companies'
+- Use 'query' for Google Search, 'prompt' for Perplexity API
+- Use 'answer' for AI responses, 'official_url' for official URLs
+- Default Perplexity model: "llama-3.1-sonar-large-128k-online"
+
+## Data Processing
+- Extract ALL matching elements, not just the first match
+- Remove duplicates when necessary
+- Don't add new attributes without user approval
+- Avoid redundant data structures
+
+## Development Workflow
+- Implement changes step by step carefully
+- Always perform self-review after implementation
+- Check loader save paths and imports
+- Apply changes horizontally across similar code
+- Clean up temporary files after tasks
+
+## Communication
+- Always respond in Japanese
+- Don't ask "Should I proceed?" - implement changes directly
+- Provide concise summaries of code modifications
+- Update README.md when making relevant changes
+- No modification history needed in README.md
