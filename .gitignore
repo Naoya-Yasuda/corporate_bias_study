@@ -40,6 +40,9 @@ wheels/
 # 結果ファイル
 results/
 
+# データファイル（生成されたデータのみ）
+corporate_bias_datasets/
+
 # ログファイル
 *.log
 

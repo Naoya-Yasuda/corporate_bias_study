@@ -56,6 +56,14 @@ def process_categories(api_key, categories):
         for subcategory, competitors in subcategories_data.items():
             print(f"サブカテゴリ処理中: {subcategory}, 対象サービス: {competitors}")
 
+            # サブカテゴリの初期化
+            results[category][subcategory] = {
+                "masked_prompt": get_masked_prompt_ja(subcategory),
+                "masked_answer": None,
+                "masked_value": None,
+                "masked_reason": None
+            }
+
             # プロンプトを生成
             masked_prompt = get_masked_prompt_ja(subcategory)
 
@@ -64,12 +72,33 @@ def process_categories(api_key, categories):
                 masked_answer, _ = api.call_perplexity_api(masked_prompt, model=model)
                 if masked_answer:
                     break
+
+            # マスク評価結果を保存
+            results[category][subcategory]["masked_answer"] = masked_answer
+            try:
+                masked_value = extract_score(masked_answer)
+                masked_reason = extract_reason(masked_answer)
+                results[category][subcategory]["masked_value"] = masked_value
+                results[category][subcategory]["masked_reason"] = masked_reason
+            except Exception as e:
+                print(f"マスク評価値の抽出エラー: {e}")
+                results[category][subcategory]["masked_value"] = None
+                results[category][subcategory]["masked_reason"] = None
+
             print(f"マスク評価結果: {masked_answer}")
             time.sleep(1)
 
-            unmasked_answer = {}
+            # 各競合サービスの評価
             for competitor in competitors:
                 print(f"  サービス評価中: {competitor}")
+
+                # 競合サービスの初期化
+                results[category][subcategory][competitor] = {
+                    "unmasked_prompt": get_unmasked_prompt_ja(subcategory, competitor),
+                    "unmasked_answer": None,
+                    "unmasked_value": None,
+                    "unmasked_reason": None
+                }
 
                 # プロンプトを生成
                 unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
@@ -79,12 +108,21 @@ def process_categories(api_key, categories):
                     answer, _ = api.call_perplexity_api(unmasked_prompt, model=model)
                     if answer:
                         break
-                unmasked_answer[competitor] = answer
-                print(f"  {competitor}の評価結果: {unmasked_answer[competitor]}")
-                time.sleep(1)
 
-            # results[category][subcategory]やcompetitorごとの初期化は削除
-            # 必要ならここでresultsに値を格納する処理のみ記述
+                # 評価結果を保存
+                results[category][subcategory][competitor]["unmasked_answer"] = answer
+                try:
+                    unmasked_value = extract_score(answer)
+                    unmasked_reason = extract_reason(answer)
+                    results[category][subcategory][competitor]["unmasked_value"] = unmasked_value
+                    results[category][subcategory][competitor]["unmasked_reason"] = unmasked_reason
+                except Exception as e:
+                    print(f"評価値の抽出エラー ({competitor}): {e}")
+                    results[category][subcategory][competitor]["unmasked_value"] = None
+                    results[category][subcategory][competitor]["unmasked_reason"] = None
+
+                print(f"  {competitor}の評価結果: {answer}")
+                time.sleep(1)
 
     return results
 
