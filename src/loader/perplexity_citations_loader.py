@@ -22,6 +22,7 @@ from ..utils import (
 )
 from ..utils.text_utils import is_official_domain
 from ..utils.storage_utils import get_results_paths, save_results
+from ..utils.storage_config import get_s3_key
 from ..categories import get_categories, get_all_categories
 from ..utils.perplexity_api import PerplexityAPI
 from ..prompts.prompt_manager import PromptManager
@@ -425,7 +426,6 @@ def main():
         result = collect_citation_rankings(categories)
         file_name = f"citations_{args.runs}runs.json"
         local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-        from src.utils.storage_config import get_s3_key
         s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
         save_results(result, local_path, s3_key, verbose=args.verbose)
     else:

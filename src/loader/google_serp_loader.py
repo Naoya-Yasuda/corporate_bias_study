@@ -13,11 +13,13 @@ import time
 import argparse
 from dotenv import load_dotenv
 from tqdm import tqdm
-from ..utils.text_utils import (
-    extract_domain
+from ..utils import (
+    extract_domain,
+    get_results_paths
 )
-from ..utils.storage_utils import save_results, get_results_paths
-from ..categories import get_categories
+from ..utils.storage_utils import get_results_paths, save_results
+from ..utils.storage_config import get_s3_key
+from ..categories import get_categories, get_all_categories
 
 # 環境変数の読み込み
 load_dotenv()
@@ -229,7 +231,6 @@ def main():
     paths = get_results_paths(today_date)
     file_name = "serp_search.json"
     local_path = os.path.join(paths["raw_data"]["google"], file_name)
-    from src.utils.storage_config import get_s3_key
     s3_key = get_s3_key(file_name, today_date, "raw_data/google")
     save_results(result, local_path, s3_key, verbose=args.verbose)
 

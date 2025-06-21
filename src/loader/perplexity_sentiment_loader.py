@@ -12,6 +12,7 @@ import numpy as np
 import argparse
 import logging
 from ..utils.storage_utils import save_results, get_results_paths
+from ..utils.storage_config import get_s3_key
 from ..utils.perplexity_api import PerplexityAPI
 
 # .envファイルから環境変数を読み込む
@@ -60,7 +61,7 @@ def process_categories(api_key, categories):
 
             masked_answer = None
             for model in PerplexityAPI.get_models_to_try():
-                masked_answer = api.call_ai_api(masked_prompt, model=model, max_retries=3, retry_delay=1.0)
+                masked_answer, _ = api.call_perplexity_api(masked_prompt, model=model)
                 if masked_answer:
                     break
             print(f"マスク評価結果: {masked_answer}")
@@ -75,7 +76,7 @@ def process_categories(api_key, categories):
 
                 answer = None
                 for model in PerplexityAPI.get_models_to_try():
-                    answer = api.call_ai_api(unmasked_prompt, model=model, max_retries=3, retry_delay=1.0)
+                    answer, _ = api.call_perplexity_api(unmasked_prompt, model=model)
                     if answer:
                         break
                 unmasked_answer[competitor] = answer
@@ -213,7 +214,6 @@ def main():
         result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, args.runs)
         file_name = f"sentiment_{args.runs}runs.json"
         local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-        from src.utils.storage_config import get_s3_key
         s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
         save_results(result, local_path, s3_key, verbose=args.verbose)
     else:
