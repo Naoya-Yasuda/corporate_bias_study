@@ -44,9 +44,8 @@ def get_unmasked_prompt_ja(subcategory, competitor):
     return prompt
 
 def process_categories(api_key, categories):
-    """各カテゴリ、サブカテゴリを処理"""
+    """各カテゴリ、サブカテゴリを処理（単一実行でも複数実行と同じ構造を出力）"""
     api = PerplexityAPI(api_key)
-    model = PerplexityAPI.get_models_to_try()[0]
     results = {}
 
     for category, subcategories_data in categories.items():
@@ -56,34 +55,47 @@ def process_categories(api_key, categories):
         for subcategory, competitors in subcategories_data.items():
             print(f"サブカテゴリ処理中: {subcategory}, 対象サービス: {competitors}")
 
-            # サブカテゴリの初期化
+            # サブカテゴリの初期化（複数実行と同じ構造）
             results[category][subcategory] = {
-                "masked_prompt": get_masked_prompt_ja(subcategory),
-                "masked_answer": None,
-                "masked_value": None,
-                "masked_reason": None
+                "masked_answer": [],
+                "masked_values": [],
+                "masked_reasons": [],
+                "masked_url": [],
+                "masked_avg": 0.0,
+                "masked_std_dev": 0.0,
+                "masked_prompt": get_masked_prompt_ja(subcategory)
             }
 
-            # プロンプトを生成
+            # マスクプロンプトを生成
             masked_prompt = get_masked_prompt_ja(subcategory)
 
-            masked_answer = None
-            for model in PerplexityAPI.get_models_to_try():
-                masked_answer, _ = api.call_perplexity_api(masked_prompt, model=model)
-                if masked_answer:
-                    break
+            # マスク評価実行
+            masked_answer, masked_citations = api.call_perplexity_api(masked_prompt)
 
-            # マスク評価結果を保存
-            results[category][subcategory]["masked_answer"] = masked_answer
-            try:
-                masked_value = extract_score(masked_answer)
-                masked_reason = extract_reason(masked_answer)
-                results[category][subcategory]["masked_value"] = masked_value
-                results[category][subcategory]["masked_reason"] = masked_reason
-            except Exception as e:
-                print(f"マスク評価値の抽出エラー: {e}")
-                results[category][subcategory]["masked_value"] = None
-                results[category][subcategory]["masked_reason"] = None
+            # マスク評価結果を配列形式で保存
+            if masked_answer:
+                results[category][subcategory]["masked_answer"].append(masked_answer)
+
+                # URL情報を処理（二重配列形式）
+                if masked_citations and isinstance(masked_citations, list) and len(masked_citations) > 0 and isinstance(masked_citations[0], dict) and "url" in masked_citations[0]:
+                    url_list = [c["url"] for c in masked_citations if c.get("url")]
+                else:
+                    url_list = [u for u in masked_citations if u] if masked_citations else []
+                results[category][subcategory]["masked_url"].append(url_list)
+
+                try:
+                    masked_value = extract_score(masked_answer)
+                    if masked_value is not None:
+                        results[category][subcategory]["masked_values"].append(masked_value)
+                        results[category][subcategory]["masked_avg"] = float(masked_value)
+                        results[category][subcategory]["masked_std_dev"] = 0.0  # 単一実行なので標準偏差は0
+
+                    masked_reason = extract_reason(masked_answer)
+                    results[category][subcategory]["masked_reasons"].append(masked_reason)
+                except Exception as e:
+                    print(f"マスク評価値の抽出エラー: {e}")
+                    results[category][subcategory]["masked_values"].append(None)
+                    results[category][subcategory]["masked_reasons"].append("")
 
             print(f"マスク評価結果: {masked_answer}")
             time.sleep(1)
@@ -92,34 +104,46 @@ def process_categories(api_key, categories):
             for competitor in competitors:
                 print(f"  サービス評価中: {competitor}")
 
-                # 競合サービスの初期化
+                # 競合サービスの初期化（複数実行と同じ構造、unmasked_promptは削除）
                 results[category][subcategory][competitor] = {
-                    "unmasked_prompt": get_unmasked_prompt_ja(subcategory, competitor),
-                    "unmasked_answer": None,
-                    "unmasked_value": None,
-                    "unmasked_reason": None
+                    "unmasked_answer": [],
+                    "unmasked_values": [],
+                    "unmasked_reasons": [],
+                    "unmasked_url": [],
+                    "unmasked_avg": 0.0,
+                    "unmasked_std_dev": 0.0
                 }
 
                 # プロンプトを生成
                 unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
 
-                answer = None
-                for model in PerplexityAPI.get_models_to_try():
-                    answer, _ = api.call_perplexity_api(unmasked_prompt, model=model)
-                    if answer:
-                        break
+                # 評価実行
+                answer, unmasked_citations = api.call_perplexity_api(unmasked_prompt)
 
-                # 評価結果を保存
-                results[category][subcategory][competitor]["unmasked_answer"] = answer
-                try:
-                    unmasked_value = extract_score(answer)
-                    unmasked_reason = extract_reason(answer)
-                    results[category][subcategory][competitor]["unmasked_value"] = unmasked_value
-                    results[category][subcategory][competitor]["unmasked_reason"] = unmasked_reason
-                except Exception as e:
-                    print(f"評価値の抽出エラー ({competitor}): {e}")
-                    results[category][subcategory][competitor]["unmasked_value"] = None
-                    results[category][subcategory][competitor]["unmasked_reason"] = None
+                # 評価結果を配列形式で保存
+                if answer:
+                    results[category][subcategory][competitor]["unmasked_answer"].append(answer)
+
+                    # URL情報を処理（二重配列形式）
+                    if unmasked_citations and isinstance(unmasked_citations, list) and len(unmasked_citations) > 0 and isinstance(unmasked_citations[0], dict) and "url" in unmasked_citations[0]:
+                        url_list = [c["url"] for c in unmasked_citations if c.get("url")]
+                    else:
+                        url_list = [u for u in unmasked_citations if u] if unmasked_citations else []
+                    results[category][subcategory][competitor]["unmasked_url"].append(url_list)
+
+                    try:
+                        unmasked_value = extract_score(answer)
+                        if unmasked_value is not None:
+                            results[category][subcategory][competitor]["unmasked_values"].append(unmasked_value)
+                            results[category][subcategory][competitor]["unmasked_avg"] = float(unmasked_value)
+                            results[category][subcategory][competitor]["unmasked_std_dev"] = 0.0  # 単一実行なので標準偏差は0
+
+                        unmasked_reason = extract_reason(answer)
+                        results[category][subcategory][competitor]["unmasked_reasons"].append(unmasked_reason)
+                    except Exception as e:
+                        print(f"評価値の抽出エラー ({competitor}): {e}")
+                        results[category][subcategory][competitor]["unmasked_values"].append(None)
+                        results[category][subcategory][competitor]["unmasked_reasons"].append("")
 
                 print(f"  {competitor}の評価結果: {answer}")
                 time.sleep(1)
