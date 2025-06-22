@@ -45,9 +45,12 @@ alwaysApply: true
 - Apply changes horizontally across similar code
 - Clean up temporary files after tasks
 
-## Communication
+## Communication & Development Process
 - Always respond in Japanese
-- Don't ask "Should I proceed?" - implement changes directly
+- **Before any implementation: Present design/plan and wait for explicit approval**
+- For complex changes: Provide detailed implementation plan with code structure
+- For simple changes: Provide brief summary and wait for confirmation
+- After approval: Implement changes step by step
 - Provide concise summaries of code modifications
 - Update README.md when making relevant changes
 - No modification history needed in README.md
