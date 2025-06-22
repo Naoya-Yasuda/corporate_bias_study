@@ -3,3 +3,45 @@ description:
 globs:
 alwaysApply: false
 ---
+---
+description: Development Workflow Rules - Design first, approval required, then implementation
+globs:
+alwaysApply: true
+---
+
+# Development Workflow Rules
+
+## Design-First Approach
+- **Always present design/plan before any code implementation**
+- **Wait for explicit user approval before proceeding**
+- No exceptions - even for small changes
+
+## Design Presentation Format
+1. **Problem Statement**: What needs to be solved
+2. **Proposed Solution**: High-level approach
+3. **Implementation Plan**: Step-by-step breakdown
+4. **Files to be Modified**: List of affected files
+5. **Potential Risks**: Any concerns or considerations
+
+## Approval Process
+- Present complete design
+- Wait for user's "OK" or "proceed" or "approved"
+- Only start implementation after explicit permission
+- If changes requested, revise design and seek approval again
+
+## Implementation Rules
+- Follow approved design exactly
+- Implement step by step as planned
+- Report progress at each major step
+- Seek additional approval if deviations needed
+
+## Exception Cases
+- Emergency bug fixes: Still present plan, but can be brief
+- Documentation updates: Brief summary sufficient
+- Configuration changes: Always require approval
+
+## Communication
+- Use clear, structured presentation format
+- Include code examples in design when helpful
+- Explain reasoning behind design decisions
+- Ask clarifying questions if requirements unclear
