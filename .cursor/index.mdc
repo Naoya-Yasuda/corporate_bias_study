@@ -1,0 +1,61 @@
+---
+description: Corporate Bias Study Project - Core rules and standards for AI-assisted development
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Corporate Bias Study Project
+
+## Project Overview
+- **Purpose**: 企業バイアス研究のためのデータ収集・分析プラットフォーム
+- **Stack**: Python, Streamlit, Perplexity API, Google Search API
+- **Architecture**: データローダー + 分析エンジン + 可視化フロントエンド
+
+## Core Development Rules
+
+### Workflow Requirements
+- **Always present design/plan before any code implementation**
+- **Wait for explicit user approval before proceeding**
+- **Test implementation locally after completion (except for minor changes)**
+- For loaders and API-calling modules: Use minimal execution (count=1)
+- For significant changes (loaders, API modules): Always test after implementation
+- For minor changes (documentation, small fixes): Testing optional
+
+### File Management & Code Standards
+- Follow PEP8 (max line length: 100)
+- Use type hints and Google-style docstrings
+- One responsibility per function
+- Always update requirements.txt when adding/removing dependencies
+- Don't hardcode file paths - use centralized configuration
+- Remove unused imports and functions completely
+- Use entity/entities instead of company/companies for attribute names
+
+### API Integration Standards
+- Use unified call_ai_api function for Perplexity API calls
+- Prefer Japanese sources (.jp domains) for Perplexity citations
+- Model default: "llama-3.1-sonar-large-128k-online"
+- Use query for Google Search attributes, prompt for Perplexity API attributes
+- Use answer (not response) for AI response attributes
+- Use official_url for official URL attributes
+- Always include title and snippet for Perplexity citations
+- Don't add new attributes without existing design approval
+
+### Data Processing Standards
+- Extract ALL matching elements, not just the first match
+- Remove duplicates after extraction
+- Implement step-by-step processing carefully
+- Always verify loader save paths and required imports
+- Never modify input parameters - only return values
+
+### Environment Management
+- Update .env_sample when changing environment variables
+- Use PERPLEXITY_DEFAULT_MODEL for centralized model management
+- Add corporate_bias_datasets/raw_data/* to .gitignore
+
+### Error Handling & Communication
+- Always respond in Japanese
+- No confirmation questions like "実施しますか？" - implement immediately
+- Apply fixes across all similar code (横展開)
+- Update README.md for any code changes (no change history needed)
+- NEVER commit automatically without explicit user permission
+- When corrected by user, update memory immediately using update_memory tool
