@@ -35,6 +35,15 @@ alwaysApply: true
 - Report progress at each major step
 - Seek additional approval if deviations needed
 
+## Post-Implementation Verification
+- **Test implementation locally after completion (except for minor changes)**
+- Skip testing for: variable renames, comments, docstrings, formatting changes
+- For significant changes: Run the modified files to check for errors
+- For loaders and API-calling modules: Use minimal execution (count=1)
+- For analysis modules: Run with sample data
+- For utility functions: Run basic functionality tests
+- Report any errors found and fix before considering complete
+
 ## Exception Cases
 - Emergency bug fixes: Still present plan, but can be brief
 - Documentation updates: Brief summary sufficient
