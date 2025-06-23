@@ -66,6 +66,9 @@ python -m src.loader.perplexity_ranking_loader --verbose
 # Perplexity引用リンクデータ収集（複数実行）
 python -m src.loader.perplexity_citations_loader --runs 5 --verbose
 
+# 統合データセット作成
+python -m src.integrator.create_integrated_dataset --date 20250623 --verbose
+
 # 感情分析実行
 python -m src.analysis.sentiment_analyzer --date 20241201 --data-type google_search --verbose
 ```
@@ -82,6 +85,14 @@ python -m src.analysis.sentiment_analyzer --date 20241201 --data-type google_sea
 - `--verbose`: 詳細な出力を表示
 - `--runs`: 実行回数（デフォルト: 1）
 
+### 統合データセット作成オプション
+- `--date`: 処理対象日付（YYYYMMDD形式、必須）
+- `--output-dir`: 出力ベースディレクトリ（デフォルト: corporate_bias_datasets）
+- `--force-recreate`: 既存の統合データセットを強制的に再作成
+- `--verbose`: 詳細なログ出力を表示
+- `--dry-run`: 実際の処理は行わず、処理予定の内容のみ表示
+- `--validate-only`: データ品質チェックのみ実行（統合データセットは作成しない）
+
 ### 既存データを使う場合
 ```bash
 python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-type citations
@@ -97,7 +108,10 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 - `corporate_bias_datasets/raw_data/YYYYMMDD/perplexity/sentiment.json`: 感情スコア分析結果
 
 ### 統合データセット（corporate_bias_datasets/integrated/）
-- `corporate_bias_datasets/integrated/YYYYMMDD/dataset.json`: API横断統合データセット（研究用）
+- `corporate_bias_datasets/integrated/YYYYMMDD/corporate_bias_dataset.json`: API横断統合データセット（メイン成果物）
+- `corporate_bias_datasets/integrated/YYYYMMDD/dataset_schema.json`: データ構造定義
+- `corporate_bias_datasets/integrated/YYYYMMDD/collection_summary.json`: 収集サマリー
+- `corporate_bias_datasets/integrated/YYYYMMDD/integration_metadata.json`: 統合処理メタデータ（品質情報も含む）
 
 ### 分析結果（corporate_bias_datasets/analysis/）
 - `corporate_bias_datasets/analysis/YYYYMMDD/rank_comparison_*.csv`: ランキング比較の詳細データ
