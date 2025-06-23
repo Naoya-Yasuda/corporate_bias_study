@@ -79,7 +79,7 @@ jobs:
       - name: Set today's date
         run: echo "TODAY_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
 
-      # ログファイルの初期設定
+      # ログファイルの初期設定とエラー追跡用ファイルの作成
       - name: Setup logging
         run: |
           mkdir -p logs
@@ -88,181 +88,277 @@ jobs:
           echo "日付: ${{ env.TODAY_DATE }}" >> logs/execution.log
           echo "実行回数: ${{ env.RUNS_COUNT }}" >> logs/execution.log
           echo "----------------------------------------" >> logs/execution.log
+          # エラー追跡用ファイルを作成
+          echo "0" > logs/error_count.txt
 
       # 1. データ取得ステップ
       - name: Run Perplexity sentiment data collection (${{ env.RUNS_COUNT }} runs)
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_sentiment_collection == 'true' }}
         run: |
           echo "開始: Perplexity 感情スコアデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.loader.perplexity_sentiment_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_sentiment.log
-          echo "完了: Perplexity 感情スコアデータ取得 ($(date))" | tee -a logs/execution.log
+          if python -m src.loader.perplexity_sentiment_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_sentiment.log; then
+            echo "完了: Perplexity 感情スコアデータ取得 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Perplexity 感情スコアデータ取得に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
 
       - name: Run Perplexity ranking data collection (${{ env.RUNS_COUNT }} runs)
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_ranking_collection == 'true' }}
         run: |
           echo "開始: Perplexity ランキングデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.loader.perplexity_ranking_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_ranking.log
-          echo "完了: Perplexity ランキングデータ取得 ($(date))" | tee -a logs/execution.log
+          if python -m src.loader.perplexity_ranking_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_ranking.log; then
+            echo "完了: Perplexity ランキングデータ取得 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Perplexity ランキングデータ取得に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
 
       - name: Run Perplexity citations data collection (${{ env.RUNS_COUNT }} runs)
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_citations_collection == 'true' }}
         run: |
           echo "開始: Perplexity 引用リンクデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.loader.perplexity_citations_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_citations.log
-          echo "完了: Perplexity 引用リンクデータ取得 ($(date))" | tee -a logs/execution.log
+          if python -m src.loader.perplexity_citations_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_citations.log; then
+            echo "完了: Perplexity 引用リンクデータ取得 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Perplexity 引用リンクデータ取得に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
 
       - name: Google検索データの収集
         run: |
-          python -m src.loader.google_search_loader --verbose | tee -a logs/google_search.log
+          echo "開始: Google検索データ収集 ($(date))" | tee -a logs/execution.log
+          if python -m src.loader.google_search_loader --verbose | tee -a logs/google_search.log; then
+            echo "完了: Google検索データ収集 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Google検索データ収集に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_CSE_ID: ${{ secrets.GOOGLE_CSE_ID }}
+        continue-on-error: true
 
       - name: Google検索データの感情分析
         run: |
-          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_search --verbose | tee -a logs/sentiment_analysis_google.log
+          echo "開始: Google検索データの感情分析 ($(date))" | tee -a logs/execution.log
+          if python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_search --verbose | tee -a logs/sentiment_analysis_google.log; then
+            echo "完了: Google検索データの感情分析 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Google検索データの感情分析に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
 
       # 感情分析ステップ
       - name: Run Sentiment Analysis for Google SERP
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_serp_sentiment == 'true' }}
         run: |
           echo "開始: Google SERP感情分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_serp --verbose | tee -a logs/sentiment_analysis_google.log
-          echo "完了: Google SERP感情分析 ($(date))" | tee -a logs/execution.log
+          if python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_serp --verbose | tee -a logs/sentiment_analysis_google.log; then
+            echo "完了: Google SERP感情分析 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Google SERP感情分析に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
 
       - name: Run Sentiment Analysis for Perplexity Citations
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_citations_sentiment == 'true' }}
         run: |
           echo "開始: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
-          python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type perplexity_citations --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/sentiment_analysis_perplexity_citations.log
-          echo "完了: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
+          if python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type perplexity_citations --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/sentiment_analysis_perplexity_citations.log; then
+            echo "完了: Perplexity Citations感情分析 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Perplexity Citations感情分析に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
 
       # 2. 分析ステップ
       # - name: Run Perplexity Sentiment Bias Analysis
       #   run: |
       #     echo "開始: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
-      #     python -m src.analysis.bias_sentiment_metrics --date ${{ env.TODAY_DATE }} --rankings --verbose | tee -a logs/bias_metrics_perplexity.log
-      #     echo "完了: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
+      #     if python -m src.analysis.bias_sentiment_metrics --date ${{ env.TODAY_DATE }} --rankings --verbose | tee -a logs/bias_metrics_perplexity.log; then
+      #       echo "完了: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
+      #     else
+      #       echo "エラー: Perplexity 感情スコア・バイアス指標分析に失敗しました ($(date))" | tee -a logs/execution.log
+      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+      #       exit 1
+      #     fi
+      #   continue-on-error: true
 
       # - name: Run ranking metrics analysis
       #   run: |
       #     echo "開始: ランキング指標分析 ($(date))" | tee -a logs/execution.log
-      #     python -m src.analysis.ranking_metrics --date ${{ env.TODAY_DATE }} --api perplexity --verbose | tee -a logs/ranking_metrics.log
-      #     echo "完了: ランキング指標分析 ($(date))" | tee -a logs/execution.log
+      #     if python -m src.analysis.ranking_metrics --date ${{ env.TODAY_DATE }} --api perplexity --verbose | tee -a logs/ranking_metrics.log; then
+      #       echo "完了: ランキング指標分析 ($(date))" | tee -a logs/execution.log
+      #     else
+      #       echo "エラー: ランキング指標分析に失敗しました ($(date))" | tee -a logs/execution.log
+      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+      #       exit 1
+      #     fi
+      #   continue-on-error: true
 
       # - name: Run SERP-Perplexity comparison analysis
       #   run: |
       #     echo "開始: Google SERPとPerplexityの比較分析 ($(date))" | tee -a logs/execution.log
-      #     python src/analysis/serp_metrics.py --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --output results/perplexity_analysis/${{ env.TODAY_DATE }}
-      #     echo "完了: Google SERPとPerplexityの比較分析 ($(date))" | tee -a logs/execution.log
+      #     if python src/analysis/serp_metrics.py --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --output results/perplexity_analysis/${{ env.TODAY_DATE }}; then
+      #       echo "完了: Google SERPとPerplexityの比較分析 ($(date))" | tee -a logs/execution.log
+      #     else
+      #       echo "エラー: Google SERPとPerplexityの比較分析に失敗しました ($(date))" | tee -a logs/execution.log
+      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+      #       exit 1
+      #     fi
+      #   continue-on-error: true
 
       # # 統合指標分析（複数指標に基づく後段処理）
       # - name: Run integrated metrics analysis
       #   run: |
       #     echo "開始: 統合指標分析 ($(date))" | tee -a logs/execution.log
-      #     python -m src.analysis.integrated_metrics --date ${{ env.TODAY_DATE }} --output results/integrated_metrics/${{ env.TODAY_DATE }} --verbose | tee -a logs/integrated_metrics.log
-      #     echo "完了: 統合指標分析 ($(date))" | tee -a logs/execution.log
+      #     if python -m src.analysis.integrated_metrics --date ${{ env.TODAY_DATE }} --output results/integrated_metrics/${{ env.TODAY_DATE }} --verbose | tee -a logs/integrated_metrics.log; then
+      #       echo "完了: 統合指標分析 ($(date))" | tee -a logs/execution.log
+      #     else
+      #       echo "エラー: 統合指標分析に失敗しました ($(date))" | tee -a logs/execution.log
+      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+      #       exit 1
+      #     fi
+      #   continue-on-error: true
 
       # # 統合バイアス評価パイプライン
       # - name: Run bias ranking pipeline
       #   run: |
       #     echo "開始: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
       #     # ランキングデータを使用した分析
-      #     python -m src.analysis.bias_ranking_pipeline --data-type rankings --output results/bias_analysis/rankings --verbose | tee -a logs/bias_ranking_pipeline.log
+      #     if python -m src.analysis.bias_ranking_pipeline --data-type rankings --output results/bias_analysis/rankings --verbose | tee -a logs/bias_ranking_pipeline.log; then
+      #       echo "完了: 統合バイアス評価パイプライン(rankings) ($(date))" | tee -a logs/execution.log
+      #     else
+      #       echo "エラー: 統合バイアス評価パイプライン(rankings)に失敗しました ($(date))" | tee -a logs/execution.log
+      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+      #     fi
       #     # 引用リンクデータを使用した分析
-      #     python -m src.analysis.bias_ranking_pipeline --data-type citations --output results/bias_analysis/citations --verbose | tee -a logs/bias_ranking_pipeline.log
+      #     if python -m src.analysis.bias_ranking_pipeline --data-type citations --output results/bias_analysis/citations --verbose | tee -a logs/bias_ranking_pipeline.log; then
+      #       echo "完了: 統合バイアス評価パイプライン(citations) ($(date))" | tee -a logs/execution.log
+      #     else
+      #       echo "エラー: 統合バイアス評価パイプライン(citations)に失敗しました ($(date))" | tee -a logs/execution.log
+      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+      #       exit 1
+      #     fi
       #     echo "完了: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
       #     echo "全プロセス完了: $(date)" | tee -a logs/execution.log
+      #   continue-on-error: true
 
       # ログをCloudWatchにアップロード
       - name: Upload logs to CloudWatch
-        if: ${{ env.AWS_ACCESS_KEY != '' && env.AWS_SECRET_KEY != '' }}
+        if: ${{ always() && env.AWS_ACCESS_KEY != '' && env.AWS_SECRET_KEY != '' }}
         run: |
           python -c "
           import boto3
           import os
           from datetime import datetime
 
-          # AWS認証情報
-          aws_region = os.environ.get('AWS_REGION', 'ap-northeast-1')
-          # リージョンが空文字列の場合はデフォルト値を使用
-          if not aws_region or aws_region.strip() == '':
-              aws_region = 'ap-northeast-1'
-              print(f'AWS_REGIONが未設定のため、デフォルト値を使用します: {aws_region}')
-
-          aws_access_key = os.environ.get('AWS_ACCESS_KEY')
-          aws_secret_key = os.environ.get('AWS_SECRET_KEY')
-
-          # CloudWatchクライアント
-          logs_client = boto3.client(
-              'logs',
-              region_name=aws_region,
-              aws_access_key_id=aws_access_key,
-              aws_secret_access_key=aws_secret_key
-          )
-
-          # ログループとストリームの設定
-          log_group_name = '/corporate-bias-study/github-actions'
-          log_stream_name = f'run-{datetime.now().strftime(\"%Y%m%d-%H%M%S\")}'
-
-          # ログストリームの作成（存在しない場合）
           try:
-              logs_client.create_log_group(logGroupName=log_group_name)
-              print(f'作成したロググループ: {log_group_name}')
-          except logs_client.exceptions.ResourceAlreadyExistsException:
-              print(f'ロググループは既に存在: {log_group_name}')
+              # AWS認証情報
+              aws_region = os.environ.get('AWS_REGION', 'ap-northeast-1')
+              # リージョンが空文字列の場合はデフォルト値を使用
+              if not aws_region or aws_region.strip() == '':
+                  aws_region = 'ap-northeast-1'
+                  print(f'AWS_REGIONが未設定のため、デフォルト値を使用します: {aws_region}')
 
-          # ログストリームの作成
-          try:
-              logs_client.create_log_stream(
-                  logGroupName=log_group_name,
-                  logStreamName=log_stream_name
+              aws_access_key = os.environ.get('AWS_ACCESS_KEY')
+              aws_secret_key = os.environ.get('AWS_SECRET_KEY')
+
+              # CloudWatchクライアント
+              logs_client = boto3.client(
+                  'logs',
+                  region_name=aws_region,
+                  aws_access_key_id=aws_access_key,
+                  aws_secret_access_key=aws_secret_key
               )
-              print(f'作成したログストリーム: {log_stream_name}')
+
+              # ログループとストリームの設定
+              log_group_name = '/corporate-bias-study/github-actions'
+              log_stream_name = f'run-{datetime.now().strftime(\"%Y%m%d-%H%M%S\")}'
+
+              # ログストリームの作成（存在しない場合）
+              try:
+                  logs_client.create_log_group(logGroupName=log_group_name)
+                  print(f'作成したロググループ: {log_group_name}')
+              except logs_client.exceptions.ResourceAlreadyExistsException:
+                  print(f'ロググループは既に存在: {log_group_name}')
+
+              # ログストリームの作成
+              try:
+                  logs_client.create_log_stream(
+                      logGroupName=log_group_name,
+                      logStreamName=log_stream_name
+                  )
+                  print(f'作成したログストリーム: {log_stream_name}')
+              except Exception as e:
+                  print(f'ログストリーム作成エラー: {e}')
+                  # CloudWatchアップロードの失敗はワークフロー全体を止めない
+
+              # ログファイル一覧
+              if os.path.exists('logs'):
+                  log_files = [f for f in os.listdir('logs') if f.endswith('.log')]
+              else:
+                  print('ログディレクトリが存在しません')
+                  exit(0)  # ログがない場合は正常終了
+
+              # ログをCloudWatchにアップロード
+              sequence_token = None
+              for log_file in log_files:
+                  with open(f'logs/{log_file}', 'r') as f:
+                      log_content = f.read()
+
+                      events = [{
+                          'timestamp': int(datetime.now().timestamp() * 1000),
+                          'message': f'=== {log_file} ===\\n{log_content}'
+                      }]
+
+                      try:
+                          if sequence_token:
+                              response = logs_client.put_log_events(
+                                  logGroupName=log_group_name,
+                                  logStreamName=log_stream_name,
+                                  logEvents=events,
+                                  sequenceToken=sequence_token
+                              )
+                          else:
+                              response = logs_client.put_log_events(
+                                  logGroupName=log_group_name,
+                                  logStreamName=log_stream_name,
+                                  logEvents=events
+                              )
+
+                          sequence_token = response.get('nextSequenceToken')
+                          print(f'アップロード成功: {log_file}')
+
+                      except Exception as e:
+                          print(f'ログアップロードエラー: {e}')
+                          # 個別ファイルのアップロード失敗は継続
+
+              print('CloudWatchへのログアップロード完了')
+
           except Exception as e:
-              print(f'ログストリーム作成エラー: {e}')
-              exit(1)
-
-          # ログファイル一覧
-          log_files = [f for f in os.listdir('logs') if f.endswith('.log')]
-
-          # ログをCloudWatchにアップロード
-          sequence_token = None
-          for log_file in log_files:
-              with open(f'logs/{log_file}', 'r') as f:
-                  log_content = f.read()
-
-                  events = [{
-                      'timestamp': int(datetime.now().timestamp() * 1000),
-                      'message': f'=== {log_file} ===\\n{log_content}'
-                  }]
-
-                  try:
-                      if sequence_token:
-                          response = logs_client.put_log_events(
-                              logGroupName=log_group_name,
-                              logStreamName=log_stream_name,
-                              logEvents=events,
-                              sequenceToken=sequence_token
-                          )
-                      else:
-                          response = logs_client.put_log_events(
-                              logGroupName=log_group_name,
-                              logStreamName=log_stream_name,
-                              logEvents=events
-                          )
-
-                      sequence_token = response.get('nextSequenceToken')
-                      print(f'アップロード成功: {log_file}')
-
-                  except Exception as e:
-                      print(f'ログアップロードエラー: {e}')
-
-          print('CloudWatchへのログアップロード完了')
+              print(f'CloudWatchログアップロード処理でエラーが発生しました: {e}')
+              # CloudWatchの問題でワークフロー全体を失敗させない
           "
+        continue-on-error: true
 
       # ログファイルもアーティファクトとして保存
       - name: Upload logs as artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: execution_logs
@@ -271,8 +367,21 @@ jobs:
 
       # 結果をアーティファクトとしてアップロード
       - name: Upload results as artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ai_bias_analysis_results
           path: results/
           retention-days: 7
+
+      # 最終的なエラーチェック（エラーがあった場合にワークフロー全体を失敗させる）
+      - name: Check for errors and fail if any occurred
+        run: |
+          ERROR_COUNT=$(cat logs/error_count.txt 2>/dev/null || echo "0")
+          echo "エラー発生回数: $ERROR_COUNT" | tee -a logs/execution.log
+          if [ "$ERROR_COUNT" -gt "0" ]; then
+            echo "ワークフロー実行中に $ERROR_COUNT 件のエラーが発生しました。詳細はログを確認してください。" | tee -a logs/execution.log
+            exit 1
+          else
+            echo "全ての処理が正常に完了しました。" | tee -a logs/execution.log
+          fi
