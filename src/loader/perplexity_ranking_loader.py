@@ -157,8 +157,7 @@ def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
     parser = argparse.ArgumentParser(description='Perplexityを使用して企業ランキングデータを取得')
-    parser.add_argument('--multiple', action='store_true', help='複数回実行して平均を取得')
-    parser.add_argument('--runs', type=int, default=5, help='実行回数（--multipleオプション使用時）')
+    parser.add_argument('--runs', type=int, default=1, help='実行回数（デフォルト: 1）')
     parser.add_argument('--no-analysis', action='store_true', help='バイアス分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     parser.add_argument('--skip-openai', action='store_true', help='OpenAIの実行をスキップする（分析の一部として実行される場合）')
@@ -177,22 +176,19 @@ def main():
         today_date = datetime.datetime.now().strftime("%Y%m%d")
         paths = get_results_paths(today_date)
 
-        if args.multiple:
+        if args.runs > 1:
             print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
-            if args.verbose:
-                logging.info(f"{args.runs}回の実行を開始します")
-            result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
-            file_name = f"rankings_{args.runs}runs.json"
-            local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-            s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
-            save_results(result, local_path, s3_key, verbose=args.verbose)
         else:
             print("Perplexity APIを使用して単一実行データを取得します")
-            result = collect_rankings(PERPLEXITY_API_KEY, categories, 1)
-            file_name = "rankings.json"
-            local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-            s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
-            save_results(result, local_path, s3_key, verbose=args.verbose)
+
+        if args.verbose:
+            logging.info(f"{args.runs}回の実行を開始します")
+
+        result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
+        file_name = f"rankings_{args.runs}runs.json"
+        local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
+        s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
+        save_results(result, local_path, s3_key, verbose=args.verbose)
 
         print("データ取得処理が完了しました")
         if args.verbose:

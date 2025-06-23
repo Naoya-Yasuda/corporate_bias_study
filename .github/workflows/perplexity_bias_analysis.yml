@@ -94,21 +94,21 @@ jobs:
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_sentiment_collection == 'true' }}
         run: |
           echo "開始: Perplexity 感情スコアデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.loader.perplexity_sentiment_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_sentiment.log
+          python -m src.loader.perplexity_sentiment_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_sentiment.log
           echo "完了: Perplexity 感情スコアデータ取得 ($(date))" | tee -a logs/execution.log
 
       - name: Run Perplexity ranking data collection (${{ env.RUNS_COUNT }} runs)
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_ranking_collection == 'true' }}
         run: |
           echo "開始: Perplexity ランキングデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.loader.perplexity_ranking_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_ranking.log
+          python -m src.loader.perplexity_ranking_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_ranking.log
           echo "完了: Perplexity ランキングデータ取得 ($(date))" | tee -a logs/execution.log
 
       - name: Run Perplexity citations data collection (${{ env.RUNS_COUNT }} runs)
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_citations_collection == 'true' }}
         run: |
           echo "開始: Perplexity 引用リンクデータ取得 ($(date))" | tee -a logs/execution.log
-          python -m src.loader.perplexity_citations_loader --multiple --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_citations.log
+          python -m src.loader.perplexity_citations_loader --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/perplexity_citations.log
           echo "完了: Perplexity 引用リンクデータ取得 ($(date))" | tee -a logs/execution.log
 
       - name: Google検索データの収集

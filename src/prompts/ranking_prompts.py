@@ -64,7 +64,7 @@ def main():
     # APIを使用して複数回実行する場合
     if args.api:
         print("⚠️ API実行機能は perplexity_ranking_loader.py を使用してください")
-        print("例: python -m src.loader.perplexity_ranking_loader --multiple --runs 5")
+        print("例: python -m src.loader.perplexity_ranking_loader --runs 3 --verbose")
 
     # 応答テキストを取得
     elif args.answer or args.file:
