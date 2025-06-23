@@ -3,7 +3,6 @@ description: Corporate Bias Study Project - Core rules and standards for AI-assi
 globs: ["**/*"]
 alwaysApply: true
 ---
-
 # Corporate Bias Study Project
 
 ## Project Overview
