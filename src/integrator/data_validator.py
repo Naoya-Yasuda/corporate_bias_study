@@ -96,6 +96,7 @@ class DataValidator:
             "VAL_S005": "企業スコアはリストである必要があります: 実際の型={actual} - {path}",
             "VAL_S006": "スコア[{index}]は数値である必要があります: 実際の値={actual} - {path}",
             "VAL_S007": "スコア[{index}]は1.0-5.0の範囲である必要があります: 実際の値={actual} - {path}",
+            "REQ_R001": "必須フィールド '{field}' が存在しません - {path}",
             "FMT_001": "不正な形式です: {field}={actual}, 期待形式={pattern} - {path}"
         },
         "WARNING": {
@@ -151,31 +152,38 @@ class DataValidator:
         """Google検索データの検証"""
         errors = []
 
-        # entities構造の存在チェック
-        if "entities" not in data:
-            errors.append(self._create_error("REQ_G001", "ERROR", path=path))
-            return errors
+        # 実際のデータ構造に合わせて検証: カテゴリ.サブカテゴリ.entities
+        for category, subcategories in data.items():
+            category_path = f"{path}.{category}"
 
-        # 各企業データのチェック
-        for entity_name, entity_data in data["entities"].items():
-            entity_path = f"{path}.entities.{entity_name}"
+            for subcategory, subdata in subcategories.items():
+                subdata_path = f"{category_path}.{subcategory}"
 
-            # official_results チェック
-            if "official_results" not in entity_data:
-                errors.append(self._create_error("REQ_G002", "ERROR", path=entity_path))
-            else:
-                for i, result in enumerate(entity_data["official_results"]):
-                    result_path = f"{entity_path}.official_results[{i}]"
-                    errors.extend(self._validate_search_result(result, result_path))
+                # entities構造の存在チェック
+                if "entities" not in subdata:
+                    errors.append(self._create_error("REQ_G001", "ERROR", path=subdata_path))
+                    continue
 
-            # reputation_results チェック
-            if "reputation_results" not in entity_data:
-                errors.append(self._create_error("REQ_G002", "ERROR",
-                                                field="reputation_results", path=entity_path))
-            else:
-                for i, result in enumerate(entity_data["reputation_results"]):
-                    result_path = f"{entity_path}.reputation_results[{i}]"
-                    errors.extend(self._validate_search_result(result, result_path))
+                # 各企業データのチェック
+                for entity_name, entity_data in subdata["entities"].items():
+                    entity_path = f"{subdata_path}.entities.{entity_name}"
+
+                    # official_results チェック
+                    if "official_results" not in entity_data:
+                        errors.append(self._create_error("REQ_G002", "ERROR", path=entity_path))
+                    else:
+                        for i, result in enumerate(entity_data["official_results"]):
+                            result_path = f"{entity_path}.official_results[{i}]"
+                            errors.extend(self._validate_search_result(result, result_path))
+
+                    # reputation_results チェック
+                    if "reputation_results" not in entity_data:
+                        errors.append(self._create_error("REQ_G002", "ERROR",
+                                                        field="reputation_results", path=entity_path))
+                    else:
+                        for i, result in enumerate(entity_data["reputation_results"]):
+                            result_path = f"{entity_path}.reputation_results[{i}]"
+                            errors.extend(self._validate_search_result(result, result_path))
 
         return errors
 
@@ -248,8 +256,8 @@ class DataValidator:
             for subcategory, subdata in subcategories.items():
                 subdata_path = f"{category_path}.{subcategory}"
 
-                # 基本的な必須フィールドチェック
-                required_fields = ["services", "ranking_summary", "response_list"]
+                # 実際のデータ構造に合わせた必須フィールドチェック
+                required_fields = ["prompt", "ranking_summary", "answer_list"]
                 for field in required_fields:
                     if field not in subdata:
                         errors.append(self._create_error("REQ_R001", "ERROR",
