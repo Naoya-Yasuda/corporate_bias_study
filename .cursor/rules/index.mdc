@@ -44,6 +44,7 @@ alwaysApply: true
   - **Check and remove unused parameters in modified functions**
   - **Update function calls across codebase to match modified signatures**
   - **Update docstrings and type hints for parameter changes**
+  - **Check README.md update necessity after any code modification**
 - For loaders and API-calling modules: Use minimal execution (count=1)
 - For significant changes (loaders, API modules): Always test after implementation
 - For minor changes (documentation, small fixes): Testing optional
@@ -131,6 +132,25 @@ alwaysApply: true
 - Update .env_sample when changing environment variables
 - Use PERPLEXITY_DEFAULT_MODEL for centralized model management
 - Add corporate_bias_datasets/raw_data/* to .gitignore
+
+### Documentation Update Requirements
+- **Code modification triggers README check**: Any code change requires verification of README.md impact
+- **README update scenarios**:
+  - New features/modules added
+  - API changes or interface modifications
+  - Dependency changes (requirements.txt updates)
+  - Configuration changes (environment variables, config files)
+  - Architecture or workflow changes
+  - Installation or setup procedure changes
+- **README sections to review**:
+  - Installation instructions
+  - Usage examples
+  - API documentation
+  - Configuration instructions
+  - Dependencies list
+  - Architecture overview
+- **Mandatory README update check after any code modification**
+- **Update README.md dynamically with current date when making documentation changes**
 
 ### Error Handling & Communication
 - Always respond in Japanese
