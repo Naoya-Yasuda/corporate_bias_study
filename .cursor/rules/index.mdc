@@ -63,6 +63,11 @@ alwaysApply: true
   - Remove associated docstrings, type hints, and inline comments
   - Keep only code explicitly marked as API or interface for future use
   - Document reasons for keeping potentially unused code
+- **Document date management:**
+  - Always use dynamic date retrieval for current date references in documentation
+  - Never hardcode dates like "2024年12月" - use datetime functions instead
+  - For update dates, creation dates, version timestamps: fetch current date programmatically
+  - Example: Use `datetime.now().strftime('%Y年%m月')` instead of manual date entry
 - Remove unused imports and functions completely
 - Use entity/entities instead of company/companies for attribute names
 
@@ -118,5 +123,6 @@ alwaysApply: true
 - No confirmation questions like "実施しますか？" for read-only operations
 - Apply fixes across all similar code (横展開)
 - Update README.md for any code changes (no change history needed)
+- **Dynamic date handling: Always fetch current date when updating documentation timestamps**
 - NEVER commit automatically without explicit user permission
 - When corrected by user, update memory immediately using update_memory tool
