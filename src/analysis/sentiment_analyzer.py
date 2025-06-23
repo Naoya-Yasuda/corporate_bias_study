@@ -277,7 +277,7 @@ def main():
             input_file = os.path.join(paths["perplexity_citations"], f"citations_{args.runs}runs.json")
         elif args.data_type == "google_search":
             # Google検索の場合は実行回数不要
-            input_file = os.path.join(paths["google"], "google_search_results.json")
+            input_file = os.path.join(paths["google"], "custom_search.json")
         else:
             logging.error(f"未対応のデータタイプです: {args.data_type}")
             return

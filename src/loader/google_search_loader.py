@@ -227,7 +227,7 @@ def main():
     # 結果を保存
     today_date = datetime.datetime.now().strftime("%Y%m%d")
     paths = get_results_paths(today_date)
-    file_name = "google_search_results.json"
+    file_name = "custom_search.json"
     local_path = os.path.join(paths["raw_data"]["google"], file_name)
     s3_key = get_s3_key(file_name, today_date, "raw_data/google")
     save_results(result, local_path, s3_key, verbose=args.verbose)

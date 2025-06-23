@@ -927,7 +927,7 @@ corporate_bias_datasets/
 ├── raw_data/                          # 生データ（API別・日付別）
 │   └── YYYYMMDD/
 │       ├── google/                    # Google系API
-│       │   ├── google_search_results.json   # Google検索結果
+│       │   ├── custom_search.json   # Google検索結果
 │       │   └── custom_search.json        # Google Custom Search結果
 │       ├── perplexity/               # Perplexity API
 │       ├── openai/                   # OpenAI API（将来対応）
@@ -951,8 +951,7 @@ corporate_bias_datasets/
 raw_data/
 └── YYYYMMDD/                         # 収集日付
     ├── google/                       # Google系API結果
-    │   ├── serp_search.json         # Google SERP検索結果
-    │   └── custom_search.json        # Google Custom Search結果
+    │   └── custom_search.json # Google Custom Search結果
     ├── perplexity/                   # Perplexity API結果
     │   ├── rankings.json             # ランキング抽出結果
     │   ├── citations.json            # 引用リンク収集結果
@@ -970,7 +969,7 @@ raw_data/
 
 #### 13.3.2 各ファイルの詳細説明
 
-##### **google/google_search_results.json**
+##### **google/custom_search.json**
 **目的**: Google検索結果の取得
 **内容**: 企業名での検索結果とその順位情報
 **データ構造**:

@@ -90,7 +90,7 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 ## 出力例
 
 ### 生データ（corporate_bias_datasets/raw_data/）
-- `corporate_bias_datasets/raw_data/YYYYMMDD/google/google_search_results.json`: Google検索結果
+- `corporate_bias_datasets/raw_data/YYYYMMDD/google/custom_search.json`: Google検索結果
 - `corporate_bias_datasets/raw_data/YYYYMMDD/google/custom_search.json`: Google Custom Search APIによる詳細検索とメタデータ補完
 - `corporate_bias_datasets/raw_data/YYYYMMDD/perplexity/rankings.json`: ランキング抽出結果
 - `corporate_bias_datasets/raw_data/YYYYMMDD/perplexity/citations.json`: 引用リンク収集結果
@@ -150,7 +150,7 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 ## ファイル命名規則
 - **日付管理**: 日付はフォルダ階層（`YYYYMMDD/`）で管理し、ファイル名には含めません
 - **統一ファイル名**: 以下の標準パターンを使用
-  - Google検索結果: `google_search_results.json`
+  - Google検索結果: `custom_search.json`
   - Perplexity引用: `citations_Nruns.json`（N=1,2,3...実行回数を明示）
   - Perplexity感情分析: `sentiment_Nruns.json`（N=1,2,3...実行回数を明示）
   - Perplexityランキング: `rankings_Nruns.json`（N=1,2,3...実行回数を明示）
@@ -249,7 +249,7 @@ MIT License
 │   ├─ raw_data/               # 生データ（API別・日付別）
 │   │   └─ YYYYMMDD/
 │   │       ├─ google/         # Google系API
-│   │       │   ├─ google_search_results.json
+│   │       │   ├─ custom_search.json
 │   │       │   └─ custom_search.json
 │   │       ├─ perplexity/     # Perplexity API
 │   │       │   ├─ rankings.json

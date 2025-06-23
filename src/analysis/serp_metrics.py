@@ -614,7 +614,7 @@ if __name__ == "__main__":
     def resolve_path(date_str, data_type, file_type, runs=None):
         # ファイル名生成
         if data_type == "google_search" or data_type == "google":
-            file_name = f"{date_str}_google_search_results.json"
+            file_name = f"{date_str}_custom_search.json"
         elif data_type == "citations":
             if runs and runs > 1:
                 file_name = f"{date_str}_perplexity_citations_{runs}runs.json"
