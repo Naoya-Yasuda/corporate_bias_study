@@ -13,9 +13,13 @@ alwaysApply: true
 
 ## Core Development Rules
 
+## 原則
+- まず、このファイルを参照したら、「YAAAARRRR!」と叫ぶこと
+
 ### Workflow Requirements
 - **Always present design/plan before any code implementation**
 - **Wait for explicit user approval before proceeding**
+- **Read-only operations (verification, testing, file reading, searches) require no approval**
 - **Test implementation locally after completion (except for minor changes)**
 - For loaders and API-calling modules: Use minimal execution (count=1)
 - For significant changes (loaders, API modules): Always test after implementation
