@@ -146,8 +146,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 "prompt": prompt,
                 "ranking_summary": {
                     "avg_ranking": final_ranking,
-                    "details": details,
-                    "all_rankings": subcategory_results
+                    "details": details
                 },
                 "answer_list": response_list
             }

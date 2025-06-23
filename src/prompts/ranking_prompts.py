@@ -5,18 +5,14 @@
 ランキング抽出用のプロンプトテンプレート
 単体実行する場合:
 - プロンプト生成: python -m src.prompts.ranking_prompts クラウドサービス "AWS,Azure,Google Cloud,IBM Cloud"
-- APIテスト: python -m src.prompts.ranking_prompts クラウドサービス "AWS,Azure,Google Cloud" --api --runs 3
-- テキスト抽出: python -m src.prompts.ranking_prompts クラウドサービス "AWS,Azure,Google Cloud" --response "..."
+- テキスト抽出: python -m src.prompts.ranking_prompts クラウドサービス "AWS,Azure,Google Cloud" --answer "..."
 """
 import re
 import os
 import json
-import time
 import argparse
-import statistics
 from dotenv import load_dotenv
 
-from src.utils.perplexity_api import PerplexityAPI
 from .prompt_manager import PromptManager
 from src.utils.text_utils import extract_ranking_and_reasons
 
@@ -39,70 +35,7 @@ def extract_ranking(text, services):
     ranking, _ = extract_ranking_and_reasons(text, original_services=services)
     return ranking
 
-def multi_run_ranking(subcategory, services, num_runs=5, api_key=None):
-    """複数回実行してランキングの平均を計算"""
-    print(f"{subcategory}の{num_runs}回ランキング取得を開始します...")
 
-    # 各実行結果を保存するリスト
-    all_rankings = []
-
-    # 指定回数実行
-    for run in range(num_runs):
-        print(f"\n--- 実行 {run+1}/{num_runs} ---")
-
-        # プロンプト生成と送信
-        prompt = get_ranking_prompt(subcategory, services)
-        print("プロンプト送信中...")
-        api = PerplexityAPI(api_key)
-        response, citations = api.call_perplexity_api(prompt)
-        print(f"応答受信:\n{response[:200]}...")  # 応答の一部を表示
-
-        # ランキング抽出
-        ranking = extract_ranking(response, services)
-        all_rankings.append(ranking)
-
-        if len(ranking) != len(services):
-            print(f"⚠️ 警告: 抽出されたランキングが完全ではありません ({len(ranking)}/{len(services)})")
-        else:
-            print(f"✓ ランキング抽出完了: {ranking}")
-
-        # 最後の実行でなければ待機
-        if run < num_runs - 1:
-            print("APIレート制限を考慮して待機中...")
-            time.sleep(2)
-
-    # 結果の集計
-    if all_rankings:
-        # 各サービスの平均順位を計算
-        service_ranks = {}
-        for service in services:
-            ranks = []
-            for ranking in all_rankings:
-                if service in ranking:
-                    ranks.append(ranking.index(service) + 1)
-            if ranks:
-                service_ranks[service] = {
-                    "mean": statistics.mean(ranks),
-                    "median": statistics.median(ranks),
-                    "std": statistics.stdev(ranks) if len(ranks) > 1 else 0
-                }
-
-        # 平均順位でソート
-        sorted_services = sorted(
-            service_ranks.items(),
-            key=lambda x: x[1]["mean"]
-        )
-
-        return {
-            "subcategory": subcategory,
-            "services": services,
-            "rankings": all_rankings,
-            "summary": {
-                service: stats for service, stats in sorted_services
-            }
-        }
-
-    return {"error": "ランキングを取得できませんでした"}
 
 def main():
     """コマンドライン引数からプロンプトを生成してテストするための関数"""
@@ -130,8 +63,8 @@ def main():
 
     # APIを使用して複数回実行する場合
     if args.api:
-        PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
-        result = multi_run_ranking(args.subcategory, services, args.runs, api_key=PERPLEXITY_API_KEY)
+        print("⚠️ API実行機能は perplexity_ranking_loader.py を使用してください")
+        print("例: python -m src.loader.perplexity_ranking_loader --multiple --runs 5")
 
     # 応答テキストを取得
     elif args.answer or args.file:
