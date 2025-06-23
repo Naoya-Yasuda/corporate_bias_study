@@ -48,9 +48,26 @@ pip install -r requirements.txt
 
 ## 使い方
 
-### 基本的な実行例
+### 1. 基本的な使い方
+
 ```bash
-python src/analysis/bias_ranking_pipeline.py --query "検索クエリ"
+# Google検索データ収集
+python -m src.loader.google_search_loader --perplexity-date 20241201 --verbose
+
+# Perplexity感情分析データ収集（単一実行）
+python -m src.loader.perplexity_sentiment_loader --verbose
+
+# Perplexity感情分析データ収集（複数実行）
+python -m src.loader.perplexity_sentiment_loader --runs 3 --verbose
+
+# Perplexityランキングデータ収集（単一実行）
+python -m src.loader.perplexity_ranking_loader --verbose
+
+# Perplexity引用リンクデータ収集（複数実行）
+python -m src.loader.perplexity_citations_loader --runs 5 --verbose
+
+# 感情分析実行
+python -m src.analysis.sentiment_analyzer --date 20241201 --data-type google_search --verbose
 ```
 
 ### 主なオプション
@@ -129,6 +146,17 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 - entity/entitiesという用語を横断的に使用し、company/companiesは使いません
 - 冗長なデータ構造や属性の重複は避けてください
 - 公式URLは`official_url`属性、AI回答文は`answer`属性、プロンプトは`prompt`属性を使います
+
+## ファイル命名規則
+- **日付管理**: 日付はフォルダ階層（`YYYYMMDD/`）で管理し、ファイル名には含めません
+- **統一ファイル名**: 以下の標準パターンを使用
+  - Google検索結果: `google_search_results.json`
+  - Perplexity引用: `citations_Nruns.json`（N=1,2,3...実行回数を明示）
+  - Perplexity感情分析: `sentiment_Nruns.json`（N=1,2,3...実行回数を明示）
+  - Perplexityランキング: `rankings_Nruns.json`（N=1,2,3...実行回数を明示）
+  - その他の感情分析: 元ファイル名を維持（上書き保存）
+- **実行回数表示**: すべてのPerplexity loaderで単一実行時も`_1runs`を使用し、処理ロジックを統一
+- **データ管理**: timestampは各データ内に含め、重複管理を避ける
 
 ## ライセンス
 MIT License
