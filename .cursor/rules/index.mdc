@@ -1,4 +1,4 @@
----
+﻿---
 description: Corporate Bias Study Project - Core rules and standards for AI-assisted development
 globs: ["**/*"]
 alwaysApply: true
@@ -17,6 +17,8 @@ alwaysApply: true
 
 ### Workflow Requirements
 - **Always present design/plan before any code implementation**
+- **Before modification: Check usage with grep_search/codebase_search across entire codebase**
+- **If target code is unused: Propose deletion instead of modification in design phase**
 - **Wait for explicit user approval before proceeding**
 - **All destructive operations (file deletion, data modification, system changes) require explicit approval**
 - **File operations requiring approval:**
@@ -32,6 +34,13 @@ alwaysApply: true
   - Verification and testing commands
   - Code analysis and inspection
 - **Test implementation locally after completion (except for minor changes)**
+- **Post-modification mandatory steps:**
+  - Check and remove unused imports in modified files
+  - Verify import organization (standard → third-party → local)
+  - Clean up any duplicate or redundant imports
+  - **Scan for and remove unused functions, classes, and variables in modified files**
+  - **Verify removal candidates across entire codebase with grep_search/codebase_search**
+  - **Remove associated documentation and comments for deleted code**
 - For loaders and API-calling modules: Use minimal execution (count=1)
 - For significant changes (loaders, API modules): Always test after implementation
 - For minor changes (documentation, small fixes): Testing optional
@@ -42,6 +51,18 @@ alwaysApply: true
 - One responsibility per function
 - Always update requirements.txt when adding/removing dependencies
 - Don't hardcode file paths - use centralized configuration
+- **Import statement standards:**
+  - Remove unused imports on every file modification (mandatory)
+  - Follow PEP8 import order: standard library → third-party → local
+  - Use explicit imports over wildcard imports (avoid `from module import *`)
+  - Group related imports and separate with blank lines
+  - Remove duplicate imports and unused aliases
+- **Unused code elimination standards:**
+  - Remove unused functions, classes, methods, and variables on every file modification
+  - Use codebase-wide search to verify usage before deletion
+  - Remove associated docstrings, type hints, and inline comments
+  - Keep only code explicitly marked as API or interface for future use
+  - Document reasons for keeping potentially unused code
 - Remove unused imports and functions completely
 - Use entity/entities instead of company/companies for attribute names
 
@@ -61,6 +82,28 @@ alwaysApply: true
 - Implement step-by-step processing carefully
 - Always verify loader save paths and required imports
 - Never modify input parameters - only return values
+
+### Unused Code Management
+- **Before modifying any function/class/module: Check if it's actually used**
+- **Search for usage patterns using grep_search, codebase_search across the entire codebase**
+- **If unused code is found: Prioritize deletion over modification**
+- **Exception: Keep code only if explicitly marked as API/interface for future use**
+- **Document reasoning when keeping potentially unused code**
+- **Remove unused imports, functions, classes, and variables completely**
+- **Import Statement Management (mandatory for every code modification):**
+  - After any code change: Check all import statements in the modified file
+  - Use grep_search to verify each import is actually used in the file
+  - Remove unused imports immediately (no separate approval needed)
+  - Reorganize imports: standard library → third-party → local imports
+  - Remove duplicate imports and consolidate related imports
+- **Unused Function/Class Cleanup (mandatory for every file modification):**
+  - After modifying any file: Scan for unused functions and classes in that file
+  - Use grep_search/codebase_search to verify usage across entire codebase
+  - Remove unused functions, classes, methods, and variables immediately
+  - Remove associated docstrings, type hints, and comments
+  - Update any related documentation or README references
+  - Exception: Keep functions explicitly marked with @api decorator or "API" comments
+- **Clean up test files and documentation references to deleted code**
 
 ### Environment Management
 - Update .env_sample when changing environment variables
