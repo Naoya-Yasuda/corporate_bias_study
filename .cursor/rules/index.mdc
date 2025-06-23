@@ -41,6 +41,9 @@ alwaysApply: true
   - **Scan for and remove unused functions, classes, and variables in modified files**
   - **Verify removal candidates across entire codebase with grep_search/codebase_search**
   - **Remove associated documentation and comments for deleted code**
+  - **Check and remove unused parameters in modified functions**
+  - **Update function calls across codebase to match modified signatures**
+  - **Update docstrings and type hints for parameter changes**
 - For loaders and API-calling modules: Use minimal execution (count=1)
 - For significant changes (loaders, API modules): Always test after implementation
 - For minor changes (documentation, small fixes): Testing optional
@@ -63,6 +66,12 @@ alwaysApply: true
   - Remove associated docstrings, type hints, and inline comments
   - Keep only code explicitly marked as API or interface for future use
   - Document reasons for keeping potentially unused code
+- **Function signature optimization standards:**
+  - Remove unused parameters and arguments on every function modification
+  - Verify parameter usage within function body before keeping
+  - Update all function calls when signatures change
+  - Keep only parameters explicitly marked for API compatibility or future use
+  - Maintain minimal, clean function interfaces
 - **Document date management:**
   - Always use dynamic date retrieval for current date references in documentation
   - Never hardcode dates like "2024年12月" - use datetime functions instead
@@ -108,6 +117,14 @@ alwaysApply: true
   - Remove associated docstrings, type hints, and comments
   - Update any related documentation or README references
   - Exception: Keep functions explicitly marked with @api decorator or "API" comments
+- **Unused Parameters/Arguments Cleanup (mandatory for every function modification):**
+  - After modifying any function: Check all parameters and arguments
+  - Use grep_search to verify each parameter is actually used within the function
+  - Remove unused parameters, optional arguments, and keyword arguments immediately
+  - Update function signatures and remove related type hints
+  - Update all function calls across codebase to match new signature
+  - Update docstrings to reflect parameter changes
+  - Exception: Keep parameters explicitly marked as "future use" or API compatibility
 - **Clean up test files and documentation references to deleted code**
 
 ### Environment Management
