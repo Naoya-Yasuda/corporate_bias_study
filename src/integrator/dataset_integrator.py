@@ -14,8 +14,8 @@ import copy
 
 from .data_validator import DataValidator, ProcessingAbortedException
 from .schema_generator import SchemaGenerator
-from ..utils.storage_utils import save_json
-from ..utils.storage_config import get_base_paths
+from ..utils.storage_utils import save_results
+from ..utils.storage_config import get_base_paths, get_s3_key
 
 logger = logging.getLogger(__name__)
 
@@ -250,13 +250,15 @@ class DatasetIntegrator:
         """統合データセットとスキーマの保存"""
         # メインの統合データセット保存
         dataset_path = os.path.join(self.integrated_dir, "corporate_bias_dataset.json")
-        save_json(integrated_dataset, dataset_path)
+        dataset_s3_key = get_s3_key("corporate_bias_dataset.json", self.date_str, "integrated")
+        save_results(integrated_dataset, dataset_path, dataset_s3_key, verbose)
 
         # スキーマ保存（再生成された場合のみ）
         schema_regenerated = self.integration_metadata.get("schema_info", {}).get("schema_regenerated", True)
         if schema_regenerated:
             schema_path = os.path.join(self.integrated_dir, "dataset_schema.json")
-            save_json(dataset_schema, schema_path)
+            schema_s3_key = get_s3_key("dataset_schema.json", self.date_str, "integrated")
+            save_results(dataset_schema, schema_path, schema_s3_key, verbose)
             if verbose:
                 logger.info(f"スキーマ保存: {schema_path}")
         else:
@@ -266,7 +268,8 @@ class DatasetIntegrator:
         # 統合メタデータ保存（品質情報も含む）
         comprehensive_metadata = self._create_comprehensive_metadata()
         metadata_path = os.path.join(self.integrated_dir, "integration_metadata.json")
-        save_json(comprehensive_metadata, metadata_path)
+        metadata_s3_key = get_s3_key("integration_metadata.json", self.date_str, "integrated")
+        save_results(comprehensive_metadata, metadata_path, metadata_s3_key, verbose)
 
         if verbose:
             logger.info(f"統合データセット保存: {dataset_path}")
@@ -369,7 +372,8 @@ class DatasetIntegrator:
     def _save_collection_summary(self, summary: Dict[str, Any]):
         """収集サマリーの保存"""
         summary_path = os.path.join(self.integrated_dir, "collection_summary.json")
-        save_json(summary, summary_path)
+        summary_s3_key = get_s3_key("collection_summary.json", self.date_str, "integrated")
+        save_results(summary, summary_path, summary_s3_key, verbose=True)
         logger.info(f"収集サマリー保存: {summary_path}")
 
     def _calculate_processing_time(self) -> float:
