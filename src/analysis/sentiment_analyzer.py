@@ -95,6 +95,18 @@ def process_google_search_results(data):
                     r.get("title").strip() and r.get("snippet").strip()
                 ]
 
+                # titleやsnippetが空のエントリーはsentiment="unknown"に設定
+                invalid_results = [
+                    r for r in reputation_results
+                    if not (r.get("title") and r.get("snippet") and
+                    isinstance(r.get("title"), str) and isinstance(r.get("snippet"), str) and
+                    r.get("title").strip() and r.get("snippet").strip())
+                ]
+
+                # titleやsnippetが空のエントリーにsentiment="unknown"を設定
+                for result in invalid_results:
+                    result["sentiment"] = "unknown"
+
                 if valid_results:
                     print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
 
@@ -108,8 +120,12 @@ def process_google_search_results(data):
                             result["sentiment"] = sentiment
 
                         time.sleep(1)  # API制限対策
-                else:
-                    print(f"  {entity_name}: 感情分析対象のデータがありません（titleやsnippetが不足）")
+
+                if invalid_results:
+                    print(f"  {entity_name}: {len(invalid_results)}件のエントリーをsentiment='unknown'に設定（titleやsnippetが不足）")
+
+                if not valid_results and not invalid_results:
+                    print(f"  {entity_name}: 感情分析対象のデータがありません")
 
     return results
 
@@ -136,6 +152,18 @@ def process_perplexity_results(data):
                     r.get("title").strip() and r.get("snippet").strip()
                 ]
 
+                # titleやsnippetが空のエントリーはsentiment="unknown"に設定
+                invalid_results = [
+                    r for r in reputation_results
+                    if not (r.get("title") and r.get("snippet") and
+                    isinstance(r.get("title"), str) and isinstance(r.get("snippet"), str) and
+                    r.get("title").strip() and r.get("snippet").strip())
+                ]
+
+                # titleやsnippetが空のエントリーにsentiment="unknown"を設定
+                for result in invalid_results:
+                    result["sentiment"] = "unknown"
+
                 if valid_results:
                     print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
 
@@ -149,8 +177,12 @@ def process_perplexity_results(data):
                             result["sentiment"] = sentiment
 
                         time.sleep(1)  # API制限対策
-                else:
-                    print(f"  {entity_name}: 感情分析対象のデータがありません（titleやsnippetが不足）")
+
+                if invalid_results:
+                    print(f"  {entity_name}: {len(invalid_results)}件のエントリーをsentiment='unknown'に設定（titleやsnippetが不足）")
+
+                if not valid_results and not invalid_results:
+                    print(f"  {entity_name}: 感情分析対象のデータがありません")
 
     return results
 
