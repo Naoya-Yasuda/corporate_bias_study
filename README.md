@@ -23,22 +23,19 @@ Google検索とPerplexity API等の結果を比較し、企業バイアスと経
 `.env`ファイルに以下を設定してください（`.env_sample`も参照）：
 
 ```
-OPENAI_API_KEY=your_openai_api_key
+# API Keys
 PERPLEXITY_API_KEY=your_perplexity_api_key
 GOOGLE_API_KEY=your_google_api_key
 GOOGLE_CSE_ID=your_google_cse_id
-SERP_API_KEY=your_serp_api_key
+
+# AWS Credentials
 AWS_ACCESS_KEY=your_aws_access_key
 AWS_SECRET_KEY=your_aws_secret_key
 AWS_REGION=ap-northeast-1
-STORAGE_MODE=local  # or s3
-S3_BUCKET=your_bucket_name
-S3_PREFIX=your_prefix
 S3_BUCKET_NAME=your_s3_bucket_name
-LOCAL_RESULTS_DIR=results
-S3_RESULTS_PREFIX=results
+
+# Perplexity API Settings
 PERPLEXITY_MODELS_TO_TRY=llama-3.1-sonar-large-128k-online,llama-3.1-sonar-large-128k
-LOG_LEVEL=INFO
 ```
 
 ### インストール

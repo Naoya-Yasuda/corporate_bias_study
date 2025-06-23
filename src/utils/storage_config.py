@@ -48,7 +48,12 @@ def get_storage_config():
     }
 
 def get_base_paths(date_str):
-    """基本パスを取得 - corporate_bias_datasets/ 階層を含む新しいディレクトリ構造に対応"""
+    """
+    基本パスを取得 - corporate_bias_datasets/ 階層を含む標準的なディレクトリ構造
+
+    学術研究用データセットとして設計された固定パス構造を使用。
+    データの一貫性と互換性を保つため、パス構造は変更不可。
+    """
     return {
         # 生データディレクトリ（API別）
         "raw_data": {
