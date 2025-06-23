@@ -70,6 +70,49 @@ python -m src.integrator.create_integrated_dataset --date 20250623 --verbose
 python -m src.analysis.sentiment_analyzer --date 20251201 --data-type google_search --verbose
 ```
 
+### 2. GitHub Actions による自動実行
+
+本プロジェクトでは、**GitHub Actions**により週次でデータ収集・分析・統合処理を自動実行します。
+
+#### ワークフローの特徴
+- **毎週月曜日 06:00 JST**に自動実行（UTC 21:00）
+- **エラー耐性**: 各ステップでエラーが発生しても処理継続
+- **包括的ログ**: CloudWatch + GitHubアーティファクトでログ保存
+- **手動実行**: GitHub UIからパラメータ指定して手動実行可能
+
+#### 実行フロー
+1. **データ収集**:
+   - Perplexity 感情スコアデータ取得
+   - Perplexity ランキングデータ取得
+   - Perplexity 引用リンクデータ取得
+   - Google検索データ収集
+
+2. **感情分析処理**:
+   - Google検索データの感情分析
+   - Google SERP感情分析
+   - Perplexity Citations感情分析
+
+3. **データセット統合**:
+   - 全生データの統合処理
+   - 品質チェック実行
+   - 統合データセット生成
+
+4. **ログ・結果保存**:
+   - CloudWatchにログアップロード
+   - GitHubアーティファクトとして結果保存
+
+#### 手動実行方法
+GitHub リポジトリの「Actions」タブから「AI Bias & Ranking Analysis (Weekly)」を選択し、以下のパラメータを設定して実行：
+
+- **API実行回数**: データ収集の実行回数（デフォルト: 15）
+- **各処理の実行選択**: 感情分析、ランキング、引用データ等の個別実行制御
+
+#### エラーハンドリング
+- 各ステップは独立してエラー処理を行い、失敗しても後続処理を継続
+- エラー発生時は該当ステップが赤く表示されるが、ワークフロー全体は継続
+- 最終ステップでエラー総数をチェックし、エラーがあった場合のみワークフロー全体を失敗扱い
+- ログとアーティファクトは必ず保存される
+
 ### 主なオプション
 - `--query`: 分析する検索クエリ
 - `--market-share`: 市場シェアデータのJSONファイルパス
@@ -125,6 +168,12 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 
 ### S3保存
 - S3バケットにも同様の構造で結果が保存されます
+
+### GitHub Actions ログ・アーティファクト
+- **CloudWatch Logs**: `/corporate-bias-study/github-actions` ロググループ
+- **GitHub アーティファクト**:
+  - `execution_logs`: 実行ログファイル（7日間保持）
+  - `ai_bias_analysis_results`: 分析結果（7日間保持）
 
 ## ディレクトリ構造の特徴
 

@@ -185,6 +185,19 @@ jobs:
           fi
         continue-on-error: true
 
+      # データセット統合ステップ
+      - name: Create integrated dataset
+        run: |
+          echo "開始: データセット統合処理 ($(date))" | tee -a logs/execution.log
+          if python -m src.integrator.create_integrated_dataset --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/dataset_integration.log; then
+            echo "完了: データセット統合処理 ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: データセット統合処理に失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
+
       # 2. 分析ステップ
       # - name: Run Perplexity Sentiment Bias Analysis
       #   run: |
