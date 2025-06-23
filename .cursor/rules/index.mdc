@@ -18,7 +18,19 @@ alwaysApply: true
 ### Workflow Requirements
 - **Always present design/plan before any code implementation**
 - **Wait for explicit user approval before proceeding**
-- **Read-only operations (verification, testing, file reading, searches) require no approval**
+- **All destructive operations (file deletion, data modification, system changes) require explicit approval**
+- **File operations requiring approval:**
+  - File deletion (delete_file, rm commands)
+  - File creation (edit_file for new files)
+  - File modification (edit_file, search_replace)
+  - Directory structure changes
+  - Configuration file changes
+- **Read-only operations (no approval required):**
+  - File reading (read_file)
+  - Searches (codebase_search, grep_search, file_search)
+  - Directory listing (list_dir)
+  - Verification and testing commands
+  - Code analysis and inspection
 - **Test implementation locally after completion (except for minor changes)**
 - For loaders and API-calling modules: Use minimal execution (count=1)
 - For significant changes (loaders, API modules): Always test after implementation
@@ -57,7 +69,10 @@ alwaysApply: true
 
 ### Error Handling & Communication
 - Always respond in Japanese
-- No confirmation questions like "実施しますか？" - implement immediately
+- **CRITICAL: Never perform destructive operations without explicit user approval**
+- **Before any file deletion/modification: Present clear plan and wait for "proceed" confirmation**
+- **Exception: Emergency fixes explicitly requested by user may proceed immediately**
+- No confirmation questions like "実施しますか？" for read-only operations
 - Apply fixes across all similar code (横展開)
 - Update README.md for any code changes (no change history needed)
 - NEVER commit automatically without explicit user permission
