@@ -41,7 +41,14 @@ wheels/
 results/
 
 # データファイル（生成されたデータのみ）
-corporate_bias_datasets/
+corporate_bias_datasets/raw_data/*
+corporate_bias_datasets/integrated/*
+corporate_bias_datasets/analysis/*
+corporate_bias_datasets/temp/*
+
+# ライセンスファイルは除外しない
+!corporate_bias_datasets/LICENSE-DATASETS
+!corporate_bias_datasets/publications/LICENSE-REPORTS
 
 # ログファイル
 *.log

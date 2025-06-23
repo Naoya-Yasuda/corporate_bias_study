@@ -52,7 +52,7 @@ pip install -r requirements.txt
 
 ```bash
 # Google検索データ収集
-python -m src.loader.google_search_loader --perplexity-date 20241201 --verbose
+python -m src.loader.google_search_loader --perplexity-date 20251201 --verbose
 
 # Perplexity感情分析データ収集（単一実行）
 python -m src.loader.perplexity_sentiment_loader --verbose
@@ -70,7 +70,7 @@ python -m src.loader.perplexity_citations_loader --runs 5 --verbose
 python -m src.integrator.create_integrated_dataset --date 20250623 --verbose
 
 # 感情分析実行
-python -m src.analysis.sentiment_analyzer --date 20241201 --data-type google_search --verbose
+python -m src.analysis.sentiment_analyzer --date 20251201 --data-type google_search --verbose
 ```
 
 ### 主なオプション
@@ -173,7 +173,14 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 - **データ管理**: timestampは各データ内に含め、重複管理を避ける
 
 ## ライセンス
-MIT License
+
+本プロジェクトは複数のライセンスで管理されています：
+
+- **ソースコード**: MIT License (`LICENSE`)
+- **データセット**: MIT License (`corporate_bias_datasets/LICENSE-DATASETS`)
+- **学術論文・レポート**: CC-BY-NC-SA 4.0 (`corporate_bias_datasets/publications/LICENSE-REPORTS`)
+
+詳細は `LICENSING.md` を参照してください。
 
 ---
 
@@ -338,4 +345,4 @@ MIT License
 > **Maintainer:** Naoya Yasuda (安田直也) – Graduate Special Research Project
 > **Supervisor:** Prof. Yorihito Tanaka（田中頼人）
 >
-> 本リポジトリおよび成果物は学術目的で公開しており、ソースコードは MIT License、レポート類は CC‑BY‑NC‑SA 4.0 で配布予定です.
+> 本リポジトリは学術研究目的で公開されています。ソースコード・データセットはMIT License、学術論文・レポートはCC-BY-NC-SA 4.0で配布されています。詳細は`LICENSING.md`を参照してください。
