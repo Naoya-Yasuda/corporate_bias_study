@@ -189,11 +189,10 @@ def main():
     """メイン関数"""
     # 引数処理（コマンドライン引数があれば使用）
     parser = argparse.ArgumentParser(description='Google検索データを取得し、Perplexityとの比較分析を行う')
-    parser.add_argument('--perplexity-date', help='分析対象のPerplexityデータ日付（YYYYMMDD形式）')
+    parser.add_argument('--perplexity-date', type=str, help='使用するPerplexityデータの日付（YYYYMMDD形式）')
     parser.add_argument('--data-type', choices=['rankings', 'citations'], default='citations',
                         help='比較するPerplexityデータのタイプ（デフォルト: citations）')
     parser.add_argument('--max', type=int, help='処理するカテゴリ数の上限')
-    parser.add_argument('--no-analysis', action='store_true', help='検索メトリクス分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
     args = parser.parse_args()
 

@@ -401,9 +401,7 @@ def main():
     # 引数処理（コマンドライン引数があれば使用）
     parser = argparse.ArgumentParser(description='Perplexityを使用して引用リンクデータを取得')
     parser.add_argument('--runs', type=int, default=1, help='実行回数（デフォルト: 1）')
-    parser.add_argument('--no-analysis', action='store_true', help='引用分析を実行しない')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
-    parser.add_argument('--skip-openai', action='store_true', help='OpenAIの実行をスキップする（分析の一部として実行される場合）')
     args = parser.parse_args()
 
     # 詳細ログの設定

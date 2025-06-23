@@ -12,7 +12,7 @@ AI検索サービス（ChatGPT、Perplexity、Copilotなど）が提示する情
 Google検索とPerplexity API等の結果を比較し、企業バイアスと経済的影響を分析するためのパイプラインです。
 
 ## 必要条件
-- Python 3.8以上
+- Python 3.12以上（Python 3.12.11で動作確認済み）
 - Google Custom Search API
 - Perplexity API
 - AWSアカウント（S3を使用する場合）

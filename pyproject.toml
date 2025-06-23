@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "corporate-bias-study"
+version = "1.0.0"
+description = "AI検索サービスにおける企業優遇バイアス研究・分析プラットフォーム"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Corporate Bias Study Team"}
+]
+keywords = ["ai", "search", "bias", "analysis", "research"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+dependencies = [
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "tqdm>=4.65.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "tldextract>=3.4.0",
+    "boto3>=1.26.0",
+    "streamlit>=1.28.0",
+    "japanize-matplotlib>=1.1.3",
+    "s3fs>=2023.6.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/corporate-bias-study"
+Documentation = "https://github.com/your-username/corporate-bias-study#readme"
+Repository = "https://github.com/your-username/corporate-bias-study"
+Issues = "https://github.com/your-username/corporate-bias-study/issues"
+
+[project.scripts]
+corporate-bias-study = "src.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
