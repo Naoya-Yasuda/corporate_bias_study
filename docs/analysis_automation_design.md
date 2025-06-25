@@ -127,7 +127,31 @@ def get_latest_schema(date_dir):
     return None  # スキーマが見つからない
 ```
 
-### 2.3 設計思想の変更理由
+### 2.3 企業評価基準データの統合
+
+**市場シェア vs 時価総額による二軸評価**:
+- **サービスレベル分析**: `src/data/market_shares.json`による市場シェア基準評価
+  - 6カテゴリ48サービスの実際の市場占有率
+  - Equal Opportunity比率による公平性評価
+  - 露出度と市場地位の乖離度測定
+- **企業レベル分析**: `src/data/market_caps.json`による時価総額基準評価
+  - 4カテゴリ20企業の市場価値
+  - 企業規模による優遇パターン検出
+  - 投資価値とAI評価の相関分析
+
+**統合分析での活用**:
+```python
+def integrated_bias_analysis(bias_data, market_data, market_cap_data):
+    """サービス・企業二軸でのバイアス分析"""
+    results = {
+        "service_level": analyze_service_bias(bias_data, market_data),
+        "enterprise_level": analyze_enterprise_bias(bias_data, market_cap_data),
+        "cross_level_correlation": analyze_cross_level_patterns(bias_data, market_data, market_cap_data)
+    }
+    return results
+```
+
+### 2.4 設計思想の変更理由
 
 **ダッシュボード表示最適化のため、analysis/ディレクトリではなくintegrated/ディレクトリに分析結果を統合**
 

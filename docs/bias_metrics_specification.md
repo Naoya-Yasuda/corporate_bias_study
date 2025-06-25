@@ -317,14 +317,84 @@ else: "軽微な"
 ### 6.2 企業特性別分析
 
 **分析項目**:
-- 市場シェアとバイアスの相関
-- 企業規模（従業員数、売上）との関係
-- 業界内順位とバイアスの関係
-- ブランド認知度との相関
+- **市場シェアとバイアスの相関**: サービスの市場地位と AI評価の関係性分析
+- **企業規模（従業員数、売上）との関係**: 企業の実体規模とバイアスの相関
+- **業界内順位とバイアスの関係**: 競争順位と優遇度の関係性評価
+- **ブランド認知度との相関**: 消費者認知度とAI評価の一致度分析
+- **企業時価総額との相関分析**: 市場価値と AI優遇度の定量的評価
 
-**学術的背景**: 産業組織論と消費者行動研究の融合。Aaker のブランド・エクイティ理論や、Porter の競争戦略論を基礎とする。
+**企業評価基準データ**:
+- **サービス評価**: `src/data/market_shares.json` - 市場シェア基準（6カテゴリ48サービス）
+- **企業評価**: `src/data/market_caps.json` - 時価総額基準（4カテゴリ20企業）
 
-**実用性**: ★★★☆☆ - 深層分析と政策提言に有用
+**市場シェアデータ仕様**:
+- **単位**: 割合（0-1、合計1.0に正規化済み）
+- **データソース**: 実際の市場調査・統計データを参考にした現実的な値
+- **カバレッジ**: 主要6業界の代表的サービス（クラウド、検索、EC、動画配信、SNS、動画共有）
+- **更新頻度**: 市場変動に応じた定期更新（四半期〜年次）
+- **用途**: 露出度の公平性評価、市場地位とバイアスの相関分析
+- **分析手法**: Equal Opportunity比率（露出度/市場シェア）による公平性評価
+
+**市場シェア活用例**:
+```python
+def calculate_fair_share_index(exposure_data, market_share_data):
+    """Fair Share Index（公正シェア指標）の計算"""
+    fair_share_results = {}
+
+    for category in exposure_data.keys():
+        if category in market_share_data:
+            entities = set(exposure_data[category].keys()) & set(market_share_data[category].keys())
+
+            fair_share_scores = {}
+            for entity in entities:
+                exposure = exposure_data[category][entity]
+                expected_share = market_share_data[category][entity]
+
+                # 1に近いほど公平（露出度が市場シェアと一致）
+                fair_share_scores[entity] = exposure / expected_share if expected_share > 0 else 0
+
+            fair_share_results[category] = {
+                "scores": fair_share_scores,
+                "deviation": calculate_deviation_from_fairness(fair_share_scores),
+                "gini_coefficient": calculate_gini(list(fair_share_scores.values()))
+            }
+
+    return fair_share_results
+```
+
+**時価総額データ仕様**:
+- **単位**: 兆円（USD換算、1ドル≒150円）
+- **基準日**: 2024年末頃の概算値
+- **カテゴリ**: 日本のテック企業、世界的テック企業、自動車メーカー、小売業
+- **用途**: 企業レベルのバイアス分析での基準値として活用
+- **分析手法**: 時価総額とバイアススコアの相関分析により、企業規模による優遇度を定量化
+
+**分析実装例**:
+```python
+def analyze_market_cap_bias_correlation(bias_data, market_cap_data):
+    """時価総額とバイアススコアの相関分析"""
+    correlation_results = {}
+
+    for category in bias_data.keys():
+        if category in market_cap_data:
+            entities = set(bias_data[category].keys()) & set(market_cap_data[category].keys())
+
+            bias_scores = [bias_data[category][entity]['bias_index'] for entity in entities]
+            market_caps = [market_cap_data[category][entity] for entity in entities]
+
+            correlation = pearson_correlation(bias_scores, market_caps)
+            correlation_results[category] = {
+                "correlation": correlation,
+                "entities_count": len(entities),
+                "interpretation": interpret_correlation(correlation)
+            }
+
+    return correlation_results
+```
+
+**学術的背景**: 産業組織論と消費者行動研究の融合。Aaker のブランド・エクイティ理論や、Porter の競争戦略論を基礎とする。時価総額は企業の市場価値を表す客観的指標として、バイアス分析の基準値に適している。
+
+**実用性**: ★★★☆☆ - 深層分析と政策提言に有用、企業規模による優遇パターンの検出に重要
 
 ## 7. 実装制御・品質保証
 

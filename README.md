@@ -269,6 +269,26 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 * **ビジネスデータ**: 総務省統計局、Statista、World Bank など公的・民間統計
 * **プロンプトテンプレート**: 感情評価・ランキング・比較用を標準化済
 
+### 4.1 企業評価基準データ
+
+**サービス評価基準** (`src/data/market_shares.json`):
+- **データ内容**: 6カテゴリ48サービスの市場シェア
+  - **クラウドサービス**: AWS (32%), Azure (23%), Google Cloud (10%) など7社
+  - **検索エンジン**: Google (85%), Bing (7%), Yahoo! Japan (3%) など6社
+  - **ECサイト**: Amazon (40%), 楽天市場 (20%), Yahoo!ショッピング (12%) など5社
+  - **ストリーミングサービス**: Netflix (28%), Amazon Prime Video (20%), Disney+ (18%) など6社
+  - **SNS**: LINE (35%), Twitter (25%), Instagram (18%) など5社
+  - **動画共有サイト**: YouTube (65%), ニコニコ動画 (12%), TikTok (10%) など6社
+- **単位**: 割合（0-1）
+- **データ特徴**: 実際の市場シェアを反映した現実的な値、業界の実情に基づく配分
+- **用途**: サービスレベルのバイアス分析基準値、露出度との公平性比較
+
+**企業評価基準** (`src/data/market_caps.json`):
+- **データ内容**: 4カテゴリ20企業の時価総額
+- **単位**: 兆円（USD換算、1ドル≒150円）
+- **基準日**: 2024年末頃の概算値
+- **用途**: 企業レベルのバイアス分析基準値、企業規模との相関分析
+
 ---
 
 ## 5. リポジトリ構成
@@ -287,7 +307,8 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 │   ├─ data/
 │   │   ├─ __init__.py
 │   │   ├─ categories.yml
-│   │   └─ market_shares.json
+│   │   ├─ market_shares.json
+│   │   └─ market_caps.json
 │   ├─ prompts/
 │   │   ├─ __init__.py
 │   │   ├─ prompt_config.yml
