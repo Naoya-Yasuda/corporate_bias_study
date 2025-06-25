@@ -40,6 +40,11 @@ on:
         required: false
         default: true
         type: boolean
+      run_bias_analysis:
+        description: '統合バイアス分析を実行'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   run-data-collection-analysis:
@@ -60,6 +65,8 @@ jobs:
       ACTIONS_STEP_DEBUG: true  # GitHubアクション詳細ログを有効化
       # 実行回数設定（デフォルトは15回、手動実行時には入力値を使用）
       RUNS_COUNT: ${{ github.event.inputs.runs_count || '15' }}
+      # ストレージモード設定（バイアス分析用）
+      STORAGE_MODE: auto
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -196,6 +203,48 @@ jobs:
             echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
             exit 1
           fi
+        continue-on-error: true
+
+      # 自動バイアス分析ステップ
+      - name: Run comprehensive bias analysis
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.run_bias_analysis == 'true' }}
+        run: |
+          echo "開始: 統合バイアス分析 ($(date))" | tee -a logs/execution.log
+                     python -c "
+          from src.analysis.bias_analysis_engine import BiasAnalysisEngine
+          import datetime
+          import traceback
+
+          try:
+              # バイアス分析エンジンを初期化
+              engine = BiasAnalysisEngine()
+
+              # 統合データセットの分析を実行
+              results = engine.analyze_integrated_dataset('${{ env.TODAY_DATE }}')
+
+              # 分析結果の概要をログ出力
+              metadata = results.get('metadata', {})
+              print(f'📊 バイアス分析完了: 実行回数={metadata.get(\"execution_count\", \"N/A\")}')
+              print(f'📈 信頼性レベル: {metadata.get(\"reliability_level\", \"N/A\")}')
+
+              sentiment_data = results.get('sentiment_bias_analysis', {})
+              category_count = len(sentiment_data)
+              print(f'🎯 分析カテゴリ数: {category_count}')
+
+              # 品質レポートの出力
+              availability = results.get('data_availability_summary', {})
+              available_metrics = sum(1 for m in availability.values() if m.get('available', False))
+              total_metrics = len(availability)
+              print(f'📋 利用可能指標: {available_metrics}/{total_metrics}')
+
+              print('✅ 統合バイアス分析が正常に完了しました')
+
+          except Exception as e:
+              print(f'❌ バイアス分析エラー: {e}')
+              traceback.print_exc()
+              exit(1)
+          " | tee -a logs/bias_analysis.log
+
         continue-on-error: true
 
       # 2. 分析ステップ

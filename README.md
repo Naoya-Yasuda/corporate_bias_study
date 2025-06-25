@@ -68,6 +68,14 @@ python -m src.integrator.create_integrated_dataset --date 20250623 --verbose
 
 # 感情分析実行
 python -m src.analysis.sentiment_analyzer --date 20251201 --data-type google_search --verbose
+
+# 統合バイアス分析実行 ⭐ NEW
+python -c "
+from src.analysis.bias_analysis_engine import BiasAnalysisEngine
+engine = BiasAnalysisEngine()
+results = engine.analyze_integrated_dataset('20250623')
+print('バイアス分析完了')
+"
 ```
 
 ### 2. GitHub Actions による自動実行
@@ -97,7 +105,13 @@ python -m src.analysis.sentiment_analyzer --date 20251201 --data-type google_sea
    - 品質チェック実行
    - 統合データセット生成
 
-4. **ログ・結果保存**:
+4. **包括的バイアス分析**: ⭐ **NEW**
+   - BiasAnalysisEngineによる統合バイアス分析
+   - 7つの統計指標による総合評価
+   - 信頼性レベル判定とメタデータ生成
+   - ローカル・S3への分析結果保存
+
+5. **ログ・結果保存**:
    - CloudWatchにログアップロード
    - GitHubアーティファクトとして結果保存
 
@@ -105,7 +119,7 @@ python -m src.analysis.sentiment_analyzer --date 20251201 --data-type google_sea
 GitHub リポジトリの「Actions」タブから「AI Bias & Ranking Analysis (Weekly)」を選択し、以下のパラメータを設定して実行：
 
 - **API実行回数**: データ収集の実行回数（デフォルト: 15）
-- **各処理の実行選択**: 感情分析、ランキング、引用データ等の個別実行制御
+- **各処理の実行選択**: 感情分析、ランキング、引用データ、統合バイアス分析等の個別実行制御
 
 #### エラーハンドリング
 - 各ステップは独立してエラー処理を行い、失敗しても後続処理を継続
@@ -153,7 +167,12 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 - `corporate_bias_datasets/integrated/YYYYMMDD/collection_summary.json`: 収集サマリー
 - `corporate_bias_datasets/integrated/YYYYMMDD/integration_metadata.json`: 統合処理メタデータ（品質情報も含む）
 
-### 分析結果（corporate_bias_datasets/analysis/）
+### 分析結果（corporate_bias_datasets/integrated/）⭐ **UPDATED**
+- `corporate_bias_datasets/integrated/YYYYMMDD/bias_analysis_results.json`: BiasAnalysisEngineによる包括的バイアス分析結果
+- `corporate_bias_datasets/integrated/YYYYMMDD/analysis_metadata.json`: 分析メタデータ（信頼性レベル、実行回数等）
+- `corporate_bias_datasets/integrated/YYYYMMDD/quality_report.json`: 分析品質レポート（データ完全性、統計的カバレッジ等）
+
+### レガシー分析結果（corporate_bias_datasets/analysis/）
 - `corporate_bias_datasets/analysis/YYYYMMDD/rank_comparison_*.csv`: ランキング比較の詳細データ
 - `corporate_bias_datasets/analysis/YYYYMMDD/bias_analysis_*.json`: バイアス分析のサマリー
 - `corporate_bias_datasets/analysis/YYYYMMDD/delta_ranks.png`: ランク差の可視化
@@ -309,6 +328,12 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 │   │   ├─ categories.yml
 │   │   ├─ market_shares.json
 │   │   └─ market_caps.json
+│   ├─ analysis/                      # 統合バイアス分析エンジン ⭐ NEW
+│   │   ├─ bias_analysis_engine.py    # メイン分析エンジン
+│   │   ├─ hybrid_data_loader.py      # データローダー
+│   │   ├─ metrics_calculator.py      # 統計指標計算
+│   │   ├─ reliability_checker.py     # 信頼性評価
+│   │   └─ ...
 │   ├─ prompts/
 │   │   ├─ __init__.py
 │   │   ├─ prompt_config.yml
