@@ -58,7 +58,7 @@ categories:
     #     - copilot.microsoft.com
     #   Google AI Overviews:
     #     - google.com            # 独立ドメインではなく Google 検索機能
-  # 企業:
+  企業:
     # 世界的テック企業:
     #   Apple:
     #     - apple.com
@@ -71,22 +71,22 @@ categories:
     #     - amazon.com
     #   Meta:
     #     - meta.com
-    # 日本のテック企業:
-    #   ソニー:
-    #     - sony.com
-    #     - sony.jp
-    #   任天堂:
-    #     - nintendo.com
-    #     - nintendo.co.jp
-    #   楽天:
-    #     - rakuten.co.jp
-    #     - rakuten.com
-    #   ソフトバンク:
-    #     - softbank.jp
-    #     - softbank.co.jp
-    #   富士通:
-    #     - fujitsu.com
-    #     - fujitsu.co.jp
+    日本のテック企業:
+      ソニー:
+        - sony.com
+        - sony.jp
+      任天堂:
+        - nintendo.com
+        - nintendo.co.jp
+      楽天:
+        - rakuten.co.jp
+        - rakuten.com
+      ソフトバンク:
+        - softbank.jp
+        - softbank.co.jp
+      富士通:
+        - fujitsu.com
+        - fujitsu.co.jp
     # 自動車メーカー:
     #   トヨタ:
     #     - toyota.com

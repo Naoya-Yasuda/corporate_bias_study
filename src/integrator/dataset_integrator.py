@@ -136,6 +136,50 @@ class DatasetIntegrator:
             self.integration_metadata["processing_summary"]["status"] = "ERROR"
             raise
 
+    def _extract_run_number(self, filename: str, prefix: str) -> int:
+        """ファイル名からrun数を抽出
+
+        Args:
+            filename: ファイル名（例: "sentiment_5runs.json"）
+            prefix: プレフィックス（例: "sentiment_"）
+
+        Returns:
+            run数（抽出できない場合は0）
+        """
+        try:
+            # prefix_Nruns.jsonからNを抽出
+            if filename.startswith(prefix) and filename.endswith("runs.json"):
+                run_part = filename[len(prefix):-9]  # "runs.json"を除去
+                return int(run_part)
+        except (ValueError, IndexError):
+            pass
+        return 0
+
+    def _find_latest_run_file(self, directory: str, prefix: str) -> Optional[str]:
+        """指定ディレクトリで最新のrunファイルを取得
+
+        Args:
+            directory: 検索対象ディレクトリ
+            prefix: ファイル名プレフィックス（例: "sentiment_"）
+
+        Returns:
+            最新（最大run数）のファイルパス、見つからない場合はNone
+        """
+        if not os.path.exists(directory):
+            return None
+
+        max_runs = 0
+        latest_file = None
+
+        for filename in os.listdir(directory):
+            if filename.startswith(prefix) and filename.endswith("runs.json"):
+                run_count = self._extract_run_number(filename, prefix)
+                if run_count > max_runs:
+                    max_runs = run_count
+                    latest_file = filename
+
+        return os.path.join(directory, latest_file) if latest_file else None
+
     def _load_raw_data(self, verbose: bool = True) -> Dict[str, Any]:
         """生データファイルの読み込み"""
         raw_data = {}
@@ -157,13 +201,11 @@ class DatasetIntegrator:
         sentiment_path = os.path.join(self.paths["raw_data"]["perplexity"], "sentiment.json")
         # ファイル名パターンマッチング（sentiment_Nruns.json形式も対応）
         if not os.path.exists(sentiment_path):
-            # sentiment_*runs.json形式を探す
+            # 最新runファイルを検索
             perplexity_dir = self.paths["raw_data"]["perplexity"]
-            if os.path.exists(perplexity_dir):
-                for filename in os.listdir(perplexity_dir):
-                    if filename.startswith("sentiment_") and filename.endswith("runs.json"):
-                        sentiment_path = os.path.join(perplexity_dir, filename)
-                        break
+            latest_sentiment = self._find_latest_run_file(perplexity_dir, "sentiment_")
+            if latest_sentiment:
+                sentiment_path = latest_sentiment
 
         if os.path.exists(sentiment_path):
             try:
@@ -172,7 +214,13 @@ class DatasetIntegrator:
                 raw_data["perplexity_sentiment"] = sentiment_data
                 self.integration_metadata["input_files"].append(sentiment_path)
                 if verbose:
-                    logger.info(f"Perplexity感情データを読み込みました: {sentiment_path}")
+                    # run数表示の改善
+                    filename = os.path.basename(sentiment_path)
+                    if "_" in filename and "runs.json" in filename:
+                        run_count = self._extract_run_number(filename, "sentiment_")
+                        logger.info(f"Perplexity感情データを読み込みました: {sentiment_path} ({run_count}runs)")
+                    else:
+                        logger.info(f"Perplexity感情データを読み込みました: {sentiment_path}")
             except Exception as e:
                 logger.error(f"Perplexity感情データの読み込みに失敗しました: {e}")
 
@@ -180,12 +228,11 @@ class DatasetIntegrator:
         rankings_path = os.path.join(self.paths["raw_data"]["perplexity"], "rankings.json")
         # ファイル名パターンマッチング（rankings_Nruns.json形式も対応）
         if not os.path.exists(rankings_path):
+            # 最新runファイルを検索
             perplexity_dir = self.paths["raw_data"]["perplexity"]
-            if os.path.exists(perplexity_dir):
-                for filename in os.listdir(perplexity_dir):
-                    if filename.startswith("rankings_") and filename.endswith("runs.json"):
-                        rankings_path = os.path.join(perplexity_dir, filename)
-                        break
+            latest_rankings = self._find_latest_run_file(perplexity_dir, "rankings_")
+            if latest_rankings:
+                rankings_path = latest_rankings
 
         if os.path.exists(rankings_path):
             try:
@@ -194,7 +241,13 @@ class DatasetIntegrator:
                 raw_data["perplexity_rankings"] = rankings_data
                 self.integration_metadata["input_files"].append(rankings_path)
                 if verbose:
-                    logger.info(f"Perplexityランキングデータを読み込みました: {rankings_path}")
+                    # run数表示の改善
+                    filename = os.path.basename(rankings_path)
+                    if "_" in filename and "runs.json" in filename:
+                        run_count = self._extract_run_number(filename, "rankings_")
+                        logger.info(f"Perplexityランキングデータを読み込みました: {rankings_path} ({run_count}runs)")
+                    else:
+                        logger.info(f"Perplexityランキングデータを読み込みました: {rankings_path}")
             except Exception as e:
                 logger.error(f"Perplexityランキングデータの読み込みに失敗しました: {e}")
 
@@ -202,12 +255,11 @@ class DatasetIntegrator:
         citations_path = os.path.join(self.paths["raw_data"]["perplexity"], "citations.json")
         # ファイル名パターンマッチング（citations_Nruns.json形式も対応）
         if not os.path.exists(citations_path):
+            # 最新runファイルを検索
             perplexity_dir = self.paths["raw_data"]["perplexity"]
-            if os.path.exists(perplexity_dir):
-                for filename in os.listdir(perplexity_dir):
-                    if filename.startswith("citations_") and filename.endswith("runs.json"):
-                        citations_path = os.path.join(perplexity_dir, filename)
-                        break
+            latest_citations = self._find_latest_run_file(perplexity_dir, "citations_")
+            if latest_citations:
+                citations_path = latest_citations
 
         if os.path.exists(citations_path):
             try:
@@ -216,7 +268,13 @@ class DatasetIntegrator:
                 raw_data["perplexity_citations"] = citations_data
                 self.integration_metadata["input_files"].append(citations_path)
                 if verbose:
-                    logger.info(f"Perplexity引用データを読み込みました: {citations_path}")
+                    # run数表示の改善
+                    filename = os.path.basename(citations_path)
+                    if "_" in filename and "runs.json" in filename:
+                        run_count = self._extract_run_number(filename, "citations_")
+                        logger.info(f"Perplexity引用データを読み込みました: {citations_path} ({run_count}runs)")
+                    else:
+                        logger.info(f"Perplexity引用データを読み込みました: {citations_path}")
             except Exception as e:
                 logger.error(f"Perplexity引用データの読み込みに失敗しました: {e}")
 
