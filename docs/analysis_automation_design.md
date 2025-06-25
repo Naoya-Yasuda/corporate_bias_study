@@ -6,11 +6,11 @@
 
 ## 1. 目的・ゴール
 
-- integrated/配下の統合生データ（corporate_bias_dataset.json等）を入力として
-- バイアス指標（Raw Delta, BI, 有意性, Cliff's Delta, 安定性等）を自動計算
-- integrated/YYYYMMDD/bias_analysis_results.json等に保存（ダッシュボード表示最適化）
-- 信頼性レベル・参考値注記・品質チェックも自動付与
-- 生データと分析結果を統合管理し、app.pyでの一元的なデータアクセスを実現
+- integrated/配下の既存分析結果（bias_analysis_results.json等）を取得・活用
+- ローカル・S3両対応でのデータアクセス機能実装
+- app.pyでの統一的なデータアクセス実現（生データ + 分析結果）
+- HybridDataLoaderのS3読み込み機能完成
+- ダッシュボード表示最適化のための統合データ管理
 
 ## 2. ディレクトリ・ファイル構成
 
@@ -446,40 +446,38 @@ def integrated_bias_analysis(bias_data, market_data, market_cap_data):
 ### 3.1 入力・出力仕様
 
 ```
-入力: corporate_bias_datasets/integrated/{YYYYMMDD}/corporate_bias_dataset.json
-処理: 統合バイアス指標計算エンジン
-出力: corporate_bias_datasets/integrated/{YYYYMMDD}/bias_analysis_results.json（全バイアス分析統合）
-     corporate_bias_datasets/integrated/{YYYYMMDD}/analysis_metadata.json
+入力: corporate_bias_datasets/integrated/{YYYYMMDD}/bias_analysis_results.json（既存の分析結果）
+処理: HybridDataLoader（ローカル・S3両対応の取得機能）
+出力: app.py向けの統一データ形式（生データ + 分析結果統合）
 ```
 
 ### 3.2 処理フロー詳細
 
 ```
-1. 入力データ検証
+1. データソース判定・取得
+   ├── ローカルデータ存在確認（integrated/YYYYMMDD/）
+   ├── S3データ存在確認（フォールバック）
+   └── 統合データ形式に正規化
+
+2. 既存分析結果の読み込み
+   ├── bias_analysis_results.json の取得
+   ├── corporate_bias_dataset.json の取得
+   └── metadata ファイルの取得
+
+3. app.py向けデータ統合
+   ├── 生データと分析結果の統合
+   ├── ダッシュボード表示用形式に変換
+   └── メタデータ情報の付与
+
+4. エラーハンドリング・品質チェック
    ├── ファイル存在確認
    ├── データ形式検証
-   └── 実行回数カウント
+   └── 適切なフォールバック処理
 
-2. 実行回数に基づく計算可能指標判定
-   ├── 基本指標（2回以上）: Raw Delta, BI
-   ├── 統計検定（5回以上）: p値, Cliff's Delta
-   └── 信頼区間（5回以上）: ブートストラップ
-
-3. カテゴリ・企業レベル計算
-   ├── 個別企業指標計算
-   ├── カテゴリレベル集約
-   └── 相対比較指標計算
-
-4. 信頼性評価・品質チェック
-   ├── 信頼性レベル判定
-   ├── データ品質チェック
-   └── 解釈ガイド生成
-
-5. 結果出力・保存
-   ├── 同一ディレクトリ（integrated/YYYYMMDD/）内に統合JSON形式で保存
-   ├── 感情バイアス・ランキングバイアス・相対優遇指標を1ファイルに統合
-   ├── エラーハンドリング
-   └── ログ出力
+5. 統一インターフェース提供
+   ├── app.py での一元的データアクセス
+   ├── ローカル・S3透過的な処理
+   └── 詳細なログ出力
 ```
 
 ## 4. 主要モジュール設計
@@ -575,15 +573,33 @@ class HybridDataLoader:
         return load_json(data_path)
 
     def _load_from_s3(self, date: str) -> Dict[str, Any]:
-        """S3から読み込み（既存コードとの互換性）"""
+        """S3から読み込み（既存storage_utilsを活用）"""
 
         if self.s3_utils is None:
-            from src.utils.storage_utils import StorageUtils
-            self.s3_utils = StorageUtils()
+            from src.utils.storage_utils import load_json
+            self.s3_utils = load_json
 
-        # 既存のS3読み込みロジックを活用
-        # sentiment, rankings, citations等を個別に読み込んで統合形式に変換
-        return self._convert_s3_to_integrated_format(date)
+        # S3から統合データセットを直接読み込み
+        s3_path = f"s3://corporate-bias-datasets/datasets/integrated/{date}/corporate_bias_dataset.json"
+        try:
+            return self.s3_utils(None, s3_path)  # ローカルパスなし、S3パス指定
+        except Exception as e:
+            logger.error(f"S3読み込み失敗: {e}")
+            raise
+
+    def _load_sentiment_from_s3(self, date: str) -> Dict[str, Any]:
+        """S3から感情分析データを読み込み"""
+
+        if self.s3_utils is None:
+            from src.utils.storage_utils import load_json
+            self.s3_utils = load_json
+
+        s3_path = f"s3://corporate-bias-datasets/datasets/raw_data/{date}/perplexity/sentiment.json"
+        try:
+            return self.s3_utils(None, s3_path)
+        except Exception as e:
+            logger.error(f"S3感情データ読み込み失敗: {e}")
+            raise
 
     def save_analysis_results(self, results: Dict, date_or_path: str,
                             output_mode: str = "auto") -> str:
@@ -885,10 +901,273 @@ def safe_calculate_bias_index(individual_delta: float,
 - `src/analysis/statistical_tests.py`
 - S3互換性テストコード
 
-### 7.3 第3段階：高度分析機能（2週間）
+## 8. 即座実装項目：HybridDataLoaderのS3機能完成
 
-**優先度：中**
-**推定工数：8-10日**
+**目標**: 既存のstorage_utilsを活用してHybridDataLoaderのS3読み込み機能を完成
+**期間**: 半日
+**優先度**: 最高（現在NotImplementedErrorで未完成）
+
+**注意**: 既存の`bias_analysis_results.json`を読み込むことが目的。無駄なファイル読み込みは行わない。
+
+### 8.1 実装対象の明確化
+
+#### 8.1.1 現在の状況
+```python
+# src/analysis/hybrid_data_loader.py（現状）
+def _load_from_s3(self):
+    raise NotImplementedError("S3読み込み機能は未実装")
+
+def _load_sentiment_from_s3(self):
+    raise NotImplementedError("S3感情データ読み込み機能は未実装")
+```
+
+#### 8.1.2 実装目標
+```python
+# 完成版の実装目標
+def _load_from_s3(self, date: str) -> Dict[str, Any]:
+    """S3から統合データセットを読み込み（storage_utils活用）"""
+    # 既存のload_json関数でS3パス指定による読み込み
+
+def _load_sentiment_from_s3(self, date: str) -> Dict[str, Any]:
+    """S3から感情分析データを読み込み（storage_utils活用）"""
+    # 既存のload_json関数でS3パス指定による読み込み
+
+def load_analysis_results(self, date: str) -> Dict[str, Any]:
+    """分析結果をローカル・S3から読み込み（新規追加）"""
+    # bias_analysis_results.jsonの読み込み機能
+```
+
+### 8.2 具体的実装設計
+
+#### 8.2.1 _load_from_s3() の実装
+
+```python
+def _load_from_s3(self, date: str) -> Dict[str, Any]:
+    """S3からbias_analysis_resultsを読み込み（統合データセットとして使用）"""
+
+    # 分析結果を読み込んで統合データセット形式として返す
+    analysis_results = self.load_analysis_results(date)
+
+    logger.info(f"S3から分析結果を統合データとして読み込み成功: {date}")
+    return analysis_results
+```
+
+#### 8.2.2 _load_sentiment_from_s3() は不要
+
+**理由**: `_load_from_s3()`と同じ処理になるため、重複実装を避ける。
+
+```python
+def _load_sentiment_from_s3(self, date: str) -> Dict[str, Any]:
+    """感情データも統合データとして読み込み（_load_from_s3と同じ処理）"""
+    return self._load_from_s3(date)
+```
+
+#### 8.2.3 load_analysis_results() の新規実装
+
+```python
+def load_analysis_results(self, date_or_path: str) -> Dict[str, Any]:
+    """分析結果をローカル・S3から読み込み（ハイブリッド対応）"""
+
+    if self.storage_mode == "local":
+        return self._load_analysis_results_from_local(date_or_path)
+    elif self.storage_mode == "s3":
+        return self._load_analysis_results_from_s3(date_or_path)
+    else:  # auto
+        # ローカル優先で試行
+        try:
+            return self._load_analysis_results_from_local(date_or_path)
+        except FileNotFoundError:
+            logger.info("ローカル分析結果なし、S3から読み込み試行")
+            return self._load_analysis_results_from_s3(date_or_path)
+
+def _load_analysis_results_from_local(self, date_or_path: str) -> Dict[str, Any]:
+    """ローカルから分析結果を読み込み"""
+
+    if len(date_or_path) == 8 and date_or_path.isdigit():
+        # 日付指定の場合
+        base_path = f"corporate_bias_datasets/integrated/{date_or_path}/"
+    else:
+        # パス指定の場合
+        base_path = date_or_path
+
+    analysis_path = f"{base_path}/bias_analysis_results.json"
+
+    if not os.path.exists(analysis_path):
+        raise FileNotFoundError(f"分析結果が見つかりません: {analysis_path}")
+
+    from src.utils.storage_utils import load_json
+    return load_json(analysis_path, None)
+
+def _load_analysis_results_from_s3(self, date: str) -> Dict[str, Any]:
+    """S3から分析結果を読み込み"""
+
+    from src.utils.storage_utils import load_json
+
+    s3_path = f"s3://corporate-bias-datasets/datasets/integrated/{date}/bias_analysis_results.json"
+
+    try:
+        data = load_json(None, s3_path)
+        logger.info(f"S3から分析結果読み込み成功: {s3_path}")
+        return data
+
+    except Exception as e:
+        logger.error(f"S3分析結果読み込み失敗: {s3_path}, エラー: {e}")
+        raise FileNotFoundError(f"S3から分析結果を読み込めませんでした: {date}")
+```
+
+### 8.3 app.py統合用の統一インターフェース実装
+
+#### 8.3.1 get_integrated_dashboard_data() 関数
+
+```python
+def get_integrated_dashboard_data(self, date: str) -> Dict[str, Any]:
+    """app.py向けの統合データを取得（生データ + 分析結果）"""
+
+    result = {
+        "date": date,
+        "data_source": "unknown",
+        "has_raw_data": False,
+        "has_analysis": False,
+        "raw_data": None,
+        "analysis_results": None,
+        "metadata": None,
+        "error": None
+    }
+
+    try:
+        # 生データの読み込み試行
+        try:
+            result["raw_data"] = self.load_integrated_data(date)
+            result["has_raw_data"] = True
+            logger.info(f"生データ読み込み成功: {date}")
+        except Exception as e:
+            logger.warning(f"生データ読み込み失敗: {e}")
+
+        # 分析結果の読み込み試行
+        try:
+            result["analysis_results"] = self.load_analysis_results(date)
+            result["has_analysis"] = True
+            logger.info(f"分析結果読み込み成功: {date}")
+        except Exception as e:
+            logger.warning(f"分析結果読み込み失敗: {e}")
+
+        # データソースの特定
+        result["data_source"] = self._determine_actual_source(date)
+
+        # メタデータの生成
+        result["metadata"] = self._generate_dashboard_metadata(result)
+
+        return result
+
+    except Exception as e:
+        result["error"] = str(e)
+        logger.error(f"統合データ取得でエラー: {e}")
+        return result
+
+def _determine_actual_source(self, date: str) -> str:
+    """実際のデータソースを特定"""
+    local_base = f"corporate_bias_datasets/integrated/{date}/"
+
+    has_local_raw = os.path.exists(f"{local_base}/corporate_bias_dataset.json")
+    has_local_analysis = os.path.exists(f"{local_base}/bias_analysis_results.json")
+
+    if has_local_raw or has_local_analysis:
+        return "local"
+    else:
+        return "s3"  # S3からの読み込みを仮定
+
+def _generate_dashboard_metadata(self, result: Dict) -> Dict[str, Any]:
+    """ダッシュボード用メタデータを生成"""
+    return {
+        "completeness": "完全" if (result["has_raw_data"] and result["has_analysis"]) else "部分的",
+        "data_status": {
+            "raw_data": "利用可能" if result["has_raw_data"] else "利用不可",
+            "analysis": "利用可能" if result["has_analysis"] else "利用不可"
+        },
+        "source_location": result["data_source"],
+        "timestamp": datetime.now().isoformat()
+    }
+```
+
+### 8.4 実装手順
+
+#### 8.4.1 Phase 1: 基本S3読み込み機能（2時間）
+
+**ファイル**: `src/analysis/hybrid_data_loader.py`
+
+1. **NotImplementedErrorの置き換え**
+   - `_load_from_s3()` の実装（`bias_analysis_results.json`読み込み）
+   - `_load_sentiment_from_s3()` の実装（`_load_from_s3()`の呼び出しに変更）
+   - 既存storage_utilsのload_json関数を活用
+
+2. **S3パス構築**
+   - `integrated/YYYYMMDD/bias_analysis_results.json`への直接アクセス
+   - 無駄なファイル読み込みを排除
+
+#### 8.4.2 Phase 2: 統合インターフェース機能（1時間）
+
+1. **新規メソッド追加**
+   - `load_analysis_results()` の実装（ローカル・S3ハイブリッド）
+
+2. **ハイブリッド機能の確認**
+   - autoモードでの適切なフォールバック
+   - ローカル優先処理の確認
+
+#### 8.4.3 Phase 3: テスト・検証（1時間）
+
+1. **機能テスト**
+   - ローカルデータでの動作確認
+   - S3データでの動作確認（20250624データ使用）
+   - autoモードでのフォールバック確認
+
+2. **エラーケーステスト**
+   - ファイル不存在時の適切な処理
+   - S3接続エラー時の処理
+
+### 8.5 成果物
+
+#### 8.5.1 実装ファイル
+- **更新**: `src/analysis/hybrid_data_loader.py`
+  - S3読み込み機能の完成
+  - 分析結果読み込み機能の追加
+  - 統合データ取得インターフェースの実装
+
+#### 8.5.2 テストファイル
+- **新規**: `tests/test_hybrid_data_loader.py`
+  - S3読み込み機能のテスト
+  - フォールバック機能のテスト
+  - エラーハンドリングのテスト
+
+#### 8.5.3 ドキュメント
+- **更新**: `README.md`
+  - HybridDataLoaderの使用方法
+  - S3設定の説明
+  - トラブルシューティングガイド
+
+### 8.6 実装時の注意点
+
+#### 8.6.1 既存コードとの互換性
+- storage_utilsのload_json関数の仕様を正確に把握
+- 既存のS3パス命名規則の確認
+- エラーハンドリングパターンの統一
+
+#### 8.6.2 S3設定の確認
+- AWS認証情報の設定確認
+- S3バケット・パスの確認
+- アクセス権限の確認
+
+#### 8.6.3 テスト戦略
+- モックを使用したS3テスト
+- 実際のS3環境でのテスト（可能な場合）
+- 段階的な機能確認
+
+**実装完了後の効果**:
+- ✅ HybridDataLoaderの完全動作
+- ✅ app.pyでの統一的なデータアクセス
+- ✅ ローカル・S3透過的な処理
+- ✅ 既存分析結果の効果的活用
+
+### 7.3 第3段階：高度分析機能（2週間）
 
 #### 3.1 カテゴリレベル分析
 - 📊 **企業間比較指標**
@@ -925,9 +1204,6 @@ def safe_calculate_bias_index(individual_delta: float,
 
 ### 7.4 第4段階：レポート生成・可視化（1週間）
 
-**優先度：中**
-**推定工数：4-6日**
-
 #### 4.1 自動レポート生成
 - 📄 **エグゼクティブサマリー**
   - 主要な発見事項の自動抽出
@@ -956,8 +1232,6 @@ def safe_calculate_bias_index(individual_delta: float,
 - テンプレート・フォーマット定義
 
 ### 7.5 第5段階：運用・最適化（継続的）
-
-**優先度：低（運用開始後）**
 
 #### 5.1 パフォーマンス最適化
 - ⚡ **大量データ処理**
