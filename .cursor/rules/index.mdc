@@ -3,6 +3,11 @@ description: Corporate Bias Study Project - Core rules and standards for AI-assi
 globs: ["**/*"]
 alwaysApply: true
 ---
+---
+description: Corporate Bias Study Project - Core rules and standards for AI-assisted development
+globs: ["**/*"]
+alwaysApply: true
+---
 # Corporate Bias Study Project
 
 ## Project Overview
@@ -132,6 +137,27 @@ alwaysApply: true
 - Update .env_sample when changing environment variables
 - Use PERPLEXITY_DEFAULT_MODEL for centralized model management
 - Add corporate_bias_datasets/raw_data/* to .gitignore
+
+### GitHub Actions Standards
+- **PROHIBITED: Direct Python code in workflow YAML files**
+  - Never write Python code directly in GitHub Actions YAML files using `python -c`, multiline scripts, or inline code blocks
+  - Never use `run:` steps with Python import statements, function definitions, or complex logic
+  - All Python code must be in separate `.py` files in the repository
+- **Required approach for Python execution:**
+  - Create dedicated Python scripts in appropriate directories (e.g., `/scripts/`, `/src/`)
+  - Use `python -m module.name` or `python script_name.py` for execution
+  - Pass parameters via command line arguments or environment variables
+  - Maintain clear separation between workflow orchestration and business logic
+- **Workflow maintainability standards:**
+  - Keep YAML files focused on workflow orchestration only
+  - Use descriptive step names and comments in Japanese
+  - Implement proper error handling and logging for each step
+  - Enable step-by-step debugging with appropriate log output
+- **Code organization requirements:**
+  - Extract complex shell commands into separate script files
+  - Use environment variables for configuration values
+  - Avoid hardcoded values in workflow files
+  - Maintain version control for all scripts referenced in workflows
 
 ### Documentation Update Requirements
 - **Code modification triggers README check**: Any code change requires verification of README.md impact
