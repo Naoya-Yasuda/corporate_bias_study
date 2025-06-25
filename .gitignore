@@ -48,7 +48,6 @@ corporate_bias_datasets/temp/*
 
 # 誤って作成されるディレクトリ（正しくは corporate_bias_datasets/ 配下）
 integrated/
-analysis/
 raw_data/
 
 # ライセンスファイルは除外しない
