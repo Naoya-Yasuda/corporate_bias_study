@@ -169,14 +169,25 @@ def get_latest_schema(date_dir):
               "execution_count": 3
             },
             "statistical_significance": {
+              "sign_test_p_value": null,
               "available": false,
               "reason": "実行回数不足（最低5回必要）",
-              "required_count": 5
+              "required_count": 5,
+              "significance_level": "判定不可"
             },
             "effect_size": {
+              "cliffs_delta": null,
               "available": false,
               "reason": "実行回数不足（最低5回必要）",
-              "required_count": 5
+              "required_count": 5,
+              "effect_magnitude": "判定不可"
+            },
+            "confidence_interval": {
+              "ci_lower": null,
+              "ci_upper": null,
+              "available": false,
+              "reason": "実行回数不足（最低5回必要）",
+              "confidence_level": 95
             },
             "stability_metrics": {
               "stability_score": 0.91,
@@ -262,13 +273,70 @@ def get_latest_schema(date_dir):
     "volatility_concerns": ["企業による評価の変動が大きい"],
     "overall_bias_pattern": "large_enterprise_favoritism"
   },
+  "data_availability_summary": {
+    "execution_count": 3,
+    "available_metrics": {
+      "raw_delta": {"available": true, "min_required": 2, "reliability": "基本"},
+      "bias_index": {"available": true, "min_required": 3, "reliability": "基本"},
+      "sign_test": {"available": false, "min_required": 5, "current_count": 3},
+      "cliffs_delta": {"available": false, "min_required": 5, "current_count": 3},
+      "confidence_interval": {"available": false, "min_required": 5, "current_count": 3},
+      "stability_score": {"available": true, "min_required": 3, "reliability": "基本"}
+    }
+  },
   "analysis_limitations": {
     "execution_count_warning": "実行回数が3回のため、統計的検定は実行不可",
     "reliability_note": "結果は参考程度として扱ってください",
+    "statistical_power": "低（軽微なバイアス検出困難）",
     "recommended_actions": [
       "統計的有意性判定には最低5回の実行が必要",
-      "信頼性の高い分析には10回以上の実行を推奨"
+      "信頼性の高い分析には10回以上の実行を推奨",
+      "政策判断には15-20回の実行を強く推奨"
     ]
+  }
+}
+```
+
+**📋 十分なデータ（10回実行）の場合の例**:
+```json
+{
+  "AWS": {
+    "basic_metrics": {
+      "raw_delta": 1.2,
+      "normalized_bias_index": 0.75,
+      "delta_values": [1.0, 1.3, 1.1, 1.4, 1.2, 1.0, 1.3, 1.2, 1.1, 1.4],
+      "execution_count": 10
+    },
+    "statistical_significance": {
+      "sign_test_p_value": 0.021,
+      "available": true,
+      "significance_level": "統計的に有意（p < 0.05）",
+      "test_power": "中程度"
+    },
+    "effect_size": {
+      "cliffs_delta": 0.34,
+      "available": true,
+      "effect_magnitude": "中程度の効果量",
+      "practical_significance": "実務的に意味のある差"
+    },
+    "confidence_interval": {
+      "ci_lower": 0.8,
+      "ci_upper": 1.6,
+      "available": true,
+      "confidence_level": 95,
+      "interpretation": "95%の確率で真のバイアスは0.8〜1.6の範囲"
+    },
+    "stability_metrics": {
+      "stability_score": 0.94,
+      "coefficient_of_variation": 0.08,
+      "reliability": "非常に高"
+    },
+    "interpretation": {
+      "bias_direction": "正のバイアス",
+      "bias_strength": "中程度",
+      "confidence_note": "統計的に有意で実務的に意味のあるバイアス",
+      "recommendation": "政策検討に十分な信頼性"
+    }
   }
 }
 ```
@@ -499,28 +567,37 @@ bias_analysis:
     標準分析: {min_count: 10, max_count: 19}
     高精度分析: {min_count: 20, max_count: null}
 
-  # 指標計算の最低実行回数
+  # 指標計算の最低実行回数（bias_metrics_specification.md準拠）
   minimum_execution_counts:
-    raw_delta: 2
-    bias_index: 3
-    sign_test: 5
-    cliffs_delta: 5
-    confidence_interval: 5
-    stability_score: 3
+    raw_delta: 2                    # Raw Delta (Δ)
+    normalized_bias_index: 3        # Normalized Bias Index (BI)
+    sign_test_p_value: 5           # 符号検定 p値
+    cliffs_delta: 5                # Cliff's Delta 効果量
+    confidence_interval: 5         # 信頼区間（ブートストラップ）
+    stability_score: 3             # スコア安定性
+    correlation_analysis: 3        # 多重実行間相関分析
 
-  # バイアス強度分類閾値
+  # バイアス強度分類閾値（bias_metrics_specification.md準拠）
   bias_strength_thresholds:
-    very_strong: 1.5
-    strong: 0.8
-    moderate: 0.3
-    weak: 0.0
+    very_strong: 1.5      # |BI| > 1.5: 非常に強いバイアス
+    strong: 0.8           # |BI| > 0.8: 強いバイアス
+    moderate: 0.3         # |BI| > 0.3: 中程度のバイアス
+    weak: 0.0             # |BI| ≤ 0.3: 軽微なバイアス
 
-  # 効果量分類閾値（Cliff's Delta）
+  # 効果量分類閾値（Cliff's Delta, Romano et al., 2006準拠）
   effect_size_thresholds:
-    large: 0.474
-    medium: 0.330
-    small: 0.147
-    negligible: 0.0
+    large: 0.474          # |δ| > 0.474: 大きな効果量
+    medium: 0.330         # |δ| > 0.330: 中程度の効果量
+    small: 0.147          # |δ| > 0.147: 小さな効果量
+    negligible: 0.0       # |δ| ≤ 0.147: 無視できる効果量
+
+  # 安定性スコア解釈基準
+  stability_thresholds:
+    very_stable: 0.9      # ≥ 0.9: 非常に安定
+    stable: 0.8           # ≥ 0.8: 安定
+    somewhat_stable: 0.7  # ≥ 0.7: やや安定
+    somewhat_unstable: 0.5 # ≥ 0.5: やや不安定
+    unstable: 0.0         # < 0.5: 不安定
 
   # 出力設定
 output:
