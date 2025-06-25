@@ -30,8 +30,7 @@ def setup_logging(verbose: bool = False):
         level=level,
         format=format_str,
         handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(f'integration_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+            logging.StreamHandler(sys.stdout)
         ]
     )
 
