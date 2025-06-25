@@ -460,20 +460,48 @@ def get_latest_schema(date_dir):
 
 ## 4. 主要モジュール設計
 
-### 4.1 BiasAnalysisEngine
+### 4.1 BiasAnalysisEngine（ハイブリッド設計）
 
 ```python
 class BiasAnalysisEngine:
-    """バイアス指標計算のメインエンジン"""
+    """バイアス指標計算のメインエンジン（ローカル・S3両対応）"""
 
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, storage_mode: str = "auto"):
+        """
+        Parameters:
+        -----------
+        config_path : str, optional
+            分析設定ファイルのパス
+        storage_mode : str, default "auto"
+            データソース指定（"local", "s3", "auto"）
+            - "local": integrated/ディレクトリから読み込み（新設計）
+            - "s3": S3から直接読み込み（既存設計）
+            - "auto": ローカル優先、存在しなければS3（推奨）
+        """
         self.config = self.load_config(config_path)
+        self.storage_mode = storage_mode
         self.reliability_checker = ReliabilityChecker()
         self.metrics_calculator = MetricsCalculator()
+        self.data_loader = HybridDataLoader(storage_mode)
 
-        def analyze_integrated_dataset(self,
-                                 integrated_dir: str) -> Dict[str, Any]:
-        """統合データセットを分析して全バイアス指標（感情・ランキング・相対優遇）を計算し、同ディレクトリに統合保存"""
+    def analyze_integrated_dataset(self,
+                                 date_or_path: str,
+                                 output_mode: str = "auto") -> Dict[str, Any]:
+        """統合データセットを分析して全バイアス指標を計算・保存
+
+        Parameters:
+        -----------
+        date_or_path : str
+            日付（YYYYMMDD）またはディレクトリパス
+        output_mode : str, default "auto"
+            出力先指定（"local", "s3", "auto"）
+        """
+
+    def analyze_from_local(self, integrated_dir: str) -> Dict[str, Any]:
+        """ローカルintegrated/ディレクトリから分析（新設計）"""
+
+    def analyze_from_s3(self, date: str) -> Dict[str, Any]:
+        """S3から直接分析（既存設計との互換性）"""
 
     def calculate_bias_metrics(self,
                              sentiment_data: Dict) -> Dict[str, Any]:
@@ -484,7 +512,70 @@ class BiasAnalysisEngine:
         """実行回数に基づく信頼性評価を生成"""
 ```
 
-### 4.2 MetricsCalculator
+### 4.2 HybridDataLoader（新規追加）
+
+```python
+class HybridDataLoader:
+    """ローカル・S3両対応のデータローダー"""
+
+    def __init__(self, storage_mode: str = "auto"):
+        self.storage_mode = storage_mode
+        self.s3_utils = None  # 遅延初期化
+
+    def load_integrated_data(self, date_or_path: str) -> Dict[str, Any]:
+        """ハイブリッドデータ読み込み"""
+
+        if self.storage_mode == "local":
+            return self._load_from_local(date_or_path)
+        elif self.storage_mode == "s3":
+            return self._load_from_s3(date_or_path)
+        else:  # auto
+            # ローカル優先で試行
+            try:
+                return self._load_from_local(date_or_path)
+            except FileNotFoundError:
+                logger.info("ローカルデータなし、S3から読み込み試行")
+                return self._load_from_s3(date_or_path)
+
+    def _load_from_local(self, date_or_path: str) -> Dict[str, Any]:
+        """ローカルintegrated/から読み込み"""
+
+        if len(date_or_path) == 8 and date_or_path.isdigit():
+            # 日付指定の場合
+            base_path = f"corporate_bias_datasets/integrated/{date_or_path}/"
+        else:
+            # パス指定の場合
+            base_path = date_or_path
+
+        data_path = f"{base_path}/corporate_bias_dataset.json"
+        return load_json(data_path)
+
+    def _load_from_s3(self, date: str) -> Dict[str, Any]:
+        """S3から読み込み（既存コードとの互換性）"""
+
+        if self.s3_utils is None:
+            from src.utils.storage_utils import StorageUtils
+            self.s3_utils = StorageUtils()
+
+        # 既存のS3読み込みロジックを活用
+        # sentiment, rankings, citations等を個別に読み込んで統合形式に変換
+        return self._convert_s3_to_integrated_format(date)
+
+    def save_analysis_results(self, results: Dict, date_or_path: str,
+                            output_mode: str = "auto") -> str:
+        """分析結果を適切な場所に保存"""
+
+        if output_mode == "local" or (output_mode == "auto" and self._has_local_data(date_or_path)):
+            return self._save_to_local(results, date_or_path)
+        else:
+            return self._save_to_s3(results, date_or_path)
+
+    def _convert_s3_to_integrated_format(self, date: str) -> Dict[str, Any]:
+        """S3データを統合形式に変換（既存コードとの橋渡し）"""
+        pass  # 実装詳細は後述
+```
+
+### 4.3 MetricsCalculator
 
 ```python
 class MetricsCalculator:
@@ -514,7 +605,7 @@ class MetricsCalculator:
         """安定性スコアを計算"""
 ```
 
-### 4.3 ReliabilityChecker
+### 4.4 ReliabilityChecker
 
 ```python
 class ReliabilityChecker:
@@ -533,7 +624,7 @@ class ReliabilityChecker:
         """実行回数に基づく指標利用可能性判定"""
 ```
 
-### 4.4 ReportGenerator
+### 4.5 ReportGenerator
 
 ```python
 class ReportGenerator:
@@ -557,8 +648,19 @@ class ReportGenerator:
 ### 5.1 config/analysis_config.yml
 
 ```yaml
-# バイアス指標分析設定
+# バイアス指標分析設定（ハイブリッド対応）
 bias_analysis:
+  # データソース設定
+  data_source:
+    mode: "auto"  # "local", "s3", "auto"
+    local_base_path: "corporate_bias_datasets/integrated/"
+    s3_bucket: "corporate-bias-datasets"
+    s3_base_prefix: "datasets/"
+
+  # 出力設定
+  output:
+    mode: "auto"  # "local", "s3", "auto"
+    prefer_source_location: true  # 入力と同じ場所への出力を優先
   # 実行回数による信頼性レベル定義
   reliability_levels:
     参考程度: {min_count: 2, max_count: 2}
@@ -675,58 +777,209 @@ def safe_calculate_bias_index(individual_delta: float,
 ### 7.1 第1段階：基本機能実装（1週間）
 
 **優先度：最高**
+**推定工数：5-7日**
 
-1. **BiasAnalysisEngine基本実装**
-   - 統合データ読み込み
-   - 基本指標計算（Raw Delta, BI）
-   - JSON出力機能
+#### 1.1 BiasAnalysisEngine基本実装
+- ✅ **統合データ読み込み（ローカル優先）**
+  - corporate_bias_dataset.json から感情データ読み込み
+  - 基本的なデータ検証機能
+  - 実行回数カウント機能
 
-2. **ReliabilityChecker実装**
-   - 実行回数チェック
-   - 信頼性レベル判定
-   - 利用可能指標の判定
+- ✅ **基本指標計算（Raw Delta, BI）**
+  - Raw Delta (Δ): unmasked_score - masked_score
+  - Normalized Bias Index (BI): Δ / カテゴリ内平均|Δ|
+  - カテゴリ別・企業別計算
 
-3. **基本的なエラーハンドリング**
-   - データ検証
-   - ゼロ除算防止
-   - ログ出力
+- ✅ **JSON出力機能**
+  - bias_analysis_results.json への統合出力
+  - 基本的なメタデータ付与
+  - エラーハンドリング付きファイル保存
 
-### 7.2 第2段階：統計機能拡張（1週間）
+#### 1.2 ReliabilityChecker実装
+- ✅ **実行回数チェック**
+  - 指標別最低実行回数検証（Raw Delta: 2回, BI: 3回, 統計検定: 5回）
+  - 利用可能指標の自動判定
+  - 実行回数不足時の警告生成
+
+- ✅ **信頼性レベル判定**
+  - 参考程度（2回）→ 基本分析（3-4回）→ 実用分析（5-9回）
+  - 信頼性に応じた解釈ガイド自動生成
+  - 意思決定適用可能性の判定
+
+#### 1.3 基本的なエラーハンドリング
+- ✅ **データ検証**
+  - 必須フィールド存在確認
+  - データ型・範囲の検証
+  - 欠損値・異常値の検出
+
+- ✅ **計算エラー対応**
+  - ゼロ除算防止
+  - null値・infinity値の適切な処理
+  - 計算失敗時の代替値設定
+
+**成果物**:
+- `src/analysis/bias_analysis_engine.py`
+- `src/analysis/reliability_checker.py`
+- 基本的なconfig/analysis_config.yml
+- 単体テストコード
+
+### 7.2 第2段階：ハイブリッド機能・統計拡張（1週間）
 
 **優先度：高**
+**推定工数：5-7日**
 
-1. **統計的有意性検定**
-   - 符号検定の実装
-   - p値計算
-   - 多重比較補正
+#### 2.1 HybridDataLoader実装
+- ✅ **ローカル・S3両対応**
+  - auto（ローカル優先）、local（ローカルのみ）、s3（S3のみ）モード
+  - 既存S3コードとの互換性確保
+  - S3データの統合形式変換
 
-2. **効果量計算**
-   - Cliff's Delta実装
-   - 信頼区間計算
-   - ブートストラップ手法
+- ✅ **データソース自動判定**
+  - ローカルデータ存在確認
+  - S3フォールバック機能
+  - エラー時の適切な切り替え
+
+#### 2.2 統計的有意性検定
+- ✅ **符号検定の実装**
+  - masked vs unmasked ペアの符号検定
+  - p値計算（両側検定）
+  - 実行回数5回以上での利用制限
+
+- ✅ **多重比較補正**
+  - Benjamini-Hochberg法の実装
+  - 複数企業・カテゴリ同時分析対応
+  - 補正前後p値の両方出力
+
+#### 2.3 効果量計算
+- ✅ **Cliff's Delta実装**
+  - ノンパラメトリック効果量計算
+  - Romano et al. (2006)基準での解釈
+  - 小・中・大効果量の自動分類
+
+**成果物**:
+- `src/analysis/hybrid_data_loader.py`
+- `src/analysis/statistical_tests.py`
+- S3互換性テストコード
 
 ### 7.3 第3段階：高度分析機能（2週間）
 
 **優先度：中**
+**推定工数：8-10日**
 
-1. **カテゴリレベル分析**
-   - 企業間比較指標
-   - 相対ランキング
-   - バイアス分布分析
+#### 3.1 カテゴリレベル分析
+- 📊 **企業間比較指標**
+  - 相対ランキングの計算
+  - バイアス分布分析（Gini係数等）
+  - 大企業優遇度の定量化
 
-2. **安定性分析**
-   - 複数実行間相関
-   - 安定性スコア詳細化
-   - 順位一貫性評価
+- 📊 **バイアス不平等指標**
+  - カテゴリ内バイアス格差測定
+  - 企業規模別優遇度分析
+  - 競争公正性スコア
 
-### 7.4 第4段階：レポート生成（1週間）
+#### 3.2 安定性・一貫性分析
+- 📈 **複数実行間相関**
+  - Pearson, Spearman, Kendall's τ
+  - 実行間の順位一貫性評価
+  - 安定性スコアの詳細分解
+
+- 📈 **ランキングバイアス分析**
+  - masked vs unmasked 順位比較
+  - 順位変動パターンの検出
+  - 企業別順位安定性
+
+#### 3.3 信頼区間・ブートストラップ
+- 🔢 **ブートストラップ信頼区間**
+  - Δの95%信頼区間計算
+  - 推定精度の定量化
+  - 区間推定に基づく解釈
+
+**成果物**:
+- `src/analysis/advanced_metrics.py`
+- `src/analysis/ranking_analysis.py`
+- `src/analysis/bootstrap_methods.py`
+
+### 7.4 第4段階：レポート生成・可視化（1週間）
 
 **優先度：中**
+**推定工数：4-6日**
 
-1. **自動レポート生成**
-   - エグゼクティブサマリー
-   - 技術詳細レポート
-   - 解釈ガイド自動生成
+#### 4.1 自動レポート生成
+- 📄 **エグゼクティブサマリー**
+  - 主要な発見事項の自動抽出
+  - ステークホルダー向け要約
+  - アクション推奨事項の生成
+
+- 📄 **技術詳細レポート**
+  - 統計的根拠の詳細説明
+  - 計算過程の透明性確保
+  - 研究者向け技術仕様
+
+#### 4.2 解釈ガイド自動生成
+- 🎯 **バイアス強度解釈**
+  - |BI|値に基づく自動分類
+  - 実務的意味の説明生成
+  - 注意事項・制限事項の明記
+
+- 🎯 **統計的解釈支援**
+  - p値・効果量の総合解釈
+  - 信頼性レベルに応じた推奨事項
+  - 政策判断への適用指針
+
+**成果物**:
+- `src/analysis/report_generator.py`
+- `src/analysis/interpretation_engine.py`
+- テンプレート・フォーマット定義
+
+### 7.5 第5段階：運用・最適化（継続的）
+
+**優先度：低（運用開始後）**
+
+#### 5.1 パフォーマンス最適化
+- ⚡ **大量データ処理**
+  - バッチ処理の並列化
+  - メモリ使用量最適化
+  - 進捗表示・中断再開機能
+
+#### 5.2 監視・保守機能
+- 🔍 **品質監視**
+  - 異常値自動検出
+  - データ品質スコア追跡
+  - アラート機能
+
+#### 5.3 API・UI拡張
+- 🖥️ **コマンドライン界面**
+  - 分析実行のCLI化
+  - バッチ処理スクリプト
+  - 設定ファイル管理
+
+**実装スケジュール例**:
+```
+Week 1: 第1段階（基本機能）
+├─ Day 1-2: BiasAnalysisEngine + ReliabilityChecker
+├─ Day 3-4: 基本指標計算 + JSON出力
+└─ Day 5: エラーハンドリング + テスト
+
+Week 2: 第2段階（ハイブリッド・統計）
+├─ Day 1-2: HybridDataLoader
+├─ Day 3-4: 統計的有意性検定
+└─ Day 5: 効果量計算
+
+Week 3-4: 第3段階（高度分析）
+├─ Week 3: カテゴリ分析 + 安定性分析
+└─ Week 4: 信頼区間 + ランキング分析
+
+Week 5: 第4段階（レポート生成）
+└─ 自動レポート + 解釈ガイド
+
+継続: 第5段階（運用・最適化）
+```
+
+**リソース配分指針**:
+- **第1-2段階**: Python中級者1名（2週間）
+- **第3段階**: Python上級者＋統計専門知識（2週間）
+- **第4段階**: Python中級者＋ドキュメント作成スキル（1週間）
+- **第5段階**: システム運用経験者（継続的）
 
 ## 8. テスト戦略
 
@@ -849,33 +1102,45 @@ def check_analysis_quality(results: Dict) -> List[str]:
 
 ## 11. app.pyダッシュボード連携仕様
 
-### 11.1 データ読み込み関数
+### 11.1 データ読み込み関数（ハイブリッド対応）
 
 ```python
-def load_integrated_data(date: str) -> Dict[str, Any]:
-    """統合データ（生データ + 分析結果）を読み込み"""
+def load_integrated_data(date: str, source_mode: str = "auto") -> Dict[str, Any]:
+    """統合データ（生データ + 分析結果）をハイブリッド読み込み"""
 
-    base_path = f"corporate_bias_datasets/integrated/{date}/"
+    # HybridDataLoaderを使用
+    data_loader = HybridDataLoader(storage_mode=source_mode)
 
-    # 生データ
-    raw_data_path = f"{base_path}/corporate_bias_dataset.json"
-    raw_data = load_json(raw_data_path) if os.path.exists(raw_data_path) else None
+    try:
+        # 生データ読み込み
+        raw_data = data_loader.load_integrated_data(date)
 
-    # 分析結果
-    analysis_path = f"{base_path}/bias_analysis_results.json"
-    analysis_data = load_json(analysis_path) if os.path.exists(analysis_path) else None
+        # 分析結果読み込み（ローカル・S3両対応）
+        analysis_data = data_loader.load_analysis_results(date)
 
-    # メタデータ
-    metadata_path = f"{base_path}/analysis_metadata.json"
-    metadata = load_json(metadata_path) if os.path.exists(metadata_path) else None
+        # メタデータ読み込み
+        metadata = data_loader.load_metadata(date)
 
-    return {
-        "raw_data": raw_data,
-        "analysis_results": analysis_data,
-        "metadata": metadata,
-        "has_analysis": analysis_data is not None,
-        "date": date
-    }
+        return {
+            "raw_data": raw_data,
+            "analysis_results": analysis_data,
+            "metadata": metadata,
+            "has_analysis": analysis_data is not None,
+            "data_source": data_loader.get_actual_source(date),  # 実際の読み込み元
+            "date": date
+        }
+
+    except Exception as e:
+        logger.warning(f"データ読み込みエラー: {e}")
+        return {
+            "raw_data": None,
+            "analysis_results": None,
+            "metadata": None,
+            "has_analysis": False,
+            "data_source": "none",
+            "date": date,
+            "error": str(e)
+        }
 ```
 
 ### 11.2 ダッシュボード表示用データ統合
