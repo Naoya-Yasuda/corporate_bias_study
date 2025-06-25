@@ -19,8 +19,7 @@ from datetime import datetime
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 from dotenv import load_dotenv
-from src.utils.storage_utils import get_s3_client, S3_BUCKET_NAME, get_latest_file
-from src.utils.file_utils import load_json
+from src.utils.storage_utils import get_s3_client, S3_BUCKET_NAME, get_latest_file, load_json
 from src.analysis.ranking_metrics import get_exposure_market_data, compute_rank_metrics, MARKET_SHARES, get_timeseries_exposure_market_data
 import importlib
 serp_metrics = importlib.import_module('src.analysis.serp_metrics')

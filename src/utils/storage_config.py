@@ -20,11 +20,12 @@ AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
 
-# 保存モード設定（環境変数から取得、デフォルトは両方）
-# "local_only": ローカルのみ保存
-# "s3_only": S3のみ保存
-# "both": ローカルとS3の両方に保存
-STORAGE_MODE = os.getenv("STORAGE_MODE", "both")
+# ストレージモード設定（統一）
+# "local": ローカルのみ使用（読み込み・保存）
+# "s3": S3のみ使用（読み込み・保存）
+# "both": 両方使用（保存は両方、読み込みは優先順位あり）
+# "auto": 自動判定（S3利用可能なら優先、フォールバックでローカル）
+STORAGE_MODE = os.getenv("STORAGE_MODE", "auto")
 
 # ベースパス設定
 LOCAL_RESULTS_DIR = os.getenv("LOCAL_RESULTS_DIR", "results")

@@ -2,19 +2,20 @@
 # coding: utf-8
 
 """
-データ保存の共通ユーティリティ
+ファイル操作・データ保存の共通ユーティリティ
 
-ローカルファイルシステムとS3への保存操作を統一的に扱う
-インターフェースを提供します。
+ファイルの読み書き、ローカルファイルシステムとS3への保存操作を
+統一的に扱うインターフェースを提供します。
 """
 
 import os
 import json
 import datetime
 import boto3
+import re
 from .storage_config import is_s3_enabled, is_local_enabled, get_storage_config, get_base_paths
 from .storage_config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME
-from .file_utils import ensure_dir
+from .storage_config import STORAGE_MODE
 
 def get_s3_client():
     """S3クライアントを取得"""
@@ -33,47 +34,111 @@ def get_results_paths(date_str):
     """結果ファイルのパスを取得"""
     return get_base_paths(date_str)
 
-def ensure_dir(directory):
-    """ディレクトリが存在しない場合は作成"""
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+def should_save_locally(storage_mode=None):
+    """ローカル保存すべきかを判定"""
+    mode = storage_mode or STORAGE_MODE
+    return mode in ["local", "both", "auto"]
 
+def should_save_to_s3(storage_mode=None):
+    """S3保存すべきかを判定"""
+    mode = storage_mode or STORAGE_MODE
+    return mode in ["s3", "both", "auto"] and is_s3_enabled()
 
-
-def load_json(local_path, s3_path=None):
+def ensure_dir(dir_path):
     """
-    JSONデータをローカルまたはS3から読み込み
+    ディレクトリが存在しない場合は作成する
 
     Parameters:
     -----------
-    local_path : str
-        ローカルファイルパス
+    dir_path : str
+        作成するディレクトリパス
+    """
+    os.makedirs(dir_path, exist_ok=True)
+
+
+def load_json(file_path, s3_path=None):
+    """
+    JSONファイルを読み込む（ローカルまたはS3対応）
+
+    Parameters:
+    -----------
+    file_path : str
+        読み込むファイルパス（s3://で始まる場合はS3から取得、
+        またはローカルファイルパス）
     s3_path : str, optional
-        S3ファイルパス
+        S3ファイルパス（file_pathがローカルパスの場合の代替S3パス）
 
     Returns:
     --------
     dict | None
         読み込んだデータ、失敗した場合はNone
     """
-    # ローカルから読み込み
-    if os.path.exists(local_path):
-        try:
-            with open(local_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"ローカルファイル読み込みエラー: {e}")
-
-    # S3から読み込み
-    if s3_path and is_s3_enabled():
+    if file_path.startswith('s3://'):
+        # S3パスの場合
+        m = re.match(r's3://([^/]+)/(.+)', file_path)
+        if m:
+            bucket, key = m.group(1), m.group(2)
+        else:
+            # バケット省略時はデフォルトバケット
+            bucket, key = S3_BUCKET_NAME, file_path[5:]
         try:
             s3_client = get_s3_client()
-            response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_path)
-            return json.loads(response['Body'].read().decode('utf-8'))
+            response = s3_client.get_object(Bucket=bucket, Key=key)
+            content = response['Body'].read().decode('utf-8')
+            return json.loads(content)
         except Exception as e:
-            print(f"S3ファイル読み込みエラー: {e}")
+            print(f"S3からのJSONファイル読み込みに失敗しました: {e}")
+            return None
+    else:
+        # ローカルファイル
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"ローカルファイル読み込みエラー: {e}")
+                return None
+        else:
+            print(f"ファイルが存在しません: {file_path}")
 
-    return None
+        # S3から読み込み（ローカルが失敗した場合）
+        if s3_path and is_s3_enabled():
+            try:
+                s3_client = get_s3_client()
+                response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_path)
+                return json.loads(response['Body'].read().decode('utf-8'))
+            except Exception as e:
+                print(f"S3ファイル読み込みエラー: {e}")
+
+        return None
+
+
+def save_json(data, file_path):
+    """
+    JSONファイルを保存する（ローカル）
+
+    Parameters:
+    -----------
+    data : dict
+        保存するデータ
+    file_path : str
+        保存先ファイルパス
+
+    Returns:
+    --------
+    bool
+        保存成功時True、失敗時False
+    """
+    try:
+        # ディレクトリを作成
+        ensure_dir(os.path.dirname(file_path))
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"JSONファイルの保存に失敗しました: {e}")
+        return False
 
 def get_latest_file(date_str, data_type, file_type):
     """最新のファイルを取得"""
@@ -293,10 +358,6 @@ def get_s3_key_path(date_str, data_type, file_type):
         return os.path.join(base_path, filename)
     return None
 
-def get_local_path(date_str, data_type, file_type):
-    """ローカルのパスを取得"""
-    return get_s3_key_path(date_str, data_type, file_type)
-
 def save_to_s3(data, s3_key):
     """データをS3に保存"""
     if not is_s3_enabled():
@@ -319,10 +380,6 @@ def save_to_s3(data, s3_key):
     except Exception as e:
         print(f"S3保存エラー: {e}")
         return False
-
-def put_json_to_s3(data, s3_key):
-    """JSONデータをS3に保存"""
-    return save_to_s3(data, s3_key)
 
 def list_s3_files(prefix):
     """
@@ -369,7 +426,7 @@ def save_results(data, local_path, s3_key=None, verbose=False):
         return None
 
     # S3保存
-    if AWS_ACCESS_KEY and AWS_SECRET_KEY and S3_BUCKET_NAME:
+    if is_s3_enabled():
         if not s3_key:
             # デフォルトでlocal_pathからS3キーを生成
             s3_key = local_path.replace("\\", "/")
