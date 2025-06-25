@@ -130,6 +130,8 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             else:
                 results[category][subcategory]['masked_avg'] = 0.0
                 results[category][subcategory]['masked_std_dev'] = 0.0
+            # 正しいカテゴリ・サブカテゴリから競合他社リストを取得
+            competitors = categories[category][subcategory]
             for competitor in competitors:
                 unmasked_values = results[category][subcategory][competitor].get('unmasked_values', [])
                 if unmasked_values:
@@ -155,6 +157,13 @@ def main():
     if args.verbose:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
+
+    # APIキーの事前チェック
+    if not PERPLEXITY_API_KEY or PERPLEXITY_API_KEY.startswith("your_"):
+        print(f"エラー: 有効なPerplexity APIキーが設定されていません")
+        print(f"現在の値: {PERPLEXITY_API_KEY}")
+        print(f".envファイルでPERPLEXITY_API_KEYに実際のAPIキーを設定してください")
+        exit(1)
 
     # 結果を保存するファイルパス
     today_date = datetime.datetime.now().strftime("%Y%m%d")
