@@ -13,9 +13,23 @@ import json
 import datetime
 import boto3
 import re
+import numpy as np
 from .storage_config import is_s3_enabled, is_local_enabled, get_storage_config, get_base_paths
 from .storage_config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME
 from .storage_config import STORAGE_MODE
+
+class NumpyJSONEncoder(json.JSONEncoder):
+    """numpy型をPython標準型に変換するJSONエンコーダー"""
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 def get_s3_client():
     """S3クライアントを取得"""
@@ -134,7 +148,7 @@ def save_json(data, file_path):
         ensure_dir(os.path.dirname(file_path))
 
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyJSONEncoder)
         return True
     except Exception as e:
         print(f"JSONファイルの保存に失敗しました: {e}")
@@ -374,7 +388,7 @@ def save_to_s3(data, s3_key):
             s3_client.put_object(
                 Bucket=S3_BUCKET_NAME,
                 Key=s3_key,
-                Body=json.dumps(data, ensure_ascii=False).encode('utf-8')
+                Body=json.dumps(data, ensure_ascii=False, cls=NumpyJSONEncoder).encode('utf-8')
             )
         return True
     except Exception as e:
@@ -418,7 +432,7 @@ def save_results(data, local_path, s3_key=None, verbose=False):
     try:
         ensure_dir(os.path.dirname(local_path))
         with open(local_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyJSONEncoder)
         if verbose:
             print(f"ローカルに保存しました: {local_path}")
     except Exception as e:
