@@ -12,7 +12,7 @@ from collections import defaultdict
 
 # 共通ユーティリティをインポート
 from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
-from src.utils.file_utils import ensure_dir, get_today_str
+from src.utils.storage_utils import ensure_dir, get_today_str
 from src.utils.storage_utils import save_json, get_results_paths, get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
 
 # -------------------------------------------------------------------

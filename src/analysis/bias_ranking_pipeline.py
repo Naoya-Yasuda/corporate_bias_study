@@ -32,7 +32,7 @@ from src.utils import plot_delta_ranks, plot_market_impact
 from src.utils.storage_utils import save_json, save_text_data, save_figure, get_results_paths
 from src.utils import get_today_str
 from src.utils.metrics_utils import calculate_hhi, apply_bias_to_share
-from src.utils.file_utils import ensure_dir
+from src.utils.storage_utils import ensure_dir
 from src.utils.storage_utils import get_s3_client, get_local_path, get_s3_key_path, get_latest_file
 from src.utils.perplexity_api import PerplexityAPI
 
