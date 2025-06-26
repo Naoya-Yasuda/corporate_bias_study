@@ -39,6 +39,7 @@ alwaysApply: true
   - Verification and testing commands
   - Code analysis and inspection
 - **Test implementation locally after completion (except for minor changes)**
+- **CRITICAL: Before claiming "completion" or "finished", verify execution logs, check for errors/warnings, validate output files (JSON parsing, file size, content validity), search for placeholder/unimplemented sections, and confirm actual functionality against expected behavior**
 - **Post-modification mandatory steps:**
   - Check and remove unused imports in modified files
   - Verify import organization (standard → third-party → local)
