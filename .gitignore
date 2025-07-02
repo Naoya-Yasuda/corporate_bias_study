@@ -76,3 +76,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# テスト画像出力ディレクトリ
+test_outputs/*.png

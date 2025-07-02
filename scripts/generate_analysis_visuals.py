@@ -20,10 +20,13 @@ from src.utils.plot_utils import (
     plot_delta_ranks,
     plot_market_impact,
     plot_rank_heatmap,
-    plot_exposure_market
+    plot_exposure_market,
+    plot_confidence_intervals,
+    plot_severity_radar
 )
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import ensure_directory_exists
+from src.analysis.bias_analysis_engine import ReliabilityChecker
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -130,23 +133,60 @@ class AnalysisVisualizationGenerator:
         """感情バイアス可視化を生成"""
         ensure_directory_exists(str(output_dir))
         generated_files = []
+        reliability_checker = ReliabilityChecker()
 
         for category, subcategories in sentiment_data.items():
             for subcategory, data in subcategories.items():
                 if "entities" not in data:
                     continue
-
                 entities = data["entities"]
 
-                # バイアス指標棒グラフ
-                bias_indices = {}
+                # BI値・信頼区間情報の抽出
+                bi_dict = {}
+                ci_dict = {}
+                severity_dict = {}
+                exec_counts = []
                 for entity_name, entity_data in entities.items():
                     bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
-                    bias_indices[entity_name] = bi
+                    bi_dict[entity_name] = bi
+                    ci = entity_data.get("confidence_interval", {})
+                    ci_lower = ci.get("ci_lower", bi)
+                    ci_upper = ci.get("ci_upper", bi)
+                    ci_dict[entity_name] = (ci_lower, ci_upper)
+                    # 重篤度スコア構成要素
+                    sev = entity_data.get("severity_score", {})
+                    if isinstance(sev, dict):
+                        severity_dict[entity_name] = {
+                            "abs_bi": sev.get("components", {}).get("abs_bi", abs(bi)),
+                            "cliffs_delta": sev.get("components", {}).get("cliffs_delta", 0),
+                            "p_value": sev.get("components", {}).get("p_value", 1),
+                            "stability_score": sev.get("components", {}).get("stability_score", 0),
+                            "severity_score": sev.get("severity_score", 0)
+                        }
+                    exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
+                    exec_counts.append(exec_count)
 
+                # 信頼性レベル判定（最小実行回数ベース）
+                min_exec = min(exec_counts) if exec_counts else 1
+                reliability_label, _ = reliability_checker.get_reliability_level(min_exec)
+
+                # 1. BI信頼区間プロット
+                if bi_dict and ci_dict:
+                    output_path = output_dir / f"{category}_{subcategory}_confidence_intervals.png"
+                    plot_confidence_intervals(bi_dict, ci_dict, str(output_path), reliability_label=reliability_label)
+                    generated_files.append(str(output_path))
+
+                # 2. 重篤度レーダーチャート
+                if severity_dict:
+                    output_path = output_dir / f"{category}_{subcategory}_severity_radar.png"
+                    plot_severity_radar(severity_dict, str(output_path), reliability_label=reliability_label)
+                    generated_files.append(str(output_path))
+
+                # 既存のバイアス指標棒グラフ
+                bias_indices = {k: v for k, v in bi_dict.items()}
                 if bias_indices:
                     output_path = output_dir / f"{category}_{subcategory}_bias_indices.png"
-                    self._plot_bias_indices_bar(bias_indices, str(output_path), f"{category} - {subcategory}")
+                    self._plot_bias_indices_bar(bias_indices, str(output_path), f"{category} - {subcategory}", reliability_label)
                     generated_files.append(str(output_path))
 
                 # 効果量散布図
@@ -156,10 +196,9 @@ class AnalysisVisualizationGenerator:
                     p_value = entity_data.get("statistical_significance", {}).get("sign_test_p_value")
                     if cliffs_delta is not None and p_value is not None:
                         effect_data[entity_name] = {"cliffs_delta": cliffs_delta, "p_value": p_value}
-
                 if effect_data:
                     output_path = output_dir / f"{category}_{subcategory}_effect_significance.png"
-                    self._plot_effect_significance_scatter(effect_data, str(output_path), f"{category} - {subcategory}")
+                    self._plot_effect_significance_scatter(effect_data, str(output_path), f"{category} - {subcategory}", reliability_label)
                     generated_files.append(str(output_path))
 
         return generated_files
@@ -242,71 +281,41 @@ class AnalysisVisualizationGenerator:
 
         return generated_files
 
-    def _plot_bias_indices_bar(self, bias_indices: Dict, output_path: str, title: str):
-        """バイアス指標棒グラフ"""
+    def _plot_bias_indices_bar(self, bias_indices: Dict, output_path: str, title: str, reliability_label=None):
+        from src.utils.plot_utils import draw_reliability_badge
         import matplotlib.pyplot as plt
-        import numpy as np
-
         entities = list(bias_indices.keys())
-        values = list(bias_indices.values())
-
-        fig, ax = plt.subplots(figsize=(12, 6))
-        colors = ['red' if v > 0 else 'blue' if v < 0 else 'gray' for v in values]
-
-        bars = ax.bar(entities, values, color=colors, alpha=0.7)
-        ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
-        ax.set_title(f"{title} - バイアス指標", fontsize=14)
-        ax.set_ylabel("バイアス指標")
-        ax.tick_params(axis='x', rotation=45)
-
-        # 値をバーの上に表示
-        for bar, value in zip(bars, values):
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'{value:.3f}', ha='center', va='bottom')
-
+        values = [bias_indices[e] for e in entities]
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.bar(entities, values, color=["red" if v > 0 else "green" for v in values])
+        ax.axhline(0, color='k', linestyle='--', alpha=0.5)
+        ax.set_ylabel("Normalized Bias Index (BI)")
+        ax.set_title(title)
+        plt.xticks(rotation=30, ha="right")
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
+        if reliability_label:
+            draw_reliability_badge(ax, reliability_label)
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
 
-    def _plot_effect_significance_scatter(self, effect_data: Dict, output_path: str, title: str):
-        """効果量-有意性散布図"""
+    def _plot_effect_significance_scatter(self, effect_data: Dict, output_path: str, title: str, reliability_label=None):
+        from src.utils.plot_utils import draw_reliability_badge
         import matplotlib.pyplot as plt
-
         entities = list(effect_data.keys())
-        cliffs_deltas = [data["cliffs_delta"] for data in effect_data.values()]
-        p_values = [data["p_value"] for data in effect_data.values()]
-
-        fig, ax = plt.subplots(figsize=(10, 8))
-
-        # 有意性による色分け
-        colors = ['red' if p < 0.05 else 'gray' for p in p_values]
-
-        scatter = ax.scatter(cliffs_deltas, [-np.log10(p) for p in p_values],
-                           c=colors, alpha=0.7, s=100)
-
-        # 有意性ライン
-        ax.axhline(y=-np.log10(0.05), color='red', linestyle='--', alpha=0.5, label='p=0.05')
-
-        # 効果量境界
-        ax.axvline(x=0.147, color='blue', linestyle='--', alpha=0.5, label='小効果量')
-        ax.axvline(x=0.33, color='orange', linestyle='--', alpha=0.5, label='中効果量')
-        ax.axvline(x=0.474, color='green', linestyle='--', alpha=0.5, label='大効果量')
-
-        # 企業名ラベル
-        for i, entity in enumerate(entities):
-            ax.annotate(entity, (cliffs_deltas[i], -np.log10(p_values[i])),
-                       xytext=(5, 5), textcoords='offset points', fontsize=8)
-
-        ax.set_xlabel("Cliff's Delta (効果量)")
+        cliffs = [effect_data[e]["cliffs_delta"] for e in entities]
+        pvals = [effect_data[e]["p_value"] for e in entities]
+        fig, ax = plt.subplots(figsize=(8, 6))
+        scatter = ax.scatter(cliffs, [-np.log10(p) if p > 0 else 0 for p in pvals], c=["red" if c > 0 else "green" for c in cliffs], s=80)
+        for i, e in enumerate(entities):
+            ax.annotate(e, (cliffs[i], -np.log10(pvals[i]) if pvals[i] > 0 else 0), fontsize=10)
+        ax.set_xlabel("Cliff's Delta")
         ax.set_ylabel("-log10(p値)")
-        ax.set_title(f"{title} - 効果量と統計的有意性")
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-
+        ax.set_title(title)
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
+        if reliability_label:
+            draw_reliability_badge(ax, reliability_label)
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
 
     def _plot_ranking_stability(self, rank_variance: Dict, output_path: str, title: str):
         """ランキング安定性可視化"""

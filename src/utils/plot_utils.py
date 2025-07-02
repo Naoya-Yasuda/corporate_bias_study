@@ -317,3 +317,140 @@ def plot_exposure_market(exposure, market_share, category, output_path=None):
         return output_path
 
     return fig
+
+def plot_confidence_intervals(bi_dict, ci_dict, output_path=None, highlight_zero_cross=True, title="BI信頼区間プロット", reliability_label=None):
+    """
+    各企業のBI値と95%信頼区間をエラーバー付きで可視化
+    Parameters:
+    -----------
+    bi_dict : dict
+        企業名→BI値
+    ci_dict : dict
+        企業名→(ci_lower, ci_upper)
+    output_path : str, optional
+        出力ファイルパス
+    highlight_zero_cross : bool
+        信頼区間が0を跨ぐ場合に色やマーカーで強調
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジラベル
+    Returns:
+    --------
+    matplotlib.figure.Figure
+    """
+    entities = list(bi_dict.keys())
+    bi_values = [bi_dict[e] for e in entities]
+    ci_lowers = [ci_dict[e][0] for e in entities]
+    ci_uppers = [ci_dict[e][1] for e in entities]
+    errors = [(
+        bi - ci_lower, ci_upper - bi
+    ) for bi, ci_lower, ci_upper in zip(bi_values, ci_lowers, ci_uppers)]
+    error_array = np.array(errors).T
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for i, e in enumerate(entities):
+        # 信頼区間が0を跨ぐ場合はグレー、それ以外は赤/緑
+        if highlight_zero_cross and ci_lowers[i] < 0 < ci_uppers[i]:
+            color = "gray"
+        else:
+            color = "red" if bi_values[i] > 0 else "green"
+        ax.errorbar(e, bi_values[i],
+                    yerr=[[bi_values[i] - ci_lowers[i]], [ci_uppers[i] - bi_values[i]]],
+                    fmt='o', color='black', ecolor=color, elinewidth=2, capsize=6, markerfacecolor='white', markersize=8)
+        ax.scatter(e, bi_values[i], color=color, s=80, zorder=3)
+    ax.axhline(0, color='k', linestyle='--', alpha=0.5)
+    ax.set_ylabel("Normalized Bias Index (BI)")
+    ax.set_title(title)
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+    return fig
+
+def plot_severity_radar(severity_dict, output_path=None, title="重篤度レーダーチャート", threshold=7.0, reliability_label=None):
+    """
+    各企業の重篤度スコア構成要素をレーダーチャートで可視化
+    Parameters:
+    -----------
+    severity_dict : dict
+        企業名→{"abs_bi":..., "cliffs_delta":..., "p_value":..., "stability_score":..., "severity_score":...}
+    output_path : str, optional
+        出力ファイルパス
+    title : str
+        グラフタイトル
+    threshold : float
+        重篤度スコアの警告閾値
+    reliability_label : str, optional
+        信頼性バッジラベル
+    Returns:
+    --------
+    matplotlib.figure.Figure
+    """
+    labels = ["|BI|", "Cliff's Δ", "1-p値", "安定性"]
+    num_vars = len(labels)
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    angles += angles[:1]
+    for entity, comp in severity_dict.items():
+        values = [
+            abs(comp.get("abs_bi", 0)),
+            abs(comp.get("cliffs_delta", 0)),
+            1 - comp.get("p_value", 1),
+            comp.get("stability_score", 0)
+        ]
+        values += values[:1]
+        score = comp.get("severity_score", 0)
+        color = "red" if score >= threshold else "blue"
+        ax.plot(angles, values, label=f"{entity} ({score:.2f})", color=color, linewidth=2)
+        ax.fill(angles, values, color=color, alpha=0.15)
+    ax.set_thetagrids(np.degrees(angles[:-1]), labels)
+    ax.set_title(title, y=1.1)
+    ax.set_ylim(0, 1)
+    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1))
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
+    if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+    return fig
+
+def draw_reliability_badge(ax, label, color_map=None, loc="upper right"):
+    """
+    信頼性レベルバッジを画像右上に描画
+    Parameters:
+    -----------
+    ax : matplotlib.axes.Axes
+        描画対象のAxes
+    label : str
+        信頼性ラベル
+    color_map : dict, optional
+        ラベル→色のマップ
+    loc : str
+        配置位置（upper right, upper left, lower right, lower left）
+    """
+    if color_map is None:
+        color_map = {
+            "高精度": "#0070C0",
+            "標準": "#00B050",
+            "実用": "#FFC000",
+            "基本": "#FF6600",
+            "参考": "#C00000"
+        }
+    color = color_map.get(label, "#888888")
+    bbox_props = dict(boxstyle="round,pad=0.4", fc=color, ec="none", alpha=0.8)
+    pos = {
+        "upper right": (0.98, 0.98),
+        "upper left": (0.02, 0.98),
+        "lower right": (0.98, 0.02),
+        "lower left": (0.02, 0.02)
+    }[loc]
+    ax.text(pos[0], pos[1], label, transform=ax.transAxes, fontsize=13, color="white", ha="right" if "right" in loc else "left", va="top" if "upper" in loc else "bottom", bbox=bbox_props, zorder=10)
