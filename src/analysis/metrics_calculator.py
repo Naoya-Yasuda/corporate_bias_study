@@ -17,6 +17,7 @@ import numpy as np
 from typing import List, Tuple, Dict, Any, Optional
 from scipy import stats
 from tqdm import trange
+import itertools
 
 # ログ設定
 logger = logging.getLogger(__name__)
@@ -426,6 +427,93 @@ class MetricsCalculator:
             reliability_text = "統計的に信頼できる結果"
 
         return f"{bias_strength}（{effect_size_text}、{significance_text}、{reliability_text}）"
+
+    def calculate_category_stability(self, sentiment_values: Dict[str, List[float]]) -> Dict[str, Any]:
+        """
+        カテゴリレベル安定性・多重実行間相関を計算
+
+        Args:
+            sentiment_values (Dict[str, List[float]]): 企業名→スコアリスト
+
+        Returns:
+            Dict[str, Any]: 各種安定性指標と解釈
+        """
+        from scipy.stats import spearmanr, kendalltau, pearsonr
+
+        # 実行回数チェック
+        if not sentiment_values or min(len(v) for v in sentiment_values.values()) < 2:
+            return {
+                "coefficient_of_variation_stability": None,
+                "pearson_correlation_stability": None,
+                "spearman_correlation_stability": None,
+                "kendall_tau_stability": None,
+                "composite_category_stability": None,
+                "interpretation": "安定性評価不可（実行回数不足）"
+            }
+
+        companies = list(sentiment_values.keys())
+        n_runs = max(len(v) for v in sentiment_values.values())
+
+        # 1. 変動係数ベース安定性
+        cvs = []
+        for scores in sentiment_values.values():
+            arr = np.array(scores)
+            if len(arr) < 2 or np.mean(arr) == 0:
+                continue
+            cv = np.std(arr, ddof=1) / abs(np.mean(arr))
+            cvs.append(cv)
+        mean_cv = np.mean(cvs) if cvs else 0.0
+        cv_stability = 1.0 / (1.0 + mean_cv)
+
+        # 2. 実行間ペアごとの相関計算
+        pearson_list, spearman_list, kendall_list = [], [], []
+        run_indices = range(n_runs)
+        for i, j in itertools.combinations(run_indices, 2):
+            vals_i, vals_j = [], []
+            for c in companies:
+                scores = sentiment_values[c]
+                if i < len(scores) and j < len(scores):
+                    vals_i.append(scores[i])
+                    vals_j.append(scores[j])
+            if len(vals_i) >= 2:
+                try:
+                    p = pearsonr(vals_i, vals_j)[0]
+                    s = spearmanr(vals_i, vals_j)[0]
+                    k = kendalltau(vals_i, vals_j)[0]
+                    if not np.isnan(p): pearson_list.append(p)
+                    if not np.isnan(s): spearman_list.append(s)
+                    if not np.isnan(k): kendall_list.append(k)
+                except Exception:
+                    continue
+        pearson_avg = float(np.mean(pearson_list)) if pearson_list else None
+        spearman_avg = float(np.mean(spearman_list)) if spearman_list else None
+        kendall_avg = float(np.mean(kendall_list)) if kendall_list else None
+
+        # 3. 複合カテゴリ安定性（デフォルトはSpearman）
+        composite = None
+        if spearman_avg is not None:
+            composite = 0.5 * cv_stability + 0.5 * spearman_avg
+
+        # 4. 解釈
+        if composite is None:
+            interpretation = "安定性評価不可（データ不足）"
+        elif composite >= 0.9:
+            interpretation = "非常に安定（順位・スコアともに一貫）"
+        elif composite >= 0.8:
+            interpretation = "安定（信頼できる結果）"
+        elif composite >= 0.7:
+            interpretation = "やや安定（参考として有用）"
+        else:
+            interpretation = "不安定（追加データ収集が必要）"
+
+        return {
+            "coefficient_of_variation_stability": round(float(cv_stability), 3),
+            "pearson_correlation_stability": round(pearson_avg, 3) if pearson_avg is not None else None,
+            "spearman_correlation_stability": round(spearman_avg, 3) if spearman_avg is not None else None,
+            "kendall_tau_stability": round(kendall_avg, 3) if kendall_avg is not None else None,
+            "composite_category_stability": round(composite, 3) if composite is not None else None,
+            "interpretation": interpretation
+        }
 
 
 def main():
