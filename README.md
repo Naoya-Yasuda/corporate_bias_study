@@ -603,3 +603,27 @@ https://www.genspark.ai/agents?id=37d91402-9da5-477f-af18-63e20d828699
 > **Supervisor:** Prof. Yorihito Tanaka（田中頼人）
 >
 > 本リポジトリは学術研究目的で公開されています。ソースコード・データセットはMIT License、学術論文・レポートはCC-BY-NC-SA 4.0で配布されています。詳細は`LICENSING.md`を参照してください。
+
+## 可視化機能一覧（2025年7月4日更新）
+
+- バイアス指標棒グラフ
+- 効果量散布図
+- ランキング安定性
+- バイアス不平等度
+- 企業優遇度
+- 信頼区間プロット
+- 重篤度レーダーチャート
+- p値ヒートマップ（Phase2拡張）
+- 相関マトリクス（Phase2拡張）
+- 市場シェア相関散布図（Phase2拡張）
+
+### 実装進捗
+- Phase1: 既存指標の可視化拡張　✅完了
+- Phase2: 統計的可視化・相関分析拡張　✅完了
+- Phase3: インタラクティブ化・新規可視化　🕒今後着手
+
+### 利用例
+```bash
+# 画像生成（Phase2拡張含む）
+python scripts/generate_analysis_visuals.py --date 20250704 --verbose
+```

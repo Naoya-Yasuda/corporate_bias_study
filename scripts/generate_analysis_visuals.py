@@ -22,7 +22,10 @@ from src.utils.plot_utils import (
     plot_rank_heatmap,
     plot_exposure_market,
     plot_confidence_intervals,
-    plot_severity_radar
+    plot_severity_radar,
+    plot_pvalue_heatmap,
+    plot_correlation_matrix,
+    plot_market_share_bias_scatter
 )
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import ensure_directory_exists
@@ -145,6 +148,7 @@ class AnalysisVisualizationGenerator:
                 bi_dict = {}
                 ci_dict = {}
                 severity_dict = {}
+                pvalue_dict = {}
                 exec_counts = []
                 for entity_name, entity_data in entities.items():
                     bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
@@ -163,6 +167,10 @@ class AnalysisVisualizationGenerator:
                             "stability_score": sev.get("components", {}).get("stability_score", 0),
                             "severity_score": sev.get("severity_score", 0)
                         }
+                    # p値
+                    pval = entity_data.get("statistical_significance", {}).get("sign_test_p_value")
+                    if pval is not None:
+                        pvalue_dict[entity_name] = pval
                     exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
                     exec_counts.append(exec_count)
 
@@ -180,6 +188,12 @@ class AnalysisVisualizationGenerator:
                 if severity_dict:
                     output_path = output_dir / f"{category}_{subcategory}_severity_radar.png"
                     plot_severity_radar(severity_dict, str(output_path), reliability_label=reliability_label)
+                    generated_files.append(str(output_path))
+
+                # 3. p値ヒートマップ
+                if pvalue_dict:
+                    output_path = output_dir / f"{category}_{subcategory}_pvalue_heatmap.png"
+                    plot_pvalue_heatmap(pvalue_dict, str(output_path), reliability_label=reliability_label)
                     generated_files.append(str(output_path))
 
                 # 既存のバイアス指標棒グラフ
@@ -207,6 +221,7 @@ class AnalysisVisualizationGenerator:
         """ランキング分析可視化を生成"""
         ensure_directory_exists(str(output_dir))
         generated_files = []
+        reliability_checker = ReliabilityChecker()
 
         for category, subcategories in ranking_data.items():
             for subcategory, data in subcategories.items():
@@ -217,6 +232,13 @@ class AnalysisVisualizationGenerator:
                 if stability_analysis.get("rank_variance"):
                     output_path = output_dir / f"{category}_{subcategory}_ranking_stability.png"
                     self._plot_ranking_stability(stability_analysis["rank_variance"], str(output_path), f"{category} - {subcategory}")
+                    generated_files.append(str(output_path))
+
+                # 相関マトリクス
+                corr_dict = stability_analysis.get("correlation_matrix")
+                if corr_dict:
+                    output_path = output_dir / f"{category}_{subcategory}_correlation_matrix.png"
+                    plot_correlation_matrix(corr_dict, str(output_path), reliability_label="標準")
                     generated_files.append(str(output_path))
 
         return generated_files
@@ -245,24 +267,15 @@ class AnalysisVisualizationGenerator:
         """相対バイアス可視化を生成"""
         ensure_directory_exists(str(output_dir))
         generated_files = []
+        reliability_checker = ReliabilityChecker()
 
         for category, subcategories in relative_data.items():
-            if category == "overall_summary":
-                continue
-
             for subcategory, data in subcategories.items():
-                # バイアス不平等度可視化
-                bias_inequality = data.get("bias_inequality", {})
-                if bias_inequality and "gini_coefficient" in bias_inequality:
-                    output_path = output_dir / f"{category}_{subcategory}_bias_inequality.png"
-                    self._plot_bias_inequality(bias_inequality, str(output_path), f"{category} - {subcategory}")
-                    generated_files.append(str(output_path))
-
-                # 企業優遇度可視化
-                enterprise_favoritism = data.get("enterprise_favoritism", {})
-                if enterprise_favoritism and "favoritism_gap" in enterprise_favoritism:
-                    output_path = output_dir / f"{category}_{subcategory}_enterprise_favoritism.png"
-                    self._plot_enterprise_favoritism(enterprise_favoritism, str(output_path), f"{category} - {subcategory}")
+                # 市場シェア相関散布図
+                market_share_corr = data.get("market_share_correlation", {})
+                if market_share_corr and market_share_corr.get("market_share_dict") and market_share_corr.get("bi_dict"):
+                    output_path = output_dir / f"{category}_market_share_bias_correlation.png"
+                    plot_market_share_bias_scatter(market_share_corr["market_share_dict"], market_share_corr["bi_dict"], str(output_path), reliability_label="標準")
                     generated_files.append(str(output_path))
 
         return generated_files
@@ -365,63 +378,6 @@ class AnalysisVisualizationGenerator:
                 ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.02,
                         f'{value:.3f}', ha='center', va='bottom')
 
-        plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
-
-    def _plot_bias_inequality(self, inequality_data: Dict, output_path: str, title: str):
-        """バイアス不平等度可視化"""
-        import matplotlib.pyplot as plt
-
-        gini = inequality_data.get("gini_coefficient", 0)
-        std_dev = inequality_data.get("std_deviation", 0)
-        bias_range = inequality_data.get("bias_range", 0)
-
-        metrics = ['Gini係数', '標準偏差', 'バイアス範囲']
-        values = [gini, std_dev, bias_range]
-
-        fig, ax = plt.subplots(figsize=(8, 6))
-
-        bars = ax.bar(metrics, values, alpha=0.7, color=['red', 'orange', 'blue'])
-        ax.set_title(f"{title} - バイアス不平等度")
-        ax.set_ylabel("値")
-
-        # 値をバーの上に表示
-        for bar, value in zip(bars, values):
-            ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
-                    f'{value:.3f}', ha='center', va='bottom')
-
-        plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
-
-    def _plot_enterprise_favoritism(self, favoritism_data: Dict, output_path: str, title: str):
-        """企業優遇度可視化"""
-        import matplotlib.pyplot as plt
-
-        large_avg = favoritism_data.get("large_enterprise_avg_bias", 0)
-        small_avg = favoritism_data.get("small_enterprise_avg_bias", 0)
-        gap = favoritism_data.get("favoritism_gap", 0)
-
-        categories = ['大企業', '中小企業']
-        values = [large_avg, small_avg]
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-        # 平均バイアス
-        colors = ['red' if v > 0 else 'blue' for v in values]
-        ax1.bar(categories, values, color=colors, alpha=0.7)
-        ax1.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
-        ax1.set_title("企業規模別平均バイアス")
-        ax1.set_ylabel("平均バイアス指標")
-
-        # 優遇格差
-        ax2.bar(['優遇格差'], [gap], color='orange', alpha=0.7)
-        ax2.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
-        ax2.set_title("優遇格差")
-        ax2.set_ylabel("格差（大企業 - 中小企業）")
-
-        fig.suptitle(f"{title} - 企業規模優遇度", fontsize=14)
         plt.tight_layout()
         plt.savefig(output_path, dpi=150, bbox_inches='tight')
         plt.close()

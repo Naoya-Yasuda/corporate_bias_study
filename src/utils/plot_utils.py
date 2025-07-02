@@ -454,3 +454,131 @@ def draw_reliability_badge(ax, label, color_map=None, loc="upper right"):
         "lower left": (0.02, 0.02)
     }[loc]
     ax.text(pos[0], pos[1], label, transform=ax.transAxes, fontsize=13, color="white", ha="right" if "right" in loc else "left", va="top" if "upper" in loc else "bottom", bbox=bbox_props, zorder=10)
+
+def plot_pvalue_heatmap(pvalue_dict, output_path=None, title="p値ヒートマップ", reliability_label=None):
+    """
+    企業ごとのp値をヒートマップで可視化
+    Parameters:
+    -----------
+    pvalue_dict : dict
+        企業名→p値
+    output_path : str, optional
+        出力ファイルパス
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジラベル
+    Returns:
+    --------
+    matplotlib.figure.Figure
+    """
+    entities = list(pvalue_dict.keys())
+    pvals = [pvalue_dict[e] for e in entities]
+    data = np.array([pvals])
+    fig, ax = plt.subplots(figsize=(max(6, len(entities)), 2))
+    # カスタムカラーマップ
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    cmap = ListedColormap(["#bdbdbd", "#ffb3b3", "#ff0000"])
+    bounds = [0, 0.01, 0.05, 1.01]
+    norm = BoundaryNorm(bounds, cmap.N)
+    im = ax.imshow(data, cmap=cmap, norm=norm, aspect="auto")
+    # 値をセルに表示
+    for i, v in enumerate(pvals):
+        ax.text(i, 0, f"{v:.3f}", ha="center", va="center", color="black" if v >= 0.05 else "white", fontsize=12)
+    ax.set_xticks(np.arange(len(entities)))
+    ax.set_xticklabels(entities, rotation=30, ha="right")
+    ax.set_yticks([0])
+    ax.set_yticklabels(["p値"])
+    ax.set_title(title)
+    plt.tight_layout()
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+    return fig
+
+def plot_correlation_matrix(corr_dict, output_path=None, title="相関マトリクス", reliability_label=None):
+    """
+    複数実行間の相関マトリクスを可視化（Pearson/Spearman/Kendall）
+    Parameters:
+    -----------
+    corr_dict : dict
+        {"pearson": 2次元配列, "spearman": 2次元配列, "kendall": 2次元配列, "labels": ラベルリスト}
+    output_path : str, optional
+        出力ファイルパス
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジラベル
+    Returns:
+    --------
+    matplotlib.figure.Figure
+    """
+    labels = corr_dict.get("labels", [])
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    for i, method in enumerate(["pearson", "spearman", "kendall"]):
+        mat = np.array(corr_dict.get(method, []))
+        ax = axes[i]
+        sns.heatmap(mat, annot=True, fmt=".2f", cmap="coolwarm", vmin=-1, vmax=1, xticklabels=labels, yticklabels=labels, ax=ax)
+        ax.set_title(method.capitalize())
+    fig.suptitle(title)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    if reliability_label:
+        draw_reliability_badge(axes[0], reliability_label)
+    if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+    return fig
+
+def plot_market_share_bias_scatter(market_share_dict, bi_dict, output_path=None, title="市場シェア×BI散布図", reliability_label=None):
+    """
+    市場シェアとBI値の関係を散布図で可視化
+    Parameters:
+    -----------
+    market_share_dict : dict
+        企業名→市場シェア（0-1）
+    bi_dict : dict
+        企業名→BI値
+    output_path : str, optional
+        出力ファイルパス
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジラベル
+    Returns:
+    --------
+    matplotlib.figure.Figure
+    """
+    entities = list(set(market_share_dict.keys()) & set(bi_dict.keys()))
+    x = [market_share_dict[e] for e in entities]
+    y = [bi_dict[e] for e in entities]
+    fig, ax = plt.subplots(figsize=(8, 6))
+    scatter = ax.scatter(x, y, c="blue", s=80)
+    for i, e in enumerate(entities):
+        ax.annotate(e, (x[i], y[i]), fontsize=10)
+    # 回帰直線
+    if len(x) > 1:
+        coef = np.polyfit(x, y, 1)
+        poly1d_fn = np.poly1d(coef)
+        ax.plot(x, poly1d_fn(x), color="red", linestyle="--", label="回帰直線")
+        # 相関係数
+        corr = np.corrcoef(x, y)[0, 1]
+        ax.text(0.05, 0.95, f"r={corr:.2f}", transform=ax.transAxes, fontsize=13, va="top", ha="left", bbox=dict(boxstyle="round", fc="white", alpha=0.7))
+    ax.set_xlabel("市場シェア")
+    ax.set_ylabel("Normalized Bias Index (BI)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
+    if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+    return fig

@@ -534,6 +534,11 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
   - ランキング安定性
   - バイアス不平等度
   - 企業優遇度
+  - 信頼区間プロット
+  - 重篤度レーダーチャート
+  - p値ヒートマップ（Phase2実装済み）
+  - 相関マトリクス（Phase2実装済み）
+  - 市場シェア相関散布図（Phase2実装済み）
 
 > ※設計書10.1記載の高度指標の多くは既に実装済み。今後は「可視化拡張」と「インタラクティブ化」が主な開発対象。
 
@@ -655,9 +660,43 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
 ---
 
 #### Phase 2: 統計的可視化・相関分析拡張（1-2週間）
-- p値ヒートマップ
-- 相関マトリクス
-- 市場シェア相関散布図
+- p値ヒートマップ　✅実装済み
+- 相関マトリクス　✅実装済み
+- 市場シェア相関散布図　✅実装済み
+
+---
+
+#### 【詳細設計】Phase 2: 統計的可視化・相関分析拡張
+
+1. **p値ヒートマップ**
+   - **目的**: 各企業の統計的有意性（p値）を一覧で可視化し、どの企業が有意なバイアスを持つか一目で分かるようにする。
+   - **仕様**:
+     - X軸: 企業名
+     - Y軸: サンプル/カテゴリ（または1行のみ）
+     - 色分け: p<0.01（濃い赤）、p<0.05（薄い赤）、p≥0.05（灰色）
+     - 多重比較補正後p値も併記可能
+     - ファイル名: `{category}_{subcategory}_pvalue_heatmap.png`
+   - **データ取得**: BiasAnalysisEngineの`statistical_significance`（sign_test_p_value）出力を利用
+
+2. **相関マトリクス**
+   - **目的**: 複数実行間の順位やBI値の一貫性をPearson/Spearman/Kendallで可視化し、安定性や再現性を直感的に把握できるようにする。
+   - **仕様**:
+     - X軸/Y軸: 実行回（または企業名）
+     - 色分け: 相関係数の強度（青～赤グラデーション）
+     - 3種類の相関（Pearson, Spearman, Kendall）を並列表示
+     - ファイル名: `{category}_{subcategory}_correlation_matrix.png`
+   - **データ取得**: BiasAnalysisEngineの安定性・相関分析出力を利用
+
+3. **市場シェア相関散布図**
+   - **目的**: 各企業の市場シェアとBI値の関係を散布図で可視化し、市場支配力とバイアスの関係を直感的に把握できるようにする。
+   - **仕様**:
+     - X軸: 市場シェア
+     - Y軸: BI値
+     - 回帰直線・相関係数を表示
+     - ファイル名: `{category}_market_share_bias_correlation.png`
+   - **データ取得**: BiasAnalysisEngineの`market_share_correlation`出力を利用
+
+---
 
 #### Phase 3: インタラクティブ化・新規可視化（3-4週間）
 - Plotlyインタラクティブ化
@@ -724,6 +763,7 @@ cross_category_severity_ranking_overall.png
 ### 11.1 現状の実装達成度
 - 設計書10.1記載の高度指標の大部分は既に実装済み
 - 可視化システムも基本機能は完備
+- Phase2（統計的可視化・相関分析拡張）も完了
 - 今後は「可視化拡張」「インタラクティブ化」「ダッシュボード統合」が主な開発対象
 
 ### 11.2 今後の重点開発方針
