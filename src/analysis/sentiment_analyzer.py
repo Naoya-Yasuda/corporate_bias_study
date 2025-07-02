@@ -307,9 +307,10 @@ def main():
         # 元のファイル名で上書き保存（パス管理システムを使用）
     input_filename = os.path.basename(input_file)
 
-    if "google_search" in input_file:
+    # data_typeによる正確な保存パス判定
+    if args.data_type == "google_search":
         output_path = paths["google"]
-    elif "perplexity_citations" in input_file:
+    elif args.data_type == "perplexity_citations":
         output_path = paths["perplexity_citations"]
     else:
         # その他のファイル

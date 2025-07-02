@@ -19,6 +19,7 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.integrator.dataset_integrator import DatasetIntegrator
+from src.integrator.data_validator import DataValidator, ProcessingAbortedException
 
 
 def setup_logging(verbose: bool = False):
@@ -138,6 +139,26 @@ def main():
         logger.info(f"出力ディレクトリ: {args.output_dir}")
 
         integrator = DatasetIntegrator(args.date, args.output_dir)
+
+        # 1. 生データの読み込み
+        raw_data = integrator._load_raw_data(verbose=args.verbose)
+        if not raw_data:
+            logger.error("読み込み可能な生データが見つかりません")
+            sys.exit(1)
+
+        # 2. バリデーション（必須フィールド存在チェック）
+        validator = DataValidator()
+        validation_results = validator.validate_all_data(raw_data)
+        critical_errors = [e for e in validation_results if e.get("severity") == "CRITICAL"]
+        missing_required = [
+            e for e in validation_results
+            if "必須フィールド" in e.get("message", "") and e.get("severity") in ("CRITICAL", "ERROR")
+        ]
+        if critical_errors or missing_required:
+            logger.error("=== バリデーションエラーにより統合処理を中断します ===")
+            for err in critical_errors + missing_required:
+                logger.error(f"{err.get('message', '')} - {err.get('path', '')}")
+            sys.exit(1)
 
         if args.validate_only:
             logger.info("データ品質チェックのみ実行")
