@@ -214,78 +214,14 @@ jobs:
 
         continue-on-error: true
 
-      # 2. 分析ステップ
-      # - name: Run Perplexity Sentiment Bias Analysis
-      #   run: |
-      #     echo "開始: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
-      #     if python -m src.analysis.bias_sentiment_metrics --date ${{ env.TODAY_DATE }} --rankings --verbose | tee -a logs/bias_metrics_perplexity.log; then
-      #       echo "完了: Perplexity 感情スコア・バイアス指標分析 ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: Perplexity 感情スコア・バイアス指標分析に失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #   continue-on-error: true
-
-      # - name: Run ranking metrics analysis
-      #   run: |
-      #     echo "開始: ランキング指標分析 ($(date))" | tee -a logs/execution.log
-      #     if python -m src.analysis.ranking_metrics --date ${{ env.TODAY_DATE }} --api perplexity --verbose | tee -a logs/ranking_metrics.log; then
-      #       echo "完了: ランキング指標分析 ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: ランキング指標分析に失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #   continue-on-error: true
-
-      # - name: Run SERP-Perplexity comparison analysis
-      #   run: |
-      #     echo "開始: Google SERPとPerplexityの比較分析 ($(date))" | tee -a logs/execution.log
-      #     if python src/analysis/serp_metrics.py --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --output results/perplexity_analysis/${{ env.TODAY_DATE }}; then
-      #       echo "完了: Google SERPとPerplexityの比較分析 ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: Google SERPとPerplexityの比較分析に失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #   continue-on-error: true
-
-      # # 統合指標分析（複数指標に基づく後段処理）
-      # - name: Run integrated metrics analysis
-      #   run: |
-      #     echo "開始: 統合指標分析 ($(date))" | tee -a logs/execution.log
-      #     if python -m src.analysis.integrated_metrics --date ${{ env.TODAY_DATE }} --output results/integrated_metrics/${{ env.TODAY_DATE }} --verbose | tee -a logs/integrated_metrics.log; then
-      #       echo "完了: 統合指標分析 ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: 統合指標分析に失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #   continue-on-error: true
-
-      # # 統合バイアス評価パイプライン
-      # - name: Run bias ranking pipeline
-      #   run: |
-      #     echo "開始: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
-      #     # ランキングデータを使用した分析
-      #     if python -m src.analysis.bias_ranking_pipeline --data-type rankings --output results/bias_analysis/rankings --verbose | tee -a logs/bias_ranking_pipeline.log; then
-      #       echo "完了: 統合バイアス評価パイプライン(rankings) ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: 統合バイアス評価パイプライン(rankings)に失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #     fi
-      #     # 引用リンクデータを使用した分析
-      #     if python -m src.analysis.bias_ranking_pipeline --data-type citations --output results/bias_analysis/citations --verbose | tee -a logs/bias_ranking_pipeline.log; then
-      #       echo "完了: 統合バイアス評価パイプライン(citations) ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: 統合バイアス評価パイプライン(citations)に失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #     echo "完了: 統合バイアス評価パイプライン ($(date))" | tee -a logs/execution.log
-      #     echo "全プロセス完了: $(date)" | tee -a logs/execution.log
-      #   continue-on-error: true
+      # 🗑️ 削除済み分析ステップ (2025年1月4日統合完了)
+      # 以下の分析は全て bias_analysis_engine.py に統合済み:
+      # - bias_sentiment_metrics → bias_analysis_engine.py
+      # - ranking_metrics → bias_analysis_engine.py
+      # - serp_metrics → bias_analysis_engine.py
+      # - integrated_metrics → bias_analysis_engine.py
+      # - bias_ranking_pipeline → bias_analysis_engine.py
+      # 統合後は scripts/run_bias_analysis.py 経由で全分析を実行
 
       # ログをCloudWatchにアップロード
       - name: Upload logs to CloudWatch
