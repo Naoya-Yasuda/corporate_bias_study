@@ -95,6 +95,64 @@ def check_data_availability(date: str = "20250624"):
         else:
             print(f"❌ {filename}: 見つかりません")
 
+def test_multiple_comparison_correction(date: str = "20250624"):
+    """多重比較補正の横展開テスト（ランキング・相対バイアス・相関分析）"""
+    print("\n🧪 多重比較補正横展開テスト開始")
+    try:
+        from src.analysis.bias_analysis_engine import BiasAnalysisEngine
+        engine = BiasAnalysisEngine(storage_mode="local")
+        results = engine.analyze_integrated_dataset(date)
+
+        # ランキングバイアス分析
+        ranking = results.get("ranking_bias_analysis", {})
+        found_ranking = False
+        for cat, subcats in ranking.items():
+            for subcat, data in subcats.items():
+                entities = data.get("entities", {})
+                for ent, ent_data in entities.items():
+                    sig = ent_data.get("ranking_significance", {})
+                    if "corrected_p_value" in sig and "rejected" in sig and "correction_method" in sig:
+                        found_ranking = True
+        # 相対バイアス分析
+        relative = results.get("relative_bias_analysis", {})
+        found_relative = False
+        for cat, subcats in relative.items():
+            if cat == "overall_summary":
+                continue
+            for subcat, data in subcats.items():
+                entities = data.get("entities", {})
+                for ent, ent_data in entities.items():
+                    sig = ent_data.get("favoritism_significance", {})
+                    if "corrected_p_value" in sig and "rejected" in sig and "correction_method" in sig:
+                        found_relative = True
+        # 相関分析
+        found_corr = False
+        for cat, subcats in relative.items():
+            if cat == "overall_summary":
+                continue
+            for subcat, data in subcats.items():
+                entities = data.get("entities", {})
+                for ent, ent_data in entities.items():
+                    sig = ent_data.get("correlation_significance", {})
+                    if "corrected_p_value" in sig and "rejected" in sig and "correction_method" in sig:
+                        found_corr = True
+        if found_ranking:
+            print("✅ ランキングバイアス分析で多重比較補正出力を確認")
+        else:
+            print("❌ ランキングバイアス分析で多重比較補正出力なし")
+        if found_relative:
+            print("✅ 相対バイアス分析で多重比較補正出力を確認")
+        else:
+            print("❌ 相対バイアス分析で多重比較補正出力なし")
+        if found_corr:
+            print("✅ 相関分析で多重比較補正出力を確認")
+        else:
+            print("❌ 相関分析で多重比較補正出力なし")
+        return found_ranking and found_relative and found_corr
+    except Exception as e:
+        print(f"❌ 多重比較補正テストでエラー: {e}")
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description='ローカル環境テストスクリプト')
     parser.add_argument('--date', default='20250624', help='テスト対象日付 (YYYYMMDD)')
@@ -113,8 +171,11 @@ def main():
     # BiasAnalysisEngineテスト
     engine_ok = test_bias_analysis_engine(args.date)
 
+    # 多重比較補正横展開テスト
+    mcc_ok = test_multiple_comparison_correction(args.date)
+
     print("\n" + "=" * 50)
-    if loader_ok and engine_ok:
+    if loader_ok and engine_ok and mcc_ok:
         print("✅ 全テスト成功！")
         sys.exit(0)
     else:

@@ -43,7 +43,7 @@ def get_unmasked_prompt_ja(subcategory, competitor):
 
 def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
     """複数回実行して平均値を取得（マスクあり・マスクなし両方とも各num_runs回ずつAPIを呼び出す）
-    サービス名ごとに属性をまとめて出力するように構造を変更
+    サービス名ごとにentities属性でまとめて出力する
     """
     api = PerplexityAPI(api_key)
     results = {}
@@ -57,10 +57,11 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 "masked_url": [],
                 "masked_avg": 0.0,
                 "masked_std_dev": 0.0,
-                "masked_prompt": get_masked_prompt_ja(subcategory)
+                "masked_prompt": get_masked_prompt_ja(subcategory),
+                "entities": {}
             }
             for competitor in competitors:
-                results[category][subcategory][competitor] = {
+                results[category][subcategory]["entities"][competitor] = {
                     "unmasked_answer": [],
                     "unmasked_values": [],
                     "unmasked_reasons": [],
@@ -78,7 +79,6 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 masked_result, masked_citations = api.call_perplexity_api(masked_prompt)
                 results[category][subcategory]["masked_prompt"] = masked_prompt
                 results[category][subcategory]["masked_answer"].append(masked_result)
-                # citationsがdictリストならurlのみ抽出、そうでなければそのまま
                 if masked_citations and isinstance(masked_citations, list) and isinstance(masked_citations[0], dict) and "url" in masked_citations[0]:
                     url_list = [c["url"] for c in masked_citations if c["url"]]
                 else:
@@ -101,19 +101,18 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 for competitor in competitors:
                     unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
                     unmasked_result, unmasked_citations = api.call_perplexity_api(unmasked_prompt)
-                    results[category][subcategory][competitor]["unmasked_answer"].append(unmasked_result)
-                    # citationsがdictリストならurlのみ抽出、そうでなければそのまま
+                    results[category][subcategory]["entities"][competitor]["unmasked_answer"].append(unmasked_result)
                     if unmasked_citations and isinstance(unmasked_citations, list) and isinstance(unmasked_citations[0], dict) and "url" in unmasked_citations[0]:
                         url_list = [c["url"] for c in unmasked_citations if c["url"]]
                     else:
                         url_list = [u for u in unmasked_citations if u] if unmasked_citations else []
-                    results[category][subcategory][competitor]["unmasked_url"].append(url_list)
+                    results[category][subcategory]["entities"][competitor]["unmasked_url"].append(url_list)
                     try:
                         value = extract_score(unmasked_result)
                         if value is not None:
-                            results[category][subcategory][competitor]["unmasked_values"].append(value)
+                            results[category][subcategory]["entities"][competitor]["unmasked_values"].append(value)
                         reason = extract_reason(unmasked_result)
-                        results[category][subcategory][competitor]["unmasked_reasons"].append(reason)
+                        results[category][subcategory]["entities"][competitor]["unmasked_reasons"].append(reason)
                     except Exception as e:
                         print(f"マスクなし評価値の抽出エラー ({competitor}): {e}")
                     time.sleep(1)
@@ -130,19 +129,18 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
             else:
                 results[category][subcategory]['masked_avg'] = 0.0
                 results[category][subcategory]['masked_std_dev'] = 0.0
-            # 正しいカテゴリ・サブカテゴリから競合他社リストを取得
             competitors = categories[category][subcategory]
             for competitor in competitors:
-                unmasked_values = results[category][subcategory][competitor].get('unmasked_values', [])
+                unmasked_values = results[category][subcategory]["entities"][competitor].get('unmasked_values', [])
                 if unmasked_values:
-                    results[category][subcategory][competitor]['unmasked_avg'] = float(np.mean(unmasked_values))
+                    results[category][subcategory]["entities"][competitor]['unmasked_avg'] = float(np.mean(unmasked_values))
                     if len(unmasked_values) > 1:
-                        results[category][subcategory][competitor]['unmasked_std_dev'] = float(np.std(unmasked_values, ddof=1))
+                        results[category][subcategory]["entities"][competitor]['unmasked_std_dev'] = float(np.std(unmasked_values, ddof=1))
                     else:
-                        results[category][subcategory][competitor]['unmasked_std_dev'] = 0.0
+                        results[category][subcategory]["entities"][competitor]['unmasked_std_dev'] = 0.0
                 else:
-                    results[category][subcategory][competitor]['unmasked_avg'] = 0.0
-                    results[category][subcategory][competitor]['unmasked_std_dev'] = 0.0
+                    results[category][subcategory]["entities"][competitor]['unmasked_avg'] = 0.0
+                    results[category][subcategory]["entities"][competitor]['unmasked_std_dev'] = 0.0
     return results
 
 def main():
