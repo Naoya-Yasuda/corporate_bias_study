@@ -1569,10 +1569,112 @@ def get_integrated_datasets():
 - Google検索データやPerplexity citationsデータに対して感情分析（sentiment_analyzer.py）が未実施でもintegratorが統合データを生成できてしまう。
 - 統合データの品質・一貫性が担保されないため、今後は必ず感情分析を実施した上で統合し、バリデーションでも該当フィールドの存在チェックを強化する必要あり。
 
-### 3. 次のアクション
-- `_analyze_citations_google_comparison`の設計・実装、およびテスト再実行。
-- sentiment_analyzer.pyを用いてgoogle/citationsデータにも感情分析を実施。
-- integrator/data_validator.pyのバリデーションを修正し、感情分析未実施データの統合をエラーまたは警告とする。
-- 上記対応後、統合・分析・テストを再実行し、出力・品質を確認。
+### 3. 未実装メソッド詳細情報（2025年7月2日現在）
+
+#### 3.1 BiasAnalysisEngine内の未実装メソッド
+
+| メソッド名                               | 実装状況 | 優先度 | 実装見積 | 詳細設計 |
+| ---------------------------------------- | -------- | ------ | -------- | -------- |
+| `_analyze_citations_google_comparison()` | ❌ 未実装 | 最高   | 2-3時間  | 完了済み |
+| `_generate_cross_analysis_insights()`    | ❌ 未実装 | 高     | 1時間    | 要設計   |
+| `_generate_analysis_limitations()`       | ❌ 未実装 | 高     | 30分     | 要設計   |
+
+#### 3.2 _analyze_citations_google_comparison詳細設計
+
+**目的**: Google検索結果とPerplexity citationsデータを比較し、ランキング類似度・ドメイン重複・公式ドメイン率等を分析
+
+**入力**:
+- `google_data`: Google検索結果（custom_search.json）
+- `citations_data`: Perplexity引用データ（citations_*.json）
+
+**出力構造**:
+```json
+{
+  "category": {
+    "subcategory": {
+      "ranking_similarity": {
+        "rbo_score": 0.75,
+        "kendall_tau": 0.68,
+        "overlap_ratio": 0.45
+      },
+      "official_domain_analysis": {
+        "google_official_ratio": 0.6,
+        "citations_official_ratio": 0.4,
+        "official_bias_delta": 0.2
+      },
+      "sentiment_comparison": {
+        "google_positive_ratio": 0.7,
+        "citations_positive_ratio": 0.8,
+        "sentiment_correlation": 0.65
+      },
+      "google_domains_count": 10,
+      "citations_domains_count": 8
+    }
+  }
+}
+```
+
+**実装要素**:
+1. `_extract_google_domains()` - Googleデータからドメイン抽出
+2. `_extract_citations_domains()` - Citationsデータからドメイン抽出
+3. `_compute_ranking_similarity()` - serp_metrics.pyのcompute_ranking_metrics()活用
+4. `_analyze_official_domain_bias()` - 公式ドメイン露出偏向分析
+5. `_compare_sentiment_distributions()` - reputation_resultsのsentiment比較
+
+#### 3.3 _generate_cross_analysis_insights設計
+
+**目的**: 感情バイアス・ランキングバイアス・Citations-Google比較の統合インサイト生成
+
+**出力例**:
+```json
+{
+  "sentiment_ranking_correlation": 0.78,
+  "consistent_leaders": ["AWS", "Microsoft"],
+  "consistent_laggards": ["Oracle"],
+  "google_citations_alignment": "moderate",
+  "overall_bias_pattern": "large_enterprise_favoritism",
+  "cross_platform_consistency": "high"
+}
+```
+
+#### 3.4 _generate_analysis_limitations設計
+
+**目的**: 実行回数・データ品質に基づく分析制限事項の自動生成
+
+**出力例**:
+```json
+{
+  "execution_count_warning": "実行回数が3回のため、統計的検定は実行不可",
+  "reliability_note": "結果は参考程度として扱ってください",
+  "statistical_power": "低（軽微なバイアス検出困難）",
+  "data_quality_issues": ["Google検索データの一部にsentiment欠落"],
+  "recommended_actions": [
+    "統計的有意性判定には最低5回の実行が必要",
+    "政策判断には15-20回の実行を強く推奨"
+  ]
+}
+```
+
+### 4. 実装実行計画
+
+#### Phase 1: _analyze_citations_google_comparison実装（優先度：最高）
+- **所要時間**: 2-3時間
+- **依存関係**: serp_metrics.pyの既存関数活用
+- **完了条件**: バイアス分析エンジンの正常実行、bias_analysis_results.json生成
+
+#### Phase 2: 残り2メソッドの実装（優先度：高）
+- **所要時間**: 1.5時間
+- **依存関係**: Phase 1完了後
+- **完了条件**: 全分析メソッドの動作確認
+
+#### Phase 3: 統合テスト・検証
+- **所要時間**: 1時間
+- **完了条件**: HybridDataLoader含む全パイプラインの正常動作
+
+### 5. 次のアクション（更新版）
+1. **即座実行**: `_analyze_citations_google_comparison`の実装とテスト
+2. **続行**: 残り未実装メソッドの実装
+3. **完了確認**: 統合分析パイプラインの動作検証
+4. **品質向上**: データ統合・バリデーション強化（継続課題）
 
 ---
