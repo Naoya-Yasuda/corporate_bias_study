@@ -11,16 +11,37 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 # 共通ユーティリティをインポート
-from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+try:
+    from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+    RANK_UTILS_AVAILABLE = True
+except ImportError as e:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"rank_utils インポートエラー: {e}")
+    RANK_UTILS_AVAILABLE = False
+
+    # フォールバック関数を定義
+    def rbo(list1, list2, p=0.9):
+        """RBOのフォールバック実装"""
+        return 0.0
+
+    def compute_tau(list1, list2):
+        """Kendall's tauのフォールバック実装"""
+        return 0.0
+
+    def compute_delta_ranks(list1, list2):
+        """Delta ranksのフォールバック実装"""
+        return {}
+
 from src.utils.storage_utils import ensure_dir, get_today_str
-from src.utils.storage_utils import save_json, get_results_paths, get_local_path, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
+from src.utils.storage_utils import save_json, get_results_paths, get_s3_client, S3_BUCKET_NAME, get_s3_key_path
 
 # -------------------------------------------------------------------
 # 比較メトリクス
 # -------------------------------------------------------------------
 def compute_ranking_metrics(google_ranking, pplx_ranking, max_k=10):
     """
-    GoogleとPerplexityのランキング間の類似度メトリクスを計算
+    エラーハンドリングを強化したランキングメトリクス計算
 
     Parameters
     ----------
@@ -36,49 +57,73 @@ def compute_ranking_metrics(google_ranking, pplx_ranking, max_k=10):
     dict
         類似度メトリクス
     """
-    # 上位k件に制限
-    google_top_k = google_ranking[:max_k]
-    pplx_top_k = pplx_ranking[:max_k]
+    try:
+        # 入力検証
+        if not google_ranking or not pplx_ranking:
+            return {
+                "rbo": 0.0, "kendall_tau": 0.0, "overlap_ratio": 0.0,
+                "delta_ranks": {}, "google_domains": [], "pplx_domains": [],
+                "error": "入力データが空です", "rank_utils_used": RANK_UTILS_AVAILABLE
+            }
 
-    # 重複ドメインの削除（順序保持）
-    google_unique = []
-    seen = set()
-    for domain in google_top_k:
-        if domain not in seen and domain:
-            google_unique.append(domain)
-            seen.add(domain)
+        # 上位k件に制限
+        google_top_k = google_ranking[:max_k]
+        pplx_top_k = pplx_ranking[:max_k]
 
-    pplx_unique = []
-    seen = set()
-    for domain in pplx_top_k:
-        if domain not in seen and domain:
-            pplx_unique.append(domain)
-            seen.add(domain)
+        # 重複ドメインの削除（順序保持）
+        google_unique = []
+        seen = set()
+        for domain in google_top_k:
+            if domain not in seen and domain:
+                google_unique.append(domain)
+                seen.add(domain)
 
-    # RBO計算
-    rbo_score = rbo(google_unique, pplx_unique, p=0.9)
+        pplx_unique = []
+        seen = set()
+        for domain in pplx_top_k:
+            if domain not in seen and domain:
+                pplx_unique.append(domain)
+                seen.add(domain)
 
-    # Kendall's tau計算
-    kendall_tau_score = compute_tau(google_unique, pplx_unique)
+        # 重複率計算（常に実行可能）
+        google_set = set(google_unique)
+        pplx_set = set(pplx_unique)
+        overlap = len(google_set & pplx_set)
+        union = len(google_set | pplx_set)
+        overlap_ratio = overlap / union if union > 0 else 0
 
-    # 重複率計算
-    google_set = set(google_unique)
-    pplx_set = set(pplx_unique)
-    overlap = len(google_set & pplx_set)
-    union = len(google_set | pplx_set)
-    overlap_ratio = overlap / union if union > 0 else 0
+        # rank_utils関数の安全な呼び出し
+        if RANK_UTILS_AVAILABLE:
+            rbo_score = rbo(google_unique, pplx_unique, p=0.9)
+            kendall_tau_score = compute_tau(google_unique, pplx_unique)
+            delta_ranks = compute_delta_ranks(google_unique, pplx_unique)
+        else:
+            # フォールバック処理
+            rbo_score = 0.0
+            kendall_tau_score = 0.0
+            delta_ranks = {}
 
-    # ランク差分計算
-    delta_ranks = compute_delta_ranks(google_unique, pplx_unique)
+        return {
+            "rbo": rbo_score,
+            "kendall_tau": kendall_tau_score,
+            "overlap_ratio": overlap_ratio,
+            "delta_ranks": delta_ranks,
+            "google_domains": google_unique,
+            "pplx_domains": pplx_unique,
+            "rank_utils_used": RANK_UTILS_AVAILABLE
+        }
 
-    return {
-        "rbo": rbo_score,
-        "kendall_tau": kendall_tau_score,
-        "overlap_ratio": overlap_ratio,
-        "delta_ranks": delta_ranks,
-        "google_domains": google_unique,
-        "pplx_domains": pplx_unique
-    }
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"compute_ranking_metrics実行エラー: {e}")
+
+        # 最小限の結果を返す
+        return {
+            "rbo": None, "kendall_tau": None, "overlap_ratio": 0.0,
+            "delta_ranks": {}, "google_domains": [], "pplx_domains": [],
+            "error": str(e), "fallback_used": True, "rank_utils_used": RANK_UTILS_AVAILABLE
+        }
 
 def compute_content_metrics(search_detailed_results, top_k=10):
     """

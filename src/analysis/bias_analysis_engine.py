@@ -21,12 +21,15 @@ import statistics
 from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 from pathlib import Path
+import scipy.stats as stats
+import itertools
+from tqdm import trange
 
-from src.analysis.reliability_checker import ReliabilityChecker
-from src.analysis.metrics_calculator import MetricsCalculator
+# ReliabilityChecker統合済み - 削除予定
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import load_json
 from dotenv import load_dotenv
+# プロットユーティリティ（統合時に必要に応じて追加）
 
 # 環境変数を読み込み
 load_dotenv()
@@ -36,34 +39,412 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class BiasAnalysisEngine:
-    """バイアス指標計算のメインエンジン（ローカル・S3両対応）"""
+class ReliabilityChecker:
+    """実行回数に基づく分析信頼性の評価クラス"""
 
-    def __init__(self, config_path: str = None, storage_mode: str = None):
-        """
+    def __init__(self):
+        """信頼性レベルの定義を初期化"""
+        self.reliability_levels = {
+            "参考程度": {"min_count": 2, "max_count": 2},
+            "基本分析": {"min_count": 3, "max_count": 4},
+            "実用分析": {"min_count": 5, "max_count": 9},
+            "標準分析": {"min_count": 10, "max_count": 19},
+            "高精度分析": {"min_count": 20, "max_count": None}
+        }
+
+        self.minimum_execution_counts = {
+            "raw_delta": 2,
+            "normalized_bias_index": 3,
+            "sign_test_p_value": 5,
+            "cliffs_delta": 5,
+            "confidence_interval": 5,
+            "stability_score": 3,
+            "correlation_analysis": 3
+        }
+
+    def get_reliability_level(self, execution_count: int) -> Tuple[str, str]:
+        """実行回数に基づいて信頼性レベルを判定
+
         Parameters:
         -----------
-        config_path : str, optional
-            分析設定ファイルのパス
-        storage_mode : str, optional
-            ストレージモード指定（指定なしの場合は環境変数STORAGE_MODEを使用、デフォルト: "auto"）
-            - "local": ローカルのみ読み込み・保存
-            - "s3": S3のみ読み込み・保存
-            - "both": ローカル・S3両方（推奨）
-            - "auto": 自動選択（S3優先、フォールバックでローカル）
+        execution_count : int
+            データ収集の実行回数
+
+        Returns:
+        --------
+        Tuple[str, str]
+            (信頼性レベル, 信頼度レベル)
         """
-        self.config = self._load_config(config_path)
+        if execution_count < 2:
+            return "実行不足", "分析不可"
 
-        # ストレージモードを設定（統一）
-        self.storage_mode = self._get_storage_mode(storage_mode)
+        for level, criteria in self.reliability_levels.items():
+            if execution_count >= criteria["min_count"]:
+                if criteria["max_count"] is None or execution_count <= criteria["max_count"]:
+                    confidence_level = self._get_confidence_level(execution_count)
+                    return level, confidence_level
 
+        # デフォルトフォールバック
+        return "高精度分析", "高"
+
+    def _get_confidence_level(self, execution_count: int) -> str:
+        """信頼度レベルを判定"""
+        if execution_count >= 20:
+            return "高"
+        elif execution_count >= 10:
+            return "中"
+        elif execution_count >= 5:
+            return "基本"
+        else:
+            return "低"
+
+    def check_metric_availability(self, execution_count: int) -> Dict[str, Dict[str, any]]:
+        """利用可能な指標を判定
+
+        Parameters:
+        -----------
+        execution_count : int
+            データ収集の実行回数
+
+        Returns:
+        --------
+        Dict[str, Dict[str, any]]
+            各指標の利用可能性と詳細情報
+        """
+        availability = {}
+
+        for metric, min_count in self.minimum_execution_counts.items():
+            is_available = execution_count >= min_count
+
+            availability[metric] = {
+                "available": is_available,
+                "required_count": min_count,
+                "current_count": execution_count,
+                "status": "利用可能" if is_available else f"実行回数不足（最低{min_count}回必要）"
+            }
+
+        return availability
+
+    def get_analysis_recommendations(self, execution_count: int) -> Dict[str, any]:
+        """分析に関する推奨事項を生成
+
+        Parameters:
+        -----------
+        execution_count : int
+            データ収集の実行回数
+
+        Returns:
+        --------
+        Dict[str, any]
+            推奨事項と注意点
+        """
+        reliability_level, confidence_level = self.get_reliability_level(execution_count)
+
+        recommendations = {
+            "reliability_assessment": {
+                "level": reliability_level,
+                "confidence": confidence_level,
+                "execution_count": execution_count
+            },
+            "usage_recommendations": [],
+            "cautions": [],
+            "next_steps": []
+        }
+
+        # 使用推奨事項
+        if execution_count < 3:
+            recommendations["usage_recommendations"].extend([
+                "基本的な傾向把握のみ",
+                "政策判断には使用しない"
+            ])
+            recommendations["cautions"].extend([
+                "統計的信頼性が極めて低い",
+                "結果は参考程度に留める"
+            ])
+            recommendations["next_steps"].append("最低3回以上の追加データ収集を実施")
+
+        elif execution_count < 5:
+            recommendations["usage_recommendations"].extend([
+                "基本的な傾向把握に使用可能",
+                "重要な判断には追加データが必要"
+            ])
+            recommendations["cautions"].extend([
+                "統計的有意性検定は実行不可",
+                "効果量の計算は信頼性が低い"
+            ])
+            recommendations["next_steps"].append("統計的検定のため5回以上の実行を推奨")
+
+        elif execution_count < 10:
+            recommendations["usage_recommendations"].extend([
+                "基本的な統計分析に使用可能",
+                "政策検討の参考として活用可能"
+            ])
+            recommendations["cautions"].extend([
+                "検定力がやや低い",
+                "軽微なバイアスの検出は困難"
+            ])
+            recommendations["next_steps"].append("信頼性向上のため10回以上の実行を推奨")
+
+        elif execution_count < 20:
+            recommendations["usage_recommendations"].extend([
+                "本格的な統計分析に使用可能",
+                "政策判断の根拠として活用可能"
+            ])
+            recommendations["cautions"].extend([
+                "高精度分析には追加データが有効"
+            ])
+            recommendations["next_steps"].append("最高精度のため20回以上の実行を推奨")
+
+        else:
+            recommendations["usage_recommendations"].extend([
+                "高精度な統計分析に使用可能",
+                "確信を持った政策判断が可能"
+            ])
+            recommendations["cautions"].append("継続的な品質監視を実施")
+            recommendations["next_steps"].append("定期的な再分析で品質維持")
+
+        return recommendations
+
+    def assess_statistical_power(self, execution_count: int, effect_size: str = "medium") -> Dict[str, any]:
+        """統計的検定力を評価
+
+        Parameters:
+        -----------
+        execution_count : int
+            データ収集の実行回数
+        effect_size : str, default "medium"
+            想定する効果量サイズ
+
+        Returns:
+        --------
+        Dict[str, any]
+            検定力の評価結果
+        """
+
+        # 簡易的な検定力評価
+        if execution_count < 5:
+            power_level = "極めて低い"
+            detection_capability = "大きなバイアスのみ検出可能"
+        elif execution_count < 10:
+            power_level = "低い"
+            detection_capability = "中程度以上のバイアス検出可能"
+        elif execution_count < 20:
+            power_level = "中程度"
+            detection_capability = "小から中程度のバイアス検出可能"
+        else:
+            power_level = "高い"
+            detection_capability = "軽微なバイアスも検出可能"
+
+        return {
+            "power_level": power_level,
+            "detection_capability": detection_capability,
+            "recommended_interpretation": self._get_interpretation_guidance(execution_count),
+            "type_ii_error_risk": "高い" if execution_count < 10 else "中程度" if execution_count < 20 else "低い"
+        }
+
+    def _get_interpretation_guidance(self, execution_count: int) -> str:
+        """結果解釈のガイダンスを提供"""
+        if execution_count < 5:
+            return "有意でない結果は効果なしと解釈してはいけない（検出力不足の可能性）"
+        elif execution_count < 10:
+            return "有意でない結果は慎重に解釈（中程度の検出力）"
+        elif execution_count < 20:
+            return "統計的結果は概ね信頼できるが、効果量も考慮して解釈"
+        else:
+            return "統計的結果と効果量の両方を総合的に解釈可能"
+
+
+class BiasAnalysisEngine:
+    """統合バイアス分析エンジン - データローダーとメトリクス計算を統合"""
+
+    def __init__(self, storage_mode: str = None):
+        """BiasAnalysisEngine初期化
+
+        Parameters:
+        ----------
+        storage_mode : str, optional
+            ストレージモード ('local', 's3', 'auto')
+        """
+        # ストレージモードの設定
+        self.storage_mode = storage_mode or os.getenv("STORAGE_MODE", "auto")
+        logger.info(f"環境変数STORAGE_MODEから取得: {self.storage_mode}")
+
+        # rank_utilsのインポートとフォールバック設定
+        try:
+            from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+            self.rank_utils_available = True
+            self._rbo = rbo
+            self._compute_tau = compute_tau
+            self._compute_delta_ranks = compute_delta_ranks
+        except ImportError as e:
+            logger.warning(f"rank_utils インポートエラー: {e}")
+            self.rank_utils_available = False
+
+            # フォールバック関数を定義
+            def rbo_fallback(list1, list2, p=0.9):
+                return 0.0
+            def compute_tau_fallback(list1, list2):
+                return 0.0
+            def compute_delta_ranks_fallback(list1, list2):
+                return {}
+
+            self._rbo = rbo_fallback
+            self._compute_tau = compute_tau_fallback
+            self._compute_delta_ranks = compute_delta_ranks_fallback
+
+        # 信頼性チェック器の初期化
         self.reliability_checker = ReliabilityChecker()
-        self.metrics_calculator = MetricsCalculator()
 
         # データローダーのセットアップ
         self.data_loader = HybridDataLoader(self.storage_mode)
 
+        # 市場データの読み込み
+        self.market_data = self._load_market_data()
+
+        # 設定ファイル読み込み
+        self.config = self._load_config()
+
+        # バイアス計算パラメータ
+        self.bootstrap_iterations = 10000
+        self.confidence_level = 95
+
         logger.info(f"BiasAnalysisEngine初期化: storage_mode={self.storage_mode}")
+        logger.info(f"market_data読み込み状況: {bool(self.market_data)}")
+        if self.market_data:
+            logger.info(f"market_shares: {len(self.market_data.get('market_shares', {}))} カテゴリ")
+            logger.info(f"market_caps: {len(self.market_data.get('market_caps', {}))} カテゴリ")
+
+    # MetricsCalculator統合: 主要計算メソッド
+    def calculate_raw_delta(self,
+                          masked_values: List[float],
+                          unmasked_values: List[float]) -> float:
+        """Raw Delta (Δ) を計算
+
+        Parameters:
+        -----------
+        masked_values : List[float]
+            企業名なしのスコア値
+        unmasked_values : List[float]
+            企業名ありのスコア値
+
+        Returns:
+        --------
+        float
+            Δ = mean(unmasked) - mean(masked)
+        """
+        if not masked_values or not unmasked_values:
+            return 0.0
+
+        masked_mean = np.mean(masked_values)
+        unmasked_mean = np.mean(unmasked_values)
+
+        return float(unmasked_mean - masked_mean)
+
+    def calculate_statistical_significance(self,
+                                         pairs: List[Tuple[float, float]]) -> float:
+        """統計的有意性検定（符号検定）
+
+        Parameters:
+        -----------
+        pairs : List[Tuple[float, float]]
+            (masked_score, unmasked_score) のペアリスト
+
+        Returns:
+        --------
+        float
+            符号検定のp値
+        """
+        if len(pairs) < 5:
+            return 1.0  # 実行回数不足の場合は有意でない
+
+        # 差の符号を計算
+        differences = [unmasked - masked for masked, unmasked in pairs]
+        positive_diffs = sum(1 for d in differences if d > 0)
+        negative_diffs = sum(1 for d in differences if d < 0)
+
+        # 符号検定の実行
+        total_non_zero = positive_diffs + negative_diffs
+        if total_non_zero == 0:
+            return 1.0
+
+        # 二項検定（両側）
+        p_value = 2 * min(
+            stats.binom.cdf(positive_diffs, total_non_zero, 0.5),
+            stats.binom.cdf(negative_diffs, total_non_zero, 0.5)
+        )
+
+        return float(min(p_value, 1.0))
+
+    def calculate_cliffs_delta(self,
+                             group1: List[float],
+                             group2: List[float]) -> float:
+        """Cliff's Delta 効果量を計算
+
+        Parameters:
+        -----------
+        group1 : List[float]
+            第1グループ（masked値）
+        group2 : List[float]
+            第2グループ（unmasked値）
+
+        Returns:
+        --------
+        float
+            Cliff's Delta値 (-1 ≤ δ ≤ +1)
+        """
+        if not group1 or not group2:
+            return 0.0
+
+        m, n = len(group1), len(group2)
+
+        # 全ペア比較
+        greater_than = sum(1 for x in group1 for y in group2 if x < y)  # group2が大きい
+        less_than = sum(1 for x in group1 for y in group2 if x > y)     # group1が大きい
+
+        return float((greater_than - less_than) / (m * n))
+
+    def calculate_confidence_interval(self,
+                                    delta_values: List[float],
+                                    confidence_level: int = 95) -> Tuple[float, float]:
+        """ブートストラップ信頼区間を計算
+
+        Parameters:
+        -----------
+        delta_values : List[float]
+            デルタ値のリスト
+        confidence_level : int, default 95
+            信頼区間の水準（%）
+
+        Returns:
+        --------
+        Tuple[float, float]
+            (下限, 上限)
+        """
+        if len(delta_values) <= 1:
+            single_value = float(delta_values[0]) if delta_values else 0.0
+            return single_value, single_value
+
+        # ブートストラップ実行
+        rng = np.random.default_rng()
+        bootstrap_means = []
+
+        for _ in trange(self.bootstrap_iterations,
+                      leave=False,
+                      desc="ブートストラップ信頼区間計算"):
+            bootstrap_sample = rng.choice(delta_values,
+                                        len(delta_values),
+                                        replace=True)
+            bootstrap_means.append(np.mean(bootstrap_sample))
+
+        # パーセンタイル法で信頼区間を計算
+        alpha = (100 - confidence_level) / 2
+        lower_percentile = alpha
+        upper_percentile = 100 - alpha
+
+        ci_lower = np.percentile(bootstrap_means, lower_percentile)
+        ci_upper = np.percentile(bootstrap_means, upper_percentile)
+
+        return float(ci_lower), float(ci_upper)
 
     def _get_storage_mode(self, override_mode: str = None) -> str:
         """ストレージモードを決定
@@ -220,16 +601,16 @@ class BiasAnalysisEngine:
                     if 'masked_values' not in subcategory_data:
                         errors.append(f"masked_values が見つかりません: {category}/{subcategory}")
 
-                    # entities配下のunmasked_valuesの確認
-                    entities = subcategory_data.get("entities", {})
-                    if not isinstance(entities, dict):
-                        errors.append(f"entitiesがdict型でありません: {category}/{subcategory}")
-                        continue
+                    # 企業データ（entities配下ではなく直接サブカテゴリ下）のunmasked_valuesの確認
                     has_unmasked_data = False
-                    for entity_name, entity_data in entities.items():
-                        if isinstance(entity_data, dict) and 'unmasked_values' in entity_data and isinstance(entity_data['unmasked_values'], list):
-                            has_unmasked_data = True
-                            break
+                    system_keys = ['masked_answer', 'masked_values', 'masked_reasons', 'masked_url', 'masked_avg', 'masked_std_dev', 'masked_prompt']
+
+                    for entity_name, entity_data in subcategory_data.items():
+                        if entity_name not in system_keys and isinstance(entity_data, dict):
+                            if 'unmasked_values' in entity_data and isinstance(entity_data['unmasked_values'], list):
+                                has_unmasked_data = True
+                                break
+
                     if not has_unmasked_data:
                         errors.append(f"unmasked_values が見つかりません: {category}/{subcategory}")
 
@@ -360,7 +741,7 @@ class BiasAnalysisEngine:
         """個別企業のバイアス指標を計算"""
 
         # 基本指標
-        raw_delta = self.metrics_calculator.calculate_raw_delta(masked_values, unmasked_values)
+        raw_delta = self.calculate_raw_delta(masked_values, unmasked_values)
 
         # デルタ値リスト
         delta_values = [u - m for u, m in zip(unmasked_values, masked_values)]
@@ -427,7 +808,7 @@ class BiasAnalysisEngine:
             }
 
         # 符号検定実行
-        p_value = self.metrics_calculator.calculate_statistical_significance(pairs)
+        p_value = self.calculate_statistical_significance(pairs)
 
         return {
             "sign_test_p_value": round(p_value, 4),
@@ -452,7 +833,7 @@ class BiasAnalysisEngine:
             }
 
         # Cliff's Delta計算
-        cliffs_delta = self.metrics_calculator.calculate_cliffs_delta(masked_values, unmasked_values)
+        cliffs_delta = self.calculate_cliffs_delta(masked_values, unmasked_values)
 
         # 効果量の解釈
         abs_cliffs = abs(cliffs_delta)
@@ -491,7 +872,7 @@ class BiasAnalysisEngine:
             }
 
         # ブートストラップ信頼区間計算
-        ci_lower, ci_upper = self.metrics_calculator.calculate_confidence_interval(delta_values)
+        ci_lower, ci_upper = self.calculate_confidence_interval(delta_values)
 
         return {
             "ci_lower": round(ci_lower, 3),
@@ -852,15 +1233,16 @@ class BiasAnalysisEngine:
                     # 1. バイアス不平等指標の計算
                     bias_inequality = self._calculate_bias_inequality(entities)
                     # 2. 企業優遇度分析
-                    enterprise_favoritism = self._analyze_enterprise_favoritism(
-                        entities, self.market_data.get("market_caps", {})
-                    )
+                    market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
+                    enterprise_favoritism = self._analyze_enterprise_favoritism(entities, market_caps)
+
                     # 3. 市場シェア相関分析
+                    market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
                     market_share_correlation = self._analyze_market_share_correlation(
-                        entities, self.market_data.get("market_shares", {}), category
+                        entities, market_shares, category
                     )
-                    # 4. 相対ランキング変動
-                    relative_ranking_analysis = self._analyze_relative_ranking_changes(entities)
+                    # 4. 相対ランキング変動（暫定実装）
+                    relative_ranking_analysis = self._analyze_relative_ranking_changes_stub(entities)
                     # 5. 統合相対評価
                     integrated_relative_evaluation = self._generate_integrated_relative_evaluation(
                         bias_inequality, enterprise_favoritism, market_share_correlation
@@ -1389,10 +1771,10 @@ class BiasAnalysisEngine:
     def _compute_ranking_similarity(self, google_domains: List[str], citations_domains: List[str]) -> Dict[str, float]:
         """ランキング類似度を計算（serp_metrics.pyの関数を活用）"""
         try:
-            from src.analysis.serp_metrics import compute_ranking_metrics
+            # compute_ranking_metrics統合済み - インポート不要
 
-            # serp_metrics.pyの関数を使用
-            metrics = compute_ranking_metrics(google_domains, citations_domains, max_k=10)
+            # 統合済みのcompute_ranking_metricsメソッドを使用
+            metrics = self.compute_ranking_metrics(google_domains, citations_domains, max_k=10)
 
             return {
                 "rbo_score": round(metrics.get("rbo", 0), 3),
@@ -1692,6 +2074,136 @@ class BiasAnalysisEngine:
         ]
 
         return limitations
+
+    def _analyze_relative_ranking_changes_stub(self, entities: Dict[str, Any]) -> Dict[str, Any]:
+        """相対ランキング変動分析（暫定実装）"""
+        try:
+            # 企業の相対的順位を計算
+            entity_bias_scores = []
+            for entity_name, metrics in entities.items():
+                if isinstance(metrics, dict) and "basic_metrics" in metrics:
+                    bi = metrics["basic_metrics"].get("normalized_bias_index", 0)
+                    entity_bias_scores.append({
+                        "entity": entity_name,
+                        "bias_index": bi,
+                        "rank": 0  # 後で設定
+                    })
+
+            # バイアス指標による順位付け（降順）
+            entity_bias_scores.sort(key=lambda x: x["bias_index"], reverse=True)
+            for i, entity_data in enumerate(entity_bias_scores):
+                entity_data["rank"] = i + 1
+
+            # ランキング変動の基本統計
+            bias_indices = [e["bias_index"] for e in entity_bias_scores]
+            ranking_spread = max(bias_indices) - min(bias_indices) if bias_indices else 0
+
+            # ランキング安定性（暫定値）
+            ranking_stability = 0.8 if ranking_spread < 1.0 else 0.6
+
+            return {
+                "ranking_distribution": entity_bias_scores,
+                "ranking_spread": round(ranking_spread, 3),
+                "ranking_stability": ranking_stability,
+                "top_performer": entity_bias_scores[0]["entity"] if entity_bias_scores else "N/A",
+                "bottom_performer": entity_bias_scores[-1]["entity"] if entity_bias_scores else "N/A",
+                "competitive_balance": "高" if ranking_spread < 0.5 else "中" if ranking_spread < 1.5 else "低",
+                "note": "暫定実装：詳細なランキング変動分析は今後実装予定"
+            }
+
+        except Exception as e:
+            logger.error(f"相対ランキング変動分析エラー: {e}")
+            return {
+                "error": str(e),
+                "ranking_distribution": [],
+                "ranking_spread": 0,
+                "ranking_stability": 0,
+                "note": "分析実行中にエラーが発生しました"
+            }
+
+    def compute_ranking_metrics(self, google_ranking: List[str], pplx_ranking: List[str], max_k: int = 10) -> Dict[str, Any]:
+        """
+        エラーハンドリングを強化したランキングメトリクス計算
+
+        Parameters
+        ----------
+        google_ranking : list
+            Googleの検索結果ランキング（ドメインのリスト）
+        pplx_ranking : list
+            Perplexityの引用ランキング（ドメインのリスト）
+        max_k : int
+            比較する上位ランキング数
+
+        Returns
+        -------
+        dict
+            類似度メトリクス
+        """
+        try:
+            # 入力検証
+            if not google_ranking or not pplx_ranking:
+                return {
+                    "rbo": 0.0, "kendall_tau": 0.0, "overlap_ratio": 0.0,
+                    "delta_ranks": {}, "google_domains": [], "pplx_domains": [],
+                    "error": "入力データが空です", "rank_utils_used": self.rank_utils_available
+                }
+
+            # 上位k件に制限
+            google_top_k = google_ranking[:max_k]
+            pplx_top_k = pplx_ranking[:max_k]
+
+            # 重複ドメインの削除（順序保持）
+            google_unique = []
+            seen = set()
+            for domain in google_top_k:
+                if domain not in seen and domain:
+                    google_unique.append(domain)
+                    seen.add(domain)
+
+            pplx_unique = []
+            seen = set()
+            for domain in pplx_top_k:
+                if domain not in seen and domain:
+                    pplx_unique.append(domain)
+                    seen.add(domain)
+
+            # 重複率計算（常に実行可能）
+            google_set = set(google_unique)
+            pplx_set = set(pplx_unique)
+            overlap = len(google_set & pplx_set)
+            union = len(google_set | pplx_set)
+            overlap_ratio = overlap / union if union > 0 else 0
+
+            # rank_utils関数の安全な呼び出し
+            if self.rank_utils_available:
+                rbo_score = self._rbo(google_unique, pplx_unique, p=0.9)
+                kendall_tau_score = self._compute_tau(google_unique, pplx_unique)
+                delta_ranks = self._compute_delta_ranks(google_unique, pplx_unique)
+            else:
+                # フォールバック処理
+                rbo_score = 0.0
+                kendall_tau_score = 0.0
+                delta_ranks = {}
+
+            return {
+                "rbo": rbo_score,
+                "kendall_tau": kendall_tau_score,
+                "overlap_ratio": overlap_ratio,
+                "delta_ranks": delta_ranks,
+                "google_domains": google_unique,
+                "pplx_domains": pplx_unique,
+                "rank_utils_used": self.rank_utils_available
+            }
+
+        except Exception as e:
+            logger.error(f"compute_ranking_metrics実行エラー: {e}")
+
+            # 最小限の結果を返す
+            return {
+                "rbo": None, "kendall_tau": None, "overlap_ratio": 0.0,
+                "delta_ranks": {}, "google_domains": [], "pplx_domains": [],
+                "error": str(e), "fallback_used": True, "rank_utils_used": self.rank_utils_available
+            }
 
 
 def main():

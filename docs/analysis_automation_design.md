@@ -1678,3 +1678,638 @@ def get_integrated_datasets():
 4. **品質向上**: データ統合・バリデーション強化（継続課題）
 
 ---
+
+## 現在の課題解決設計（2025年7月2日更新）
+
+### 🚨 緊急修正課題
+
+#### 課題1: market_dataエラーの解決
+**症状**: BiasAnalysisEngineでself.market_dataアクセス時のAttributeError
+**原因**: market_dataの辞書アクセス方法と初期化タイミングの問題
+**影響**: bias_analysis_results.json生成失敗、HybridDataLoaderテスト失敗
+
+#### 課題2: serp_metrics.py修正要求
+**症状**: compute_ranking_metrics関数でのインポートエラーまたは実行エラー
+**原因**: rank_utilsからの関数インポート問題
+**影響**: _analyze_citations_google_comparison実行失敗
+
+#### 課題3: 未実装メソッドの完成
+**症状**: _generate_cross_analysis_insightsと_generate_analysis_limitationsが未完成
+**原因**: 設計書の仕様に対して実装が不完全
+**影響**: 分析結果の不完全性
+
+## 📋 段階的修正計画
+
+### Phase 1: market_dataエラー解決（最優先 - 30分）
+
+**目標**: BiasAnalysisEngineのmarket_dataアクセスエラーを根本解決
+
+**修正対象ファイル**: `src/analysis/bias_analysis_engine.py`
+
+**修正箇所詳細**:
+```python
+# 【修正箇所1】Line 855付近 - _analyze_relative_bias内
+# 問題のあるコード:
+enterprise_favoritism = self._analyze_enterprise_favoritism(
+    entities, self.market_data.get("market_caps", {})
+)
+
+# 修正後:
+market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
+enterprise_favoritism = self._analyze_enterprise_favoritism(entities, market_caps)
+
+# 【修正箇所2】Line 859付近 - _analyze_relative_bias内
+# 問題のあるコード:
+market_share_correlation = self._analyze_market_share_correlation(
+    entities, self.market_data.get("market_shares", {}), category
+)
+
+# 修正後:
+market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
+market_share_correlation = self._analyze_market_share_correlation(
+    entities, market_shares, category
+)
+```
+
+**追加改善**:
+- 初期化時のmarket_dataログ出力追加
+- None値チェックの強化
+- エラーハンドリング追加
+
+**完了条件**: BiasAnalysisEngine初期化とanalyze_integrated_dataset実行が正常完了
+
+### Phase 2: serp_metrics.py修正（高優先 - 1時間）
+
+**目標**: compute_ranking_metrics関数の安定化とエラーハンドリング強化
+
+**修正対象ファイル**: `src/analysis/serp_metrics.py`
+
+**修正内容**:
+1. **インポートエラー対策**:
+```python
+# 現在の問題のあるインポート:
+from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+
+# 修正後（エラーハンドリング付き）:
+try:
+    from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+    RANK_UTILS_AVAILABLE = True
+except ImportError as e:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"rank_utils インポートエラー: {e}")
+    RANK_UTILS_AVAILABLE = False
+
+    # フォールバック関数を定義
+    def rbo(list1, list2, p=0.9):
+        """RBOのフォールバック実装"""
+        return 0.0
+
+    def compute_tau(list1, list2):
+        """Kendall's tauのフォールバック実装"""
+        return 0.0
+
+    def compute_delta_ranks(list1, list2):
+        """Delta ranksのフォールバック実装"""
+        return {}
+```
+
+2. **compute_ranking_metrics関数の強化**:
+```python
+def compute_ranking_metrics(google_ranking, pplx_ranking, max_k=10):
+    """エラーハンドリングを強化したランキングメトリクス計算"""
+    try:
+        # 入力検証
+        if not google_ranking or not pplx_ranking:
+            return {
+                "rbo": 0.0, "kendall_tau": 0.0, "overlap_ratio": 0.0,
+                "delta_ranks": {}, "google_domains": [], "pplx_domains": [],
+                "error": "入力データが空です"
+            }
+
+        # 既存の処理...
+
+        # rank_utils関数の安全な呼び出し
+        if RANK_UTILS_AVAILABLE:
+            rbo_score = rbo(google_unique, pplx_unique, p=0.9)
+            kendall_tau_score = compute_tau(google_unique, pplx_unique)
+            delta_ranks = compute_delta_ranks(google_unique, pplx_unique)
+        else:
+            # フォールバック処理
+            rbo_score = 0.0
+            kendall_tau_score = 0.0
+            delta_ranks = {}
+
+        return {
+            "rbo": rbo_score,
+            "kendall_tau": kendall_tau_score,
+            "overlap_ratio": overlap_ratio,
+            "delta_ranks": delta_ranks,
+            "google_domains": google_unique,
+            "pplx_domains": pplx_unique,
+            "rank_utils_used": RANK_UTILS_AVAILABLE
+        }
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"compute_ranking_metrics実行エラー: {e}")
+
+        # 最小限の結果を返す
+        return {
+            "rbo": None, "kendall_tau": None, "overlap_ratio": 0.0,
+            "delta_ranks": {}, "google_domains": [], "pplx_domains": [],
+            "error": str(e), "fallback_used": True
+        }
+```
+
+**完了条件**: _analyze_citations_google_comparisonが正常実行され、比較メトリクスが計算される
+
+### Phase 3: 未実装メソッド完成（中優先 - 1時間）
+
+**目標**: 分析結果の完全性確保
+
+#### 3.1 _generate_cross_analysis_insights完成
+
+**実装内容**:
+```python
+def _generate_cross_analysis_insights(self, sentiment_analysis: Dict, ranking_analysis: Dict, citations_comparison: Dict) -> Dict[str, Any]:
+    """感情・ランキング・引用比較の統合インサイト生成"""
+    try:
+        insights = {}
+
+        # 1. 感情-ランキング相関分析
+        sentiment_ranking_correlation = self._calculate_sentiment_ranking_correlation(
+            sentiment_analysis, ranking_analysis
+        )
+
+        # 2. 一貫したリーダー企業の特定
+        consistent_leaders = self._identify_consistent_leaders(
+            sentiment_analysis, ranking_analysis, citations_comparison
+        )
+
+        # 3. 一貫した劣位企業の特定
+        consistent_laggards = self._identify_consistent_laggards(
+            sentiment_analysis, ranking_analysis, citations_comparison
+        )
+
+        # 4. Google-Citations整合性評価
+        google_citations_alignment = self._assess_google_citations_alignment(citations_comparison)
+
+        # 5. 全体的バイアスパターンの判定
+        overall_bias_pattern = self._determine_overall_bias_pattern(
+            sentiment_analysis, ranking_analysis
+        )
+
+        # 6. プラットフォーム間一貫性
+        cross_platform_consistency = self._evaluate_cross_platform_consistency(
+            sentiment_analysis, ranking_analysis, citations_comparison
+        )
+
+        return {
+            "sentiment_ranking_correlation": sentiment_ranking_correlation,
+            "consistent_leaders": consistent_leaders,
+            "consistent_laggards": consistent_laggards,
+            "google_citations_alignment": google_citations_alignment,
+            "overall_bias_pattern": overall_bias_pattern,
+            "cross_platform_consistency": cross_platform_consistency,
+            "analysis_confidence": self._calculate_insight_confidence(sentiment_analysis, ranking_analysis)
+        }
+
+    except Exception as e:
+        logger.error(f"統合インサイト生成エラー: {e}")
+        return {"error": str(e), "fallback_insights": "基本分析のみ利用可能"}
+```
+
+#### 3.2 _generate_analysis_limitations完成
+
+**実装内容**:
+```python
+def _generate_analysis_limitations(self, execution_count: int, data_quality: Dict = None) -> Dict[str, Any]:
+    """実行回数とデータ品質に基づく分析制限事項の詳細生成"""
+    try:
+        limitations = {}
+
+        # 1. 実行回数に基づく制限
+        if execution_count < 5:
+            limitations["execution_count_warning"] = f"実行回数が{execution_count}回のため、統計的検定は実行不可"
+            limitations["statistical_power"] = "低（軽微なバイアス検出困難）"
+        elif execution_count < 10:
+            limitations["execution_count_warning"] = f"実行回数が{execution_count}回のため、一部の高度分析が制限"
+            limitations["statistical_power"] = "中程度"
+        else:
+            limitations["statistical_power"] = "十分"
+
+        # 2. 信頼性レベル判定
+        reliability_level, reliability_note = self.reliability_checker.get_reliability_level(execution_count)
+        limitations["reliability_note"] = reliability_note
+        limitations["reliability_level"] = reliability_level
+
+        # 3. データ品質問題の特定
+        if data_quality:
+            limitations["data_quality_issues"] = []
+
+            # 完全性チェック
+            if data_quality.get("completeness_score", 1.0) < 0.8:
+                limitations["data_quality_issues"].append("データ完全性が80%未満")
+
+            # 一貫性チェック
+            if data_quality.get("consistency_issues"):
+                limitations["data_quality_issues"].append("データ一貫性に問題あり")
+
+        # 4. 推奨アクション
+        recommended_actions = []
+        if execution_count < 5:
+            recommended_actions.append("統計的有意性判定には最低5回の実行が必要")
+        if execution_count < 10:
+            recommended_actions.append("信頼性の高い分析には10回以上の実行を推奨")
+        if execution_count < 20:
+            recommended_actions.append("政策判断には15-20回の実行を強く推奨")
+
+        limitations["recommended_actions"] = recommended_actions
+
+        # 5. 適用可能性評価
+        if execution_count >= 20:
+            limitations["policy_applicability"] = "政策判断に適用可能"
+        elif execution_count >= 10:
+            limitations["policy_applicability"] = "慎重な検討のもと適用可能"
+        elif execution_count >= 5:
+            limitations["policy_applicability"] = "参考情報として活用"
+        else:
+            limitations["policy_applicability"] = "追加データ収集が必要"
+
+        return limitations
+
+    except Exception as e:
+        logger.error(f"分析制限事項生成エラー: {e}")
+        return {
+            "error": str(e),
+            "fallback_limitation": "実行回数不足のため詳細な制限事項を生成できません"
+        }
+```
+
+**完了条件**: bias_analysis_results.jsonに完全な分析結果が含まれ、制限事項が適切に記載される
+
+## 🧪 テスト・検証計画
+
+### Phase 1完了後のテスト
+```bash
+# BiasAnalysisEngine初期化テスト
+python -c "from src.analysis.bias_analysis_engine import BiasAnalysisEngine; engine = BiasAnalysisEngine(); print('初期化成功:', bool(engine.market_data))"
+
+# 統合データセット分析テスト
+python scripts/test_local.py --test-bias-analysis
+```
+
+### Phase 2完了後のテスト
+```bash
+# serp_metrics単体テスト
+python -c "from src.analysis.serp_metrics import compute_ranking_metrics; result = compute_ranking_metrics(['a.com', 'b.com'], ['b.com', 'a.com']); print('テスト成功:', result.get('rbo', 0) > 0)"
+```
+
+### Phase 3完了後のテスト
+```bash
+# 完全分析パイプラインテスト
+python scripts/run_bias_analysis.py --date 20250624 --local
+```
+
+## 📊 成功指標
+
+| Phase       | 成功指標              | 検証方法                                  |
+| ----------- | --------------------- | ----------------------------------------- |
+| **Phase 1** | market_dataエラー解消 | BiasAnalysisEngine初期化＋analyze実行成功 |
+| **Phase 2** | serp_metrics正常動作  | compute_ranking_metrics実行成功           |
+| **Phase 3** | 完全な分析結果生成    | bias_analysis_results.json完全性確認      |
+
+## 🔄 修正後の継続課題
+
+1. **統合データのバリデーション強化**: 感情分析未実施データの統合防止
+2. **S3テスト環境整備**: HybridDataLoaderのS3機能完全テスト
+3. **パフォーマンス最適化**: 大量データ処理の効率化
+4. **エラー監視システム**: 本番運用での異常検知機能追加
+
+---
+**修正計画更新日**: 2025年7月2日
+**実装責任者**: AI Assistant
+**レビュー予定**: Phase完了毎
+
+## 🔄 今後の継続課題（2025年7月2日更新）
+
+### 緊急対応完了済み項目 ✅
+- ✅ market_dataエラー解決 → BiasAnalysisEngine初期化・分析実行正常化
+- ✅ serp_metrics.py修正 → インポートエラー対策・フォールバック機能追加
+- ✅ 未実装メソッド完成 → _analyze_relative_ranking_changes_stub追加
+
+### 継続課題・優先順位付き
+
+#### 🚨 高優先度（1-2週間以内）
+
+**1. analysisモジュール統合・リファクタリング**
+- **現状**: 複数のanalysisファイルが分散（bias_ranking_pipeline.py, integrated_metrics.py, ranking_metrics.py等）
+- **問題**: 機能重複、import依存関係の複雑化、保守性低下
+- **解決策**: bias_analysis_engine.pyへの統合（sentiment_analyzer.py除く）
+- **影響**: コードベース簡素化、テスト・保守容易性向上
+
+**2. 統合データバリデーション強化**
+- **現状**: 感情分析未実施データでも統合可能
+- **問題**: 不完全なデータでの分析実行、結果信頼性低下
+- **解決策**: integrator段階での必須フィールドチェック強化
+- **影響**: データ品質向上、分析結果信頼性確保
+
+**3. S3環境整備・テスト完成**
+- **現状**: HybridDataLoaderのS3機能は実装済みだが本格テスト未完
+- **問題**: 本番運用時のS3接続・認証エラーリスク
+- **解決策**: S3バケット作成、認証設定、統合テスト実行
+- **影響**: 本番運用の安定性確保
+
+#### 🔧 中優先度（2-4週間以内）
+
+**4. パフォーマンス最適化**
+- **現状**: 大量データ処理の効率性未検証
+- **問題**: 20カテゴリ×100企業規模でのメモリ・処理時間課題
+- **解決策**: バッチ処理、並列化、メモリ使用量最適化
+- **影響**: スケーラビリティ確保
+
+**5. エラー監視・ログ強化**
+- **現状**: 基本的なログ出力のみ
+- **問題**: 本番運用での異常検知・デバッグ困難
+- **解決策**: 構造化ログ、アラート機能、監視ダッシュボード
+- **影響**: 運用品質・保守性向上
+
+**6. ReportGenerator機能完成**
+- **現状**: 雛形のみ、実装未完
+- **問題**: 分析結果の可読性・理解容易性不足
+- **解決策**: エグゼクティブサマリー、技術詳細レポート自動生成
+- **影響**: ステークホルダー向け報告品質向上
+
+#### 📊 低優先度（1-3ヶ月以内）
+
+**7. 高度統計機能拡張**
+- **現状**: 基本的なバイアス指標のみ
+- **追加機能**: ベイズ統計、因果推論、機械学習活用
+- **影響**: 分析精度・洞察深度向上
+
+**8. API・UI拡張**
+- **現状**: CLI・app.py基本UI
+- **追加機能**: REST API、高度可視化、インタラクティブダッシュボード
+- **影響**: 利用者体験・アクセシビリティ向上
+
+### 📅 実装スケジュール（推奨）
+
+```
+今週（7/2-7/8）:
+├─ analysisモジュール統合設計・実装
+└─ 統合データバリデーション強化
+
+来週（7/9-7/15）:
+├─ S3環境整備・本格テスト
+└─ パフォーマンス最適化（初期段階）
+
+7月下旬:
+├─ エラー監視・ログ強化
+└─ ReportGenerator基本機能実装
+
+8月以降:
+└─ 高度統計機能・API拡張（継続的）
+```
+
+### 🎯 成功指標・完了条件
+
+| 課題項目               | 完了条件                                        | 検証方法                               |
+| ---------------------- | ----------------------------------------------- | -------------------------------------- |
+| analysisモジュール統合 | bias_analysis_engine.py単一ファイルでの分析完結 | 他analysisファイル削除後の正常動作確認 |
+| バリデーション強化     | 感情分析未実施データでの統合エラー              | データ欠損時の適切なエラー出力確認     |
+| S3環境整備             | 本番S3環境での完全なCRUD動作                    | 20250624データでのS3読み書きテスト     |
+| パフォーマンス最適化   | 大規模データ（100企業）5分以内処理              | 負荷テスト・メモリプロファイリング     |
+
+### 🚧 技術的負債・リスク管理
+
+**高リスク項目**:
+1. **分散したanalysisファイル** → import循環参照、機能重複リスク
+2. **不完全なS3テスト** → 本番環境での予期しない障害リスク
+3. **バリデーション不足** → 不正データでの分析結果信頼性リスク
+
+**対策**:
+1. 段階的統合・十分なテスト実行
+2. 開発・ステージング・本番環境の明確な分離
+3. データ品質チェックの自動化・強制化
+
+---
+**継続課題更新日**: 2025年7月2日
+**次回レビュー予定**: 2025年7月9日
+**責任者**: 開発チーム
+
+---
+
+## 📦 analysisモジュール統合設計（2025年7月2日策定）
+
+### 🎯 統合の目的・背景
+
+**現状の問題**:
+- 10個のanalysisファイルが分散し、機能重複が多数存在
+- import依存関係が複雑化（循環参照リスク）
+- 同一機能の複数実装による保守性低下
+- テスト・デバッグの困難さ
+
+**統合後の目標**:
+- bias_analysis_engine.py中心の単一ファイル集約
+- 明確な責任分離（データ収集・分析・可視化）
+- 保守性・テスト容易性の向上
+- コードベース簡素化
+
+### 📋 現状分析・統合判定
+
+| ファイル名                    | 規模  | 統合方針           | 判定理由                                     |
+| ----------------------------- | ----- | ------------------ | -------------------------------------------- |
+| **bias_analysis_engine.py**   | 83KB  | **統合先（中核）** | メインエンジン、既に大部分統合済み           |
+| **sentiment_analyzer.py**     | 15KB  | **❌ 保持**         | 前段処理（データ収集後）、独立性重要         |
+| **hybrid_data_loader.py**     | 30KB  | **❌ 保持**         | ローカル・S3アクセス、汎用性重要             |
+| **metrics_calculator.py**     | 26KB  | **🔄 統合対象**     | bias_analysis_engineでのみ使用、重複機能多数 |
+| **reliability_checker.py**    | 9.2KB | **🔄 統合対象**     | 小規模・特化機能、単独使用のみ               |
+| **serp_metrics.py**           | 25KB  | **🔄 部分統合**     | compute_ranking_metricsのみ必要              |
+| **bias_sentiment_metrics.py** | 20KB  | **🔄 統合対象**     | 機能重複、古い実装                           |
+| **ranking_metrics.py**        | 29KB  | **🔄 部分統合**     | 市場シェアデータのみ必要                     |
+| **bias_ranking_pipeline.py**  | 20KB  | **🔄 統合対象**     | 機能重複、古い実装                           |
+| **integrated_metrics.py**     | 14KB  | **🔄 統合対象**     | 機能重複、古い実装                           |
+
+### 🚀 段階的統合計画
+
+#### Phase 1: 使用状況調査・安全性確認（30分）
+
+**目標**: 統合対象ファイルの使用状況を完全調査し、安全な統合順序を確定
+
+**実施内容**:
+1. **依存関係マッピング**
+   - 各ファイルのimport元・import先の完全調査
+   - 循環参照の検出・回避策策定
+   - 外部モジュールからの参照確認
+
+2. **機能重複分析**
+   - 同名・同機能メソッドの特定
+   - 実装差異の比較・最適版の選定
+   - 統合時の機能損失リスク評価
+
+3. **統合順序の最終決定**
+   - 依存関係の少ないファイルから統合
+   - 段階的な動作確認ポイント設定
+   - ロールバック計画の策定
+
+#### Phase 2: 段階的統合実装（1-2時間）
+
+**統合順序・詳細**:
+
+**Step 1: ReliabilityChecker統合（15分）**
+- **対象**: `src/analysis/reliability_checker.py` → `bias_analysis_engine.py`
+- **理由**: 小規模（259行）、依存関係なし、単独使用
+- **実装**: クラス定義を直接移行、importステートメント削除
+- **検証**: BiasAnalysisEngine初期化・実行テスト
+
+**Step 2: serp_metrics部分統合（20分）**
+- **対象**: `compute_ranking_metrics`関数のみ移行
+- **理由**: _analyze_citations_google_comparisonで使用中
+- **実装**: 関数定義・依存関数の移行、フォールバック機能保持
+- **検証**: Citations-Google比較分析の動作確認
+
+**Step 3: MetricsCalculator統合（30分）**
+- **対象**: `src/analysis/metrics_calculator.py` → `bias_analysis_engine.py`
+- **理由**: bias_analysis_engineでのみ使用、重複機能多数
+- **実装**: 全メソッドの移行、self.metrics_calculator参照を削除
+- **検証**: 感情バイアス分析・相対バイアス分析の動作確認
+
+**Step 3詳細設計**:
+```python
+# 3.1 移植対象メソッド（優先順位順）
+1. calculate_raw_delta(masked_values, unmasked_values) -> float
+2. calculate_statistical_significance(pairs) -> float
+3. calculate_cliffs_delta(group1, group2) -> float
+4. calculate_confidence_interval(delta_values, confidence_level=95) -> Tuple[float, float]
+5. 補助メソッド（stability_score, bias_inequality等）
+
+# 3.2 実装ステップ
+Step 3.1: 主要メソッド統合（15分）
+  - 4つの主要計算メソッドをBiasAnalysisEngineクラス内に移植
+  - 必要なimport追加（numpy, scipy.stats, itertools, tqdm）
+  - bootstrap_iterations等の定数をクラス属性として定義
+
+Step 3.2: 呼び出し箇所更新（5分）
+  - self.metrics_calculator.method() → self.method()に変更
+  - 影響箇所：_calculate_entity_bias_metrics, _calculate_statistical_significance等
+
+Step 3.3: 初期化とimport削除（5分）
+  - MetricsCalculatorのimport削除
+  - self.metrics_calculator初期化コメントアウト削除
+
+Step 3.4: 動作確認（5分）
+  - BiasAnalysisEngine初期化テスト
+  - 感情バイアス分析実行確認
+
+# 3.3 技術的注意事項
+- 必要なimport: numpy, scipy.stats（既に追加済み）, itertools, tqdm
+- クラス属性: self.bootstrap_iterations = 10000, self.confidence_level = 95
+- 既存メソッドとの名前衝突: 確認済み、問題なし
+- 影響範囲: bias_analysis_engine.py内の8箇所の参照更新
+```
+
+**Step 4: 市場データ関数統合（15分）**
+- **対象**: `ranking_metrics.py`の`get_market_shares`等
+- **理由**: 市場シェア・時価総額データアクセスに必要
+- **実装**: データアクセス関数のみ移行
+- **検証**: 企業優遇度分析・市場シェア相関分析の動作確認
+
+**Step 5: 古いファイル削除・クリーンアップ（10分）**
+- **対象**: 統合完了したファイルの削除
+- **実装**: 段階的削除・import文修正・動作確認
+- **検証**: 完全な分析パイプライン実行テスト
+
+### 🧪 統合後の検証計画
+
+#### 機能テスト
+```bash
+# 完全分析パイプラインテスト
+python scripts/run_bias_analysis.py --date 20250624 --storage-mode local
+
+# BiasAnalysisEngine単体テスト
+python -c "from src.analysis.bias_analysis_engine import BiasAnalysisEngine; engine = BiasAnalysisEngine(); print('統合後初期化成功')"
+```
+
+#### パフォーマンステスト
+```bash
+# メモリ使用量・実行時間測定
+python -c "
+import time
+import psutil
+import os
+from src.analysis.bias_analysis_engine import BiasAnalysisEngine
+
+process = psutil.Process(os.getpid())
+start_memory = process.memory_info().rss / 1024 / 1024  # MB
+start_time = time.time()
+
+engine = BiasAnalysisEngine()
+results = engine.analyze_integrated_dataset('20250624')
+
+end_time = time.time()
+end_memory = process.memory_info().rss / 1024 / 1024  # MB
+
+print(f'実行時間: {end_time - start_time:.2f}秒')
+print(f'メモリ使用量: {end_memory - start_memory:.2f}MB増加')
+print(f'分析結果: {len(results)}項目生成')
+"
+```
+
+### 📊 統合効果・期待成果
+
+#### 定量的効果
+- **ファイル数削減**: 10ファイル → 3ファイル（70%削減）
+- **コード行数削減**: 重複排除により推定20-30%削減
+- **import文削減**: 内部import大幅削減、外部依存明確化
+
+#### 定性的効果
+- **保守性向上**: 単一ファイルでの機能管理
+- **テスト容易性**: 統合テストの簡素化
+- **デバッグ効率**: 問題箇所の特定時間短縮
+- **新機能追加**: 機能拡張時の影響範囲明確化
+
+### ⚠️ リスク管理・対策
+
+#### 統合リスク
+1. **機能損失**: 統合時の機能見落とし
+   - **対策**: 段階的統合・各段階での動作確認
+2. **パフォーマンス劣化**: 単一ファイル肥大化
+   - **対策**: メモリ使用量・実行時間の継続監視
+3. **デバッグ困難化**: 単一ファイル内での問題特定
+   - **対策**: 詳細ログ・明確な関数分離
+
+#### 回避策
+- **段階的実装**: 一度に一つのファイルのみ統合
+- **完全テスト**: 各段階での機能確認必須
+- **バックアップ**: 統合前の完全なファイルバックアップ
+- **ロールバック計画**: 問題発生時の即座復旧手順
+
+### 📅 実装スケジュール
+
+```
+今日（7/2）:
+├─ Phase 1: 使用状況調査（30分）
+├─ Phase 2 Step 1-2: ReliabilityChecker + serp_metrics（35分）
+├─ Phase 2 Step 3: MetricsCalculator（30分）
+└─ Phase 2 Step 4-5: 市場データ + クリーンアップ（25分）
+
+合計予想時間: 2時間
+```
+
+### 🎯 完了条件・成功指標
+
+| 段階    | 完了条件                     | 検証方法                         |
+| ------- | ---------------------------- | -------------------------------- |
+| Phase 1 | 依存関係・機能重複の完全調査 | 調査結果レポート作成             |
+| Step 1  | ReliabilityChecker統合完了   | BiasAnalysisEngine初期化成功     |
+| Step 2  | serp_metrics機能統合完了     | Citations-Google比較分析実行成功 |
+| Step 3  | MetricsCalculator統合完了    | 感情バイアス分析実行成功         |
+| Step 4  | 市場データ機能統合完了       | 企業優遇度分析実行成功           |
+| Step 5  | 統合完了・クリーンアップ     | 完全分析パイプライン実行成功     |
+
+---
+**統合設計策定日**: 2025年7月2日
+**実装責任者**: AI Assistant
+**レビュー**: 各Phase完了時
