@@ -45,6 +45,11 @@ on:
         required: false
         default: true
         type: boolean
+      run_visualization:
+        description: '分析結果可視化画像を生成'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   run-data-collection-analysis:
@@ -211,6 +216,15 @@ jobs:
         run: |
           echo "開始: 統合バイアス分析 ($(date))" | tee -a logs/execution.log
           python scripts/run_bias_analysis.py --date ${{ env.TODAY_DATE }} --verbose 2>&1 | tee -a logs/bias_analysis.log
+
+        continue-on-error: true
+
+      # 可視化画像生成ステップ
+      - name: Generate analysis visualizations
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.run_visualization == 'true' }}
+        run: |
+          echo "開始: 分析結果可視化 ($(date))" | tee -a logs/execution.log
+          python scripts/generate_analysis_visuals.py --date ${{ env.TODAY_DATE }} --verbose 2>&1 | tee -a logs/visualization.log
 
         continue-on-error: true
 

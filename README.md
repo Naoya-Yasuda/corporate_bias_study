@@ -8,6 +8,18 @@
 
 AI検索サービス（ChatGPT、Perplexity、Copilotなど）が提示する情報に**企業優遇バイアス**が存在しうるのかを検証し、その**市場競争への影響**を**定量的指標**で可視化・評価する学術・実装プロジェクトです。検索エンジンではなく*生成AIベースの検索*にフォーカスする点が新規性です。
 
+### 🎯 2段階実行アプローチ ⭐ **NEW**
+
+効率的なバイアス分析を実現する新しいアーキテクチャを導入しました：
+
+**Stage 1: 高速データ分析（1-3秒）** → **Stage 2: 高品質可視化（10-30秒）**
+
+- **分離設計**: 分析処理と画像生成を分離し、各段階を最適化
+- **柔軟性**: JSON中間形式により多様な可視化パターンに対応
+- **効率性**: 必要に応じてStage 1のみ・Stage 2のみの実行が可能
+
+詳細は [`docs/visualization_architecture.md`](docs/visualization_architecture.md) を参照してください。
+
 ## 概要
 Google検索とPerplexity API等の結果を比較し、企業バイアスと経済的影響を分析するためのパイプラインです。
 
@@ -111,7 +123,13 @@ print('バイアス分析完了')
    - 信頼性レベル判定とメタデータ生成
    - ローカル・S3への分析結果保存
 
-5. **ログ・結果保存**:
+5. **可視化画像生成**: ⭐ **NEW**
+   - 分析結果からの高品質画像自動生成
+   - 5種類・15-50枚の詳細可視化
+   - 感情バイアス・ランキング・比較分析画像
+   - 統合ダッシュボード画像の作成
+
+6. **ログ・結果保存**:
    - CloudWatchにログアップロード
    - GitHubアーティファクトとして結果保存
 
@@ -119,7 +137,7 @@ print('バイアス分析完了')
 GitHub リポジトリの「Actions」タブから「AI Bias & Ranking Analysis (Weekly)」を選択し、以下のパラメータを設定して実行：
 
 - **API実行回数**: データ収集の実行回数（デフォルト: 15）
-- **各処理の実行選択**: 感情分析、ランキング、引用データ、統合バイアス分析等の個別実行制御
+- **各処理の実行選択**: 感情分析、ランキング、引用データ、統合バイアス分析、**可視化画像生成**等の個別実行制御
 
 #### エラーハンドリング
 - 各ステップは独立してエラー処理を行い、失敗しても後続処理を継続
@@ -128,16 +146,22 @@ GitHub リポジトリの「Actions」タブから「AI Bias & Ranking Analysis 
 - ログとアーティファクトは必ず保存される
 
 ### 主なオプション
-- `--query`: 分析する検索クエリ
-- `--market-share`: 市場シェアデータのJSONファイルパス
-- `--top-k`: 分析する検索結果の数（デフォルト: 10）
-- `--output`: 結果の出力ディレクトリ（デフォルト: results）
-- `--language`: 検索言語（デフォルト: en）
-- `--country`: 検索国（デフォルト: us）
-- `--perplexity-date`: 使用するPerplexityデータの日付（YYYYMMDD形式）
-- `--data-type`: 使用するPerplexityデータのタイプ（rankings または citations）
-- `--verbose`: 詳細な出力を表示
-- `--runs`: 実行回数（デフォルト: 1）
+
+#### 統合バイアス分析
+```bash
+python scripts/run_bias_analysis.py --date 20250624 --verbose --storage-mode auto
+```
+- `--date`: 分析対象日付（YYYYMMDD形式、必須）
+- `--storage-mode`: データアクセスモード（auto/local/s3）
+- `--verbose`: 詳細なログ出力を表示
+
+#### 可視化画像生成 ⭐ **NEW**
+```bash
+python scripts/generate_analysis_visuals.py --date 20250624 --verbose --storage-mode auto
+```
+- `--date`: 画像生成対象日付（YYYYMMDD形式、必須）
+- `--storage-mode`: 入力データアクセスモード（auto/local/s3）
+- `--verbose`: 詳細なログ出力を表示
 
 ### 統合データセット作成オプション
 - `--date`: 処理対象日付（YYYYMMDD形式、必須）
@@ -171,6 +195,13 @@ python src/analysis/bias_ranking_pipeline.py --perplexity-date YYYYMMDD --data-t
 - `corporate_bias_datasets/integrated/YYYYMMDD/bias_analysis_results.json`: BiasAnalysisEngineによる包括的バイアス分析結果
 - `corporate_bias_datasets/integrated/YYYYMMDD/analysis_metadata.json`: 分析メタデータ（信頼性レベル、実行回数等）
 - `corporate_bias_datasets/integrated/YYYYMMDD/quality_report.json`: 分析品質レポート（データ完全性、統計的カバレッジ等）
+
+### 可視化画像（corporate_bias_datasets/analysis_visuals/）⭐ **NEW**
+- `corporate_bias_datasets/analysis_visuals/YYYYMMDD/sentiment_bias/`: 感情バイアス画像（4-8枚/カテゴリ）
+- `corporate_bias_datasets/analysis_visuals/YYYYMMDD/ranking_analysis/`: ランキング分析画像（2-4枚/カテゴリ）
+- `corporate_bias_datasets/analysis_visuals/YYYYMMDD/citations_comparison/`: Citations比較画像（3-5枚/カテゴリ）
+- `corporate_bias_datasets/analysis_visuals/YYYYMMDD/relative_bias/`: 相対バイアス画像（4-6枚/カテゴリ）
+- `corporate_bias_datasets/analysis_visuals/YYYYMMDD/summary/`: 統合サマリー画像（1-2枚）
 
 ### レガシー分析結果（corporate_bias_datasets/analysis/）
 - `corporate_bias_datasets/analysis/YYYYMMDD/rank_comparison_*.csv`: ランキング比較の詳細データ
