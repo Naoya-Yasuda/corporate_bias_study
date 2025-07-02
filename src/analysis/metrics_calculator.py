@@ -515,6 +515,53 @@ class MetricsCalculator:
             "interpretation": interpretation
         }
 
+    def calculate_bias_inequality(self, bias_scores: List[float]) -> Dict[str, Any]:
+        """
+        カテゴリ内バイアス分布の不平等度（Gini係数・標準偏差・最大最小差）を計算
+
+        Args:
+            bias_scores (List[float]): カテゴリ内全企業のバイアス指標
+
+        Returns:
+            Dict[str, Any]: Gini係数、標準偏差、レンジ、解釈
+        """
+        import numpy as np
+        n = len(bias_scores)
+        if n == 0:
+            return {
+                "gini_coefficient": None,
+                "std_deviation": None,
+                "bias_range": None,
+                "interpretation": "データなし"
+            }
+        arr = np.array(bias_scores)
+        mean = np.mean(arr)
+        # Gini係数
+        if mean == 0:
+            gini = 0.0
+        else:
+            diff_sum = np.sum(np.abs(arr[:, None] - arr[None, :]))
+            gini = diff_sum / (2 * n * n * mean)
+        # 標準偏差
+        std = float(np.std(arr, ddof=1)) if n > 1 else 0.0
+        # 最大最小差
+        bias_range = float(np.max(arr) - np.min(arr)) if n > 0 else 0.0
+        # 解釈
+        if gini < 0.2:
+            interpretation = "平等"
+        elif gini < 0.4:
+            interpretation = "やや不平等"
+        elif gini < 0.6:
+            interpretation = "中程度の不平等度"
+        else:
+            interpretation = "強い不平等"
+        return {
+            "gini_coefficient": round(float(gini), 3),
+            "std_deviation": round(std, 3),
+            "bias_range": round(bias_range, 3),
+            "interpretation": interpretation
+        }
+
 
 def main():
     """テスト実行用メイン関数"""
