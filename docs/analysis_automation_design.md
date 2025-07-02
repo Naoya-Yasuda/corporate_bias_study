@@ -2210,11 +2210,35 @@ Step 3.4: 動作確認（5分）
 - 影響範囲: bias_analysis_engine.py内の8箇所の参照更新
 ```
 
-**Step 4: 市場データ関数統合（15分）**
+**Step 4: 市場データ関数統合（15分）** ✅**完了済み**
 - **対象**: `ranking_metrics.py`の`get_market_shares`等
 - **理由**: 市場シェア・時価総額データアクセスに必要
-- **実装**: データアクセス関数のみ移行
-- **検証**: 企業優遇度分析・市場シェア相関分析の動作確認
+- **実装**: ✅**既に実装済み** - BiasAnalysisEngine内に`_load_market_data()`実装
+- **検証**: ✅企業優遇度分析・市場シェア相関分析で正常動作確認
+
+**Step 4詳細確認結果**:
+```python
+# 既に実装済みの機能
+✅ self.market_data = self._load_market_data()  # 初期化時に読み込み
+✅ market_shares: 6カテゴリ正常読み込み
+✅ market_caps: 4カテゴリ正常読み込み
+✅ _analyze_enterprise_favoritism() で使用中
+✅ _analyze_market_share_correlation() で使用中
+
+# 注意: ranking_metrics.pyのget_market_shares()はapp.py用途で保持必要
+```
+
+**Step 7: 残り4ファイル統合・削除（30分）**
+- **対象**: bias_sentiment_metrics.py, ranking_metrics.py, bias_ranking_pipeline.py, integrated_metrics.py
+- **理由**: 外部参照なし or app.py大改修予定、機能重複多数
+- **実装**: 主要関数のみ選択統合、重複機能は統合済み機能を使用
+- **検証**: 各統合後の動作確認、最終完全分析パイプライン実行
+
+**Step 6: serp_metrics.py完全統合・削除（15分）**
+- **対象**: `src/analysis/serp_metrics.py` → `bias_analysis_engine.py`
+- **理由**: compute_ranking_metrics以外の12関数も統合、app.py大改修予定
+- **実装**: 全13関数統合、依存関係解決、フォールバック機能保持
+- **検証**: 引用分析・ランキング分析の動作確認
 
 **Step 5: 古いファイル削除・クリーンアップ（10分）**
 - **対象**: 統合完了したファイルの削除

@@ -25,7 +25,7 @@ import scipy.stats as stats
 import itertools
 from tqdm import trange
 
-# ReliabilityChecker統合済み - 削除予定
+# ReliabilityChecker統合済み（reliability_checker.py削除完了）
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import load_json
 from dotenv import load_dotenv
@@ -314,7 +314,7 @@ class BiasAnalysisEngine:
             logger.info(f"market_shares: {len(self.market_data.get('market_shares', {}))} カテゴリ")
             logger.info(f"market_caps: {len(self.market_data.get('market_caps', {}))} カテゴリ")
 
-    # MetricsCalculator統合: 主要計算メソッド
+    # MetricsCalculator統合済み（metrics_calculator.py削除完了）
     def calculate_raw_delta(self,
                           masked_values: List[float],
                           unmasked_values: List[float]) -> float:
@@ -332,7 +332,7 @@ class BiasAnalysisEngine:
         float
             Δ = mean(unmasked) - mean(masked)
         """
-        if not masked_values or not unmasked_values:
+        if len(masked_values) == 0 or len(unmasked_values) == 0:
             return 0.0
 
         masked_mean = np.mean(masked_values)
@@ -392,7 +392,7 @@ class BiasAnalysisEngine:
         float
             Cliff's Delta値 (-1 ≤ δ ≤ +1)
         """
-        if not group1 or not group2:
+        if len(group1) == 0 or len(group2) == 0:
             return 0.0
 
         m, n = len(group1), len(group2)
@@ -445,6 +445,342 @@ class BiasAnalysisEngine:
         ci_upper = np.percentile(bootstrap_means, upper_percentile)
 
         return float(ci_lower), float(ci_upper)
+
+    def apply_multiple_comparison_correction(self, p_values: list, method: str = 'fdr_bh', alpha: float = 0.05) -> dict:
+        """多重比較補正（Benjamini-Hochberg法等）を適用"""
+        if len(p_values) <= 1:
+            return {
+                "original_p_values": p_values,
+                "corrected_p_values": p_values,
+                "rejected": [False] * len(p_values),
+                "method": method,
+                "alpha": alpha
+            }
+        try:
+            from statsmodels.stats.multitest import multipletests
+            rejected, p_corrected, _, _ = multipletests(p_values, method=method, alpha=alpha)
+            return {
+                "original_p_values": p_values,
+                "corrected_p_values": list(p_corrected),
+                "rejected": list(rejected),
+                "method": method,
+                "alpha": alpha
+            }
+        except Exception as e:
+            return {
+                "original_p_values": p_values,
+                "corrected_p_values": p_values,
+                "rejected": [False] * len(p_values),
+                "method": method,
+                "alpha": alpha,
+                "error": str(e)
+            }
+
+    def calculate_stability_score(self, values: List[float]) -> Dict[str, Any]:
+        """安定性スコアを計算"""
+        if len(values) <= 1:
+            return {
+                "stability_score": 1.0,
+                "coefficient_of_variation": 0.0,
+                "reliability": "単一データ",
+                "interpretation": "データが1つのため安定性評価不可"
+            }
+
+        mean_val = np.mean(values)
+        std_val = np.std(values, ddof=1)
+
+        if mean_val == 0:
+            cv = 0.0
+            stability_score = 1.0
+        else:
+            cv = std_val / abs(mean_val)
+            stability_score = 1.0 / (1.0 + cv)
+
+        if stability_score >= 0.9:
+            reliability = "非常に高"
+            interpretation = "極めて安定した結果"
+        elif stability_score >= 0.8:
+            reliability = "高"
+            interpretation = "安定した結果"
+        elif stability_score >= 0.7:
+            reliability = "中程度"
+            interpretation = "やや安定した結果"
+        else:
+            reliability = "低"
+            interpretation = "不安定な結果"
+
+        return {
+            "stability_score": round(float(stability_score), 3),
+            "coefficient_of_variation": round(float(cv), 3),
+            "reliability": reliability,
+            "interpretation": interpretation
+        }
+
+    def calculate_severity_score(self, bi: float, cliffs_delta: float, p_value: float, stability_score: float) -> dict:
+        """バイアス重篤度スコア（Severity Score）を計算"""
+        abs_bi = abs(bi)
+        effect_weight = abs(cliffs_delta)
+        significance_weight = max(0, 1 - p_value) if p_value is not None else 0
+        stability_weight = stability_score if stability_score is not None else 0
+        severity = abs_bi * effect_weight * significance_weight * stability_weight
+        severity = min(severity, 10.0)
+
+        if severity >= 7.0:
+            interp = "非常に重篤"
+        elif severity >= 4.0:
+            interp = "重篤"
+        elif severity >= 2.0:
+            interp = "中程度の重篤度"
+        elif severity >= 0.5:
+            interp = "軽微"
+        else:
+            interp = "無視できる"
+
+        return {
+            "severity_score": round(severity, 3),
+            "components": {
+                "abs_bi": abs_bi,
+                "cliffs_delta": cliffs_delta,
+                "p_value": p_value,
+                "stability_score": stability_weight
+            },
+            "interpretation": interp
+        }
+
+    def calculate_category_stability(self, sentiment_values: Dict[str, List[float]]) -> Dict[str, Any]:
+        """カテゴリレベル安定性を計算（簡易版）"""
+        if not sentiment_values:
+            return {"error": "データなし"}
+
+        stability_scores = []
+        for entity, values in sentiment_values.items():
+            if isinstance(values, list) and len(values) >= 2:
+                stability = self.calculate_stability_score(values)
+                stability_scores.append(stability["stability_score"])
+
+        if not stability_scores:
+            return {"error": "計算可能なデータなし"}
+
+        avg_stability = np.mean(stability_scores)
+        return {
+            "average_stability": round(float(avg_stability), 3),
+            "entity_count": len(stability_scores),
+            "interpretation": "安定" if avg_stability >= 0.7 else "不安定"
+        }
+
+    def calculate_ranking_variation(self, masked_ranking: list, unmasked_ranking: list) -> dict:
+        """ランキング変動指標を計算（簡易版）"""
+        if not masked_ranking or not unmasked_ranking:
+            return {"error": "データ不足"}
+
+        try:
+            from scipy.stats import kendalltau
+            common_items = set(masked_ranking) & set(unmasked_ranking)
+            if len(common_items) < 2:
+                return {"kendall_tau": 0.0, "interpretation": "共通項目不足"}
+
+            masked_order = {item: i for i, item in enumerate(masked_ranking)}
+            unmasked_order = {item: i for i, item in enumerate(unmasked_ranking)}
+
+            masked_ranks = [masked_order.get(item, len(masked_ranking)) for item in common_items]
+            unmasked_ranks = [unmasked_order.get(item, len(unmasked_ranking)) for item in common_items]
+
+            tau, _ = kendalltau(masked_ranks, unmasked_ranks)
+
+            return {
+                "kendall_tau": round(float(tau) if not np.isnan(tau) else 0.0, 3),
+                "interpretation": "一貫" if tau > 0.8 else "変動あり"
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def calculate_bias_inequality(self, bias_indices: List[float]) -> Dict[str, Any]:
+        """バイアス不平等度を計算（簡易版）"""
+        if not bias_indices:
+            return {"error": "データなし"}
+
+        arr = np.array(bias_indices)
+        n = len(arr)
+
+        if n == 1:
+            return {
+                "gini_coefficient": 0.0,
+                "std_deviation": 0.0,
+                "bias_range": 0.0,
+                "interpretation": "単一データ"
+            }
+
+        # Gini係数計算
+        sorted_arr = np.sort(arr)
+        cumsum = np.cumsum(sorted_arr)
+        gini = (n + 1 - 2 * np.sum(cumsum) / cumsum[-1]) / n if cumsum[-1] != 0 else 0
+
+        std = float(np.std(arr, ddof=1))
+        bias_range = float(np.max(arr) - np.min(arr))
+
+        if gini < 0.2:
+            interpretation = "平等"
+        elif gini < 0.4:
+            interpretation = "やや不平等"
+        elif gini < 0.6:
+            interpretation = "中程度の不平等度"
+        else:
+            interpretation = "強い不平等"
+
+        return {
+            "gini_coefficient": round(float(gini), 3),
+            "std_deviation": round(std, 3),
+            "bias_range": round(bias_range, 3),
+            "interpretation": interpretation
+        }
+
+    # serp_metrics統合済み（serp_metrics.py削除予定）
+    def compute_content_metrics(self, search_detailed_results, top_k=10):
+        """検索の詳細結果から公式/非公式、ポジ/ネガ比率などを計算"""
+        from collections import defaultdict
+
+        results = search_detailed_results[:top_k]
+
+        # 公式/非公式、ポジ/ネガ結果の数
+        official_count = sum(1 for r in results if r.get("is_official") == "official")
+        negative_count = sum(1 for r in results if r.get("is_negative", False))
+
+        # 企業別の結果カウント
+        company_results = defaultdict(lambda: {"total": 0, "official": 0, "negative": 0})
+
+        for result in results:
+            company = result.get("company")
+            if company:
+                company_results[company]["total"] += 1
+                if result.get("is_official") == "official":
+                    company_results[company]["official"] += 1
+                if result.get("is_negative", False):
+                    company_results[company]["negative"] += 1
+
+        # 比率の計算
+        n_results = len(results)
+        metrics = {
+            "official_ratio": official_count / n_results if n_results > 0 else 0,
+            "negative_ratio": negative_count / n_results if n_results > 0 else 0,
+            "company_metrics": {}
+        }
+
+        for company, counts in company_results.items():
+            if counts["total"] > 0:
+                metrics["company_metrics"][company] = {
+                    "result_count": counts["total"],
+                    "official_ratio": counts["official"] / counts["total"],
+                    "negative_ratio": counts["negative"] / counts["total"]
+                }
+
+        return metrics
+
+    def compute_citation_metrics(self, pplx_data):
+        """Perplexityの引用データからメトリクスを計算（簡易版）"""
+        from collections import defaultdict
+
+        if not pplx_data:
+            return {"error": "データなし"}
+
+        # 基本統計
+        total_citations = 0
+        domain_stats = defaultdict(lambda: {"count": 0, "snippets": 0})
+
+        # entitiesベースのデータ処理
+        if isinstance(pplx_data, dict) and "entities" in pplx_data:
+            entities = pplx_data["entities"]
+            for entity_name, entity_data in entities.items():
+                if isinstance(entity_data, dict):
+                    citations = entity_data.get("official_results", []) + entity_data.get("reputation_results", [])
+                    for citation in citations:
+                        if isinstance(citation, dict) and "url" in citation:
+                            total_citations += 1
+                            try:
+                                from urllib.parse import urlparse
+                                domain = urlparse(citation["url"]).netloc
+                                domain_stats[domain]["count"] += 1
+                                if citation.get("snippet"):
+                                    domain_stats[domain]["snippets"] += 1
+                            except:
+                                pass
+
+        # ドメイン別統計
+        domain_counts = {domain: stats["count"] for domain, stats in domain_stats.items()}
+
+        return {
+            "total_citations": total_citations,
+            "unique_domains": len(domain_stats),
+            "domain_distribution": dict(sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)[:10]),
+            "average_citations_per_domain": total_citations / len(domain_stats) if domain_stats else 0
+        }
+
+    def extract_domains_from_citations(self, citations_data, subcategory):
+        """引用データからドメインを抽出（簡易版）"""
+        domains = []
+
+        if not citations_data or subcategory not in citations_data:
+            return domains
+
+        data = citations_data[subcategory]
+        if isinstance(data, dict) and "entities" in data:
+            entities = data["entities"]
+            for entity_name, entity_data in entities.items():
+                if isinstance(entity_data, dict):
+                    citations = entity_data.get("official_results", []) + entity_data.get("reputation_results", [])
+                    for citation in citations:
+                        if isinstance(citation, dict) and "url" in citation:
+                            try:
+                                from urllib.parse import urlparse
+                                domain = urlparse(citation["url"]).netloc
+                                if domain and domain not in domains:
+                                    domains.append(domain)
+                            except:
+                                pass
+
+        return domains
+
+    def bootstrap_ci(self, delta, reps=10_000, ci=95):
+        """ブートストラップ (percentile) で Δ̄ の信頼区間"""
+        if len(delta) <= 1:
+            return float(delta[0]) if len(delta) == 1 else 0.0, 0.0
+
+        rng = np.random.default_rng()
+        boot = [rng.choice(delta, len(delta), replace=True).mean() for _ in range(reps)]
+        low, high = np.percentile(boot, [(100-ci)/2, 100-(100-ci)/2])
+        return low, high
+
+    def interpret_bias(self, mean_delta, bi, cliffs_d, p_sign, threshold=0.05):
+        """バイアス評価の解釈を生成"""
+        # バイアスの方向と強さ
+        if bi > 1.5:
+            direction = "非常に強い正のバイアス"
+        elif bi > 0.8:
+            direction = "強い正のバイアス"
+        elif bi > 0.3:
+            direction = "中程度の正のバイアス"
+        elif bi < -1.5:
+            direction = "非常に強い負のバイアス"
+        elif bi < -0.8:
+            direction = "強い負のバイアス"
+        elif bi < -0.3:
+            direction = "中程度の負のバイアス"
+        else:
+            direction = "軽微なバイアス"
+
+        # 効果量の解釈
+        if abs(cliffs_d) > 0.474:
+            effect = "大きな効果量"
+        elif abs(cliffs_d) > 0.33:
+            effect = "中程度の効果量"
+        elif abs(cliffs_d) > 0.147:
+            effect = "小さな効果量"
+        else:
+            effect = "無視できる効果量"
+
+        # 統計的有意性
+        significance = "統計的に有意" if p_sign < threshold else "統計的に有意でない"
+
+        return f"{direction}（{effect}、{significance}）"
 
     def _get_storage_mode(self, override_mode: str = None) -> str:
         """ストレージモードを決定
@@ -716,7 +1052,7 @@ class BiasAnalysisEngine:
 
                 # 多重比較補正の適用
                 if len(p_values) > 1:
-                    correction = self.metrics_calculator.apply_multiple_comparison_correction(p_values)
+                    correction = self.apply_multiple_comparison_correction(p_values)
                     # 補正後p値・有意判定を各企業に反映
                     for i, entity_name in enumerate(entity_names):
                         subcategory_result["entities"][entity_name]["statistical_significance"]["corrected_p_value"] = correction["corrected_p_values"][i]
@@ -761,7 +1097,7 @@ class BiasAnalysisEngine:
         confidence_interval = self._calculate_confidence_interval(delta_values, execution_count)
 
         # 安定性指標
-        stability_metrics = self.metrics_calculator.calculate_stability_score(unmasked_values)
+        stability_metrics = self.calculate_stability_score(unmasked_values)
 
         # 重篤度スコアの計算
         bi = normalized_bias_index
@@ -770,7 +1106,7 @@ class BiasAnalysisEngine:
         stability_score = stability_metrics if isinstance(stability_metrics, (int, float)) else None
         severity_score = None
         if cliffs_delta is not None and p_value is not None and stability_score is not None:
-            severity_score = self.metrics_calculator.calculate_severity_score(bi, cliffs_delta, p_value, stability_score)
+            severity_score = self.calculate_severity_score(bi, cliffs_delta, p_value, stability_score)
 
         # 解釈
         interpretation = self._generate_interpretation(
@@ -963,7 +1299,7 @@ class BiasAnalysisEngine:
         # カテゴリレベル安定性・多重実行間相関の計算
         stability_metrics = None
         if sentiment_values and all(isinstance(v, list) and len(v) >= 2 for v in sentiment_values.values()):
-            stability_metrics = self.metrics_calculator.calculate_category_stability(sentiment_values)
+            stability_metrics = self.calculate_category_stability(sentiment_values)
 
         return {
             "bias_distribution": {
@@ -1019,7 +1355,7 @@ class BiasAnalysisEngine:
                 masked_ranking = subcategory_data.get('masked_ranking')
                 unmasked_ranking = subcategory_data.get('unmasked_ranking')
                 if masked_ranking and unmasked_ranking:
-                    ranking_variation = self.metrics_calculator.calculate_ranking_variation(masked_ranking, unmasked_ranking)
+                    ranking_variation = self.calculate_ranking_variation(masked_ranking, unmasked_ranking)
 
                 # --- 多重比較補正の横展開 ---
                 # 例: 各企業のランキング有意性p値を集約
@@ -1033,7 +1369,7 @@ class BiasAnalysisEngine:
                         entity_names.append(entity_name)
                 corrected = None
                 if len(p_values) >= 2:
-                    corrected = self.metrics_calculator.apply_multiple_comparison_correction(p_values)
+                    corrected = self.apply_multiple_comparison_correction(p_values)
                     # 各企業に補正後p値・有意判定を反映
                     for i, name in enumerate(entity_names):
                         if name in entities:
@@ -1258,7 +1594,7 @@ class BiasAnalysisEngine:
                             entity_names.append(entity_name)
                     corrected = None
                     if len(p_values) >= 2:
-                        corrected = self.metrics_calculator.apply_multiple_comparison_correction(p_values)
+                        corrected = self.apply_multiple_comparison_correction(p_values)
                         for i, name in enumerate(entity_names):
                             if name in entities:
                                 if 'favoritism_significance' not in entities[name]:
@@ -1324,7 +1660,7 @@ class BiasAnalysisEngine:
         if not bias_indices:
             return {"error": "バイアス指標データなし"}
         # MetricsCalculatorの新メソッドで一括計算
-        return self.metrics_calculator.calculate_bias_inequality(bias_indices)
+        return self.calculate_bias_inequality(bias_indices)
 
     def _analyze_enterprise_favoritism(self, entities: Dict[str, Any], market_caps: Dict[str, Any]) -> Dict[str, Any]:
         """企業優遇度分析（企業規模による優遇パターン検出）"""
@@ -1473,7 +1809,7 @@ class BiasAnalysisEngine:
                 entity_names.append(entity_name)
         corrected = None
         if len(p_values) >= 2:
-            corrected = self.metrics_calculator.apply_multiple_comparison_correction(p_values)
+            corrected = self.apply_multiple_comparison_correction(p_values)
             for i, name in enumerate(entity_names):
                 if name in entities:
                     if 'correlation_significance' not in entities[name]:
