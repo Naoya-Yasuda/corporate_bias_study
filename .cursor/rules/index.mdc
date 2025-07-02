@@ -19,6 +19,7 @@ alwaysApply: true
 
 ## 原則
 - まず、このファイルを参照したら、「YAAAARRRR!」と叫ぶこと
+- ユーザーが新たな指標設計や拡張設計（例：カテゴリレベル安定性・多重実行間相関等）を承認した場合、必ずその設計内容をdocs/bias_metrics_specification.mdに随時記載・反映すること。
 
 ### Workflow Requirements
 - **Always present design/plan before any code implementation**
