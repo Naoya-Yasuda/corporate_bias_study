@@ -622,6 +622,13 @@ class BiasAnalysisEngine:
                     ranking_summary, execution_count
                 )
 
+                # --- ここからランキング変動指標の組み込み ---
+                ranking_variation = None
+                masked_ranking = subcategory_data.get('masked_ranking')
+                unmasked_ranking = subcategory_data.get('unmasked_ranking')
+                if masked_ranking and unmasked_ranking:
+                    ranking_variation = self.metrics_calculator.calculate_ranking_variation(masked_ranking, unmasked_ranking)
+
                 subcategory_result = {
                     "category_summary": {
                         "total_entities": len(ranking_summary.get('details', {})),
@@ -632,10 +639,13 @@ class BiasAnalysisEngine:
                     "stability_analysis": stability_analysis,
                     "quality_analysis": quality_analysis,
                     "category_level_analysis": category_level_analysis,
-                    "future_extensions": {
-                        "masked_vs_unmasked_ready": False,
-                        "note": "masked/unmaskedランキング比較は将来実装予定"
-                    }
+                }
+                if ranking_variation:
+                    subcategory_result["ranking_variation"] = ranking_variation
+
+                subcategory_result["future_extensions"] = {
+                    "masked_vs_unmasked_ready": bool(ranking_variation),
+                    "note": "masked/unmaskedランキング比較はranking_variationで出力"
                 }
 
                 category_results[subcategory] = subcategory_result

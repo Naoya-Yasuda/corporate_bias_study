@@ -562,6 +562,60 @@ class MetricsCalculator:
             "interpretation": interpretation
         }
 
+    def calculate_ranking_variation(self, masked_ranking: list, unmasked_ranking: list) -> dict:
+        """
+        masked/unmaskedでの企業ランキング変動指標（Kendall's τ, Spearman's ρ, 順位変動絶対値平均）を計算
+
+        Args:
+            masked_ranking (list): masked時の企業名リスト（順位順）
+            unmasked_ranking (list): unmasked時の企業名リスト（順位順）
+
+        Returns:
+            dict: 各種指標と解釈
+        """
+        import numpy as np
+        from scipy.stats import kendalltau, spearmanr
+
+        if not masked_ranking or not unmasked_ranking or set(masked_ranking) != set(unmasked_ranking):
+            return {
+                "kendall_tau": None,
+                "spearman_rho": None,
+                "average_rank_change": None,
+                "significant_changes": [],
+                "interpretation": "データ不整合"
+            }
+        n = len(masked_ranking)
+        masked_order = {name: i for i, name in enumerate(masked_ranking)}
+        unmasked_order = {name: i for i, name in enumerate(unmasked_ranking)}
+        rank_diffs = [abs(masked_order[name] - unmasked_order[name]) for name in masked_ranking]
+        avg_rank_change = float(np.mean(rank_diffs))
+        # 順位ベクトル
+        masked_vec = [masked_order[name] for name in masked_ranking]
+        unmasked_vec = [unmasked_order[name] for name in masked_ranking]
+        tau, _ = kendalltau(masked_vec, unmasked_vec)
+        rho, _ = spearmanr(masked_vec, unmasked_vec)
+        # 2位以上変動
+        significant = []
+        for name in masked_ranking:
+            diff = masked_order[name] - unmasked_order[name]
+            if abs(diff) >= 2:
+                direction = "up" if diff > 0 else "down"
+                significant.append(f"{name} {abs(diff)} positions {direction}")
+        # 解釈
+        if tau is not None and tau > 0.8:
+            interp = "一貫"
+        elif tau is not None and tau > 0.5:
+            interp = "中程度の順位変動"
+        else:
+            interp = "変動大"
+        return {
+            "kendall_tau": tau,
+            "spearman_rho": rho,
+            "average_rank_change": avg_rank_change,
+            "significant_changes": significant,
+            "interpretation": interp
+        }
+
 
 def main():
     """テスト実行用メイン関数"""

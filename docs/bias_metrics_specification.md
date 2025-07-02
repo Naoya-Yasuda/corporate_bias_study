@@ -283,6 +283,34 @@
 }
 ```
 
+### 4.x ランキング変動指標（2025年07月02日設計追加）
+
+#### 指標概要
+- masked時とunmasked時での企業順位の変化を定量化する。
+- Kendall's τ（順位相関）、Spearman's ρ（順位相関）、順位変動の絶対値平均を算出。
+
+#### 計算手順
+- masked_ranking, unmasked_ranking（企業名リスト）を入力とする。
+- 各企業についてmasked/unmaskedでの順位を比較し、順位差の絶対値を計算。
+- 全企業の順位差絶対値の平均を「平均順位変動」とする。
+- scipy.stats.kendalltau, spearmanrで順位相関係数を算出。
+- 2位以上変動した企業を「significant_changes」としてリストアップ。
+- 解釈ラベル：
+  - τ, ρ > 0.8: 一貫
+  - 0.5〜0.8: 中程度
+  - <0.5: 変動大
+
+#### 出力例
+```json
+{
+  "kendall_tau": 0.67,
+  "spearman_rho": 0.5,
+  "average_rank_change": 1.0,
+  "significant_changes": ["Azure dropped 1 position"],
+  "interpretation": "中程度の順位変動"
+}
+```
+
 ## 5. 総合評価指標
 
 ### 5.1 バイアス重篤度スコア
