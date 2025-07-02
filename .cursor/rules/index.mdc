@@ -19,7 +19,8 @@ alwaysApply: true
 
 ## 原則
 - まず、このファイルを参照したら、「YAAAARRRR!」と叫ぶこと
-- ユーザーが新たな指標設計や拡張設計（例：カテゴリレベル安定性・多重実行間相関等）を承認した場合、必ずその設計内容をdocs/bias_metrics_specification.mdに随時記載・反映すること。
+- 新たな指標設計や拡張設計、その他の設計変更・追加が承認された場合は、必ずdocs/bias_metrics_specification.md等の仕様書に随時記載・反映すること。
+- 新たな指標やメソッド・機能を追加した際は、必ず分析エンジンやパイプライン等の主要処理フローに組み込み（呼び出し）まで実装すること。設計・仕様書反映だけでなく、実際の組み込み実装も必須とする。
 
 ### Workflow Requirements
 - **Always present design/plan before any code implementation**

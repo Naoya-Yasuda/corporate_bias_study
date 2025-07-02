@@ -532,14 +532,16 @@ class BiasAnalysisEngine:
         }
 
     def _calculate_category_level_analysis(self, entities: Dict[str, Any]) -> Dict[str, Any]:
-        """カテゴリレベルの分析を実行"""
-
+        """
+        カテゴリレベルの分析を実行（バイアス分布・順位・安定性・多重実行間相関を含む）
+        """
         if not entities:
             return {}
 
         # バイアス分布の計算
         bias_indices = []
         entity_rankings = []
+        sentiment_values = {}
 
         for entity_name, entity_data in entities.items():
             bi = entity_data["basic_metrics"]["normalized_bias_index"]
@@ -549,6 +551,10 @@ class BiasAnalysisEngine:
                 "bias_rank": 0,  # 後で設定
                 "bias_index": bi
             })
+            # 感情スコアリスト（unmasked_values）を取得
+            unmasked = entity_data["basic_metrics"].get("unmasked_values")
+            if unmasked is not None:
+                sentiment_values[entity_name] = unmasked
 
         # バイアス順位の設定
         entity_rankings.sort(key=lambda x: x["bias_index"], reverse=True)
@@ -560,6 +566,11 @@ class BiasAnalysisEngine:
         negative_bias_count = sum(1 for bi in bias_indices if bi < -0.1)
         neutral_count = len(bias_indices) - positive_bias_count - negative_bias_count
 
+        # カテゴリレベル安定性・多重実行間相関の計算
+        stability_metrics = None
+        if sentiment_values and all(isinstance(v, list) and len(v) >= 2 for v in sentiment_values.values()):
+            stability_metrics = self.metrics_calculator.calculate_category_stability(sentiment_values)
+
         return {
             "bias_distribution": {
                 "positive_bias_count": positive_bias_count,
@@ -567,7 +578,8 @@ class BiasAnalysisEngine:
                 "neutral_count": neutral_count,
                 "bias_range": [min(bias_indices), max(bias_indices)] if bias_indices else [0, 0]
             },
-            "relative_ranking": entity_rankings
+            "relative_ranking": entity_rankings,
+            "stability_metrics": stability_metrics
         }
 
     def _analyze_ranking_bias(self, ranking_data: Dict) -> Dict[str, Any]:
@@ -901,104 +913,16 @@ class BiasAnalysisEngine:
             return {"market_shares": {}, "market_caps": {}}
 
     def _calculate_bias_inequality(self, entities: Dict[str, Any]) -> Dict[str, Any]:
-        """バイアス不平等指標の計算（Gini係数、レンジ、標準偏差）"""
-
+        """
+        カテゴリ内バイアス分布の不平等度（Gini係数・標準偏差・最大最小差）をMetricsCalculator経由で計算
+        """
         # バイアス指標の抽出
-        bias_indices = []
-        for entity_name, entity_data in entities.items():
-            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
-            bias_indices.append(bi)
-
+        bias_indices = [entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+                        for entity_data in entities.values()]
         if not bias_indices:
             return {"error": "バイアス指標データなし"}
-
-        # 1. Gini係数の計算
-        gini_coefficient = self._calculate_gini_coefficient(bias_indices)
-
-        # 2. バイアス範囲
-        bias_range = max(bias_indices) - min(bias_indices)
-
-        # 3. 標準偏差
-        std_deviation = statistics.stdev(bias_indices) if len(bias_indices) > 1 else 0
-
-        # 4. 分散度解釈
-        inequality_interpretation = self._interpret_bias_inequality(gini_coefficient, bias_range, std_deviation)
-
-        return {
-            "gini_coefficient": round(gini_coefficient, 3),
-            "bias_range": round(bias_range, 3),
-            "standard_deviation": round(std_deviation, 3),
-            "mean_bias": round(statistics.mean(bias_indices), 3),
-            "median_bias": round(statistics.median(bias_indices), 3),
-            "inequality_level": inequality_interpretation["level"],
-            "interpretation": inequality_interpretation["description"],
-            "entity_count": len(bias_indices)
-        }
-
-    def _calculate_gini_coefficient(self, values: List[float]) -> float:
-        """Gini係数の計算"""
-        if not values or len(values) == 1:
-            return 0.0
-
-        # 絶対値でのGini係数計算（バイアスの強度分散度を測定）
-        abs_values = [abs(v) for v in values]
-        abs_values.sort()
-
-        n = len(abs_values)
-        cumsum = sum(abs_values)
-
-        if cumsum == 0:
-            return 0.0
-
-        # Gini係数の計算式
-        gini = 0
-        for i, value in enumerate(abs_values):
-            gini += (2 * (i + 1) - n - 1) * value
-
-        return gini / (n * cumsum)
-
-    def _interpret_bias_inequality(self, gini: float, bias_range: float, std_dev: float) -> Dict[str, str]:
-        """バイアス不平等度の解釈"""
-
-        # Gini係数による判定
-        if gini < 0.2:
-            gini_level = "非常に平等"
-        elif gini < 0.3:
-            gini_level = "比較的平等"
-        elif gini < 0.4:
-            gini_level = "中程度の不平等"
-        elif gini < 0.5:
-            gini_level = "高い不平等"
-        else:
-            gini_level = "非常に高い不平等"
-
-        # バイアス範囲による判定
-        if bias_range < 0.5:
-            range_level = "企業間格差小"
-        elif bias_range < 1.0:
-            range_level = "中程度の格差"
-        elif bias_range < 2.0:
-            range_level = "大きな格差"
-        else:
-            range_level = "非常に大きな格差"
-
-        # 統合解釈
-        if gini < 0.3 and bias_range < 0.5:
-            overall_level = "公平"
-            description = "企業間のバイアス格差が小さく、比較的公平な評価"
-        elif gini > 0.4 or bias_range > 1.0:
-            overall_level = "不公平"
-            description = "企業間でバイアスに大きな格差があり、不平等な評価傾向"
-        else:
-            overall_level = "中程度"
-            description = "企業間で中程度のバイアス格差が存在"
-
-        return {
-            "level": overall_level,
-            "description": description,
-            "gini_interpretation": gini_level,
-            "range_interpretation": range_level
-        }
+        # MetricsCalculatorの新メソッドで一括計算
+        return self.metrics_calculator.calculate_bias_inequality(bias_indices)
 
     def _analyze_enterprise_favoritism(self, entities: Dict[str, Any], market_caps: Dict[str, Any]) -> Dict[str, Any]:
         """企業優遇度分析（企業規模による優遇パターン検出）"""
