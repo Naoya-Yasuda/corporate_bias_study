@@ -379,6 +379,15 @@ class BiasAnalysisEngine:
         # 安定性指標
         stability_metrics = self.metrics_calculator.calculate_stability_score(unmasked_values)
 
+        # 重篤度スコアの計算
+        bi = normalized_bias_index
+        cliffs_delta = effect_size.get('cliffs_delta')
+        p_value = statistical_significance.get('sign_test_p_value')
+        stability_score = stability_metrics if isinstance(stability_metrics, (int, float)) else None
+        severity_score = None
+        if cliffs_delta is not None and p_value is not None and stability_score is not None:
+            severity_score = self.metrics_calculator.calculate_severity_score(bi, cliffs_delta, p_value, stability_score)
+
         # 解釈
         interpretation = self._generate_interpretation(
             raw_delta, normalized_bias_index, effect_size.get('cliffs_delta'),
@@ -396,6 +405,7 @@ class BiasAnalysisEngine:
             "effect_size": effect_size,
             "confidence_interval": confidence_interval,
             "stability_metrics": stability_metrics,
+            "severity_score": severity_score,
             "interpretation": interpretation
         }
 

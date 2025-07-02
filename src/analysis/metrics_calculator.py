@@ -616,6 +616,47 @@ class MetricsCalculator:
             "interpretation": interp
         }
 
+    def calculate_severity_score(self, bi: float, cliffs_delta: float, p_value: float, stability_score: float) -> dict:
+        """
+        バイアス重篤度スコア（Severity Score）を計算
+
+        Args:
+            bi (float): 正規化バイアス指標（BI）
+            cliffs_delta (float): Cliff's Delta 効果量
+            p_value (float): 統計的有意性p値
+            stability_score (float): 安定性スコア
+
+        Returns:
+            dict: 重篤度スコア、構成要素、解釈
+        """
+        abs_bi = abs(bi)
+        effect_weight = abs(cliffs_delta)
+        significance_weight = max(0, 1 - p_value) if p_value is not None else 0
+        stability_weight = stability_score if stability_score is not None else 0
+        severity = abs_bi * effect_weight * significance_weight * stability_weight
+        severity = min(severity, 10.0)
+        # 解釈
+        if severity >= 7.0:
+            interp = "非常に重篤"
+        elif severity >= 4.0:
+            interp = "重篤"
+        elif severity >= 2.0:
+            interp = "中程度の重篤度"
+        elif severity >= 0.5:
+            interp = "軽微"
+        else:
+            interp = "無視できる"
+        return {
+            "severity_score": round(severity, 3),
+            "components": {
+                "abs_bi": abs_bi,
+                "cliffs_delta": cliffs_delta,
+                "p_value": p_value,
+                "stability_score": stability_weight
+            },
+            "interpretation": interp
+        }
+
 
 def main():
     """テスト実行用メイン関数"""
