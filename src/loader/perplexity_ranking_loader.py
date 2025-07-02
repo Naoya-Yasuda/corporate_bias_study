@@ -133,10 +133,10 @@ def collect_rankings(api_key, categories, num_runs=1):
             avg_ranks.sort(key=lambda x: (x[1] < 0, x[1]))
             final_ranking = [item[0] for item in avg_ranks]
 
-            # ranking_summary.detailsを作成
-            details = {}
+            # entitiesを作成（旧detailsをentitiesにリネーム）
+            entities = {}
             for service, avg_rank, all_ranks in avg_ranks:
-                details[service] = {
+                entities[service] = {
                     "official_url": official_url_map.get(service, ""),
                     "avg_rank": avg_rank if avg_rank != -1 else "未ランク",
                     "all_ranks": all_ranks
@@ -146,7 +146,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                 "prompt": prompt,
                 "ranking_summary": {
                     "avg_ranking": final_ranking,
-                    "details": details
+                    "entities": entities
                 },
                 "answer_list": response_list
             }
@@ -183,6 +183,18 @@ def main():
             logging.info(f"{args.runs}回の実行を開始します")
 
         result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
+
+        # --- ここでentities構造をprintで確認 ---
+        try:
+            cat = list(result.keys())[0]
+            subcat = list(result[cat].keys())[0]
+            print(f"[DEBUG] result['{cat}']['{subcat}'] = ")
+            import pprint
+            pprint.pprint(result[cat][subcat])
+        except Exception as e:
+            print(f"[DEBUG] result構造print時エラー: {e}")
+        # --------------------------------------
+
         file_name = f"rankings_{args.runs}runs.json"
         local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
         s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
