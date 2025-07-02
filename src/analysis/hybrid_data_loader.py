@@ -186,7 +186,7 @@ class HybridDataLoader:
                     s3_path = f"s3://corporate-bias-datasets/datasets/{date_or_path}/bias_analysis_results.json"
 
             # S3から読み込み（storage_utilsのload_json関数を使用）
-            data = load_json(None, s3_path)
+            data = load_json(s3_path)
             logger.info(f"S3からbias_analysis_results読み込み成功: {s3_path}")
             return data
 

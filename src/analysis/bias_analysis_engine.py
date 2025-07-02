@@ -17,6 +17,7 @@ import os
 import json
 import logging
 import datetime
+import statistics
 from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 from pathlib import Path
@@ -795,669 +796,337 @@ class BiasAnalysisEngine:
         return insights
 
     def _analyze_relative_bias(self, sentiment_analysis: Dict) -> Dict[str, Any]:
-        """相対バイアス分析（基本実装）"""
-        # 今回は基本実装のため簡略化
-        return {
-            "placeholder": "相対バイアス分析は将来実装"
-        }
+        """相対バイアス分析の完全実装
 
-    def _generate_cross_analysis_insights(self, sentiment_analysis: Dict, ranking_analysis: Dict, citations_google_comparison: Dict) -> Dict[str, Any]:
-        """クロス分析インサイトを生成"""
+        企業間のバイアス格差、不平等度、企業規模による優遇パターンを分析
 
-        insights = []
+        Parameters:
+        -----------
+        sentiment_analysis : Dict
+            感情バイアス分析結果
 
-        # データ利用可能性の確認
-        has_sentiment = bool(sentiment_analysis)
-        has_ranking = bool(ranking_analysis)
-        has_comparison = bool(citations_google_comparison) and "warning" not in citations_google_comparison
+        Returns:
+        --------
+        Dict[str, Any]
+            相対バイアス分析結果
+        """
+        try:
+            # 市場データの読み込み
+            market_data = self._load_market_data()
 
-        # 1. 感情バイアス × ランキングバイアス の一貫性分析
-        if has_sentiment and has_ranking:
-            sentiment_ranking_consistency = self._analyze_sentiment_ranking_consistency(
-                sentiment_analysis, ranking_analysis
-            )
-            insights.append("感情バイアスとランキングバイアスの一貫性を確認")
-        else:
-            sentiment_ranking_consistency = None
-            insights.append("実行回数不足により感情-ランキング相関分析は不可")
+            relative_analysis_results = {}
 
-        # 2. 検索結果 vs AI引用 の系統的バイアス
-        if has_comparison:
-            search_vs_ai_pattern = self._extract_search_vs_ai_pattern(citations_google_comparison)
-            insights.extend(search_vs_ai_pattern.get("insights", []))
-        else:
-            search_vs_ai_pattern = None
-            insights.append("Google検索とAI引用の比較データが不足")
+            # カテゴリごとの相対バイアス分析
+            for category, subcategories in sentiment_analysis.items():
+                category_results = {}
 
-        # 3. 全体的なバイアス傾向の統合評価
-        overall_bias_pattern = self._determine_overall_bias_pattern(
-            sentiment_analysis, ranking_analysis, citations_google_comparison
-        )
+                for subcategory, subcategory_data in subcategories.items():
+                    entities = subcategory_data.get("entities", {})
 
-        return {
-            "sentiment_ranking_consistency": sentiment_ranking_consistency,
-            "search_vs_ai_pattern": search_vs_ai_pattern,
-            "overall_bias_pattern": overall_bias_pattern,
-            "data_coverage": {
-                "sentiment_analysis_available": has_sentiment,
-                "ranking_analysis_available": has_ranking,
-                "comparison_analysis_available": has_comparison
-            },
-            "cross_analysis_insights": insights,
-            "recommended_actions": self._generate_cross_analysis_recommendations(
-                has_sentiment, has_ranking, has_comparison
-            )
-        }
+                    if not entities:
+                        continue
 
-    def _analyze_sentiment_ranking_consistency(self, sentiment_analysis: Dict, ranking_analysis: Dict) -> Dict[str, Any]:
-        """感情バイアスとランキングバイアスの一貫性分析"""
+                    # 1. バイアス不平等指標の計算
+                    bias_inequality = self._calculate_bias_inequality(entities)
 
-        consistent_entities = []
-        inconsistent_entities = []
-
-        # カテゴリごとに一貫性をチェック
-        for category in sentiment_analysis.keys():
-            if category not in ranking_analysis:
-                continue
-
-            for subcategory in sentiment_analysis[category].keys():
-                if subcategory not in ranking_analysis[category]:
-                    continue
-
-                sentiment_entities = sentiment_analysis[category][subcategory].get("entities", {})
-                ranking_summary = ranking_analysis[category][subcategory].get("category_summary", {})
-
-                # 感情バイアスで上位の企業がランキングでも上位かチェック
-                for entity, entity_data in sentiment_entities.items():
-                    bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
-
-                    # 一貫性判定のロジック（簡易版）
-                    if abs(bias_index) > 0.5:  # 強いバイアスがある場合
-                        if bias_index > 0:
-                            consistent_entities.append(f"{entity} (正のバイアス)")
-                        else:
-                            inconsistent_entities.append(f"{entity} (負のバイアス)")
-
-        consistency_ratio = len(consistent_entities) / max(len(consistent_entities) + len(inconsistent_entities), 1)
-
-        return {
-            "consistency_ratio": round(consistency_ratio, 3),
-            "consistent_entities": consistent_entities[:5],  # 上位5件
-            "inconsistent_entities": inconsistent_entities[:5],  # 上位5件
-            "interpretation": "高い一貫性" if consistency_ratio > 0.7 else "中程度の一貫性" if consistency_ratio > 0.4 else "低い一貫性"
-        }
-
-    def _extract_search_vs_ai_pattern(self, citations_google_comparison: Dict) -> Dict[str, Any]:
-        """検索結果 vs AI引用のパターン抽出"""
-
-        total_categories = 0
-        google_favored = 0
-        citations_favored = 0
-        neutral = 0
-        insights = []
-
-        for category, subcategories in citations_google_comparison.items():
-            for subcategory, data in subcategories.items():
-                total_categories += 1
-
-                bias_detection = data.get("bias_detection", {})
-                systemic_bias = bias_detection.get("systemic_bias_direction", "")
-
-                if "Google優遇" in systemic_bias:
-                    google_favored += 1
-                elif "Citations優遇" in systemic_bias:
-                    citations_favored += 1
-                else:
-                    neutral += 1
-
-        if total_categories > 0:
-            if google_favored > citations_favored:
-                pattern = "Google検索優遇型"
-                insights.append("Google検索結果の方が企業露出度が高い傾向")
-            elif citations_favored > google_favored:
-                pattern = "AI引用優遇型"
-                insights.append("AIシステムが特定企業を積極的に引用する傾向")
-            else:
-                pattern = "中立・バランス型"
-                insights.append("検索結果とAI引用での企業露出度に大きな偏りなし")
-        else:
-            pattern = "分析データ不足"
-            insights.append("比較分析のためのデータが不十分")
-
-        return {
-            "overall_pattern": pattern,
-            "distribution": {
-                "google_favored_categories": google_favored,
-                "citations_favored_categories": citations_favored,
-                "neutral_categories": neutral,
-                "total_categories": total_categories
-            },
-            "insights": insights
-        }
-
-    def _determine_overall_bias_pattern(self, sentiment_analysis: Dict, ranking_analysis: Dict, citations_google_comparison: Dict) -> Dict[str, Any]:
-        """全体的なバイアス傾向の統合判定"""
-
-        patterns = []
-        confidence_level = "低"
-
-        # 感情バイアスのパターン
-        if sentiment_analysis:
-            sentiment_pattern = self._extract_sentiment_pattern(sentiment_analysis)
-            patterns.append(f"感情面: {sentiment_pattern}")
-
-        # ランキングバイアスのパターン
-        if ranking_analysis:
-            ranking_pattern = self._extract_ranking_pattern(ranking_analysis)
-            patterns.append(f"ランキング面: {ranking_pattern}")
-
-        # 検索 vs AI のパターン
-        if citations_google_comparison and "warning" not in citations_google_comparison:
-            search_ai_pattern = self._extract_search_vs_ai_pattern(citations_google_comparison)
-            patterns.append(f"情報源選択面: {search_ai_pattern['overall_pattern']}")
-            confidence_level = "中"
-
-        # 統合判定
-        if len(patterns) >= 2:
-            confidence_level = "中"
-        if len(patterns) >= 3:
-            confidence_level = "高"
-
-        return {
-            "integrated_patterns": patterns,
-            "confidence_level": confidence_level,
-            "summary": " / ".join(patterns) if patterns else "分析データ不足により判定不可",
-            "bias_complexity": "単純" if len(set(patterns)) <= 1 else "複合的"
-        }
-
-    def _extract_sentiment_pattern(self, sentiment_analysis: Dict) -> str:
-        """感情バイアスの主要パターンを抽出"""
-
-        positive_bias_count = 0
-        negative_bias_count = 0
-        total_entities = 0
-
-        for category, subcategories in sentiment_analysis.items():
-            for subcategory, data in subcategories.items():
-                entities = data.get("entities", {})
-                for entity, entity_data in entities.items():
-                    total_entities += 1
-                    bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
-
-                    if bias_index > 0.3:
-                        positive_bias_count += 1
-                    elif bias_index < -0.3:
-                        negative_bias_count += 1
-
-        if total_entities == 0:
-            return "データ不足"
-
-        positive_ratio = positive_bias_count / total_entities
-        negative_ratio = negative_bias_count / total_entities
-
-        if positive_ratio > 0.6:
-            return "全体的な正のバイアス傾向"
-        elif negative_ratio > 0.6:
-            return "全体的な負のバイアス傾向"
-        elif positive_ratio > negative_ratio:
-            return "軽微な正のバイアス傾向"
-        elif negative_ratio > positive_ratio:
-            return "軽微な負のバイアス傾向"
-        else:
-            return "中立的"
-
-    def _extract_ranking_pattern(self, ranking_analysis: Dict) -> str:
-        """ランキングバイアスの主要パターンを抽出"""
-
-        high_stability_count = 0
-        total_categories = 0
-
-        for category, subcategories in ranking_analysis.items():
-            for subcategory, data in subcategories.items():
-                total_categories += 1
-                stability_score = data.get("category_summary", {}).get("stability_score", 0)
-
-                if stability_score > 0.8:
-                    high_stability_count += 1
-
-        if total_categories == 0:
-            return "データ不足"
-
-        stability_ratio = high_stability_count / total_categories
-
-        if stability_ratio > 0.8:
-            return "高安定性（一貫したランキング）"
-        elif stability_ratio > 0.5:
-            return "中程度安定性"
-        else:
-            return "低安定性（ランキング変動大）"
-
-    def _generate_cross_analysis_recommendations(self, has_sentiment: bool, has_ranking: bool, has_comparison: bool) -> List[str]:
-        """クロス分析に基づく推奨アクション"""
-
-        recommendations = []
-
-        if not has_sentiment:
-            recommendations.append("感情バイアス分析のためのデータ収集を実行してください")
-
-        if not has_ranking:
-            recommendations.append("ランキングバイアス分析のためのデータ収集を実行してください")
-
-        if not has_comparison:
-            recommendations.append("Google検索とAI引用の比較分析のためのデータ収集を実行してください")
-
-        if has_sentiment and has_ranking and has_comparison:
-            recommendations.extend([
-                "全分析データが揃っているため、詳細な相対バイアス分析の実装を推奨",
-                "統計的有意性向上のため、実行回数の増加（最低5回）を推奨",
-                "時系列分析による傾向変化の追跡を推奨"
-            ])
-
-        return recommendations
-
-    def _generate_analysis_limitations(self, execution_count: int) -> Dict[str, Any]:
-        """分析制限事項を生成"""
-        min_statistical = self.config["minimum_execution_counts"]["sign_test_p_value"]
-
-        limitations = {
-            "execution_count_warning": f"実行回数が{execution_count}回のため、統計的検定は実行不可" if execution_count < min_statistical else None,
-            "reliability_note": "結果は参考程度として扱ってください" if execution_count < 5 else None,
-            "statistical_power": "低（軽微なバイアス検出困難）" if execution_count < 10 else "中程度",
-            "recommended_actions": []
-        }
-
-        # 推奨アクション
-        if execution_count < 5:
-            limitations["recommended_actions"].extend([
-                "統計的有意性判定には最低5回の実行が必要",
-                "基本的な傾向把握には3回以上の実行を推奨"
-            ])
-        if execution_count < 10:
-            limitations["recommended_actions"].append("信頼性の高い分析には10回以上の実行を推奨")
-        if execution_count < 20:
-            limitations["recommended_actions"].append("政策判断には15-20回の実行を強く推奨")
-
-        return limitations
-
-    def _analyze_citations_google_comparison(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
-        """Citations vs Google比較分析（完全実装）"""
-
-        if not google_data or not citations_data:
-            return {
-                "warning": "Google検索データまたはCitationsデータが利用できません",
-                "available_analyses": [],
-                "google_data_available": bool(google_data),
-                "citations_data_available": bool(citations_data)
-            }
-
-        results = {}
-
-        for category, google_subcategories in google_data.items():
-            if category not in citations_data:
-                continue
-
-            citations_subcategories = citations_data[category]
-            category_results = {}
-
-            for subcategory, google_subcategory_data in google_subcategories.items():
-                if subcategory not in citations_subcategories:
-                    continue
-
-                citations_subcategory_data = citations_subcategories[subcategory]
-
-                # Google検索結果からドメイン抽出
-                google_domains = self._extract_google_domains(google_subcategory_data)
-
-                # Citations結果からドメイン抽出
-                citations_domains = self._extract_citations_domains(citations_subcategory_data)
-
-                # ランキング比較メトリクス
-                ranking_comparison = self._compute_ranking_comparison_metrics(
-                    google_domains, citations_domains
-                )
-
-                # コンテンツ品質比較
-                content_comparison = self._compute_content_quality_comparison(
-                    google_subcategory_data, citations_subcategory_data
-                )
-
-                # 企業別露出度分析
-                entity_exposure_analysis = self._analyze_entity_exposure_difference(
-                    google_subcategory_data, citations_subcategory_data
-                )
-
-                # バイアス検出分析
-                bias_detection = self._detect_search_vs_citations_bias(
-                    google_domains, citations_domains, entity_exposure_analysis
-                )
-
-                subcategory_result = {
-                    "comparison_summary": {
-                        "google_domains_count": len(google_domains),
-                        "citations_domains_count": len(citations_domains),
-                        "common_domains_count": len(set(google_domains) & set(citations_domains)),
-                        "overlap_ratio": len(set(google_domains) & set(citations_domains)) / max(len(set(google_domains + citations_domains)), 1)
-                    },
-                    "ranking_comparison": ranking_comparison,
-                    "content_quality_comparison": content_comparison,
-                    "entity_exposure_analysis": entity_exposure_analysis,
-                    "bias_detection": bias_detection,
-                    "insights": self._generate_comparison_insights(
-                        ranking_comparison, content_comparison, bias_detection
+                    # 2. 企業優遇度分析
+                    enterprise_favoritism = self._analyze_enterprise_favoritism(
+                        entities, market_data.get("market_caps", {})
                     )
-                }
 
-                category_results[subcategory] = subcategory_result
+                    # 3. 市場シェア相関分析
+                    market_share_correlation = self._analyze_market_share_correlation(
+                        entities, market_data.get("market_shares", {}), category
+                    )
 
-            if category_results:
-                results[category] = category_results
+                    # 4. 相対ランキング変動
+                    relative_ranking_analysis = self._analyze_relative_ranking_changes(entities)
 
-        return results
+                    # 5. 統合相対評価
+                    integrated_relative_evaluation = self._generate_integrated_relative_evaluation(
+                        bias_inequality, enterprise_favoritism, market_share_correlation
+                    )
 
-    def _extract_google_domains(self, google_data: Dict) -> List[str]:
-        """Google検索結果からドメインリストを抽出"""
-        domains = []
+                    category_results[subcategory] = {
+                        "bias_inequality": bias_inequality,
+                        "enterprise_favoritism": enterprise_favoritism,
+                        "market_share_correlation": market_share_correlation,
+                        "relative_ranking_analysis": relative_ranking_analysis,
+                        "integrated_evaluation": integrated_relative_evaluation
+                    }
 
-        # entities配下のofficial_results/reputation_resultsから抽出
-        entities = google_data.get('entities', {})
-        for entity_name, entity_data in entities.items():
-            # official_results
-            for result in entity_data.get('official_results', []):
-                domain = result.get('domain')
-                if domain:
-                    domains.append(domain)
+                relative_analysis_results[category] = category_results
 
-            # reputation_results
-            for result in entity_data.get('reputation_results', []):
-                domain = result.get('domain')
-                if domain:
-                    domains.append(domain)
+            # 全体サマリーの生成
+            overall_summary = self._generate_relative_bias_summary(relative_analysis_results)
+            relative_analysis_results["overall_summary"] = overall_summary
 
-        return domains
+            return relative_analysis_results
 
-    def _extract_citations_domains(self, citations_data: Dict) -> List[str]:
-        """Citations結果からドメインリストを抽出"""
-        domains = []
-
-        # entities配下のofficial_results/reputation_resultsから抽出
-        entities = citations_data.get('entities', {})
-        for entity_name, entity_data in entities.items():
-            # official_results
-            for result in entity_data.get('official_results', []):
-                domain = result.get('domain')
-                if domain:
-                    domains.append(domain)
-
-            # reputation_results
-            for result in entity_data.get('reputation_results', []):
-                domain = result.get('domain')
-                if domain:
-                    domains.append(domain)
-
-        return domains
-
-    def _compute_ranking_comparison_metrics(self, google_domains: List[str], citations_domains: List[str]) -> Dict[str, Any]:
-        """ランキング比較メトリクスの計算"""
-
-        # 共通ドメインの抽出
-        common_domains = list(set(google_domains) & set(citations_domains))
-        google_unique = list(set(google_domains) - set(citations_domains))
-        citations_unique = list(set(citations_domains) - set(google_domains))
-
-        # 順位相関の計算（共通ドメインがある場合のみ）
-        kendall_tau = None
-        spearman_rho = None
-
-        if len(common_domains) >= 2:
-            try:
-                from scipy.stats import kendalltau, spearmanr
-
-                # 共通ドメインの順位を抽出
-                google_ranks = []
-                citations_ranks = []
-
-                for domain in common_domains:
-                    google_rank = google_domains.index(domain) if domain in google_domains else len(google_domains)
-                    citations_rank = citations_domains.index(domain) if domain in citations_domains else len(citations_domains)
-                    google_ranks.append(google_rank)
-                    citations_ranks.append(citations_rank)
-
-                # 統計計算
-                kendall_tau, _ = kendalltau(google_ranks, citations_ranks)
-                spearman_rho, _ = spearmanr(google_ranks, citations_ranks)
-
-            except Exception as e:
-                logger.warning(f"順位相関計算エラー: {e}")
-
-        return {
-            "common_domains": common_domains,
-            "google_unique_domains": google_unique,
-            "citations_unique_domains": citations_unique,
-            "overlap_count": len(common_domains),
-            "total_unique_domains": len(set(google_domains + citations_domains)),
-            "overlap_ratio": len(common_domains) / max(len(set(google_domains + citations_domains)), 1),
-            "kendall_tau": round(kendall_tau, 3) if kendall_tau is not None else None,
-            "spearman_rho": round(spearman_rho, 3) if spearman_rho is not None else None,
-            "ranking_divergence": self._calculate_ranking_divergence(google_domains, citations_domains)
-        }
-
-    def _calculate_ranking_divergence(self, google_domains: List[str], citations_domains: List[str]) -> Dict[str, Any]:
-        """ランキング乖離度の計算"""
-
-        if not google_domains or not citations_domains:
-            return {"divergence_score": 1.0, "interpretation": "完全乖離（一方のデータなし）"}
-
-        # 上位N件での比較（N=min(10, データ数)）
-        n = min(10, len(google_domains), len(citations_domains))
-        google_top_n = google_domains[:n]
-        citations_top_n = citations_domains[:n]
-
-        # Jaccard類似度
-        jaccard_similarity = len(set(google_top_n) & set(citations_top_n)) / len(set(google_top_n) | set(citations_top_n))
-        divergence_score = 1 - jaccard_similarity
-
-        # 解釈
-        if divergence_score < 0.2:
-            interpretation = "非常に類似（乖離度低）"
-        elif divergence_score < 0.4:
-            interpretation = "やや類似（軽微な乖離）"
-        elif divergence_score < 0.6:
-            interpretation = "中程度の乖離"
-        elif divergence_score < 0.8:
-            interpretation = "大きな乖離"
-        else:
-            interpretation = "完全乖離（ほぼ異なる結果）"
-
-        return {
-            "divergence_score": round(divergence_score, 3),
-            "jaccard_similarity": round(jaccard_similarity, 3),
-            "interpretation": interpretation,
-            "top_n_analyzed": n
-        }
-
-    def _compute_content_quality_comparison(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
-        """コンテンツ品質の比較分析"""
-
-        # Google検索の品質指標
-        google_quality = self._analyze_google_content_quality(google_data)
-
-        # Citations の品質指標
-        citations_quality = self._analyze_citations_content_quality(citations_data)
-
-        return {
-            "google_quality": google_quality,
-            "citations_quality": citations_quality,
-            "quality_comparison": {
-                "official_ratio_diff": google_quality.get("official_ratio", 0) - citations_quality.get("official_ratio", 0),
-                "snippet_availability_diff": google_quality.get("snippet_ratio", 0) - citations_quality.get("snippet_ratio", 0),
-                "overall_quality_diff": google_quality.get("overall_score", 0) - citations_quality.get("overall_score", 0)
-            }
-        }
-
-    def _analyze_google_content_quality(self, google_data: Dict) -> Dict[str, Any]:
-        """Google検索コンテンツの品質分析"""
-
-        total_results = 0
-        official_count = 0
-        with_snippet_count = 0
-
-        entities = google_data.get('entities', {})
-        for entity_name, entity_data in entities.items():
-            # official_results
-            official_results = entity_data.get('official_results', [])
-            total_results += len(official_results)
-            official_count += len(official_results)  # official_resultsは全て公式
-            with_snippet_count += sum(1 for r in official_results if r.get('snippet'))
-
-            # reputation_results
-            reputation_results = entity_data.get('reputation_results', [])
-            total_results += len(reputation_results)
-            with_snippet_count += sum(1 for r in reputation_results if r.get('snippet'))
-
-        if total_results == 0:
-            return {"official_ratio": 0, "snippet_ratio": 0, "overall_score": 0}
-
-        official_ratio = official_count / total_results
-        snippet_ratio = with_snippet_count / total_results
-        overall_score = (official_ratio + snippet_ratio) / 2
-
-        return {
-            "total_results": total_results,
-            "official_count": official_count,
-            "official_ratio": round(official_ratio, 3),
-            "snippet_ratio": round(snippet_ratio, 3),
-            "overall_score": round(overall_score, 3)
-        }
-
-    def _analyze_citations_content_quality(self, citations_data: Dict) -> Dict[str, Any]:
-        """Citations コンテンツの品質分析"""
-
-        total_results = 0
-        official_count = 0
-        with_snippet_count = 0
-
-        entities = citations_data.get('entities', {})
-        for entity_name, entity_data in entities.items():
-            # official_results
-            official_results = entity_data.get('official_results', [])
-            total_results += len(official_results)
-            official_count += sum(1 for r in official_results if r.get('is_official', False))
-            with_snippet_count += sum(1 for r in official_results if r.get('snippet'))
-
-            # reputation_results
-            reputation_results = entity_data.get('reputation_results', [])
-            total_results += len(reputation_results)
-            with_snippet_count += sum(1 for r in reputation_results if r.get('snippet'))
-
-        if total_results == 0:
-            return {"official_ratio": 0, "snippet_ratio": 0, "overall_score": 0}
-
-        official_ratio = official_count / total_results
-        snippet_ratio = with_snippet_count / total_results
-        overall_score = (official_ratio + snippet_ratio) / 2
-
-        return {
-            "total_results": total_results,
-            "official_count": official_count,
-            "official_ratio": round(official_ratio, 3),
-            "snippet_ratio": round(snippet_ratio, 3),
-            "overall_score": round(overall_score, 3)
-        }
-
-    def _analyze_entity_exposure_difference(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
-        """企業別露出度差分の分析"""
-
-        entity_analysis = {}
-
-        # 全企業リストの取得
-        google_entities = set(google_data.get('entities', {}).keys())
-        citations_entities = set(citations_data.get('entities', {}).keys())
-        all_entities = google_entities | citations_entities
-
-        for entity in all_entities:
-            google_entity_data = google_data.get('entities', {}).get(entity, {})
-            citations_entity_data = citations_data.get('entities', {}).get(entity, {})
-
-            # 露出度計算
-            google_exposure = len(google_entity_data.get('official_results', [])) + len(google_entity_data.get('reputation_results', []))
-            citations_exposure = len(citations_entity_data.get('official_results', [])) + len(citations_entity_data.get('reputation_results', []))
-
-            exposure_diff = citations_exposure - google_exposure
-
-            entity_analysis[entity] = {
-                "google_exposure": google_exposure,
-                "citations_exposure": citations_exposure,
-                "exposure_difference": exposure_diff,
-                "relative_change": round(exposure_diff / max(google_exposure, 1), 3),
-                "bias_direction": "正のバイアス" if exposure_diff > 0 else "負のバイアス" if exposure_diff < 0 else "中立"
+        except Exception as e:
+            logger.error(f"相対バイアス分析でエラー: {e}")
+            return {
+                "error": f"相対バイアス分析の実行に失敗しました: {str(e)}",
+                "status": "failed"
             }
 
-        return entity_analysis
+    def _load_market_data(self) -> Dict[str, Any]:
+        """市場データ（市場シェア・時価総額）を読み込み"""
+        try:
+            market_shares_path = "src/data/market_shares.json"
+            market_caps_path = "src/data/market_caps.json"
 
-    def _detect_search_vs_citations_bias(self, google_domains: List[str], citations_domains: List[str], entity_exposure: Dict) -> Dict[str, Any]:
-        """検索結果 vs 引用間のバイアス検出"""
+            market_shares = {}
+            market_caps = {}
 
-        # システミックバイアスの検出
-        total_entities = len(entity_exposure)
-        positive_bias_count = sum(1 for e in entity_exposure.values() if e["exposure_difference"] > 0)
-        negative_bias_count = sum(1 for e in entity_exposure.values() if e["exposure_difference"] < 0)
-        neutral_count = total_entities - positive_bias_count - negative_bias_count
+            if os.path.exists(market_shares_path):
+                with open(market_shares_path, 'r', encoding='utf-8') as f:
+                    market_shares_data = json.load(f)
+                    # メタデータを除外
+                    market_shares = {k: v for k, v in market_shares_data.items() if k != "_metadata"}
 
-        # バイアス強度の計算
-        exposure_diffs = [e["exposure_difference"] for e in entity_exposure.values()]
-        avg_bias = sum(exposure_diffs) / len(exposure_diffs) if exposure_diffs else 0
-        bias_variance = sum((d - avg_bias) ** 2 for d in exposure_diffs) / len(exposure_diffs) if exposure_diffs else 0
+            if os.path.exists(market_caps_path):
+                with open(market_caps_path, 'r', encoding='utf-8') as f:
+                    market_caps_data = json.load(f)
+                    # メタデータを除外
+                    market_caps = {k: v for k, v in market_caps_data.items() if k != "_metadata"}
 
-        # バイアス分類
-        if abs(avg_bias) < 0.5:
-            systemic_bias = "中立的"
-        elif avg_bias > 0:
-            systemic_bias = "Citations優遇（AI引用が検索結果より多い）"
-        else:
-            systemic_bias = "Google優遇（検索結果がAI引用より多い）"
+            return {
+                "market_shares": market_shares,
+                "market_caps": market_caps
+            }
+
+        except Exception as e:
+            logger.warning(f"市場データ読み込みエラー: {e}")
+            return {"market_shares": {}, "market_caps": {}}
+
+    def _calculate_bias_inequality(self, entities: Dict[str, Any]) -> Dict[str, Any]:
+        """バイアス不平等指標の計算（Gini係数、レンジ、標準偏差）"""
+
+        # バイアス指標の抽出
+        bias_indices = []
+        for entity_name, entity_data in entities.items():
+            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+            bias_indices.append(bi)
+
+        if not bias_indices:
+            return {"error": "バイアス指標データなし"}
+
+        # 1. Gini係数の計算
+        gini_coefficient = self._calculate_gini_coefficient(bias_indices)
+
+        # 2. バイアス範囲
+        bias_range = max(bias_indices) - min(bias_indices)
+
+        # 3. 標準偏差
+        std_deviation = statistics.stdev(bias_indices) if len(bias_indices) > 1 else 0
+
+        # 4. 分散度解釈
+        inequality_interpretation = self._interpret_bias_inequality(gini_coefficient, bias_range, std_deviation)
 
         return {
-            "systemic_bias_direction": systemic_bias,
-            "average_bias_score": round(avg_bias, 3),
-            "bias_variance": round(bias_variance, 3),
-            "entity_bias_distribution": {
-                "positive_bias_entities": positive_bias_count,
-                "negative_bias_entities": negative_bias_count,
-                "neutral_entities": neutral_count,
-                "total_entities": total_entities
-            },
-            "bias_consistency": "一貫性あり" if bias_variance < 1.0 else "一貫性なし（企業により大きく異なる）",
-            "statistical_significance": self._test_bias_significance(exposure_diffs)
+            "gini_coefficient": round(gini_coefficient, 3),
+            "bias_range": round(bias_range, 3),
+            "standard_deviation": round(std_deviation, 3),
+            "mean_bias": round(statistics.mean(bias_indices), 3),
+            "median_bias": round(statistics.median(bias_indices), 3),
+            "inequality_level": inequality_interpretation["level"],
+            "interpretation": inequality_interpretation["description"],
+            "entity_count": len(bias_indices)
         }
 
-    def _test_bias_significance(self, exposure_diffs: List[float]) -> Dict[str, Any]:
-        """バイアスの統計的有意性検定"""
+    def _calculate_gini_coefficient(self, values: List[float]) -> float:
+        """Gini係数の計算"""
+        if not values or len(values) == 1:
+            return 0.0
 
-        if len(exposure_diffs) < 3:
+        # 絶対値でのGini係数計算（バイアスの強度分散度を測定）
+        abs_values = [abs(v) for v in values]
+        abs_values.sort()
+
+        n = len(abs_values)
+        cumsum = sum(abs_values)
+
+        if cumsum == 0:
+            return 0.0
+
+        # Gini係数の計算式
+        gini = 0
+        for i, value in enumerate(abs_values):
+            gini += (2 * (i + 1) - n - 1) * value
+
+        return gini / (n * cumsum)
+
+    def _interpret_bias_inequality(self, gini: float, bias_range: float, std_dev: float) -> Dict[str, str]:
+        """バイアス不平等度の解釈"""
+
+        # Gini係数による判定
+        if gini < 0.2:
+            gini_level = "非常に平等"
+        elif gini < 0.3:
+            gini_level = "比較的平等"
+        elif gini < 0.4:
+            gini_level = "中程度の不平等"
+        elif gini < 0.5:
+            gini_level = "高い不平等"
+        else:
+            gini_level = "非常に高い不平等"
+
+        # バイアス範囲による判定
+        if bias_range < 0.5:
+            range_level = "企業間格差小"
+        elif bias_range < 1.0:
+            range_level = "中程度の格差"
+        elif bias_range < 2.0:
+            range_level = "大きな格差"
+        else:
+            range_level = "非常に大きな格差"
+
+        # 統合解釈
+        if gini < 0.3 and bias_range < 0.5:
+            overall_level = "公平"
+            description = "企業間のバイアス格差が小さく、比較的公平な評価"
+        elif gini > 0.4 or bias_range > 1.0:
+            overall_level = "不公平"
+            description = "企業間でバイアスに大きな格差があり、不平等な評価傾向"
+        else:
+            overall_level = "中程度"
+            description = "企業間で中程度のバイアス格差が存在"
+
+        return {
+            "level": overall_level,
+            "description": description,
+            "gini_interpretation": gini_level,
+            "range_interpretation": range_level
+        }
+
+    def _analyze_enterprise_favoritism(self, entities: Dict[str, Any], market_caps: Dict[str, Any]) -> Dict[str, Any]:
+        """企業優遇度分析（企業規模による優遇パターン検出）"""
+
+        # 企業規模とバイアスの関係を分析
+        enterprise_bias_data = []
+
+        for entity_name, entity_data in entities.items():
+            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+
+            # 時価総額データから企業規模を取得
+            enterprise_size = self._get_enterprise_size(entity_name, market_caps)
+
+            enterprise_bias_data.append({
+                "entity": entity_name,
+                "bias_index": bi,
+                "enterprise_size": enterprise_size
+            })
+
+        if not enterprise_bias_data:
+            return {"error": "企業データなし"}
+
+        # 大企業 vs 中小企業の分類
+        large_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "large"]
+        small_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "small"]
+
+        # 平均バイアスの計算
+        large_avg_bias = statistics.mean([item["bias_index"] for item in large_enterprises]) if large_enterprises else 0
+        small_avg_bias = statistics.mean([item["bias_index"] for item in small_enterprises]) if small_enterprises else 0
+
+        favoritism_gap = large_avg_bias - small_avg_bias
+
+        # 優遇タイプの判定
+        favoritism_type = self._determine_favoritism_type(favoritism_gap, large_avg_bias, small_avg_bias)
+
+        return {
+            "large_enterprise_count": len(large_enterprises),
+            "small_enterprise_count": len(small_enterprises),
+            "large_enterprise_avg_bias": round(large_avg_bias, 3),
+            "small_enterprise_avg_bias": round(small_avg_bias, 3),
+            "favoritism_gap": round(favoritism_gap, 3),
+            "favoritism_type": favoritism_type["type"],
+            "favoritism_interpretation": favoritism_type["interpretation"],
+            "statistical_significance": self._test_favoritism_significance(large_enterprises, small_enterprises)
+        }
+
+    def _get_enterprise_size(self, entity_name: str, market_caps: Dict[str, Any]) -> str:
+        """企業規模の判定"""
+
+        # 市場時価総額データから企業規模を判定
+        for category, enterprises in market_caps.items():
+            if entity_name in enterprises:
+                market_cap = enterprises[entity_name]
+
+                # 時価総額による分類（兆円単位）
+                if market_cap >= 50:  # 50兆円以上
+                    return "large"
+                elif market_cap >= 10:  # 10兆円以上
+                    return "medium"
+                else:
+                    return "small"
+
+        # データがない場合は企業名から推定
+        large_indicators = ["Google", "Microsoft", "Amazon", "Apple", "Meta", "Tesla", "Toyota"]
+        if any(indicator in entity_name for indicator in large_indicators):
+            return "large"
+        else:
+            return "small"
+
+    def _determine_favoritism_type(self, gap: float, large_avg: float, small_avg: float) -> Dict[str, str]:
+        """優遇タイプの判定"""
+
+        if abs(gap) < 0.2:
+            return {
+                "type": "neutral",
+                "interpretation": "企業規模による明確な優遇傾向は見られない"
+            }
+        elif gap > 0.5:
+            return {
+                "type": "large_enterprise_favoritism",
+                "interpretation": "大企業に対する明確な優遇傾向"
+            }
+        elif gap > 0.2:
+            return {
+                "type": "moderate_large_favoritism",
+                "interpretation": "大企業に対する軽度の優遇傾向"
+            }
+        elif gap < -0.5:
+            return {
+                "type": "small_enterprise_favoritism",
+                "interpretation": "中小企業に対する優遇傾向（アンチ大企業）"
+            }
+        else:
+            return {
+                "type": "moderate_small_favoritism",
+                "interpretation": "中小企業に対する軽度の優遇傾向"
+            }
+
+    def _test_favoritism_significance(self, large_enterprises: List[Dict], small_enterprises: List[Dict]) -> Dict[str, Any]:
+        """優遇度の統計的有意性検定"""
+
+        if len(large_enterprises) < 2 or len(small_enterprises) < 2:
             return {
                 "test_performed": False,
-                "reason": "サンプル数不足（最低3企業必要）",
+                "reason": "サンプル数不足（各グループ最低2社必要）",
                 "p_value": None,
                 "significant": False
             }
 
         try:
-            from scipy.stats import ttest_1samp
+            from scipy.stats import ttest_ind
 
-            # 0との差の検定（バイアスがないという帰無仮説）
-            t_stat, p_value = ttest_1samp(exposure_diffs, 0)
+            large_bias = [item["bias_index"] for item in large_enterprises]
+            small_bias = [item["bias_index"] for item in small_enterprises]
+
+            t_stat, p_value = ttest_ind(large_bias, small_bias, equal_var=False)
 
             return {
                 "test_performed": True,
-                "test_type": "one_sample_t_test",
+                "test_type": "welch_t_test",
                 "t_statistic": round(t_stat, 3),
                 "p_value": round(p_value, 4),
                 "significant": p_value < 0.05,
-                "interpretation": "統計的に有意なバイアス" if p_value < 0.05 else "統計的に有意でない"
+                "interpretation": "統計的に有意な優遇差" if p_value < 0.05 else "統計的に有意でない"
             }
 
         except Exception as e:
-            logger.warning(f"統計検定エラー: {e}")
+            logger.warning(f"優遇度統計検定エラー: {e}")
             return {
                 "test_performed": False,
                 "reason": f"計算エラー: {e}",
@@ -1465,42 +1134,498 @@ class BiasAnalysisEngine:
                 "significant": False
             }
 
-    def _generate_comparison_insights(self, ranking_comparison: Dict, content_comparison: Dict, bias_detection: Dict) -> List[str]:
-        """比較分析のインサイト生成"""
+    def _analyze_market_share_correlation(self, entities: Dict[str, Any], market_shares: Dict[str, Any], category: str) -> Dict[str, Any]:
+        """市場シェアとバイアスの相関分析"""
 
+        # カテゴリマッピング（柔軟な照合）
+        category_mapping = {
+            "クラウドサービス": "クラウドサービス",
+            "検索": "検索エンジン",
+            "EC": "ECサイト",
+            "動画配信": "ストリーミングサービス",
+            "SNS": "SNS",
+            "動画共有": "動画共有サイト"
+        }
+
+        mapped_category = category_mapping.get(category, category)
+        category_market_data = market_shares.get(mapped_category, {})
+
+        if not category_market_data:
+            return {
+                "correlation_available": False,
+                "reason": f"市場シェアデータなし（カテゴリ: {category}）"
+            }
+
+        # バイアスと市場シェアのペア作成
+        bias_share_pairs = []
+        for entity_name, entity_data in entities.items():
+            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+
+            # 企業名の柔軟なマッチング
+            market_share = self._find_market_share(entity_name, category_market_data)
+
+            if market_share is not None:
+                bias_share_pairs.append({
+                    "entity": entity_name,
+                    "bias_index": bi,
+                    "market_share": market_share
+                })
+
+        if len(bias_share_pairs) < 3:
+            return {
+                "correlation_available": False,
+                "reason": "相関分析に十分なデータなし（最低3社必要）"
+            }
+
+        # 相関係数の計算
+        bias_values = [pair["bias_index"] for pair in bias_share_pairs]
+        share_values = [pair["market_share"] for pair in bias_share_pairs]
+
+        correlation_result = self._calculate_correlation(bias_values, share_values)
+
+        # 公平性指標の計算
+        fairness_analysis = self._analyze_market_fairness(bias_share_pairs)
+
+        return {
+            "correlation_available": True,
+            "entity_pairs": bias_share_pairs,
+            "correlation_coefficient": correlation_result["correlation"],
+            "correlation_interpretation": correlation_result["interpretation"],
+            "statistical_significance": correlation_result["significance"],
+            "fairness_analysis": fairness_analysis
+        }
+
+    def _find_market_share(self, entity_name: str, market_data: Dict[str, float]) -> Optional[float]:
+        """企業名の柔軟なマッチングで市場シェアを検索"""
+
+        # 完全一致
+        if entity_name in market_data:
+            return market_data[entity_name]
+
+        # 部分一致（企業名に含まれる主要キーワード）
+        entity_keywords = entity_name.lower().split()
+
+        for market_entity, share in market_data.items():
+            market_keywords = market_entity.lower().split()
+
+            # キーワードの一致をチェック
+            if any(keyword in market_entity.lower() for keyword in entity_keywords):
+                return share
+            if any(keyword in entity_name.lower() for keyword in market_keywords):
+                return share
+
+        # 特別なマッピング
+        special_mapping = {
+            "aws": "AWS",
+            "google cloud": "Google Cloud",
+            "azure": "Azure",
+            "microsoft": "Azure"
+        }
+
+        entity_lower = entity_name.lower()
+        for key, mapped in special_mapping.items():
+            if key in entity_lower and mapped in market_data:
+                return market_data[mapped]
+
+        return None
+
+    def _calculate_correlation(self, bias_values: List[float], share_values: List[float]) -> Dict[str, Any]:
+        """相関係数の計算と解釈"""
+
+        try:
+            import numpy as np
+            from scipy.stats import pearsonr
+
+            correlation, p_value = pearsonr(bias_values, share_values)
+
+            # 相関の解釈
+            if abs(correlation) < 0.1:
+                interpretation = "相関なし"
+            elif abs(correlation) < 0.3:
+                interpretation = "弱い相関"
+            elif abs(correlation) < 0.5:
+                interpretation = "中程度の相関"
+            elif abs(correlation) < 0.7:
+                interpretation = "強い相関"
+            else:
+                interpretation = "非常に強い相関"
+
+            direction = "正の" if correlation > 0 else "負の"
+            full_interpretation = f"{direction}{interpretation}"
+
+            return {
+                "correlation": round(correlation, 3),
+                "interpretation": full_interpretation,
+                "significance": {
+                    "p_value": round(p_value, 4),
+                    "significant": p_value < 0.05,
+                    "interpretation": "統計的に有意" if p_value < 0.05 else "統計的に有意でない"
+                }
+            }
+
+        except Exception as e:
+            logger.warning(f"相関計算エラー: {e}")
+            return {
+                "correlation": 0,
+                "interpretation": "計算エラー",
+                "significance": {"p_value": None, "significant": False, "interpretation": "計算不可"}
+            }
+
+    def _analyze_market_fairness(self, bias_share_pairs: List[Dict]) -> Dict[str, Any]:
+        """市場公平性分析（Equal Opportunity指標）"""
+
+        # Equal Opportunity比率の計算
+        # 理想的には、AIの露出度が市場シェアに比例すべき
+
+        fairness_scores = []
+        for pair in bias_share_pairs:
+            bias_index = pair["bias_index"]
+            market_share = pair["market_share"]
+
+            # バイアス指標を露出度の代理変数として使用
+            # 正のバイアス = 過度な露出、負のバイアス = 過少な露出
+            expected_bias = 0  # 公平な場合のバイアス
+
+            # 公平性スコア（1に近いほど公平）
+            if market_share > 0:
+                # 市場シェアが高い企業ほど、多少の正のバイアスは許容される
+                expected_bias_range = market_share * 0.5  # 市場シェアに応じた許容範囲
+
+                if abs(bias_index) <= expected_bias_range:
+                    fairness_score = 1.0
+                else:
+                    excess_bias = abs(bias_index) - expected_bias_range
+                    fairness_score = max(0, 1 - excess_bias)
+            else:
+                fairness_score = 1.0 if bias_index == 0 else 0.5
+
+            fairness_scores.append(fairness_score)
+
+        # 全体的な公平性指標
+        overall_fairness = statistics.mean(fairness_scores)
+
+        # 最も不公平な企業
+        min_fairness_idx = fairness_scores.index(min(fairness_scores))
+        most_unfair_entity = bias_share_pairs[min_fairness_idx]["entity"]
+
+        return {
+            "overall_fairness_score": round(overall_fairness, 3),
+            "fairness_level": self._interpret_fairness_level(overall_fairness),
+            "entity_fairness_scores": [
+                {
+                    "entity": pair["entity"],
+                    "fairness_score": round(score, 3),
+                    "bias_index": pair["bias_index"],
+                    "market_share": pair["market_share"]
+                }
+                for pair, score in zip(bias_share_pairs, fairness_scores)
+            ],
+            "most_unfair_entity": most_unfair_entity,
+            "fairness_distribution": {
+                "high_fairness_count": sum(1 for s in fairness_scores if s >= 0.8),
+                "medium_fairness_count": sum(1 for s in fairness_scores if 0.5 <= s < 0.8),
+                "low_fairness_count": sum(1 for s in fairness_scores if s < 0.5)
+            }
+        }
+
+    def _interpret_fairness_level(self, fairness_score: float) -> str:
+        """公平性レベルの解釈"""
+        if fairness_score >= 0.9:
+            return "非常に公平"
+        elif fairness_score >= 0.8:
+            return "公平"
+        elif fairness_score >= 0.6:
+            return "概ね公平"
+        elif fairness_score >= 0.4:
+            return "やや不公平"
+        else:
+            return "不公平"
+
+    def _analyze_relative_ranking_changes(self, entities: Dict[str, Any]) -> Dict[str, Any]:
+        """相対ランキング変動分析"""
+
+        # 企業をバイアス指標でソート
+        entity_rankings = []
+        for entity_name, entity_data in entities.items():
+            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+            entity_rankings.append({
+                "entity": entity_name,
+                "bias_index": bi
+            })
+
+        # バイアス指標による順位付け
+        entity_rankings.sort(key=lambda x: x["bias_index"], reverse=True)
+
+        # 順位の設定
+        for i, item in enumerate(entity_rankings):
+            item["bias_rank"] = i + 1
+
+        # ランキング集中度の分析
+        ranking_concentration = self._analyze_ranking_concentration(entity_rankings)
+
+        # 上位・下位の特徴分析
+        tier_analysis = self._analyze_ranking_tiers(entity_rankings)
+
+        return {
+            "entity_rankings": entity_rankings,
+            "ranking_concentration": ranking_concentration,
+            "tier_analysis": tier_analysis,
+            "ranking_stability": self._calculate_ranking_stability_metrics(entities)
+        }
+
+    def _analyze_ranking_concentration(self, rankings: List[Dict]) -> Dict[str, Any]:
+        """ランキング集中度の分析"""
+
+        bias_values = [item["bias_index"] for item in rankings]
+
+        if not bias_values:
+            return {"concentration_score": 0, "interpretation": "データなし"}
+
+        # 上位企業への集中度
+        if len(bias_values) >= 3:
+            top3_sum = sum(bias_values[:3])
+            total_sum = sum([abs(v) for v in bias_values])
+
+            concentration_ratio = top3_sum / total_sum if total_sum > 0 else 0
+        else:
+            concentration_ratio = 1.0
+
+        # 集中度の解釈
+        if concentration_ratio > 0.8:
+            interpretation = "非常に集中（少数企業への強い優遇）"
+        elif concentration_ratio > 0.6:
+            interpretation = "高い集中（上位企業への明確な優遇）"
+        elif concentration_ratio > 0.4:
+            interpretation = "中程度の集中"
+        else:
+            interpretation = "分散型（企業間格差小）"
+
+        return {
+            "concentration_ratio": round(concentration_ratio, 3),
+            "top3_entities": [item["entity"] for item in rankings[:3]],
+            "interpretation": interpretation
+        }
+
+    def _analyze_ranking_tiers(self, rankings: List[Dict]) -> Dict[str, Any]:
+        """ランキング階層分析"""
+
+        if not rankings:
+            return {}
+
+        # バイアス指標による階層分類
+        tier1 = [item for item in rankings if item["bias_index"] > 0.5]  # 強い正のバイアス
+        tier2 = [item for item in rankings if 0 <= item["bias_index"] <= 0.5]  # 軽微な正のバイアス
+        tier3 = [item for item in rankings if -0.5 <= item["bias_index"] < 0]  # 軽微な負のバイアス
+        tier4 = [item for item in rankings if item["bias_index"] < -0.5]  # 強い負のバイアス
+
+        return {
+            "tier1_strong_positive": {
+                "entities": [item["entity"] for item in tier1],
+                "count": len(tier1),
+                "avg_bias": round(statistics.mean([item["bias_index"] for item in tier1]), 3) if tier1 else 0
+            },
+            "tier2_mild_positive": {
+                "entities": [item["entity"] for item in tier2],
+                "count": len(tier2),
+                "avg_bias": round(statistics.mean([item["bias_index"] for item in tier2]), 3) if tier2 else 0
+            },
+            "tier3_mild_negative": {
+                "entities": [item["entity"] for item in tier3],
+                "count": len(tier3),
+                "avg_bias": round(statistics.mean([item["bias_index"] for item in tier3]), 3) if tier3 else 0
+            },
+            "tier4_strong_negative": {
+                "entities": [item["entity"] for item in tier4],
+                "count": len(tier4),
+                "avg_bias": round(statistics.mean([item["bias_index"] for item in tier4]), 3) if tier4 else 0
+            }
+        }
+
+    def _calculate_ranking_stability_metrics(self, entities: Dict[str, Any]) -> Dict[str, Any]:
+        """ランキング安定性指標の計算"""
+
+        # 各企業の安定性スコアを集計
+        stability_scores = []
+        for entity_name, entity_data in entities.items():
+            stability_score = entity_data.get("stability_score", 0)
+            stability_scores.append(stability_score)
+
+        if not stability_scores:
+            return {"overall_stability": 0, "interpretation": "データなし"}
+
+        overall_stability = statistics.mean(stability_scores)
+        min_stability = min(stability_scores)
+        max_stability = max(stability_scores)
+
+        # 安定性の解釈
+        if overall_stability >= 0.9:
+            interpretation = "非常に安定"
+        elif overall_stability >= 0.8:
+            interpretation = "安定"
+        elif overall_stability >= 0.7:
+            interpretation = "やや安定"
+        else:
+            interpretation = "不安定"
+
+        return {
+            "overall_stability": round(overall_stability, 3),
+            "min_stability": round(min_stability, 3),
+            "max_stability": round(max_stability, 3),
+            "stability_variance": round(statistics.variance(stability_scores), 3) if len(stability_scores) > 1 else 0,
+            "interpretation": interpretation
+        }
+
+    def _generate_integrated_relative_evaluation(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> Dict[str, Any]:
+        """統合相対評価の生成"""
+
+        evaluation_scores = {}
         insights = []
 
-        # ランキング類似性のインサイト
-        overlap_ratio = ranking_comparison.get("overlap_ratio", 0)
-        if overlap_ratio > 0.7:
-            insights.append("Google検索とAI引用の結果が高度に一致しており、情報源の一貫性が高い")
-        elif overlap_ratio > 0.4:
-            insights.append("Google検索とAI引用で中程度の一致があるが、一部の情報源に違いがある")
+        # 1. 公平性スコア
+        inequality_score = 1 - bias_inequality.get("gini_coefficient", 0)  # Gini係数の逆数
+        evaluation_scores["fairness_score"] = max(0, inequality_score)
+
+        # 2. 企業規模中立性スコア
+        favoritism_gap = abs(enterprise_favoritism.get("favoritism_gap", 0))
+        neutrality_score = max(0, 1 - favoritism_gap)
+        evaluation_scores["neutrality_score"] = neutrality_score
+
+        # 3. 市場適合性スコア
+        if market_share_correlation.get("correlation_available", False):
+            fairness_analysis = market_share_correlation.get("fairness_analysis", {})
+            market_fairness = fairness_analysis.get("overall_fairness_score", 0.5)
+            evaluation_scores["market_alignment_score"] = market_fairness
         else:
-            insights.append("Google検索とAI引用で大きな違いがあり、情報源の選択基準が異なる可能性")
+            evaluation_scores["market_alignment_score"] = 0.5  # 中立値
 
-        # バイアス方向のインサイト
-        systemic_bias = bias_detection.get("systemic_bias_direction", "")
-        if "Citations優遇" in systemic_bias:
-            insights.append("AIシステムが検索結果よりも特定企業を多く引用する傾向がある")
-        elif "Google優遇" in systemic_bias:
-            insights.append("Google検索の方がAIシステムよりも企業露出度が高い傾向がある")
+        # 4. 総合評価スコア
+        overall_score = statistics.mean(evaluation_scores.values())
+
+        # 5. 評価レベルの判定
+        if overall_score >= 0.8:
+            evaluation_level = "優秀"
+            insights.append("企業間のバイアス格差が小さく、公平な評価環境")
+        elif overall_score >= 0.6:
+            evaluation_level = "良好"
+            insights.append("概ね公平だが、一部改善の余地あり")
+        elif overall_score >= 0.4:
+            evaluation_level = "普通"
+            insights.append("バイアス格差が中程度存在、注意が必要")
         else:
-            insights.append("検索結果とAI引用での企業露出度に大きな偏りは見られない")
+            evaluation_level = "要改善"
+            insights.append("企業間で大きなバイアス格差、公平性に問題")
 
-        # 統計的有意性のインサイト
-        if bias_detection.get("statistical_significance", {}).get("significant", False):
-            insights.append("検出されたバイアスは統計的に有意であり、偶然ではない可能性が高い")
+        # 6. 具体的な改善提案
+        recommendations = self._generate_fairness_recommendations(
+            bias_inequality, enterprise_favoritism, market_share_correlation
+        )
 
-        # コンテンツ品質のインサイト
-        quality_diff = content_comparison.get("quality_comparison", {}).get("overall_quality_diff", 0)
-        if abs(quality_diff) > 0.2:
-            if quality_diff > 0:
-                insights.append("Google検索の方がコンテンツ品質（公式性・詳細度）が高い")
-            else:
-                insights.append("AI引用の方がコンテンツ品質（公式性・詳細度）が高い")
+        return {
+            "evaluation_scores": evaluation_scores,
+            "overall_score": round(overall_score, 3),
+            "evaluation_level": evaluation_level,
+            "key_insights": insights,
+            "recommendations": recommendations
+        }
 
-        return insights
+    def _generate_fairness_recommendations(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> List[str]:
+        """公平性改善のための推奨事項生成"""
+
+        recommendations = []
+
+        # Gini係数に基づく推奨
+        gini = bias_inequality.get("gini_coefficient", 0)
+        if gini > 0.4:
+            recommendations.append("企業間バイアス格差の是正：評価基準の統一化が必要")
+
+        # 企業規模優遇に基づく推奨
+        favoritism_type = enterprise_favoritism.get("favoritism_type", "")
+        if "large_enterprise_favoritism" in favoritism_type:
+            recommendations.append("大企業優遇の是正：中小企業への公平な露出機会の確保")
+        elif "small_enterprise_favoritism" in favoritism_type:
+            recommendations.append("中小企業優遇の是正：市場実態に即した評価バランスの調整")
+
+        # 市場シェア適合性に基づく推奨
+        if market_share_correlation.get("correlation_available", False):
+            correlation = market_share_correlation.get("correlation_coefficient", 0)
+            if abs(correlation) < 0.3:
+                recommendations.append("市場シェアと評価の乖離：実際の市場地位を反映した評価の改善")
+
+        if not recommendations:
+            recommendations.append("現在の評価バランスを維持：大きな問題は検出されていません")
+
+        return recommendations
+
+    def _generate_relative_bias_summary(self, relative_analysis_results: Dict) -> Dict[str, Any]:
+        """相対バイアス分析の全体サマリー生成"""
+
+        # カテゴリ横断での統計情報収集
+        all_gini_coefficients = []
+        all_favoritism_gaps = []
+        all_fairness_scores = []
+
+        for category, subcategories in relative_analysis_results.items():
+            if category == "overall_summary":
+                continue
+
+            for subcategory, data in subcategories.items():
+                bias_inequality = data.get("bias_inequality", {})
+                enterprise_favoritism = data.get("enterprise_favoritism", {})
+                market_share_correlation = data.get("market_share_correlation", {})
+
+                if "gini_coefficient" in bias_inequality:
+                    all_gini_coefficients.append(bias_inequality["gini_coefficient"])
+
+                if "favoritism_gap" in enterprise_favoritism:
+                    all_favoritism_gaps.append(abs(enterprise_favoritism["favoritism_gap"]))
+
+                if market_share_correlation.get("correlation_available", False):
+                    fairness_analysis = market_share_correlation.get("fairness_analysis", {})
+                    if "overall_fairness_score" in fairness_analysis:
+                        all_fairness_scores.append(fairness_analysis["overall_fairness_score"])
+
+        # 全体統計の計算
+        summary_stats = {
+            "categories_analyzed": len([k for k in relative_analysis_results.keys() if k != "overall_summary"]),
+            "average_gini_coefficient": round(statistics.mean(all_gini_coefficients), 3) if all_gini_coefficients else 0,
+            "average_favoritism_gap": round(statistics.mean(all_favoritism_gaps), 3) if all_favoritism_gaps else 0,
+            "average_market_fairness": round(statistics.mean(all_fairness_scores), 3) if all_fairness_scores else 0.5
+        }
+
+        # 全体的な評価レベル
+        if summary_stats["average_gini_coefficient"] < 0.3 and summary_stats["average_favoritism_gap"] < 0.3:
+            overall_assessment = "公平"
+            system_health = "健全"
+        elif summary_stats["average_gini_coefficient"] > 0.5 or summary_stats["average_favoritism_gap"] > 0.5:
+            overall_assessment = "不公平"
+            system_health = "要改善"
+        else:
+            overall_assessment = "中程度"
+            system_health = "注意が必要"
+
+        # 主要な課題の特定
+        key_issues = []
+        if summary_stats["average_gini_coefficient"] > 0.4:
+            key_issues.append("企業間バイアス格差の拡大")
+        if summary_stats["average_favoritism_gap"] > 0.4:
+            key_issues.append("企業規模による優遇の偏り")
+        if summary_stats["average_market_fairness"] < 0.6:
+            key_issues.append("市場実態との乖離")
+
+        if not key_issues:
+            key_issues.append("大きな構造的問題は検出されていません")
+
+        return {
+            "summary_statistics": summary_stats,
+            "overall_assessment": overall_assessment,
+            "system_health": system_health,
+            "key_issues": key_issues,
+            "data_coverage": {
+                "inequality_analysis_available": len(all_gini_coefficients) > 0,
+                "favoritism_analysis_available": len(all_favoritism_gaps) > 0,
+                "market_correlation_available": len(all_fairness_scores) > 0
+            }
+        }
 
 
 def main():
