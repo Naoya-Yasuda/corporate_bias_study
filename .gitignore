@@ -45,6 +45,16 @@ corporate_bias_datasets/raw_data/*
 corporate_bias_datasets/integrated/*
 corporate_bias_datasets/analysis/*
 corporate_bias_datasets/temp/*
+corporate_bias_datasets/publications/datasets/*
+corporate_bias_datasets/publications/papers/*
+
+# .gitkeepファイルは除外しない（ディレクトリ構造保持のため）
+!corporate_bias_datasets/raw_data/.gitkeep
+!corporate_bias_datasets/integrated/.gitkeep
+!corporate_bias_datasets/analysis/.gitkeep
+!corporate_bias_datasets/temp/.gitkeep
+!corporate_bias_datasets/publications/datasets/.gitkeep
+!corporate_bias_datasets/publications/papers/.gitkeep
 
 # 誤って作成されるディレクトリ（正しくは corporate_bias_datasets/ 配下）
 integrated/
