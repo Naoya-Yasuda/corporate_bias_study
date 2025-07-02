@@ -657,6 +657,46 @@ class MetricsCalculator:
             "interpretation": interp
         }
 
+    def apply_multiple_comparison_correction(self, p_values: list, method: str = 'fdr_bh', alpha: float = 0.05) -> dict:
+        """
+        多重比較補正（Benjamini-Hochberg法等）を適用
+
+        Args:
+            p_values (list): 補正対象のp値リスト
+            method (str): 補正手法（'fdr_bh', 'bonferroni', 'holm'等）
+            alpha (float): 有意水準
+
+        Returns:
+            dict: 補正後p値、判定、有意水準、手法名
+        """
+        if len(p_values) <= 1:
+            return {
+                "original_p_values": p_values,
+                "corrected_p_values": p_values,
+                "rejected": [False] * len(p_values),
+                "method": method,
+                "alpha": alpha
+            }
+        try:
+            from statsmodels.stats.multitest import multipletests
+            rejected, p_corrected, _, _ = multipletests(p_values, method=method, alpha=alpha)
+            return {
+                "original_p_values": p_values,
+                "corrected_p_values": list(p_corrected),
+                "rejected": list(rejected),
+                "method": method,
+                "alpha": alpha
+            }
+        except Exception as e:
+            return {
+                "original_p_values": p_values,
+                "corrected_p_values": p_values,
+                "rejected": [False] * len(p_values),
+                "method": method,
+                "alpha": alpha,
+                "error": str(e)
+            }
+
 
 def main():
     """テスト実行用メイン関数"""

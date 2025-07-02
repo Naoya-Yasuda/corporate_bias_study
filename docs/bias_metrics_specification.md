@@ -579,6 +579,36 @@ def apply_multiple_comparison_correction(p_values, method='benjamini_hochberg'):
 
 **実用性**: ★★★☆☆ - 大規模分析における統計的妥当性確保
 
+### 7.x 多重比較補正（2025年07月02日設計追加）
+
+#### 指標概要
+- 複数企業・カテゴリの同時分析時に、偽陽性（Type I error）を制御するためのp値補正手法。
+- Benjamini-Hochberg法（FDR制御）を推奨、Bonferroni・Holm法も選択可。
+
+#### 適用場面
+- 企業ごと・カテゴリごとに複数の統計検定（p値）が発生する場合
+- バイアス有意性判定の信頼性向上
+
+#### 計算手順
+1. 全企業・カテゴリのp値リストを集約
+2. statsmodels.stats.multitest.multipletestsで補正（method='fdr_bh'等）
+3. 補正後p値（corrected_p）と有意判定（rejected）を出力
+4. 適用した補正法・閾値（α=0.05等）を明記
+5. 解釈ラベル：
+   - 補正後p < 0.05: 有意
+   - 0.05以上: 有意でない
+
+#### 出力例
+```json
+{
+  "original_p_values": [0.01, 0.03, 0.04, 0.07],
+  "corrected_p_values": [0.04, 0.06, 0.06, 0.07],
+  "rejected": [true, false, false, false],
+  "method": "fdr_bh",
+  "alpha": 0.05
+}
+```
+
 ## 8. 運用・システム要件
 
 ### 8.1 データ処理・保存要件
