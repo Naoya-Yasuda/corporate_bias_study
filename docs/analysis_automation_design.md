@@ -46,6 +46,13 @@ corporate_bias_datasets/
 - **誰が使う**: 研究者、データサイエンティスト、外部機関
 - **使用場面**: 論文執筆、独自分析、データセット公開、他研究との比較
 
+---
+【設計原則】integratorの参照ファイルについて
+- integrator（create_integrated_dataset.py）は常にraw_data配下の元データ（例: citations_5runs.json, custom_search.json等）のみを参照し、_sentiment.json等の別データや中間生成物は一切参照しない。
+- 元データにsentiment等が付与されていなければ、そのまま統合・バリデーションでエラーとする。
+- sentiment.json（_sentiment.json）はintegratorの正式な入力ではなく、sentiment_loaderの独立成果物であり、統合・バリデーションの流れとは無関係である。
+---
+
 **📈 bias_analysis_results.json**
 - **何のため**: バイアス指標（感情・ランキング・相対優遇）の計算結果を統合
 - **誰が使う**: app.pyダッシュボード、政策決定者、ステークホルダー
@@ -1550,3 +1557,22 @@ def get_integrated_datasets():
 | README/ドキュメント          | 各段階     | 未確認/要更新   | 新機能追加時に要更新      |
 
 > ※本表は2025年07月02日現在の実装状況です。最新状況はAIアシスタントまたはリポジトリのコミット履歴を参照してください。
+
+## 現状の課題・次アクション（2025年7月2日）
+
+### 1. テスト・分析エンジンの現状課題
+- BiasAnalysisEngineにおいて`_analyze_citations_google_comparison`メソッドが未実装のため、バイアス分析の一部が未完了。
+- 上記エラーにより`bias_analysis_results.json`が生成されず、HybridDataLoaderのテストも一部失敗。
+- S3バケットが存在しない旨のエラーはローカルテストでは致命的でないが、今後の運用時には要注意。
+
+### 2. データ統合・バリデーションの課題
+- Google検索データやPerplexity citationsデータに対して感情分析（sentiment_analyzer.py）が未実施でもintegratorが統合データを生成できてしまう。
+- 統合データの品質・一貫性が担保されないため、今後は必ず感情分析を実施した上で統合し、バリデーションでも該当フィールドの存在チェックを強化する必要あり。
+
+### 3. 次のアクション
+- `_analyze_citations_google_comparison`の設計・実装、およびテスト再実行。
+- sentiment_analyzer.pyを用いてgoogle/citationsデータにも感情分析を実施。
+- integrator/data_validator.pyのバリデーションを修正し、感情分析未実施データの統合をエラーまたは警告とする。
+- 上記対応後、統合・分析・テストを再実行し、出力・品質を確認。
+
+---

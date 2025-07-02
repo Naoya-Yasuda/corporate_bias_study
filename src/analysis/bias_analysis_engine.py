@@ -220,17 +220,16 @@ class BiasAnalysisEngine:
                     if 'masked_values' not in subcategory_data:
                         errors.append(f"masked_values が見つかりません: {category}/{subcategory}")
 
-                    # unmasked_values の確認（企業ごとに存在）
+                    # entities配下のunmasked_valuesの確認
+                    entities = subcategory_data.get("entities", {})
+                    if not isinstance(entities, dict):
+                        errors.append(f"entitiesがdict型でありません: {category}/{subcategory}")
+                        continue
                     has_unmasked_data = False
-                    for key, value in subcategory_data.items():
-                        # 企業データ（masked_*以外のキー）をチェック
-                        if (not key.startswith('masked_') and
-                            not key in ['timestamp'] and
-                            isinstance(value, dict) and
-                            'unmasked_values' in value):
+                    for entity_name, entity_data in entities.items():
+                        if isinstance(entity_data, dict) and 'unmasked_values' in entity_data and isinstance(entity_data['unmasked_values'], list):
                             has_unmasked_data = True
                             break
-
                     if not has_unmasked_data:
                         errors.append(f"unmasked_values が見つかりません: {category}/{subcategory}")
 

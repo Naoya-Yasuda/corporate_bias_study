@@ -97,7 +97,9 @@ class DataValidator:
             "VAL_S006": "スコア[{index}]は数値である必要があります: 実際の値={actual} - {path}",
             "VAL_S007": "スコア[{index}]は1.0-5.0の範囲である必要があります: 実際の値={actual} - {path}",
             "REQ_R001": "必須フィールド '{field}' が存在しません - {path}",
-            "FMT_001": "不正な形式です: {field}={actual}, 期待形式={pattern} - {path}"
+            "FMT_001": "不正な形式です: {field}={actual}, 期待形式={pattern} - {path}",
+            "REQ_G005": "感情分析結果 'sentiment' が存在しません - {path}",
+            "REQ_C005": "感情分析結果 'sentiment' が存在しません - {path}",
         },
         "WARNING": {
             "QUA_001": "品質注意: {field}が空文字列です - {path}",
@@ -175,6 +177,7 @@ class DataValidator:
                         for i, result in enumerate(entity_data["official_results"]):
                             result_path = f"{entity_path}.official_results[{i}]"
                             errors.extend(self._validate_search_result(result, result_path))
+                            # official_resultsはsentimentチェック不要
 
                     # reputation_results チェック
                     if "reputation_results" not in entity_data:
@@ -184,6 +187,9 @@ class DataValidator:
                         for i, result in enumerate(entity_data["reputation_results"]):
                             result_path = f"{entity_path}.reputation_results[{i}]"
                             errors.extend(self._validate_search_result(result, result_path))
+                            # 感情分析済みチェック（reputation_resultsのみ）
+                            if "sentiment" not in result and "sentiment_score" not in result:
+                                errors.append(self._create_error("REQ_G005", "ERROR", path=result_path))
 
         return errors
 
@@ -212,25 +218,22 @@ class DataValidator:
                             errors.append(self._create_error("VAL_S003", "ERROR",
                                                            index=i, actual=value, path=subdata_path))
 
-                # unmasked_values チェック（実際のデータ構造に合わせて修正）
-                # 実際のデータでは各企業ごとに unmasked_values が存在する
+                # entities配下のunmasked_valuesチェック
+                entities = subdata.get("entities", {})
+                if not isinstance(entities, dict):
+                    errors.append(self._create_error("VAL_S004", "ERROR", actual=type(entities).__name__, path=f"{subdata_path}.entities"))
+                    continue
                 has_any_unmasked_values = False
-                for key, value in subdata.items():
-                    # masked_* やその他の共通フィールドをスキップ
-                    if key.startswith("masked_") or key in ["timestamp"]:
-                        continue
-
-                    # 企業データの場合
-                    if isinstance(value, dict) and "unmasked_values" in value:
+                for entity_name, entity_data in entities.items():
+                    entity_path = f"{subdata_path}.entities.{entity_name}"
+                    if isinstance(entity_data, dict) and "unmasked_values" in entity_data:
                         has_any_unmasked_values = True
-                        entity_path = f"{subdata_path}.{key}"
-
-                        if not isinstance(value["unmasked_values"], list):
+                        if not isinstance(entity_data["unmasked_values"], list):
                             errors.append(self._create_error("VAL_S005", "ERROR",
-                                                           actual=type(value["unmasked_values"]).__name__,
+                                                           actual=type(entity_data["unmasked_values"]).__name__,
                                                            path=f"{entity_path}.unmasked_values"))
                         else:
-                            for i, score in enumerate(value["unmasked_values"]):
+                            for i, score in enumerate(entity_data["unmasked_values"]):
                                 if not isinstance(score, (int, float)):
                                     errors.append(self._create_error("VAL_S006", "ERROR",
                                                                    index=i, actual=score,
@@ -239,8 +242,7 @@ class DataValidator:
                                     errors.append(self._create_error("VAL_S007", "ERROR",
                                                                    index=i, actual=score,
                                                                    path=f"{entity_path}.unmasked_values"))
-
-                # どの企業にもunmasked_valuesが存在しない場合はエラー
+                # どのentityにもunmasked_valuesが存在しない場合はエラー
                 if not has_any_unmasked_values:
                     errors.append(self._create_error("REQ_S002", "ERROR", path=subdata_path))
 
@@ -280,15 +282,27 @@ class DataValidator:
                         entity_path = f"{subdata_path}.entities.{entity_name}"
 
                         # URLの検証
-                        for result_type in ["official_results", "reputation_results"]:
-                            if result_type in entity_data:
-                                for i, result in enumerate(entity_data[result_type]):
-                                    result_path = f"{entity_path}.{result_type}[{i}]"
-                                    if "url" in result:
-                                        if not self._is_valid_url(result["url"]):
-                                            errors.append(self._create_error("FMT_001", "ERROR",
-                                                                           field="url", actual=result["url"],
-                                                                           pattern="valid URL", path=result_path))
+                        # official_results: sentimentチェック不要
+                        if "official_results" in entity_data:
+                            for i, result in enumerate(entity_data["official_results"]):
+                                result_path = f"{entity_path}.official_results[{i}]"
+                                if "url" in result:
+                                    if not self._is_valid_url(result["url"]):
+                                        errors.append(self._create_error("FMT_001", "ERROR",
+                                                                       field="url", actual=result["url"],
+                                                                       pattern="valid URL", path=result_path))
+                        # reputation_results: sentiment必須
+                        if "reputation_results" in entity_data:
+                            for i, result in enumerate(entity_data["reputation_results"]):
+                                result_path = f"{entity_path}.reputation_results[{i}]"
+                                if "url" in result:
+                                    if not self._is_valid_url(result["url"]):
+                                        errors.append(self._create_error("FMT_001", "ERROR",
+                                                                       field="url", actual=result["url"],
+                                                                       pattern="valid URL", path=result_path))
+                                # 感情分析済みチェック（reputation_resultsのみ）
+                                if "sentiment" not in result and "sentiment_score" not in result:
+                                    errors.append(self._create_error("REQ_C005", "ERROR", path=result_path))
 
         return errors
 

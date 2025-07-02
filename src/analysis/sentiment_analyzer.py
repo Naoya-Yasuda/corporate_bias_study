@@ -113,7 +113,9 @@ def process_google_search_results(data):
                     for i in range(0, len(valid_results), 5):
                         batch = valid_results[i:i+5]
                         texts = [f"{result['title']} {result['snippet']}" for result in batch]
+                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, texts数={len(texts)}, texts={texts}")
                         sentiments = analyze_sentiments(texts)
+                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, sentiments数={len(sentiments)}, sentiments={sentiments}")
 
                         for result, sentiment in zip(batch, sentiments):
                             result["sentiment"] = sentiment
@@ -170,7 +172,9 @@ def process_perplexity_results(data):
                     for i in range(0, len(valid_results), 5):
                         batch = valid_results[i:i+5]
                         texts = [f"{result['title']} {result['snippet']}" for result in batch]
+                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, texts数={len(texts)}, texts={texts}")
                         sentiments = analyze_sentiments(texts)
+                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, sentiments数={len(sentiments)}, sentiments={sentiments}")
 
                         for result, sentiment in zip(batch, sentiments):
                             result["sentiment"] = sentiment
