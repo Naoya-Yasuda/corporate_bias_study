@@ -22,6 +22,11 @@ alwaysApply: true
 - 新たな指標設計や拡張設計、その他の設計変更・追加が承認された場合は、必ずdocs/bias_metrics_specification.md等の仕様書に随時記載・反映すること。
 - 新たな指標やメソッド・機能を追加した際は、必ず分析エンジンやパイプライン等の主要処理フローに組み込み（呼び出し）まで実装すること。設計・仕様書反映だけでなく、実際の組み込み実装も必須とする。
 
+### テスト実行運用ルール
+- コード修正後は、テスト実行の可否を毎回ユーザーに確認する必要はありません。
+- 修正後は即座にテストを実行し、その結果を速やかにユーザーへ報告してください。
+- テスト実行の許可確認プロンプト（例：「テスト実行してよいですか？」）は不要です。
+
 ### Workflow Requirements
 - **Always present design/plan before any code implementation**
 - **Before modification: Check usage with grep_search/codebase_search across entire codebase**
