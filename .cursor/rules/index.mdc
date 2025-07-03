@@ -192,3 +192,11 @@ alwaysApply: true
 - **Dynamic date handling: Always fetch current date when updating documentation timestamps**
 - NEVER commit automatically without explicit user permission
 - When corrected by user, update memory immediately using update_memory tool
+
+## 推奨運用（CI/CD自動テスト）
+- すべての主要な可視化・分析テスト（Phase1～3など）はCI（GitHub Actions等）で自動実行すること
+- Pull Requestやmainブランチへのpush時に必ず自動テストを走らせること
+- テスト失敗時はアラート通知し、原則としてマージ不可とする
+- 新規指標・可視化・分析機能を追加した場合は、必ずCIテストにも組み込むこと
+- CI環境とローカル環境での動作差異（依存・パス・権限・OS等）に注意し、再現性を担保すること
+- 画像・HTML等の生成物もCIで出力・検証し、壊れた可視化や出力漏れを即座に検知できるようにする

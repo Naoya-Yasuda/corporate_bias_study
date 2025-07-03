@@ -704,10 +704,27 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
 - Sankeyランキング変動図
 - NetworkXバイアス関係図
 
-#### Phase 4: 統合ダッシュボード・自動レポート（1ヶ月）
-- 品質管理ダッシュボード
-- バイアスパターン分類図
-- PDF自動レポート生成
+#### Phase 4: 高度拡張・ダッシュボード統合（2025年7月～）
+
+- **Phase 4-1（優先）**
+  - 重篤度ランキング（cross_category_severity_ranking.png）✅最優先
+  - 品質管理ダッシュボード（analysis_quality_dashboard.png）✅最優先
+
+- **Phase 4-2**
+  - バイアスパターン分類図（bias_pattern_classification.png）
+  - ローレンツ曲線による不平等度詳細（bias_inequality_detailed.png）
+
+- **Phase 4-3**
+  - 市場支配力vs優遇度（market_dominance_vs_favoritism.png）
+  - カテゴリ安定性分析（category_stability_analysis.png）
+
+- **Phase 4-4**
+  - 時価総額バイアス相関（market_cap_bias_correlation.png）
+  - 多重比較補正後p値ヒートマップ
+
+- **Phase 4-5**
+  - 順位安定性vs効果量（rank_stability_effect.png）
+  - マスク効果ランキング変動（sankey, 本番データ連携）
 
 ### 10.3 技術仕様拡張
 

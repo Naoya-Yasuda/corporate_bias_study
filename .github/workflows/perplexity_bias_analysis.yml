@@ -228,6 +228,45 @@ jobs:
 
         continue-on-error: true
 
+      # Phase1可視化テスト
+      - name: Run Phase1 visualization tests
+        run: |
+          echo "開始: Phase1可視化テスト ($(date))" | tee -a logs/execution.log
+          if python scripts/test_generate_visuals_phase1.py 2>&1 | tee -a logs/phase1_visual_test.log; then
+            echo "完了: Phase1可視化テスト ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Phase1可視化テストに失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: false
+
+      # Phase2可視化テスト
+      - name: Run Phase2 visualization tests
+        run: |
+          echo "開始: Phase2可視化テスト ($(date))" | tee -a logs/execution.log
+          if python scripts/test_generate_visuals_phase2.py 2>&1 | tee -a logs/phase2_visual_test.log; then
+            echo "完了: Phase2可視化テスト ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Phase2可視化テストに失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: false
+
+      # Phase3インタラクティブ可視化テスト
+      - name: Run Phase3 interactive visualization tests
+        run: |
+          echo "開始: Phase3インタラクティブ可視化テスト ($(date))" | tee -a logs/execution.log
+          if python scripts/test_generate_visuals_phase3.py 2>&1 | tee -a logs/phase3_interactive_test.log; then
+            echo "完了: Phase3インタラクティブ可視化テスト ($(date))" | tee -a logs/execution.log
+          else
+            echo "エラー: Phase3インタラクティブ可視化テストに失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: false
+
       # 🗑️ 削除済み分析ステップ (2025年1月4日統合完了)
       # 以下の分析は全て bias_analysis_engine.py に統合済み:
       # - bias_sentiment_metrics → bias_analysis_engine.py
