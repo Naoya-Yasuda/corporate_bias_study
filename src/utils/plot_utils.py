@@ -860,3 +860,107 @@ def plot_analysis_quality_dashboard(quality_data: dict, output_path: str, reliab
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return output_path
+
+def plot_bias_pattern_classification(entity_data, output_path, x_key="bi", y_key="size", label_key="cluster_label", title="バイアスパターン分類図", reliability_label=None):
+    """
+    企業ごとのバイアス傾向をクラスタリングし、2次元散布図で分類ラベル・色分け表示
+    Parameters:
+    -----------
+    entity_data : list of dict
+        [{"entity":..., "bi":..., "size":..., "cluster_label":...}, ...]
+    output_path : str
+        出力ファイルパス
+    x_key, y_key : str
+        散布図のX軸・Y軸に使うキー（例: "bi", "size"）
+    label_key : str
+        クラスタラベルのキー
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジ
+    Returns:
+    --------
+    str (output_path)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.cm import get_cmap
+    from src.utils.plot_utils import draw_reliability_badge
+
+    if not entity_data:
+        return None
+    x = [d.get(x_key, 0) for d in entity_data]
+    y = [d.get(y_key, 0) for d in entity_data]
+    labels = [d.get(label_key, "未分類") for d in entity_data]
+    entities = [d.get("entity", "") for d in entity_data]
+    unique_labels = sorted(set(labels))
+    cmap = get_cmap("tab10")
+    color_map = {lab: cmap(i % 10) for i, lab in enumerate(unique_labels)}
+    fig, ax = plt.subplots(figsize=(10, 8))
+    for lab in unique_labels:
+        idxs = [i for i, l in enumerate(labels) if l == lab]
+        ax.scatter([x[i] for i in idxs], [y[i] for i in idxs], label=str(lab), s=120, alpha=0.8, color=color_map[lab])
+        for i in idxs:
+            ax.text(x[i], y[i], entities[i], fontsize=10, ha="right", va="bottom")
+    ax.set_xlabel(x_key)
+    ax.set_ylabel(y_key)
+    ax.set_title(title)
+    ax.legend(title="クラスタ")
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
+    import os
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+def plot_bias_inequality_detailed(bi_values, output_path, title="ローレンツ曲線による不平等度詳細", reliability_label=None):
+    """
+    企業間バイアス格差をローレンツ曲線で可視化し、Gini係数・標準偏差・範囲を注釈で併記
+    Parameters:
+    -----------
+    bi_values : list or np.ndarray
+        各企業のBI値や重篤度スコア
+    output_path : str
+        出力ファイルパス
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジ
+    Returns:
+    --------
+    str (output_path)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from src.utils.plot_utils import draw_reliability_badge
+    bi = np.array(bi_values)
+    n = len(bi)
+    if n == 0:
+        return None
+    sorted_bi = np.sort(np.abs(bi))
+    cum_bi = np.cumsum(sorted_bi)
+    lorenz = np.insert(cum_bi / cum_bi[-1], 0, 0)
+    x = np.linspace(0, 1, n+1)
+    gini = 1 - 2 * np.trapz(lorenz, x)
+    std = np.std(bi)
+    bi_range = np.max(bi) - np.min(bi)
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.plot(x, lorenz, label="ローレンツ曲線", color="#0070C0", linewidth=2)
+    ax.plot([0, 1], [0, 1], linestyle="--", color="gray", label="完全平等線")
+    ax.set_xlabel("累積企業割合")
+    ax.set_ylabel("累積バイアス割合")
+    ax.set_title(title)
+    ax.legend()
+    # 指標注釈
+    textstr = f"Gini係数: {gini:.3f}\n標準偏差: {std:.3f}\n範囲: {bi_range:.3f}"
+    ax.text(0.05, 0.85, textstr, transform=ax.transAxes, fontsize=13, bbox=dict(boxstyle="round", fc="white", alpha=0.7))
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
+    import os
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return output_path

@@ -939,13 +939,20 @@ class BiasAnalysisEngine:
 
                     # 企業データ（entities配下ではなく直接サブカテゴリ下）のunmasked_valuesの確認
                     has_unmasked_data = False
-                    system_keys = ['masked_answer', 'masked_values', 'masked_reasons', 'masked_url', 'masked_avg', 'masked_std_dev', 'masked_prompt']
+                    system_keys = ['masked_answer', 'masked_values', 'masked_reasons', 'masked_url', 'masked_avg', 'masked_std_dev', 'masked_prompt', 'entities']
 
-                    for entity_name, entity_data in subcategory_data.items():
-                        if entity_name not in system_keys and isinstance(entity_data, dict):
+                    # entities配下があればそちらのみ走査
+                    if 'entities' in subcategory_data and isinstance(subcategory_data['entities'], dict):
+                        for entity_name, entity_data in subcategory_data['entities'].items():
                             if 'unmasked_values' in entity_data and isinstance(entity_data['unmasked_values'], list):
                                 has_unmasked_data = True
                                 break
+                    else:
+                        for entity_name, entity_data in subcategory_data.items():
+                            if entity_name not in system_keys and isinstance(entity_data, dict):
+                                if 'unmasked_values' in entity_data and isinstance(entity_data['unmasked_values'], list):
+                                    has_unmasked_data = True
+                                    break
 
                     if not has_unmasked_data:
                         errors.append(f"unmasked_values が見つかりません: {category}/{subcategory}")
