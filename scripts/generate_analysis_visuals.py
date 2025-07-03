@@ -25,7 +25,8 @@ from src.utils.plot_utils import (
     plot_severity_radar,
     plot_pvalue_heatmap,
     plot_correlation_matrix,
-    plot_market_share_bias_scatter
+    plot_market_share_bias_scatter,
+    plot_cross_category_severity_ranking
 )
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import ensure_directory_exists
@@ -290,6 +291,41 @@ class AnalysisVisualizationGenerator:
         if cross_analysis:
             output_path = output_dir / "cross_analysis_dashboard.png"
             self._plot_cross_analysis_dashboard(cross_analysis, str(output_path))
+            generated_files.append(str(output_path))
+
+        # カテゴリ横断の重篤度ランキング
+        # sentiment_bias_analysisから全カテゴリ・サブカテゴリ・企業のseverity_scoreを集約
+        sentiment_data = analysis_results.get("sentiment_bias_analysis", {})
+        severity_list = []
+        for category, subcategories in sentiment_data.items():
+            for subcategory, data in subcategories.items():
+                entities = data.get("entities", {})
+                for entity, entity_data in entities.items():
+                    sev = entity_data.get("severity_score")
+                    if isinstance(sev, dict):
+                        score = sev.get("severity_score")
+                    else:
+                        score = sev
+                    if score is not None:
+                        severity_list.append({
+                            "entity": entity,
+                            "category": category,
+                            "subcategory": subcategory,
+                            "severity_score": score
+                        })
+        if severity_list:
+            # 信頼性ラベルは全体の最小実行回数で判定
+            exec_counts = []
+            for category, subcategories in sentiment_data.items():
+                for subcategory, data in subcategories.items():
+                    entities = data.get("entities", {})
+                    for entity, entity_data in entities.items():
+                        exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
+                        exec_counts.append(exec_count)
+            min_exec = min(exec_counts) if exec_counts else 1
+            reliability_label, _ = ReliabilityChecker().get_reliability_level(min_exec)
+            output_path = output_dir / "cross_category_severity_ranking.png"
+            plot_cross_category_severity_ranking(severity_list, str(output_path), reliability_label=reliability_label)
             generated_files.append(str(output_path))
 
         return generated_files

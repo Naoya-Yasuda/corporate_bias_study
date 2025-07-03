@@ -722,3 +722,65 @@ def networkx_bias_similarity_graph(similarity_matrix, entities, output_path=None
         fig.write_html(output_path)
         return output_path
     return fig
+
+def plot_cross_category_severity_ranking(severity_list, output_path, max_entities=20, reliability_label=None):
+    """
+    カテゴリ横断の重篤度ランキングを横棒グラフで描画
+    Parameters:
+    -----------
+    severity_list : list of dict
+        [{"entity":..., "category":..., "subcategory":..., "severity_score":...}, ...]
+    output_path : str
+        出力ファイルパス
+    max_entities : int
+        最大表示件数（降順上位のみ表示）
+    reliability_label : str, optional
+        信頼性バッジラベル
+    Returns:
+    --------
+    str (output_path)
+    """
+    if not severity_list:
+        return None
+
+    # 降順ソート＆上位のみ
+    sorted_list = sorted(severity_list, key=lambda x: x["severity_score"], reverse=True)[:max_entities]
+    labels = [f"{d['entity']}\n({d['category']}/{d['subcategory']})" for d in sorted_list]
+    scores = [d["severity_score"] for d in sorted_list]
+
+    # 色分け
+    def get_color(score):
+        if score >= 7.0:
+            return "#d62728"  # 赤
+        elif score >= 4.0:
+            return "#ff7f0e"  # オレンジ
+        elif score >= 2.0:
+            return "#ffdd57"  # 黄
+        else:
+            return "#2ca02c"  # 緑
+    colors = [get_color(s) for s in scores]
+
+    fig, ax = plt.subplots(figsize=(12, max(6, len(labels)*0.5)))
+    bars = ax.barh(labels, scores, color=colors)
+    ax.set_xlabel("重篤度スコア (Severity Score)")
+    ax.set_title("重篤度ランキング（カテゴリ横断）")
+    ax.invert_yaxis()
+    # スコア値をバー右に表示
+    for i, bar in enumerate(bars):
+        ax.text(bar.get_width()+0.1, bar.get_y()+bar.get_height()/2, f"{scores[i]:.2f}", va="center", fontsize=11)
+    # 凡例
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor="#d62728", label="非常に重篤 (7.0以上)"),
+        Patch(facecolor="#ff7f0e", label="重篤 (4.0以上)"),
+        Patch(facecolor="#ffdd57", label="中程度 (2.0以上)"),
+        Patch(facecolor="#2ca02c", label="軽微 (2.0未満)")
+    ]
+    ax.legend(handles=legend_elements, loc="lower right")
+    plt.tight_layout()
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return output_path

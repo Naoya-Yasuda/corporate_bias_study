@@ -1,5 +1,5 @@
 import os
-from src.utils.plot_utils import plot_confidence_intervals, plot_severity_radar
+from src.utils.plot_utils import plot_confidence_intervals, plot_severity_radar, plot_cross_category_severity_ranking
 import matplotlib.pyplot as plt
 
 # テスト用ダミーデータ
@@ -32,5 +32,17 @@ plot_confidence_intervals(bi_dict, ci_dict, output_path="test_outputs/test_confi
 
 # 重篤度レーダーチャート
 plot_severity_radar(severity_dict, output_path="test_outputs/test_severity_radar.png", reliability_label="高精度")
+
+# 重篤度ランキング（カテゴリ横断）
+severity_list = [
+    {"entity": "A社", "category": "IT", "subcategory": "クラウド", "severity_score": 7.8},
+    {"entity": "B社", "category": "IT", "subcategory": "クラウド", "severity_score": 2.1},
+    {"entity": "C社", "category": "金融", "subcategory": "決済", "severity_score": 0.3},
+    {"entity": "D社", "category": "金融", "subcategory": "決済", "severity_score": 0.1},
+    {"entity": "E社", "category": "IT", "subcategory": "AI", "severity_score": 1.5},
+    {"entity": "F社", "category": "IT", "subcategory": "AI", "severity_score": 4.5},
+    {"entity": "G社", "category": "流通", "subcategory": "小売", "severity_score": 8.2}
+]
+plot_cross_category_severity_ranking(severity_list, output_path="test_outputs/test_cross_category_severity_ranking.png", reliability_label="実用")
 
 print("テスト画像をtest_outputs/に出力しました。")
