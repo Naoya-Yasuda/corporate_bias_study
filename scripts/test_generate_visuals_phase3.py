@@ -1,5 +1,5 @@
 import os
-from src.utils.plot_utils import plotly_pvalue_heatmap, plotly_correlation_matrix, plotly_market_share_bias_scatter
+from src.utils.plot_utils import plotly_pvalue_heatmap, plotly_correlation_matrix, plotly_market_share_bias_scatter, plotly_sankey_ranking_change, networkx_bias_similarity_graph
 
 # テスト用ダミーデータ
 pvalue_dict = {
@@ -41,4 +41,21 @@ plotly_correlation_matrix(corr_dict, output_path="test_outputs/test_correlation_
 # 市場シェア×BI散布図（インタラクティブ）
 plotly_market_share_bias_scatter(market_share_dict, bi_dict, output_path="test_outputs/test_market_share_bias_scatter_interactive.html")
 
+# Sankey図テスト
+entities = ["A社", "B社", "C社", "D社", "E社"]
+before_ranks = {"A社": 1, "B社": 2, "C社": 3, "D社": 4, "E社": 5}
+after_ranks = {"A社": 2, "B社": 1, "C社": 3, "D社": 5, "E社": 4}
+plotly_sankey_ranking_change(before_ranks, after_ranks, entities, output_path="test_outputs/test_sankey_ranking_change.html")
+
+# NetworkXグラフテスト
+similarity_matrix = [
+    [1.0, 0.8, 0.2, 0.4, 0.1],
+    [0.8, 1.0, 0.3, 0.5, 0.2],
+    [0.2, 0.3, 1.0, 0.7, 0.6],
+    [0.4, 0.5, 0.7, 1.0, 0.9],
+    [0.1, 0.2, 0.6, 0.9, 1.0]
+]
+networkx_bias_similarity_graph(similarity_matrix, entities, output_path="test_outputs/test_networkx_bias_similarity_graph.html")
+
 print("Phase3インタラクティブテストHTMLをtest_outputs/に出力しました。")
+print("Sankey図・NetworkXグラフのテストHTMLもtest_outputs/に出力しました。")

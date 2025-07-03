@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.graph_objects as go
 import plotly.express as px
+import networkx as nx
 
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
@@ -651,6 +652,72 @@ def plotly_market_share_bias_scatter(market_share_dict, bi_dict, output_path=Non
         corr = np.corrcoef(x, y)[0, 1]
         fig.add_annotation(x=min(x), y=max(y), text=f"r={corr:.2f}", showarrow=False, font=dict(size=14, color="black"))
     fig.update_layout(height=500, margin=dict(t=60, b=40))
+    if output_path:
+        fig.write_html(output_path)
+        return output_path
+    return fig
+
+def plotly_sankey_ranking_change(before_ranks, after_ranks, entities, output_path=None, title="ランキング変動サンキー図"):
+    """
+    企業のランキング変動をSankey図で可視化（Plotly）
+    Parameters:
+    -----------
+    before_ranks : dict  # 企業名→マスク前順位
+    after_ranks : dict   # 企業名→マスク後順位
+    entities : list      # 企業名リスト
+    output_path : str, optional
+    title : str
+    """
+    # ラベル生成
+    before_labels = [f"前:{before_ranks[e]}位" for e in entities]
+    after_labels = [f"後:{after_ranks[e]}位" for e in entities]
+    labels = before_labels + after_labels
+    # Sankeyノード
+    node = dict(label=labels, pad=15, thickness=20)
+    # Sankeyリンク
+    sources = list(range(len(entities)))
+    targets = [i+len(entities) for i in range(len(entities))]
+    values = [abs(before_ranks[e] - after_ranks[e]) + 1 for e in entities]  # 変動幅で太さ
+    link = dict(source=sources, target=targets, value=values, label=entities)
+    fig = go.Figure(go.Sankey(node=node, link=link))
+    fig.update_layout(title_text=title, font_size=12, height=400)
+    if output_path:
+        fig.write_html(output_path)
+        return output_path
+    return fig
+
+def networkx_bias_similarity_graph(similarity_matrix, entities, output_path=None, title="バイアス類似ネットワーク図"):
+    """
+    企業間バイアス類似性ネットワークをNetworkX+Plotlyで可視化
+    Parameters:
+    -----------
+    similarity_matrix : 2次元リスト（対称行列, 0-1）
+    entities : list
+    output_path : str, optional
+    title : str
+    """
+    G = nx.Graph()
+    for i, e1 in enumerate(entities):
+        G.add_node(e1)
+        for j, e2 in enumerate(entities):
+            if i < j and similarity_matrix[i][j] > 0.3:
+                G.add_edge(e1, e2, weight=similarity_matrix[i][j])
+    pos = nx.spring_layout(G, seed=42)
+    edge_x = []
+    edge_y = []
+    edge_weights = []
+    for e1, e2, d in G.edges(data=True):
+        x0, y0 = pos[e1]
+        x1, y1 = pos[e2]
+        edge_x += [x0, x1, None]
+        edge_y += [y0, y1, None]
+        edge_weights.append(d['weight'])
+    node_x = [pos[e][0] for e in entities]
+    node_y = [pos[e][1] for e in entities]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=edge_x, y=edge_y, line=dict(width=2, color='gray'), hoverinfo='none', mode='lines'))
+    fig.add_trace(go.Scatter(x=node_x, y=node_y, mode='markers+text', text=entities, textposition='top center', marker=dict(size=20, color='skyblue'), hoverinfo='text'))
+    fig.update_layout(title=title, showlegend=False, height=500, margin=dict(t=60, b=40))
     if output_path:
         fig.write_html(output_path)
         return output_path
