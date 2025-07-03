@@ -1,6 +1,7 @@
 import os
 from src.utils.plot_utils import plot_confidence_intervals, plot_severity_radar, plot_cross_category_severity_ranking
 import matplotlib.pyplot as plt
+import japanize_matplotlib
 
 # テスト用ダミーデータ
 bi_dict = {

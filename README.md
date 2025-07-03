@@ -55,6 +55,9 @@ PERPLEXITY_MODELS_TO_TRY=llama-3.1-sonar-large-128k-online,llama-3.1-sonar-large
 pip install -r requirements.txt
 ```
 
+## 日本語グラフ対応
+matplotlibで日本語が文字化けする場合は、`import japanize_matplotlib` を追加してください。本リポジトリの可視化スクリプト・ユーティリティでは既に対応済みです。
+
 ## 使い方
 
 ### 1. 基本的な使い方

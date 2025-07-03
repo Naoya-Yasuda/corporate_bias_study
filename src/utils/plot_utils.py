@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import networkx as nx
 from matplotlib.gridspec import GridSpec
+import japanize_matplotlib
 
 def plot_delta_ranks(delta_ranks, output_path=None):
     """

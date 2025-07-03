@@ -32,6 +32,9 @@ from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import ensure_dir
 from src.analysis.bias_analysis_engine import ReliabilityChecker
 
+import matplotlib.pyplot as plt
+import japanize_matplotlib
+
 # ログ設定
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -166,28 +169,22 @@ class AnalysisVisualizationGenerator:
                     bi_dict[entity_name] = bi
                     # 信頼区間
                     ci = entity_data.get("confidence_interval", {})
-                    ci_lower = ci.get("ci_lower", bi) if "ci_lower" in ci else bi
-                    ci_upper = ci.get("ci_upper", bi) if "ci_upper" in ci else bi
+                    if not ("ci_lower" in ci and "ci_upper" in ci):
+                        logger.warning(f"[スキップ] {category}/{subcategory}/{entity_name}: 信頼区間なし（実行回数不足等）")
+                        continue
+                    ci_lower = ci["ci_lower"]
+                    ci_upper = ci["ci_upper"]
                     ci_dict[entity_name] = (ci_lower, ci_upper)
-                    # 重篤度スコア構成要素
-                    sev = entity_data.get("severity_score", {})
-                    if isinstance(sev, dict):
-                        sev_comp = sev.get("components", {}) if "components" in sev else {}
-                        severity_dict[entity_name] = {
-                            "abs_bi": sev_comp.get("abs_bi", abs(bi)),
-                            "cliffs_delta": sev_comp.get("cliffs_delta", 0) if "cliffs_delta" in sev_comp else 0,
-                            "p_value": sev_comp.get("p_value", 1) if "p_value" in sev_comp else 1,
-                            "stability_score": sev_comp.get("stability_score", 0) if "stability_score" in sev_comp else 0,
-                            "severity_score": sev.get("severity_score", 0) if "severity_score" in sev else 0
-                        }
                     # p値
-                    stat_sig = entity_data.get("statistical_significance", {})
-                    if "sign_test_p_value" in stat_sig:
-                        pval = stat_sig["sign_test_p_value"]
-                        if pval is not None:
-                            pvalue_dict[entity_name] = pval
-                    exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
-                    exec_counts.append(exec_count)
+                    stat = entity_data.get("statistical_significance", {})
+                    if "sign_test_p_value" not in stat:
+                        logger.warning(f"[スキップ] {category}/{subcategory}/{entity_name}: p値なし（実行回数不足等）")
+                        continue
+                    pvalue_dict[entity_name] = stat["sign_test_p_value"]
+                    # 重篤度スコア
+                    if "severity_score" in entity_data:
+                        severity_dict[entity_name] = entity_data["severity_score"]
+                    exec_counts.append(entity_data.get("basic_metrics", {}).get("execution_count", 0))
 
                 # 信頼性レベル判定（最小実行回数ベース）
                 min_exec = min(exec_counts) if exec_counts else 1

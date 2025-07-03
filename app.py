@@ -26,7 +26,7 @@ serp_metrics = importlib.import_module('src.analysis.serp_metrics')
 
 # 利用可能な日本語フォントを優先的に取得
 import matplotlib.pyplot as plt
-import japanize_matplotlib  # 追加
+import japanize_matplotlib
 
 # 環境変数の読み込み
 load_dotenv()

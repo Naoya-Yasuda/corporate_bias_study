@@ -1169,7 +1169,6 @@ class BiasAnalysisEngine:
 
         if execution_count < min_required:
             return {
-                "cliffs_delta": None,
                 "available": False,
                 "reason": f"実行回数不足（最低{min_required}回必要）",
                 "required_count": min_required,
@@ -1208,8 +1207,6 @@ class BiasAnalysisEngine:
 
         if execution_count < min_required:
             return {
-                "ci_lower": None,
-                "ci_upper": None,
                 "available": False,
                 "reason": f"実行回数不足（最低{min_required}回必要）",
                 "confidence_level": 95
@@ -1407,14 +1404,11 @@ class BiasAnalysisEngine:
 
     def _calculate_ranking_stability(self, ranking_summary: Dict, answer_list: List, execution_count: int) -> Dict[str, Any]:
         """ランキング安定性の計算"""
-
         if execution_count < 2:
             return {
-                "overall_stability": 1.0,  # 1回のみなので完全に安定
                 "available": False,
                 "reason": "安定性分析には最低2回の実行が必要",
-                "pairwise_correlations": [],
-                "rank_variance": {}
+                "execution_count": execution_count
             }
 
         # 現在は1回実行のみのため、将来の複数回実行用のフレームワークを準備
@@ -1455,9 +1449,14 @@ class BiasAnalysisEngine:
 
     def _calculate_ranking_quality(self, ranking_summary: Dict, answer_list: List, execution_count: int) -> Dict[str, Any]:
         """ランキング品質の分析"""
-
         details = ranking_summary.get('details', {})
         avg_ranking = ranking_summary.get('avg_ranking', [])
+        if execution_count < 2 or not details:
+            return {
+                "available": False,
+                "reason": "品質分析には最低2回の実行が必要",
+                "execution_count": execution_count
+            }
 
         # 品質指標
         quality_metrics = {
@@ -1489,12 +1488,14 @@ class BiasAnalysisEngine:
 
     def _calculate_ranking_category_analysis(self, ranking_summary: Dict, execution_count: int) -> Dict[str, Any]:
         """カテゴリレベルのランキング分析"""
-
         details = ranking_summary.get('details', {})
         avg_ranking = ranking_summary.get('avg_ranking', [])
-
-        if not details:
-            return {}
+        if execution_count < 2 or not details:
+            return {
+                "available": False,
+                "reason": "カテゴリ分析には最低2回の実行が必要",
+                "execution_count": execution_count
+            }
 
         # 順位分布分析
         rank_distribution = {}

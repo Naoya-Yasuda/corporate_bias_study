@@ -14,6 +14,8 @@ import datetime
 import boto3
 import re
 import numpy as np
+import matplotlib.pyplot as plt
+import japanize_matplotlib
 from .storage_config import is_s3_enabled, is_local_enabled, get_storage_config, get_base_paths
 from .storage_config import AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, S3_BUCKET_NAME
 from .storage_config import STORAGE_MODE
