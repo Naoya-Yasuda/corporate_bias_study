@@ -539,6 +539,7 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
   - p値ヒートマップ（Phase2実装済み）
   - 相関マトリクス（Phase2実装済み）
   - 市場シェア相関散布図（Phase2実装済み）
+  - インタラクティブ可視化（Plotly HTML, Phase3実装済み）
 
 > ※設計書10.1記載の高度指標の多くは既に実装済み。今後は「可視化拡張」と「インタラクティブ化」が主な開発対象。
 
@@ -699,7 +700,7 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
 ---
 
 #### Phase 3: インタラクティブ化・新規可視化（3-4週間）
-- Plotlyインタラクティブ化
+- Plotlyインタラクティブ化　✅実装済み
 - Sankeyランキング変動図
 - NetworkXバイアス関係図
 
@@ -756,6 +757,16 @@ cross_category_severity_ranking_overall.png
 - **エグゼクティブサマリー**: 重要な発見事項の自動抽出
 - **アクション推奨**: データに基づく具体的改善提案
 
+#### 【インタラクティブ可視化の利用例】
+
+- p値ヒートマップ（HTML）: `test_outputs/test_pvalue_heatmap_interactive.html`
+- 相関マトリクス（HTML）: `test_outputs/test_correlation_matrix_interactive_pearson.html` など
+- 市場シェア×BI散布図（HTML）: `test_outputs/test_market_share_bias_scatter_interactive.html`
+
+```bash
+python scripts/test_generate_visuals_phase3.py
+```
+
 ---
 
 ## 11. まとめ
@@ -764,7 +775,8 @@ cross_category_severity_ranking_overall.png
 - 設計書10.1記載の高度指標の大部分は既に実装済み
 - 可視化システムも基本機能は完備
 - Phase2（統計的可視化・相関分析拡張）も完了
-- 今後は「可視化拡張」「インタラクティブ化」「ダッシュボード統合」が主な開発対象
+- Phase3（インタラクティブ化）も完了
+- 今後は「可視化拡張」「ダッシュボード統合」が主な開発対象
 
 ### 11.2 今後の重点開発方針
 - Phase 1: 既存指標の可視化拡張（信頼区間・重篤度・信頼性バッジ）

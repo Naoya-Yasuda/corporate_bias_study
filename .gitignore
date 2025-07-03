@@ -78,4 +78,4 @@ Thumbs.db
 *.swo
 
 # テスト画像出力ディレクトリ
-test_outputs/*.png
+test_outputs/*

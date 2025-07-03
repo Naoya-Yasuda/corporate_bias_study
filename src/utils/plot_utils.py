@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.graph_objects as go
+import plotly.express as px
 
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
@@ -580,5 +582,76 @@ def plot_market_share_bias_scatter(market_share_dict, bi_dict, output_path=None,
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
+        return output_path
+    return fig
+
+def plotly_pvalue_heatmap(pvalue_dict, output_path=None, title="p値ヒートマップ（インタラクティブ）"):
+    """
+    Plotlyでp値ヒートマップをHTML出力
+    """
+    entities = list(pvalue_dict.keys())
+    pvals = [pvalue_dict[e] for e in entities]
+    z = [pvals]
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        x=entities,
+        y=["p値"],
+        colorscale=[[0, '#bdbdbd'], [0.01, '#ffb3b3'], [0.05, '#ff0000'], [1, '#ff0000']],
+        zmin=0, zmax=1,
+        text=[[f"{v:.3f}" for v in pvals]],
+        texttemplate="%{text}",
+        showscale=True,
+        colorbar=dict(title="p値")
+    ))
+    fig.update_layout(title=title, xaxis_tickangle=30, height=300, margin=dict(t=60, b=40))
+    if output_path:
+        fig.write_html(output_path)
+        return output_path
+    return fig
+
+def plotly_correlation_matrix(corr_dict, output_path=None, title="相関マトリクス（インタラクティブ）"):
+    """
+    Plotlyで相関マトリクス（3種）をHTML出力
+    """
+    labels = corr_dict.get("labels", [])
+    figs = {}
+    for method in ["pearson", "spearman", "kendall"]:
+        mat = corr_dict.get(method, [])
+        fig = go.Figure(data=go.Heatmap(
+            z=mat,
+            x=labels,
+            y=labels,
+            colorscale="RdBu",
+            zmin=-1, zmax=1,
+            colorbar=dict(title="相関係数")
+        ))
+        fig.update_layout(title=f"{title} - {method.capitalize()}", height=500, margin=dict(t=60, b=40))
+        if output_path:
+            html_path = output_path.replace(".html", f"_{method}.html")
+            fig.write_html(html_path)
+            figs[method] = html_path
+        else:
+            figs[method] = fig
+    return figs
+
+def plotly_market_share_bias_scatter(market_share_dict, bi_dict, output_path=None, title="市場シェア×BI散布図（インタラクティブ）"):
+    """
+    Plotlyで市場シェア×BI散布図をHTML出力
+    """
+    entities = list(set(market_share_dict.keys()) & set(bi_dict.keys()))
+    x = [market_share_dict[e] for e in entities]
+    y = [bi_dict[e] for e in entities]
+    fig = px.scatter(x=x, y=y, text=entities, labels={"x": "市場シェア", "y": "Normalized Bias Index (BI)"}, title=title)
+    fig.update_traces(textposition="top center")
+    # 回帰直線
+    if len(x) > 1:
+        coef = np.polyfit(x, y, 1)
+        poly1d_fn = np.poly1d(coef)
+        fig.add_traces(go.Scatter(x=x, y=poly1d_fn(x), mode="lines", name="回帰直線", line=dict(color="red", dash="dash")))
+        corr = np.corrcoef(x, y)[0, 1]
+        fig.add_annotation(x=min(x), y=max(y), text=f"r={corr:.2f}", showarrow=False, font=dict(size=14, color="black"))
+    fig.update_layout(height=500, margin=dict(t=60, b=40))
+    if output_path:
+        fig.write_html(output_path)
         return output_path
     return fig
