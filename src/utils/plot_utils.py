@@ -1086,3 +1086,105 @@ def plot_category_stability_analysis(stability_data, output_path, time_key="year
     plt.savefig(output_path.replace(".png", "_variance.png"), dpi=150, bbox_inches="tight")
     plt.close()
     return output_path
+
+def plot_multiple_comparison_pvalue_heatmap(pvalue_matrix, output_path, categories=None, threshold=0.05, title="多重比較補正p値ヒートマップ", reliability_label=None):
+    """
+    多重比較補正p値ヒートマップを生成
+    Parameters:
+    -----------
+    pvalue_matrix : 2D array-like
+        p値行列（カテゴリ×カテゴリまたは企業×企業）
+    output_path : str
+        出力ファイルパス
+    categories : list of str, optional
+        行・列ラベル
+    threshold : float
+        有意水準（閾値強調）
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジ
+    Returns:
+    --------
+    str (output_path)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from src.utils.plot_utils import draw_reliability_badge
+
+    pvalue_matrix = np.array(pvalue_matrix)
+    n = pvalue_matrix.shape[0]
+    if categories is None:
+        categories = [f"C{i+1}" for i in range(n)]
+
+    plt.figure(figsize=(max(6, n*0.6), max(5, n*0.5)))
+    im = plt.imshow(pvalue_matrix, cmap="coolwarm_r", vmin=0, vmax=1)
+    plt.colorbar(im, label="p値")
+    plt.xticks(np.arange(n), categories, rotation=45, ha="right")
+    plt.yticks(np.arange(n), categories)
+    # 閾値以下を強調
+    for i in range(n):
+        for j in range(n):
+            val = pvalue_matrix[i, j]
+            color = "white" if val < threshold else "black"
+            weight = "bold" if val < threshold else "normal"
+            plt.text(j, i, f"{val:.2g}", ha="center", va="center", color=color, fontsize=9, fontweight=weight)
+    plt.title(title + f"（閾値={threshold}）")
+    if reliability_label:
+        draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    return output_path
+
+def plot_ranking_stability_vs_effect_size(data, output_path, x_key="stability", y_key="effect_size", label_key="entity", color_key="category", title="順位安定性vs効果量", reliability_label=None):
+    """
+    順位安定性vs効果量の散布図を生成
+    Parameters:
+    -----------
+    data : list of dict
+        [{"entity":..., "stability":..., "effect_size":..., "category":...}, ...]
+    output_path : str
+        出力ファイルパス
+    x_key, y_key, label_key, color_key : str
+        各軸・ラベル・色分けに使うキー
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジ
+    Returns:
+    --------
+    str (output_path)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.cm import get_cmap
+    from src.utils.plot_utils import draw_reliability_badge
+
+    if not data:
+        return None
+
+    x = np.array([d.get(x_key, 0) for d in data])
+    y = np.array([d.get(y_key, 0) for d in data])
+    labels = [d.get(label_key, "") for d in data]
+    colors = [d.get(color_key, "カテゴリ") for d in data]
+    unique_colors = list(sorted(set(colors)))
+    color_map = {c: get_cmap("tab10")(i % 10) for i, c in enumerate(unique_colors)}
+    color_vals = [color_map[c] for c in colors]
+
+    plt.figure(figsize=(8, 6))
+    sc = plt.scatter(x, y, c=color_vals, alpha=0.7, edgecolors="w", linewidths=0.8)
+    for i, label in enumerate(labels):
+        plt.text(x[i], y[i], label, fontsize=8, ha="center", va="bottom")
+    plt.xlabel("順位安定性")
+    plt.ylabel("効果量")
+    plt.title(title)
+    # 凡例
+    handles = [plt.Line2D([0], [0], marker='o', color='w', label=c, markerfacecolor=color_map[c], markersize=8) for c in unique_colors]
+    plt.legend(handles=handles, title="カテゴリ", bbox_to_anchor=(1.01, 1), loc="upper left")
+    if reliability_label:
+        draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    return output_path
