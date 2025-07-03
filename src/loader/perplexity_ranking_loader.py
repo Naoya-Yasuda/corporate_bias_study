@@ -18,6 +18,7 @@ from ..utils.storage_utils import save_results, get_results_paths
 from ..utils.storage_config import get_s3_key
 import logging
 import sys
+import pprint
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -184,15 +185,11 @@ def main():
 
         result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
 
-        # --- ここでentities構造をprintで確認 ---
-        try:
-            cat = list(result.keys())[0]
-            subcat = list(result[cat].keys())[0]
-            print(f"[DEBUG] result['{cat}']['{subcat}'] = ")
-            import pprint
-            pprint.pprint(result[cat][subcat])
-        except Exception as e:
-            print(f"[DEBUG] result構造print時エラー: {e}")
+        # --- すべてのカテゴリ・サブカテゴリのentities構造をprintで確認 ---
+        for cat in result:
+            for subcat in result[cat]:
+                print(f"[DEBUG] result['{cat}']['{subcat}'] = ")
+                pprint.pprint(result[cat][subcat])
         # --------------------------------------
 
         file_name = f"rankings_{args.runs}runs.json"

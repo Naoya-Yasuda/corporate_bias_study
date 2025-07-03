@@ -99,10 +99,11 @@ def extract_companies_from_text(text, companies):
 def extract_ranking_and_reasons(text, original_services=None):
     """
     Perplexity等のAI回答からランキングと理由を正確に抽出
-    - 多様なパターンに対応（マークダウン、見出し記法等）
+    - 多様なパターンに対応（マークダウン、見出し記法、全角数字等）
     - サービス名の正規化とマッチング強化
     - デバッグ情報の詳細化
     - original_servicesリストとの厳密な照合
+    - 0件抽出時は緩いパターンでも再抽出
     """
     def normalize_service_name(s):
         """サービス名を正規化（全角→半角、空白除去、小文字化）"""
@@ -165,7 +166,9 @@ def extract_ranking_and_reasons(text, original_services=None):
             try:
                 match = re.match(pattern, line)
                 if match:
-                    rank = int(match.group(1))
+                    rank_str = match.group(1)
+                    # 全角数字対応
+                    rank = int(unicodedata.normalize('NFKC', rank_str))
                     raw_service = match.group(2).strip()
                     reason = match.group(3).strip() if len(match.groups()) >= 3 else ""
 
@@ -208,6 +211,29 @@ def extract_ranking_and_reasons(text, original_services=None):
             is_noise = any(re.search(pattern, line, re.IGNORECASE) for pattern in noise_patterns)
             if not is_noise:
                 unmatched_lines.append(f"行{i}: {line}")
+
+    # 0件抽出時は緩いパターンで再抽出
+    if not rankings:
+        loose_pattern = re.compile(r'^\s*(?:\#*\s*)?([0-9０-９]+)[\.．\s]+([^\:：\s]+)[\s:：]+(.+)$', re.MULTILINE)
+        for i, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line:
+                continue
+            match = loose_pattern.match(line)
+            if match:
+                rank_str = match.group(1)
+                rank = int(unicodedata.normalize('NFKC', rank_str))
+                raw_service = match.group(2).strip()
+                reason = match.group(3).strip()
+                cleaned_service = clean_service_name(raw_service)
+                matched_service = find_matching_service(cleaned_service, original_services)
+                if matched_service and matched_service not in [r[0] for r in rankings]:
+                    rankings.append((matched_service, rank))
+                    reasons.append(reason)
+                    matched_lines.append(f"行{i}: {line}")
+                    debug_info.append(f"✓ 緩いパターンでマッチ: '{raw_service}' -> '{matched_service}'")
+                elif not matched_service:
+                    debug_info.append(f"⚠️ 緩いパターン: サービス名が未知: '{cleaned_service}' (行{i})")
 
     # ランキングを順位でソート
     rankings.sort(key=lambda x: x[1])
