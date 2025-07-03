@@ -1810,28 +1810,45 @@ class BiasAnalysisEngine:
 
     def _analyze_market_share_correlation(self, entities: Dict[str, Any], market_shares: Dict[str, Any], category: str) -> Dict[str, Any]:
         """市場シェアとバイアスの相関分析（多重比較補正横展開）"""
-        # ...既存の相関計算処理...
-        # 例: 各企業の相関p値を集約し補正
-        p_values = []
+        # 企業名リストとバイアス指標・市場シェア値を抽出
+        bias_indices = []
+        share_values = []
         entity_names = []
         for entity_name, entity_data in entities.items():
-            p_val = entity_data.get('correlation_significance', {}).get('p_value')
-            if p_val is not None:
-                p_values.append(p_val)
+            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", None)
+            share = None
+            # market_sharesはカテゴリごと
+            if category in market_shares and entity_name in market_shares[category]:
+                share = market_shares[category][entity_name]
+            if bi is not None and share is not None:
+                bias_indices.append(bi)
+                share_values.append(share)
                 entity_names.append(entity_name)
-        corrected = None
-        if len(p_values) >= 2:
-            corrected = self.apply_multiple_comparison_correction(p_values)
-            for i, name in enumerate(entity_names):
-                if name in entities:
-                    if 'correlation_significance' not in entities[name]:
-                        entities[name]['correlation_significance'] = {}
-                    entities[name]['correlation_significance']['corrected_p_value'] = corrected['corrected_p_values'][i]
-                    entities[name]['correlation_significance']['rejected'] = corrected['rejected'][i]
-                    entities[name]['correlation_significance']['correction_method'] = corrected['method']
-                    entities[name]['correlation_significance']['alpha'] = corrected['alpha']
-        # ...残りの既存処理...
-        # 必要に応じてreturn値にentitiesを含める
+        # 相関計算
+        if len(bias_indices) >= 2 and len(share_values) == len(bias_indices):
+            try:
+                from scipy.stats import pearsonr, spearmanr
+                pearson_corr, pearson_p = pearsonr(share_values, bias_indices)
+                spearman_corr, spearman_p = spearmanr(share_values, bias_indices)
+                result = {
+                    "correlation_available": True,
+                    "entity_count": len(entity_names),
+                    "entities": entity_names,
+                    "pearson_correlation": round(float(pearson_corr), 3),
+                    "pearson_p_value": round(float(pearson_p), 4),
+                    "spearman_correlation": round(float(spearman_corr), 3),
+                    "spearman_p_value": round(float(spearman_p), 4),
+                    "fairness_analysis": {
+                        "overall_fairness_score": 1 - abs(pearson_corr),
+                        "interpretation": "市場シェアとバイアスの相関が弱いほど公平性が高い"
+                    },
+                    "correlation_coefficient": round(float(pearson_corr), 3)
+                }
+                return result
+            except Exception as e:
+                return {"correlation_available": False, "note": f"相関計算エラー: {e}"}
+        else:
+            return {"correlation_available": False, "note": "データ不足（2社以上の市場シェア・バイアス指標が必要）"}
 
     def _generate_integrated_relative_evaluation(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> Dict[str, Any]:
         """統合相対評価の生成"""
