@@ -26,7 +26,8 @@ from src.utils.plot_utils import (
     plot_pvalue_heatmap,
     plot_correlation_matrix,
     plot_market_share_bias_scatter,
-    plot_cross_category_severity_ranking
+    plot_cross_category_severity_ranking,
+    plot_analysis_quality_dashboard
 )
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import ensure_directory_exists
@@ -327,6 +328,49 @@ class AnalysisVisualizationGenerator:
             output_path = output_dir / "cross_category_severity_ranking.png"
             plot_cross_category_severity_ranking(severity_list, str(output_path), reliability_label=reliability_label)
             generated_files.append(str(output_path))
+
+        # 品質管理ダッシュボード
+        metadata = analysis_results.get("metadata", {})
+        data_availability_summary = analysis_results.get("data_availability_summary", {})
+        analysis_limitations = analysis_results.get("analysis_limitations", [])
+        # 各カテゴリの実行回数・失敗数
+        sentiment_data = analysis_results.get("sentiment_bias_analysis", {})
+        category_exec_counts = []
+        category_fail_counts = []
+        for category, subcategories in sentiment_data.items():
+            for subcategory, data in subcategories.items():
+                entities = data.get("entities", {})
+                for entity, entity_data in entities.items():
+                    exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
+                    category_exec_counts.append(exec_count)
+                    # 失敗判定はp値やseverity_scoreがNone等でカウント
+                    if entity_data.get("severity_score") is None:
+                        category_fail_counts.append(1)
+        # 計算成功率
+        total_calculations = len(category_exec_counts)
+        successful_calculations = total_calculations - sum(category_fail_counts)
+        # 警告件数（例: data_availability_summaryの警告やanalysis_limitationsの件数）
+        warnings = {}
+        if isinstance(data_availability_summary, dict):
+            for k, v in data_availability_summary.items():
+                if isinstance(v, (int, float)) and v < 1.0:
+                    warnings[k] = warnings.get(k, 0) + 1
+        if isinstance(analysis_limitations, list):
+            warnings["制限事項"] = len(analysis_limitations)
+        quality_data = {
+            "metadata": metadata,
+            "data_availability_summary": data_availability_summary,
+            "analysis_limitations": analysis_limitations,
+            "category_exec_counts": category_exec_counts,
+            "category_fail_counts": category_fail_counts,
+            "total_calculations": total_calculations,
+            "successful_calculations": successful_calculations,
+            "warnings": warnings
+        }
+        reliability_label = metadata.get("reliability_level", "参考")
+        output_path = output_dir / "analysis_quality_dashboard.png"
+        plot_analysis_quality_dashboard(quality_data, str(output_path), reliability_label=reliability_label)
+        generated_files.append(str(output_path))
 
         return generated_files
 
