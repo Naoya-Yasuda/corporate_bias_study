@@ -741,7 +741,8 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
 
 - **Phase 4-5**
   - 順位安定性vs効果量（ranking_stability_vs_effect_size.png）
-  - マスク効果ランキング変動（sankey, 本番データ連携）
+  - マスク効果ランキング変動（mask_effect_ranking_sankey.png）
+  - 本番データ連携・動的可視化
 
 ### 10.3 技術仕様拡張
 

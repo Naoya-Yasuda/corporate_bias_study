@@ -31,6 +31,18 @@ Google検索とPerplexity API等の結果を比較し、企業バイアスと経
 
 ## セットアップ
 
+まずpipとsetuptoolsを最新版にアップグレードしてください（distutilsエラー対策）:
+
+```
+pip install --upgrade pip setuptools
+```
+
+その後、依存パッケージをインストール:
+
+```
+pip install -r requirements.txt
+```
+
 ### 必要な環境変数
 `.env`ファイルに以下を設定してください（`.env_sample`も参照）：
 
@@ -48,11 +60,6 @@ S3_BUCKET_NAME=your_s3_bucket_name
 
 # Perplexity API Settings
 PERPLEXITY_MODELS_TO_TRY=llama-3.1-sonar-large-128k-online,llama-3.1-sonar-large-128k
-```
-
-### インストール
-```bash
-pip install -r requirements.txt
 ```
 
 ## 日本語グラフ対応

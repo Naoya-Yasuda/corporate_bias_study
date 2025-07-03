@@ -17,6 +17,8 @@ import plotly.express as px
 import networkx as nx
 from matplotlib.gridspec import GridSpec
 import japanize_matplotlib
+from matplotlib import colors as mcolors
+from matplotlib.sankey import Sankey
 
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
@@ -1184,6 +1186,60 @@ def plot_ranking_stability_vs_effect_size(data, output_path, x_key="stability", 
     plt.legend(handles=handles, title="カテゴリ", bbox_to_anchor=(1.01, 1), loc="upper left")
     if reliability_label:
         draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    return output_path
+
+def plot_mask_effect_ranking_sankey(sankey_data, output_path, source_key="before", target_key="after", value_key="count", label_key="entity", color_key="category", title="マスク効果ランキング変動Sankey図", reliability_label=None):
+    """
+    マスク効果ランキング変動をSankey図で可視化
+    Parameters:
+    -----------
+    sankey_data : list of dict
+        [{"entity":..., "before":..., "after":..., "count":..., "category":...}, ...]
+    output_path : str
+        出力ファイルパス
+    source_key, target_key, value_key, label_key, color_key : str
+        前後順位・遷移数・ラベル・色分けに使うキー
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジ
+    Returns:
+    --------
+    str (output_path)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib import colors as mcolors
+    from matplotlib.sankey import Sankey
+    from src.utils.plot_utils import draw_reliability_badge
+
+    # Sankey用データ整形
+    sources = [f"{d[source_key]}位:{d[label_key]}" for d in sankey_data]
+    targets = [f"{d[target_key]}位:{d[label_key]}" for d in sankey_data]
+    values = [d[value_key] for d in sankey_data]
+    cats = [d.get(color_key, "カテゴリ") for d in sankey_data]
+    unique_nodes = list(sorted(set(sources + targets)))
+    node_indices = {n: i for i, n in enumerate(unique_nodes)}
+    color_map = {c: mcolors.TABLEAU_COLORS[list(mcolors.TABLEAU_COLORS.keys())[i % 10]] for i, c in enumerate(sorted(set(cats)))}
+    node_colors = [color_map[c] for c in cats] + [color_map[c] for c in cats]
+
+    # Sankeyパッチ
+    fig = plt.figure(figsize=(10, 6))
+    ax = fig.add_subplot(1, 1, 1, xticks=[], yticks=[])
+    sankey = Sankey(ax=ax, unit=None)
+    for i, d in enumerate(sankey_data):
+        sankey.add(flows=[-d[value_key], d[value_key]],
+                   labels=[sources[i], targets[i]],
+                   orientations=[-1, 1],
+                   facecolor=color_map[cats[i]],
+                   alpha=0.7)
+    sankey.finish()
+    plt.title(title)
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label, loc="upper right")
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
