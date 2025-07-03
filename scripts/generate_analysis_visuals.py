@@ -7,7 +7,6 @@
 bias_analysis_engine.pyの出力JSONから画像を一括生成します。
 """
 
-import os
 import json
 import argparse
 import logging
@@ -30,7 +29,7 @@ from src.utils.plot_utils import (
     plot_analysis_quality_dashboard
 )
 from src.analysis.hybrid_data_loader import HybridDataLoader
-from src.utils.storage_utils import ensure_directory_exists
+from src.utils.storage_utils import ensure_dir
 from src.analysis.bias_analysis_engine import ReliabilityChecker
 
 # ログ設定
@@ -53,7 +52,7 @@ class AnalysisVisualizationGenerator:
 
         # 出力ディレクトリの設定
         self.output_base_dir = "corporate_bias_datasets/analysis_visuals"
-        ensure_directory_exists(self.output_base_dir)
+        ensure_dir(self.output_base_dir)
 
     def generate_all_visuals(self, date_or_path: str) -> Dict[str, List[str]]:
         """指定日付の分析結果から全可視化画像を生成
@@ -80,7 +79,7 @@ class AnalysisVisualizationGenerator:
 
             # 出力ディレクトリの作成
             output_dir = Path(self.output_base_dir) / date_or_path
-            ensure_directory_exists(str(output_dir))
+            ensure_dir(str(output_dir))
 
             generated_files = {
                 "sentiment_bias": [],
@@ -136,12 +135,18 @@ class AnalysisVisualizationGenerator:
 
     def _generate_sentiment_bias_visuals(self, sentiment_data: Dict, output_dir: Path) -> List[str]:
         """感情バイアス可視化を生成"""
-        ensure_directory_exists(str(output_dir))
+        ensure_dir(str(output_dir))
         generated_files = []
         reliability_checker = ReliabilityChecker()
 
         for category, subcategories in sentiment_data.items():
+            if not isinstance(subcategories, dict):
+                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
+                continue
             for subcategory, data in subcategories.items():
+                if not isinstance(data, dict):
+                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
+                    continue
                 if "entities" not in data:
                     continue
                 entities = data["entities"]
@@ -153,26 +158,34 @@ class AnalysisVisualizationGenerator:
                 pvalue_dict = {}
                 exec_counts = []
                 for entity_name, entity_data in entities.items():
-                    bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+                    # BI値
+                    bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index")
+                    if bi is None:
+                        logger.warning(f"[スキップ] {category}/{subcategory}/{entity_name}: BI値なし")
+                        continue
                     bi_dict[entity_name] = bi
+                    # 信頼区間
                     ci = entity_data.get("confidence_interval", {})
-                    ci_lower = ci.get("ci_lower", bi)
-                    ci_upper = ci.get("ci_upper", bi)
+                    ci_lower = ci.get("ci_lower", bi) if "ci_lower" in ci else bi
+                    ci_upper = ci.get("ci_upper", bi) if "ci_upper" in ci else bi
                     ci_dict[entity_name] = (ci_lower, ci_upper)
                     # 重篤度スコア構成要素
                     sev = entity_data.get("severity_score", {})
                     if isinstance(sev, dict):
+                        sev_comp = sev.get("components", {}) if "components" in sev else {}
                         severity_dict[entity_name] = {
-                            "abs_bi": sev.get("components", {}).get("abs_bi", abs(bi)),
-                            "cliffs_delta": sev.get("components", {}).get("cliffs_delta", 0),
-                            "p_value": sev.get("components", {}).get("p_value", 1),
-                            "stability_score": sev.get("components", {}).get("stability_score", 0),
-                            "severity_score": sev.get("severity_score", 0)
+                            "abs_bi": sev_comp.get("abs_bi", abs(bi)),
+                            "cliffs_delta": sev_comp.get("cliffs_delta", 0) if "cliffs_delta" in sev_comp else 0,
+                            "p_value": sev_comp.get("p_value", 1) if "p_value" in sev_comp else 1,
+                            "stability_score": sev_comp.get("stability_score", 0) if "stability_score" in sev_comp else 0,
+                            "severity_score": sev.get("severity_score", 0) if "severity_score" in sev else 0
                         }
                     # p値
-                    pval = entity_data.get("statistical_significance", {}).get("sign_test_p_value")
-                    if pval is not None:
-                        pvalue_dict[entity_name] = pval
+                    stat_sig = entity_data.get("statistical_significance", {})
+                    if "sign_test_p_value" in stat_sig:
+                        pval = stat_sig["sign_test_p_value"]
+                        if pval is not None:
+                            pvalue_dict[entity_name] = pval
                     exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
                     exec_counts.append(exec_count)
 
@@ -208,8 +221,10 @@ class AnalysisVisualizationGenerator:
                 # 効果量散布図
                 effect_data = {}
                 for entity_name, entity_data in entities.items():
-                    cliffs_delta = entity_data.get("effect_size", {}).get("cliffs_delta")
-                    p_value = entity_data.get("statistical_significance", {}).get("sign_test_p_value")
+                    effect_size = entity_data.get("effect_size", {})
+                    cliffs_delta = effect_size.get("cliffs_delta") if "cliffs_delta" in effect_size else None
+                    stat_sig = entity_data.get("statistical_significance", {})
+                    p_value = stat_sig.get("sign_test_p_value") if "sign_test_p_value" in stat_sig else None
                     if cliffs_delta is not None and p_value is not None:
                         effect_data[entity_name] = {"cliffs_delta": cliffs_delta, "p_value": p_value}
                 if effect_data:
@@ -221,12 +236,18 @@ class AnalysisVisualizationGenerator:
 
     def _generate_ranking_analysis_visuals(self, ranking_data: Dict, output_dir: Path) -> List[str]:
         """ランキング分析可視化を生成"""
-        ensure_directory_exists(str(output_dir))
+        ensure_dir(str(output_dir))
         generated_files = []
         reliability_checker = ReliabilityChecker()
 
         for category, subcategories in ranking_data.items():
+            if not isinstance(subcategories, dict):
+                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
+                continue
             for subcategory, data in subcategories.items():
+                if not isinstance(data, dict):
+                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
+                    continue
                 category_summary = data.get("category_summary", {})
 
                 # ランキング安定性可視化
@@ -247,14 +268,20 @@ class AnalysisVisualizationGenerator:
 
     def _generate_citations_comparison_visuals(self, citations_data: Dict, output_dir: Path) -> List[str]:
         """Citations-Google比較可視化を生成"""
-        ensure_directory_exists(str(output_dir))
+        ensure_dir(str(output_dir))
         generated_files = []
 
         for category, subcategories in citations_data.items():
+            if not isinstance(subcategories, dict):
+                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
+                continue
             if category == "error":
                 continue
 
             for subcategory, data in subcategories.items():
+                if not isinstance(data, dict):
+                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
+                    continue
                 ranking_similarity = data.get("ranking_similarity", {})
 
                 # ランキング類似度可視化
@@ -267,12 +294,18 @@ class AnalysisVisualizationGenerator:
 
     def _generate_relative_bias_visuals(self, relative_data: Dict, output_dir: Path) -> List[str]:
         """相対バイアス可視化を生成"""
-        ensure_directory_exists(str(output_dir))
+        ensure_dir(str(output_dir))
         generated_files = []
         reliability_checker = ReliabilityChecker()
 
         for category, subcategories in relative_data.items():
+            if not isinstance(subcategories, dict):
+                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
+                continue
             for subcategory, data in subcategories.items():
+                if not isinstance(data, dict):
+                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
+                    continue
                 # 市場シェア相関散布図
                 market_share_corr = data.get("market_share_correlation", {})
                 if market_share_corr and market_share_corr.get("market_share_dict") and market_share_corr.get("bi_dict"):
@@ -284,7 +317,7 @@ class AnalysisVisualizationGenerator:
 
     def _generate_summary_visuals(self, analysis_results: Dict, output_dir: Path) -> List[str]:
         """統合分析サマリー可視化を生成"""
-        ensure_directory_exists(str(output_dir))
+        ensure_dir(str(output_dir))
         generated_files = []
 
         # 全体サマリーダッシュボード

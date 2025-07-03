@@ -1121,29 +1121,30 @@ class BiasAnalysisEngine:
             statistical_significance.get('sign_test_p_value'), execution_count
         )
 
-        return {
+        result = {
             "basic_metrics": {
                 "raw_delta": round(raw_delta, 3),
                 "normalized_bias_index": round(normalized_bias_index, 3),
                 "delta_values": [round(d, 3) for d in delta_values],
                 "execution_count": execution_count
             },
-            "statistical_significance": statistical_significance,
-            "effect_size": effect_size,
-            "confidence_interval": confidence_interval,
+            "statistical_significance": {k: v for k, v in statistical_significance.items() if v is not None},
+            "effect_size": {k: v for k, v in effect_size.items() if v is not None},
+            "confidence_interval": {k: v for k, v in confidence_interval.items() if v is not None},
             "stability_metrics": stability_metrics,
             "severity_score": severity_score,
             "interpretation": interpretation
         }
+        if severity_score is not None:
+            result["severity_score"] = severity_score
+        return result
 
-    def _calculate_statistical_significance(self, pairs: List[Tuple[float, float]],
-                                          execution_count: int) -> Dict[str, Any]:
+    def _calculate_statistical_significance(self, pairs: List[Tuple[float, float]], execution_count: int) -> Dict[str, Any]:
         """統計的有意性を計算"""
         min_required = self.config["minimum_execution_counts"]["sign_test_p_value"]
 
         if execution_count < min_required:
             return {
-                "sign_test_p_value": None,
                 "available": False,
                 "reason": f"実行回数不足（最低{min_required}回必要）",
                 "required_count": min_required,
@@ -1281,7 +1282,9 @@ class BiasAnalysisEngine:
         sentiment_values = {}
 
         for entity_name, entity_data in entities.items():
-            bi = entity_data["basic_metrics"]["normalized_bias_index"]
+            if not isinstance(entity_data, dict):
+                continue  # dict型以外はスキップ
+            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
             bias_indices.append(bi)
             entity_rankings.append({
                 "entity": entity_name,
@@ -1289,11 +1292,12 @@ class BiasAnalysisEngine:
                 "bias_index": bi
             })
             # 感情スコアリスト（unmasked_values）を取得
-            unmasked = entity_data["basic_metrics"].get("unmasked_values")
+            unmasked = entity_data.get("basic_metrics", {}).get("unmasked_values")
             if unmasked is not None:
                 sentiment_values[entity_name] = unmasked
 
         # バイアス順位の設定
+        entity_rankings = [r for r in entity_rankings if isinstance(r, dict)]
         entity_rankings.sort(key=lambda x: x["bias_index"], reverse=True)
         for i, item in enumerate(entity_rankings):
             item["bias_rank"] = i + 1
@@ -1315,8 +1319,8 @@ class BiasAnalysisEngine:
                 "neutral_count": neutral_count,
                 "bias_range": [min(bias_indices), max(bias_indices)] if bias_indices else [0, 0]
             },
-            "relative_ranking": entity_rankings,
-            "stability_metrics": stability_metrics
+            "relative_ranking": entity_rankings if isinstance(entity_rankings, list) else [],
+            "stability_metrics": stability_metrics if isinstance(stability_metrics, dict) or stability_metrics is None else {}
         }
 
     def _analyze_ranking_bias(self, ranking_data: Dict) -> Dict[str, Any]:

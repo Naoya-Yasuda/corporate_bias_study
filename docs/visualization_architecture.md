@@ -728,7 +728,7 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
   - ローレンツ曲線不平等度詳細（bias_inequality_detailed.png）
 
 - **Phase 4-3**
-  - 市場支配力vs優遇度（market_dominance_vs_favoritism.png）
+  - 市場支配力vs優遇度（market_power_vs_bias.png）
   - カテゴリ安定性分析（category_stability_analysis.png）
 
 - **Phase 4-4**
@@ -837,3 +837,5 @@ python scripts/test_generate_visuals_phase3.py
 
 - **バイアスパターン分類図（bias_pattern_classification.png）**: 企業ごとのバイアス傾向をクラスタリングし、2次元散布図（例: PCA軸やBI×規模）上で分類ラベル・色分け表示。入力は各企業のバイアス指標・クラスタリング結果、出力は色分け・ラベル付き散布図。plot_utils.pyにplot_bias_pattern_classification関数を実装。
 - **ローレンツ曲線不平等度詳細（bias_inequality_detailed.png）**: 企業間バイアス格差をローレンツ曲線で可視化し、Gini係数・標準偏差・範囲を注釈で併記。入力は各企業のBI値や重篤度スコア、出力はローレンツ曲線＋指標注釈。plot_utils.pyにplot_bias_inequality_detailed関数を実装。
+- **市場支配力vs優遇度散布図（market_power_vs_bias.png）**: 各企業の市場シェア（支配力）とバイアス指標（優遇度）を2軸で可視化。X軸=市場シェア、Y軸=BI値や重篤度スコア、バブルサイズ=売上規模、色分け=カテゴリorクラスタ。主要企業名ラベル・信頼性バッジ付き。plot_utils.pyにplot_market_power_vs_bias関数を実装。
+- **カテゴリ安定性分析（category_stability_analysis.png）**: 各カテゴリのバイアス指標の時系列変動や分散を可視化。時系列推移線グラフ（X軸:年度、Y軸:bi値、色分け:カテゴリ）と分散・標準偏差の棒グラフ（X軸:カテゴリ、Y軸:分散/標準偏差）、信頼性バッジ付き。plot_utils.pyにplot_category_stability_analysis関数を実装。

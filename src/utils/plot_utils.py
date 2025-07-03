@@ -964,3 +964,124 @@ def plot_bias_inequality_detailed(bi_values, output_path, title="ローレンツ
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return output_path
+
+def plot_market_power_vs_bias(entity_data, output_path, x_key="market_share", y_key="bi", size_key="revenue", label_key="entity", color_key="category", title="市場支配力vs優遇度散布図", reliability_label=None):
+    """
+    市場支配力vs優遇度散布図を生成
+    Parameters:
+    -----------
+    entity_data : list of dict
+        [{"entity":..., "market_share":..., "bi":..., "revenue":..., "category":...}, ...]
+    output_path : str
+        出力ファイルパス
+    x_key, y_key, size_key, label_key, color_key : str
+        各軸・バブルサイズ・ラベル・色分けに使うキー
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジ
+    Returns:
+    --------
+    str (output_path)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.cm import get_cmap
+    from src.utils.plot_utils import draw_reliability_badge
+
+    if not entity_data:
+        return None
+
+    x = np.array([d.get(x_key, 0) for d in entity_data])
+    y = np.array([d.get(y_key, 0) for d in entity_data])
+    sizes = np.array([d.get(size_key, 1) for d in entity_data])
+    labels = [d.get(label_key, "") for d in entity_data]
+    colors = [d.get(color_key, "カテゴリ") for d in entity_data]
+    unique_colors = list(sorted(set(colors)))
+    color_map = {c: get_cmap("tab10")(i % 10) for i, c in enumerate(unique_colors)}
+    color_vals = [color_map[c] for c in colors]
+
+    plt.figure(figsize=(8, 6))
+    sc = plt.scatter(x, y, s=sizes*10, c=color_vals, alpha=0.7, edgecolors="w", linewidths=0.8)
+    for i, label in enumerate(labels):
+        plt.text(x[i], y[i], label, fontsize=8, ha="center", va="bottom")
+    plt.xlabel("市場シェア")
+    plt.ylabel("バイアス指標")
+    plt.title(title)
+    # 凡例
+    handles = [plt.Line2D([0], [0], marker='o', color='w', label=c, markerfacecolor=color_map[c], markersize=8) for c in unique_colors]
+    plt.legend(handles=handles, title="カテゴリ", bbox_to_anchor=(1.01, 1), loc="upper left")
+    if reliability_label:
+        draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    return output_path
+
+def plot_category_stability_analysis(stability_data, output_path, time_key="year", value_key="bi", category_key="category", title="カテゴリ安定性分析", reliability_label=None):
+    """
+    カテゴリ安定性分析（時系列推移線グラフ＋分散棒グラフ）を生成
+    Parameters:
+    -----------
+    stability_data : list of dict
+        [{"category":..., "year":..., "bi":...}, ...]
+    output_path : str
+        出力ファイルパス
+    time_key, value_key, category_key : str
+        時系列・値・カテゴリのキー
+    title : str
+        グラフタイトル
+    reliability_label : str, optional
+        信頼性バッジ
+    Returns:
+    --------
+    str (output_path)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from collections import defaultdict
+    from src.utils.plot_utils import draw_reliability_badge
+
+    if not stability_data:
+        return None
+
+    # (A) 時系列推移線グラフ
+    cat2data = defaultdict(list)
+    for d in stability_data:
+        cat2data[d[category_key]].append((d[time_key], d[value_key]))
+    plt.figure(figsize=(10, 5))
+    for cat, vals in cat2data.items():
+        vals = sorted(vals)
+        x = [v[0] for v in vals]
+        y = [v[1] for v in vals]
+        plt.plot(x, y, marker="o", label=cat)
+    plt.xlabel("年度")
+    plt.ylabel("bi値")
+    plt.title(title + "（時系列推移）")
+    plt.legend()
+    if reliability_label:
+        draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
+    plt.tight_layout()
+    plt.savefig(output_path.replace(".png", "_timeseries.png"), dpi=150, bbox_inches="tight")
+    plt.close()
+
+    # (B) 分散・標準偏差棒グラフ
+    cat2values = {cat: [v[1] for v in sorted(vals)] for cat, vals in cat2data.items()}
+    cats = list(cat2values.keys())
+    variances = [np.var(cat2values[cat]) for cat in cats]
+    stds = [np.std(cat2values[cat]) for cat in cats]
+    x = np.arange(len(cats))
+    width = 0.35
+    plt.figure(figsize=(10, 5))
+    plt.bar(x - width/2, variances, width, label="分散")
+    plt.bar(x + width/2, stds, width, label="標準偏差")
+    plt.xticks(x, cats, rotation=30)
+    plt.ylabel("値")
+    plt.title(title + "（分散・標準偏差）")
+    plt.legend()
+    if reliability_label:
+        draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
+    plt.tight_layout()
+    plt.savefig(output_path.replace(".png", "_variance.png"), dpi=150, bbox_inches="tight")
+    plt.close()
+    return output_path
