@@ -1812,36 +1812,259 @@ class BiasAnalysisEngine:
 
     def _analyze_market_share_correlation(self, entities: Dict[str, Any], market_shares: Dict[str, Any], category: str) -> Dict[str, Any]:
         """市場シェアとバイアスの相関分析（多重比較補正横展開）"""
-        # ...既存の相関計算処理...
-        # 例: 各企業の相関p値を集約し補正
+        
+        # 企業バイアスと市場シェアのデータを収集
+        correlation_data = []
+        bias_indices = []
+        market_share_values = []
+        entity_names_for_correlation = []
+        
+        for entity_name, entity_data in entities.items():
+            # バイアス指標を取得
+            bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+            
+            # 市場シェアデータを取得
+            market_share = self._get_market_share(entity_name, market_shares, category)
+            
+            if market_share is not None and bias_index is not None:
+                correlation_data.append({
+                    "entity": entity_name,
+                    "bias_index": bias_index,
+                    "market_share": market_share
+                })
+                bias_indices.append(bias_index)
+                market_share_values.append(market_share)
+                entity_names_for_correlation.append(entity_name)
+        
+        # 相関分析の実行
+        correlation_result = self._calculate_bias_market_correlation(bias_indices, market_share_values)
+        
+        # 個別企業の相関有意性検定のp値を収集（多重比較補正用）
         p_values = []
         entity_names = []
-        for entity_name, entity_data in entities.items():
-            p_val = entity_data.get('correlation_significance', {}).get('p_value')
-            if p_val is not None:
-                p_values.append(p_val)
-                entity_names.append(entity_name)
+        
+        # 各企業に相関分析結果を反映
+        for i, entity_name in enumerate(entity_names_for_correlation):
+            if entity_name in entities:
+                # 個別企業の市場シェア適合度を計算
+                individual_analysis = self._analyze_individual_market_alignment(
+                    correlation_data[i]["bias_index"], 
+                    correlation_data[i]["market_share"],
+                    correlation_result
+                )
+                
+                entities[entity_name]["market_share_analysis"] = individual_analysis
+                
+                # p値があれば多重比較補正用に収集
+                if individual_analysis.get("significance_test", {}).get("p_value") is not None:
+                    p_values.append(individual_analysis["significance_test"]["p_value"])
+                    entity_names.append(entity_name)
+        
+        # 多重比較補正の適用
         corrected = None
         if len(p_values) >= 2:
             corrected = self.apply_multiple_comparison_correction(p_values)
             for i, name in enumerate(entity_names):
-                if name in entities:
-                    if 'correlation_significance' not in entities[name]:
-                        entities[name]['correlation_significance'] = {}
-                    entities[name]['correlation_significance']['corrected_p_value'] = corrected['corrected_p_values'][i]
-                    entities[name]['correlation_significance']['rejected'] = corrected['rejected'][i]
-                    entities[name]['correlation_significance']['correction_method'] = corrected['method']
-                    entities[name]['correlation_significance']['alpha'] = corrected['alpha']
-        # ...残りの既存処理...
-        # 必要に応じてreturn値にentitiesを含める
+                if name in entities and "market_share_analysis" in entities[name]:
+                    entities[name]["market_share_analysis"]["corrected_significance"] = {
+                        "corrected_p_value": corrected["corrected_p_values"][i],
+                        "rejected": corrected["rejected"][i],
+                        "correction_method": corrected["method"],
+                        "alpha": corrected["alpha"]
+                    }
         
-        # 暫定実装: 基本的な結果を返す
+        # 公平性分析
+        fairness_analysis = self._analyze_market_correlation_fairness(correlation_result, correlation_data)
+        
         return {
-            "correlation_available": False,  # 未実装のため常にFalse
-            "fairness_analysis": {
-                "overall_fairness_score": 0.5  # 中立値
+            "correlation_available": len(correlation_data) >= 2,
+            "correlation_coefficient": correlation_result.get("correlation", 0),
+            "statistical_significance": correlation_result.get("significance", {}),
+            "fairness_analysis": fairness_analysis,
+            "sample_size": len(correlation_data),
+            "entities": entities,
+            "correlation_data": correlation_data
+        }
+    
+    def _get_market_share(self, entity_name: str, market_shares: Dict[str, Any], category: str) -> Optional[float]:
+        """企業の市場シェアを取得"""
+        
+        # カテゴリ内で企業名を検索
+        if category in market_shares:
+            category_data = market_shares[category]
+            if isinstance(category_data, dict) and entity_name in category_data:
+                return float(category_data[entity_name])
+        
+        # カテゴリが見つからない場合、全カテゴリを検索
+        for cat_name, cat_data in market_shares.items():
+            if isinstance(cat_data, dict) and entity_name in cat_data:
+                return float(cat_data[entity_name])
+        
+        # 企業名の部分一致検索（Google Inc. vs Google など）
+        for cat_name, cat_data in market_shares.items():
+            if isinstance(cat_data, dict):
+                for market_entity, share_value in cat_data.items():
+                    if entity_name.lower() in market_entity.lower() or market_entity.lower() in entity_name.lower():
+                        return float(share_value)
+        
+        return None
+    
+    def _calculate_bias_market_correlation(self, bias_indices: List[float], market_shares: List[float]) -> Dict[str, Any]:
+        """バイアス指標と市場シェアの相関を計算"""
+        
+        if len(bias_indices) < 2 or len(market_shares) < 2:
+            return {
+                "correlation": 0.0,
+                "significance": {
+                    "p_value": None,
+                    "significant": False,
+                    "interpretation": "サンプル数不足"
+                }
+            }
+        
+        try:
+            from scipy.stats import pearsonr
+            
+            correlation, p_value = pearsonr(bias_indices, market_shares)
+            
+            return {
+                "correlation": round(float(correlation) if not np.isnan(correlation) else 0.0, 3),
+                "significance": {
+                    "p_value": round(float(p_value) if not np.isnan(p_value) else 1.0, 4),
+                    "significant": p_value < 0.05 if not np.isnan(p_value) else False,
+                    "interpretation": self._interpret_correlation_significance(correlation, p_value)
+                }
+            }
+        
+        except Exception as e:
+            logger.warning(f"相関計算エラー: {e}")
+            return {
+                "correlation": 0.0,
+                "significance": {
+                    "p_value": None,
+                    "significant": False,
+                    "interpretation": f"計算エラー: {e}"
+                }
+            }
+    
+    def _interpret_correlation_significance(self, correlation: float, p_value: float) -> str:
+        """相関の統計的有意性の解釈"""
+        
+        if np.isnan(correlation) or np.isnan(p_value):
+            return "計算不可"
+        
+        if p_value >= 0.05:
+            return "統計的に有意でない"
+        
+        abs_corr = abs(correlation)
+        if abs_corr >= 0.7:
+            strength = "強い"
+        elif abs_corr >= 0.5:
+            strength = "中程度の"
+        elif abs_corr >= 0.3:
+            strength = "弱い"
+        else:
+            strength = "非常に弱い"
+        
+        direction = "正の" if correlation > 0 else "負の"
+        
+        return f"統計的に有意な{strength}{direction}相関"
+    
+    def _analyze_individual_market_alignment(self, bias_index: float, market_share: float, overall_correlation: Dict) -> Dict[str, Any]:
+        """個別企業の市場シェア適合度分析"""
+        
+        # 企業の相対的位置を分析
+        expected_bias = self._calculate_expected_bias_from_market_share(market_share, overall_correlation)
+        bias_deviation = abs(bias_index - expected_bias)
+        
+        alignment_score = max(0, 1 - bias_deviation)
+        
+        return {
+            "market_share": market_share,
+            "bias_index": bias_index,
+            "expected_bias": round(expected_bias, 3),
+            "deviation": round(bias_deviation, 3),
+            "alignment_score": round(alignment_score, 3),
+            "alignment_category": self._categorize_alignment(alignment_score),
+            "significance_test": {
+                "p_value": None,  # 個別検定は簡易化のため省略
+                "method": "relative_deviation"
+            }
+        }
+    
+    def _calculate_expected_bias_from_market_share(self, market_share: float, overall_correlation: Dict) -> float:
+        """市場シェアから期待されるバイアス値を計算"""
+        
+        correlation = overall_correlation.get("correlation", 0)
+        
+        # 簡易的な線形関係を仮定
+        # 市場シェア0-100%をバイアス指標の範囲にマッピング
+        normalized_share = min(max(market_share / 100.0, 0), 1)  # 0-1に正規化
+        
+        # 相関が正の場合、市場シェアが高いほど高いバイアス（優遇）を期待
+        if correlation > 0:
+            expected_bias = normalized_share * correlation
+        else:
+            expected_bias = (1 - normalized_share) * abs(correlation)
+        
+        return expected_bias
+    
+    def _categorize_alignment(self, alignment_score: float) -> str:
+        """適合度スコアの分類"""
+        
+        if alignment_score >= 0.8:
+            return "高適合"
+        elif alignment_score >= 0.6:
+            return "中適合"
+        elif alignment_score >= 0.4:
+            return "低適合"
+        else:
+            return "不適合"
+    
+    def _analyze_market_correlation_fairness(self, correlation_result: Dict, correlation_data: List[Dict]) -> Dict[str, Any]:
+        """市場シェア相関の公平性分析"""
+        
+        correlation = correlation_result.get("correlation", 0)
+        p_value = correlation_result.get("significance", {}).get("p_value")
+        
+        # 公平性スコアの計算
+        # 相関が0に近いほど公平（市場シェアに関係なく評価されている）
+        fairness_from_correlation = 1 - abs(correlation)
+        
+        # 統計的有意性を考慮
+        if p_value is not None and p_value >= 0.05:
+            # 有意でない場合は公平性を高く評価
+            fairness_from_significance = 0.8
+        else:
+            # 有意な相関がある場合は不公平の可能性
+            fairness_from_significance = max(0.2, 0.8 - abs(correlation))
+        
+        overall_fairness_score = (fairness_from_correlation + fairness_from_significance) / 2
+        
+        # 公平性の解釈
+        if overall_fairness_score >= 0.8:
+            fairness_level = "高い公平性"
+            interpretation = "市場シェアに関係なく公平な評価"
+        elif overall_fairness_score >= 0.6:
+            fairness_level = "中程度の公平性"
+            interpretation = "軽微な市場シェア依存あり"
+        elif overall_fairness_score >= 0.4:
+            fairness_level = "低い公平性"
+            interpretation = "明確な市場シェア依存"
+        else:
+            fairness_level = "不公平"
+            interpretation = "強い市場シェア依存バイアス"
+        
+        return {
+            "overall_fairness_score": round(overall_fairness_score, 3),
+            "fairness_level": fairness_level,
+            "interpretation": interpretation,
+            "correlation_impact": {
+                "correlation_strength": abs(correlation),
+                "correlation_direction": "positive" if correlation > 0 else "negative" if correlation < 0 else "none",
+                "significance": correlation_result.get("significance", {})
             },
-            "entities": entities
+            "sample_size": len(correlation_data)
         }
 
     def _generate_integrated_relative_evaluation(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> Dict[str, Any]:
