@@ -311,8 +311,10 @@ class BiasAnalysisEngine:
         logger.info(f"BiasAnalysisEngine初期化: storage_mode={self.storage_mode}")
         logger.info(f"market_data読み込み状況: {bool(self.market_data)}")
         if self.market_data:
-            logger.info(f"market_shares: {len(self.market_data.get('market_shares', {}))} カテゴリ")
-            logger.info(f"market_caps: {len(self.market_data.get('market_caps', {}))} カテゴリ")
+            market_shares = self.market_data.get('market_shares', {}) if self.market_data else {}
+            market_caps = self.market_data.get('market_caps', {}) if self.market_data else {}
+            logger.info(f"market_shares: {len(market_shares)} カテゴリ")
+            logger.info(f"market_caps: {len(market_caps)} カテゴリ")
 
     # MetricsCalculator統合済み（metrics_calculator.py削除完了）
     def calculate_raw_delta(self,
@@ -1832,6 +1834,15 @@ class BiasAnalysisEngine:
                     entities[name]['correlation_significance']['alpha'] = corrected['alpha']
         # ...残りの既存処理...
         # 必要に応じてreturn値にentitiesを含める
+        
+        # 暫定実装: 基本的な結果を返す
+        return {
+            "correlation_available": False,  # 未実装のため常にFalse
+            "fairness_analysis": {
+                "overall_fairness_score": 0.5  # 中立値
+            },
+            "entities": entities
+        }
 
     def _generate_integrated_relative_evaluation(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> Dict[str, Any]:
         """統合相対評価の生成"""
@@ -1840,16 +1851,16 @@ class BiasAnalysisEngine:
         insights = []
 
         # 1. 公平性スコア
-        inequality_score = 1 - bias_inequality.get("gini_coefficient", 0)  # Gini係数の逆数
+        inequality_score = 1 - (bias_inequality.get("gini_coefficient", 0) if bias_inequality else 0)  # Gini係数の逆数
         evaluation_scores["fairness_score"] = max(0, inequality_score)
 
         # 2. 企業規模中立性スコア
-        favoritism_gap = abs(enterprise_favoritism.get("favoritism_gap", 0))
+        favoritism_gap = abs(enterprise_favoritism.get("favoritism_gap", 0) if enterprise_favoritism else 0)
         neutrality_score = max(0, 1 - favoritism_gap)
         evaluation_scores["neutrality_score"] = neutrality_score
 
         # 3. 市場適合性スコア
-        if market_share_correlation.get("correlation_available", False):
+        if market_share_correlation and market_share_correlation.get("correlation_available", False):
             fairness_analysis = market_share_correlation.get("fairness_analysis", {})
             market_fairness = fairness_analysis.get("overall_fairness_score", 0.5)
             evaluation_scores["market_alignment_score"] = market_fairness
