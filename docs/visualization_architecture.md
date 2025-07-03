@@ -57,6 +57,28 @@ graph TB
     E --> I[Streamlit App]
 ```
 
+### 1.4 本番データ連携の現状と拡張方針
+
+現状の設計（integrated/配下の統合データセットを直接分析・可視化パイプラインに連携）で「本番データ連携」は既に実現済みであり、追加の拡張は不要である。
+
+- bias_analysis_engine.pyはintegrated/配下のデータを直接読み込み、バイアス指標を計算し、分析結果JSONを出力する。
+- generate_analysis_visuals.pyは、その分析結果JSONを入力として可視化を行う。
+- したがって、現状の設計で本番データ連携は十分に担保されており、追加の拡張や特別な連携処理は不要である。
+
+今後、Streamlit等による動的可視化や外部連携が必要になった場合は、別途設計・拡張を検討する。
+
+### 1.5 ディレクトリ構成の最適化と不要ディレクトリの整理
+
+- 旧「corporate_bias_datasets/analysis」ディレクトリは、現状のパイプライン・運用設計上、用途が存在しないため削除済み。
+- 元データ・分析結果・可視化成果物はそれぞれ「integrated」「analysis_visuals」「raw_data」等で一元管理されており、分析用の中間生成物や一時データも現状は不要。
+- 今後新たな用途が発生した場合は、その都度設計書に明記し、必要なディレクトリを追加する。
+
+#### 現在の主要ディレクトリ構成（2025年7月時点）
+
+- corporate_bias_datasets/integrated/ … 元データ・分析結果（JSON）
+- corporate_bias_datasets/analysis_visuals/ … 可視化画像
+- corporate_bias_datasets/raw_data/ … 収集直後の生データ
+
 ---
 
 ## 2. 2段階実行アプローチ
