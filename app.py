@@ -9,23 +9,15 @@ Streamlitを使用して、企業バイアス分析の結果データを可視�
 
 import os
 import json
-import glob
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-from datetime import datetime
-import matplotlib as mpl
 import matplotlib.font_manager as fm
+from datetime import datetime
 from dotenv import load_dotenv
 from src.utils.storage_utils import get_s3_client, S3_BUCKET_NAME, get_latest_file, load_json
-from src.analysis.ranking_metrics import get_exposure_market_data, compute_rank_metrics, MARKET_SHARES, get_timeseries_exposure_market_data
-import importlib
-serp_metrics = importlib.import_module('src.analysis.serp_metrics')
 
 # 利用可能な日本語フォントを優先的に取得
-import matplotlib.pyplot as plt
 import japanize_matplotlib
 
 # 環境変数の読み込み
@@ -266,7 +258,7 @@ def get_bias_summary():
                     "サブカテゴリ": subcat,
                     "分析単位": key,
                     "バイアス指標": metrics.get("normalized_bias_index"),
-                    "生差分": metrics.get("raw_delta"),
+                    "スコアの平均差": metrics.get("raw_delta"),
                     "安定性": stability.get("stability_score"),
                     "バイアス方向": interp.get("bias_direction"),
                     "バイアス強度": interp.get("bias_strength"),
