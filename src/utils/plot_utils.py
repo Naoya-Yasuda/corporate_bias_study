@@ -19,6 +19,7 @@ from matplotlib.gridspec import GridSpec
 import japanize_matplotlib
 from matplotlib import colors as mcolors
 from matplotlib.sankey import Sankey
+from .storage_utils import save_figure
 
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
@@ -77,9 +78,7 @@ def plot_delta_ranks(delta_ranks, output_path=None):
 
     # ファイルに保存（指定された場合）
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=100, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
 
     return fig
@@ -154,9 +153,7 @@ def plot_market_impact(original_share, adjusted_share, output_path=None):
 
     # ファイルに保存（指定された場合）
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=100, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
 
     return fig
@@ -225,9 +222,7 @@ def plot_rank_heatmap(rank_dist, category, output_path=None):
 
     # ファイルに保存（指定された場合）
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=100, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
 
     return fig
@@ -318,9 +313,7 @@ def plot_exposure_market(exposure, market_share, category, output_path=None):
 
     # ファイルに保存（指定された場合）
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=100, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
 
     return fig
@@ -374,9 +367,7 @@ def plot_confidence_intervals(bi_dict, ci_dict, output_path=None, highlight_zero
     if reliability_label:
         draw_reliability_badge(ax, reliability_label)
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
     return fig
 
@@ -424,9 +415,7 @@ def plot_severity_radar(severity_dict, output_path=None, title="重篤度レー�
         draw_reliability_badge(ax, reliability_label)
     plt.tight_layout()
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
     return fig
 
@@ -501,9 +490,7 @@ def plot_pvalue_heatmap(pvalue_dict, output_path=None, title="p値ヒートマ�
     if reliability_label:
         draw_reliability_badge(ax, reliability_label)
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
     return fig
 
@@ -536,9 +523,7 @@ def plot_correlation_matrix(corr_dict, output_path=None, title="相関マトリ�
     if reliability_label:
         draw_reliability_badge(axes[0], reliability_label)
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
     return fig
 
@@ -584,9 +569,7 @@ def plot_market_share_bias_scatter(market_share_dict, bi_dict, output_path=None,
         draw_reliability_badge(ax, reliability_label)
     plt.tight_layout()
     if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path)
         return output_path
     return fig
 
@@ -784,9 +767,7 @@ def plot_cross_category_severity_ranking(severity_list, output_path, max_entitie
     plt.tight_layout()
     if reliability_label:
         draw_reliability_badge(ax, reliability_label)
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    save_figure(fig, output_path)
     return output_path
 
 def plot_analysis_quality_dashboard(quality_data: dict, output_path: str, reliability_label: str = None):
@@ -859,9 +840,7 @@ def plot_analysis_quality_dashboard(quality_data: dict, output_path: str, reliab
 
     fig.suptitle("分析品質管理ダッシュボード", fontsize=18)
     plt.tight_layout(rect=[0, 0.04, 1, 0.96])
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    save_figure(fig, output_path)
     return output_path
 
 def plot_bias_pattern_classification(entity_data, output_path, x_key="bi", y_key="size", label_key="cluster_label", title="バイアスパターン分類図", reliability_label=None):
@@ -912,10 +891,7 @@ def plot_bias_pattern_classification(entity_data, output_path, x_key="bi", y_key
     if reliability_label:
         draw_reliability_badge(ax, reliability_label)
     plt.tight_layout()
-    import os
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    save_figure(fig, output_path)
     return output_path
 
 def plot_bias_inequality_detailed(bi_values, output_path, title="ローレンツ曲線による不平等度詳細", reliability_label=None):
@@ -962,10 +938,7 @@ def plot_bias_inequality_detailed(bi_values, output_path, title="ローレンツ
     if reliability_label:
         draw_reliability_badge(ax, reliability_label)
     plt.tight_layout()
-    import os
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    save_figure(fig, output_path)
     return output_path
 
 def plot_market_power_vs_bias(entity_data, output_path, x_key="market_share", y_key="bi", size_key="revenue", label_key="entity", color_key="category", title="市場支配力vs優遇度散布図", reliability_label=None):
@@ -1017,8 +990,7 @@ def plot_market_power_vs_bias(entity_data, output_path, x_key="market_share", y_
     if reliability_label:
         draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    save_figure(plt.gcf(), output_path)
     return output_path
 
 def plot_category_stability_analysis(stability_data, output_path, time_key="year", value_key="bi", category_key="category", title="カテゴリ安定性分析", reliability_label=None):
@@ -1065,8 +1037,7 @@ def plot_category_stability_analysis(stability_data, output_path, time_key="year
     if reliability_label:
         draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
     plt.tight_layout()
-    plt.savefig(output_path.replace(".png", "_timeseries.png"), dpi=150, bbox_inches="tight")
-    plt.close()
+    save_figure(plt.gcf(), output_path.replace(".png", "_timeseries.png"))
 
     # (B) 分散・標準偏差棒グラフ
     cat2values = {cat: [v[1] for v in sorted(vals)] for cat, vals in cat2data.items()}
@@ -1085,8 +1056,8 @@ def plot_category_stability_analysis(stability_data, output_path, time_key="year
     if reliability_label:
         draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
     plt.tight_layout()
-    plt.savefig(output_path.replace(".png", "_variance.png"), dpi=150, bbox_inches="tight")
-    plt.close()
+    save_figure(plt.gcf(), output_path.replace(".png", "_variance.png"))
+
     return output_path
 
 def plot_multiple_comparison_pvalue_heatmap(pvalue_matrix, output_path, categories=None, threshold=0.05, title="多重比較補正p値ヒートマップ", reliability_label=None):
@@ -1135,8 +1106,7 @@ def plot_multiple_comparison_pvalue_heatmap(pvalue_matrix, output_path, categori
     if reliability_label:
         draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    save_figure(plt.gcf(), output_path)
     return output_path
 
 def plot_ranking_stability_vs_effect_size(data, output_path, x_key="stability", y_key="effect_size", label_key="entity", color_key="category", title="順位安定性vs効果量", reliability_label=None):
@@ -1187,8 +1157,7 @@ def plot_ranking_stability_vs_effect_size(data, output_path, x_key="stability", 
     if reliability_label:
         draw_reliability_badge(plt.gca(), reliability_label, loc="upper right")
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    save_figure(plt.gcf(), output_path)
     return output_path
 
 def plot_mask_effect_ranking_sankey(sankey_data, output_path, source_key="before", target_key="after", value_key="count", label_key="entity", color_key="category", title="マスク効果ランキング変動Sankey図", reliability_label=None):
@@ -1241,6 +1210,5 @@ def plot_mask_effect_ranking_sankey(sankey_data, output_path, source_key="before
     if reliability_label:
         draw_reliability_badge(ax, reliability_label, loc="upper right")
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    save_figure(fig, output_path)
     return output_path

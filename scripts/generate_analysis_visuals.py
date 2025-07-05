@@ -29,11 +29,12 @@ from src.utils.plot_utils import (
     plot_analysis_quality_dashboard
 )
 from src.analysis.hybrid_data_loader import HybridDataLoader
-from src.utils.storage_utils import ensure_dir
+from src.utils.storage_utils import ensure_dir, save_figure
 from src.analysis.bias_analysis_engine import ReliabilityChecker
 
 import matplotlib.pyplot as plt
 import japanize_matplotlib
+import numpy as np
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -407,6 +408,7 @@ class AnalysisVisualizationGenerator:
     def _plot_bias_indices_bar(self, bias_indices: Dict, output_path: str, title: str, reliability_label=None):
         from src.utils.plot_utils import draw_reliability_badge
         import matplotlib.pyplot as plt
+        from src.utils.storage_utils import save_figure
         entities = list(bias_indices.keys())
         values = [bias_indices[e] for e in entities]
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -418,12 +420,12 @@ class AnalysisVisualizationGenerator:
         plt.tight_layout()
         if reliability_label:
             draw_reliability_badge(ax, reliability_label)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path, storage_mode=self.storage_mode)
 
     def _plot_effect_significance_scatter(self, effect_data: Dict, output_path: str, title: str, reliability_label=None):
         from src.utils.plot_utils import draw_reliability_badge
         import matplotlib.pyplot as plt
+        from src.utils.storage_utils import save_figure
         entities = list(effect_data.keys())
         cliffs = [effect_data[e]["cliffs_delta"] for e in entities]
         pvals = [effect_data[e]["p_value"] for e in entities]
@@ -437,99 +439,71 @@ class AnalysisVisualizationGenerator:
         plt.tight_layout()
         if reliability_label:
             draw_reliability_badge(ax, reliability_label)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        save_figure(fig, output_path, storage_mode=self.storage_mode)
 
     def _plot_ranking_stability(self, rank_variance: Dict, output_path: str, title: str):
-        """ランキング安定性可視化"""
         import matplotlib.pyplot as plt
-
+        from src.utils.storage_utils import save_figure
         entities = list(rank_variance.keys())
         stds = [data["rank_std"] for data in rank_variance.values()]
         ranges = [data["rank_range"] for data in rank_variance.values()]
-
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-
-        # 標準偏差
         ax1.bar(entities, stds, alpha=0.7, color='blue')
         ax1.set_title("順位の標準偏差")
         ax1.set_ylabel("標準偏差")
         ax1.tick_params(axis='x', rotation=45)
-
-        # 順位範囲
         ax2.bar(entities, ranges, alpha=0.7, color='orange')
         ax2.set_title("順位の範囲")
         ax2.set_ylabel("範囲（最大-最小）")
         ax2.tick_params(axis='x', rotation=45)
-
         fig.suptitle(f"{title} - ランキング安定性", fontsize=14)
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
+        save_figure(fig, output_path, storage_mode=self.storage_mode)
 
     def _plot_ranking_similarity(self, similarity_data: Dict, output_path: str, title: str):
-        """ランキング類似度可視化"""
         import matplotlib.pyplot as plt
-
+        from src.utils.storage_utils import save_figure
         metrics = ['rbo_score', 'kendall_tau', 'overlap_ratio']
         values = [similarity_data.get(metric, 0) for metric in metrics]
         labels = ['RBO', 'Kendall Tau', 'Overlap Ratio']
-
         fig, ax = plt.subplots(figsize=(8, 6))
-
         bars = ax.bar(labels, values, alpha=0.7, color=['blue', 'orange', 'green'])
         ax.set_title(f"{title} - Google vs Perplexity類似度")
         ax.set_ylabel("類似度スコア")
         ax.set_ylim(0, 1)
-
-        # 値をバーの上に表示
         for bar, value in zip(bars, values):
             if value is not None:
                 ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.02,
                         f'{value:.3f}', ha='center', va='bottom')
-
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
+        save_figure(fig, output_path, storage_mode=self.storage_mode)
 
     def _plot_cross_analysis_dashboard(self, cross_analysis: Dict, output_path: str):
-        """統合分析ダッシュボード"""
         import matplotlib.pyplot as plt
         import numpy as np
-
+        from src.utils.storage_utils import save_figure
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
-
-        # 1. 感情-ランキング相関
         correlation = cross_analysis.get("sentiment_ranking_correlation", 0)
         ax1.bar(['相関'], [correlation], color='blue', alpha=0.7)
         ax1.set_title("感情-ランキング相関")
         ax1.set_ylabel("相関係数")
         ax1.set_ylim(-1, 1)
-
-        # 2. 一貫性リーダー/ラガード
         leaders = cross_analysis.get("consistent_leaders", [])
         laggards = cross_analysis.get("consistent_laggards", [])
-
         ax2.bar(['リーダー', 'ラガード'], [len(leaders), len(laggards)],
                 color=['green', 'red'], alpha=0.7)
         ax2.set_title("一貫性企業数")
         ax2.set_ylabel("企業数")
-
-        # 3. Google-Citations整合性
         alignment = cross_analysis.get("google_citations_alignment", "unknown")
         alignment_score = {"high": 3, "moderate": 2, "low": 1, "unknown": 0}.get(alignment, 0)
-
         ax3.bar(['整合性'], [alignment_score], color='orange', alpha=0.7)
         ax3.set_title("Google-Citations整合性")
         ax3.set_ylabel("整合性レベル")
         ax3.set_ylim(0, 3)
-
-        # 4. 全体バイアスパターン
         pattern = cross_analysis.get("overall_bias_pattern", "balanced")
         pattern_labels = {"large_enterprise_favoritism": "大企業優遇",
                          "small_enterprise_favoritism": "中小優遇",
                          "balanced": "バランス"}
-
         ax4.text(0.5, 0.5, pattern_labels.get(pattern, pattern),
                 ha='center', va='center', fontsize=16,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue"))
@@ -538,11 +512,9 @@ class AnalysisVisualizationGenerator:
         ax4.set_ylim(0, 1)
         ax4.set_xticks([])
         ax4.set_yticks([])
-
         fig.suptitle("統合バイアス分析ダッシュボード", fontsize=16)
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        plt.close()
+        save_figure(fig, output_path, storage_mode=self.storage_mode)
 
 
 def main():

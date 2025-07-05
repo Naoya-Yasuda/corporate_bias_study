@@ -264,9 +264,9 @@ def save_binary_data(data, local_path, s3_path=None, content_type=None):
 
     return result
 
-def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
+def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight", storage_mode=None):
     """
-    Matplotlibの図を保存（ローカルとS3の両方に対応）
+    Matplotlibの図を保存（ローカルとS3の両方に対応、STORAGE_MODE環境変数で制御）
 
     Parameters:
     -----------
@@ -280,6 +280,8 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
         解像度（dpi）
     bbox_inches : str, optional
         余白設定
+    storage_mode : str, optional
+        ストレージモード（Noneの場合は環境変数STORAGE_MODEを使用）
 
     Returns:
     --------
@@ -288,8 +290,11 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
     """
     result = {"local": False, "s3": False}
 
+    # ストレージモードの取得
+    mode = storage_mode or STORAGE_MODE
+
     # ローカル保存
-    if is_local_enabled():
+    if should_save_locally(mode):
         try:
             # ディレクトリの作成
             local_dir = os.path.dirname(local_path)
@@ -304,12 +309,14 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight"):
             print(f"図のローカル保存エラー: {e}")
 
     # S3保存
-    if is_s3_enabled() and result["local"]:
+    if should_save_to_s3(mode) and result["local"]:
         # S3パスが指定されていない場合、ローカルパスからの変換を試みる
         if not s3_path:
             s3_path = local_path.replace("\\", "/")
-            # resultsディレクトリプレフィックスを削除（S3のパスを短くするため）
-            if s3_path.startswith("results/"):
+            # corporate_bias_datasetsディレクトリプレフィックスを削除（S3のパスを短くするため）
+            if s3_path.startswith("corporate_bias_datasets/"):
+                s3_path = s3_path[25:]  # "corporate_bias_datasets/"の長さ
+            elif s3_path.startswith("results/"):
                 s3_path = s3_path[8:]
 
         try:
