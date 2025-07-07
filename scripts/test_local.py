@@ -156,6 +156,20 @@ def test_multiple_comparison_correction(date: str = "20250702"):
     except Exception as e:
         print(f"❌ 多重比較補正テストでエラー: {e}")
 
+def test_compare_entity_rankings():
+    """
+    BiasAnalysisEngine.compare_entity_rankingsの動作確認テスト。
+    GoogleとPerplexityのダミーランキングリストを比較し、全指標を出力。
+    """
+    from src.analysis.bias_analysis_engine import BiasAnalysisEngine
+    engine = BiasAnalysisEngine()
+    google_ranking = ["AWS", "Google Cloud", "Azure", "Oracle", "IBM"]
+    perplexity_ranking = ["Google Cloud", "AWS", "IBM", "Azure", "Oracle"]
+    result = engine.compare_entity_rankings(google_ranking, perplexity_ranking, label1="Google", label2="Perplexity")
+    print("\n=== compare_entity_rankingsテスト結果 ===")
+    for k, v in result.items():
+        print(f"{k}: {v}")
+
 def main():
     parser = argparse.ArgumentParser(description='ローカル環境テストスクリプト')
     parser.add_argument('--date', default='20250624', help='テスト対象日付 (YYYYMMDD)')
@@ -177,8 +191,11 @@ def main():
     # 多重比較補正横展開テスト
     mcc_ok = test_multiple_comparison_correction(args.date)
 
+    # compare_entity_rankingsテスト
+    compare_ok = test_compare_entity_rankings()
+
     print("\n" + "=" * 50)
-    if loader_ok and engine_ok and mcc_ok:
+    if loader_ok and engine_ok and mcc_ok and compare_ok:
         print("✅ 全テスト成功！")
         sys.exit(0)
     else:

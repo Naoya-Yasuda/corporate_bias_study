@@ -1371,6 +1371,26 @@ class BiasAnalysisEngine:
                 if masked_ranking and unmasked_ranking:
                     ranking_variation = self.calculate_ranking_variation(masked_ranking, unmasked_ranking)
 
+                # --- Google vs Perplexity・複数回実施ランキング比較の指標追加 ---
+                ranking_comparison = None
+                # 代表的な2つのランキングリストがあれば比較
+                if masked_ranking and unmasked_ranking:
+                    ranking_comparison = self.compare_entity_rankings(masked_ranking, unmasked_ranking, label1="masked", label2="unmasked")
+                # 複数回実施（answer_list）から比較可能な場合も追加（例: 1回目vs2回目など）
+                if answer_list and len(answer_list) >= 2:
+                    try:
+                        ranking1 = answer_list[0].get("ranking", [])
+                        ranking2 = answer_list[1].get("ranking", [])
+                        if ranking1 and ranking2:
+                            ranking_comparison_multi = self.compare_entity_rankings(ranking1, ranking2, label1="run1", label2="run2")
+                            if ranking_comparison:
+                                ranking_comparison["multi_run"] = ranking_comparison_multi
+                            else:
+                                ranking_comparison = {"multi_run": ranking_comparison_multi}
+                    except Exception as e:
+                        ranking_comparison = ranking_comparison or {}
+                        ranking_comparison["multi_run_error"] = str(e)
+
                 # --- 多重比較補正の横展開 ---
                 # 例: 各企業のランキング有意性p値を集約
                 p_values = []
@@ -1402,6 +1422,7 @@ class BiasAnalysisEngine:
                         "category_level_analysis": category_level_analysis
                     },
                     "ranking_variation": ranking_variation,
+                    "ranking_comparison": ranking_comparison,
                     "entities": entities
                 }
                 category_results[subcategory] = subcategory_result
@@ -2575,6 +2596,80 @@ class BiasAnalysisEngine:
                 "delta_ranks": {}, "google_domains": [], "pplx_domains": [],
                 "error": str(e), "fallback_used": True, "rank_utils_used": self.rank_utils_available
             }
+
+    def compare_entity_rankings(self, ranking1: list, ranking2: list, label1: str = "情報源1", label2: str = "情報源2") -> dict:
+        """
+        2つのエンティティランキングリスト（例: Google vs Perplexity, 複数回実施）を比較し、
+        順位相関・重複度・順位変動など多角的な指標を返す総合比較メソッド。
+
+        Parameters
+        ----------
+        ranking1 : list
+            比較対象1のエンティティ名リスト（順位順）
+        ranking2 : list
+            比較対象2のエンティティ名リスト（順位順）
+        label1 : str
+            比較対象1のラベル（出力解釈用）
+        label2 : str
+            比較対象2のラベル（出力解釈用）
+
+        Returns
+        -------
+        dict
+            {
+                'kendall_tau': float,
+                'spearman_rho': float,
+                'rbo': float,
+                'average_rank_change': float,
+                'significant_changes': list,
+                'interpretation': str
+            }
+
+        指標の意味:
+        - kendall_tau: 順位の一致度（1.0=完全一致, 0=無相関, -1.0=完全逆転）
+        - spearman_rho: 順位相関係数
+        - rbo: 上位重み付きランキング重複度（0-1）
+        - average_rank_change: 各エンティティの順位差絶対値の平均
+        - significant_changes: 2位以上変動したエンティティのリスト
+        - interpretation: 総合的な解釈ラベル
+        """
+        import numpy as np
+        from scipy.stats import kendalltau, spearmanr
+        # 共通エンティティのみ比較
+        common_entities = list(set(ranking1) & set(ranking2))
+        if len(common_entities) < 2:
+            return {"error": "共通エンティティが2つ未満"}
+        # 順位辞書
+        rank1_dict = {e: i for i, e in enumerate(ranking1)}
+        rank2_dict = {e: i for i, e in enumerate(ranking2)}
+        # 順位リスト
+        ranks1 = [rank1_dict[e] for e in common_entities]
+        ranks2 = [rank2_dict[e] for e in common_entities]
+        # 指標計算
+        tau, _ = kendalltau(ranks1, ranks2)
+        rho, _ = spearmanr(ranks1, ranks2)
+        # RBO（rank_utils優先）
+        rbo_score = self._rbo(ranking1, ranking2, p=0.9) if self.rank_utils_available else 0.0
+        # 順位変動
+        rank_changes = [abs(rank1_dict[e] - rank2_dict[e]) for e in common_entities]
+        avg_rank_change = float(np.mean(rank_changes))
+        # 2位以上変動
+        significant_changes = [f"{e}: {abs(rank1_dict[e] - rank2_dict[e])} positions" for e in common_entities if abs(rank1_dict[e] - rank2_dict[e]) >= 2]
+        # 解釈
+        if tau is not None and tau > 0.8:
+            interpretation = f"{label1}と{label2}のランキングは一貫性が高い"
+        elif tau is not None and tau > 0.5:
+            interpretation = f"{label1}と{label2}のランキングは中程度の一致"
+        else:
+            interpretation = f"{label1}と{label2}のランキングは大きく異なる"
+        return {
+            "kendall_tau": round(float(tau) if tau is not None else 0.0, 3),
+            "spearman_rho": round(float(rho) if rho is not None else 0.0, 3),
+            "rbo": round(float(rbo_score), 3),
+            "average_rank_change": round(avg_rank_change, 3),
+            "significant_changes": significant_changes,
+            "interpretation": interpretation
+        }
 
 
 def main():

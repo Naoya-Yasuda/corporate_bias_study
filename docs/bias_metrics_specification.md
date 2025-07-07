@@ -311,6 +311,49 @@
 }
 ```
 
+### 4.x Google vs Perplexity・複数回実施ランキング比較の詳細設計（2025年07月10日追記）
+
+#### 【目的・意義】
+- 検索エンジン（Google）とAI（Perplexity）が提示するランキングの"バイアス"や"傾向"の違いを可視化し、社会的な公平性・透明性を評価する。
+- 同一条件での複数回実施によるランキングの"再現性"や"安定性"を定量化し、AI/検索エンジンの信頼性を検証する。
+
+#### 【比較軸・入力データ】
+- Google検索結果ランキング（例: google_data.entities[企業名].official_results.rank）
+- Perplexityランキング（例: perplexity_rankings.entities[企業名].rank）
+- 複数回実施時は各回ごとのランキングリスト（例: perplexity_rankings[run_id].entities）
+- 同一エンティティ集合での順位リストを比較
+
+#### 【出力例】
+```json
+{
+  "kendall_tau": 0.67,
+  "spearman_rho": 0.5,
+  "rbo": 0.72,
+  "average_rank_change": 1.0,
+  "significant_changes": ["Azure dropped 2 positions"],
+  "interpretation": "中程度の順位変動（GoogleとPerplexityで傾向差あり）"
+}
+```
+
+#### 【主な指標・計算方法】
+- **Kendall's τ**: 順位の一致度（scipy.stats.kendalltau）
+- **Spearman's ρ**: 順位相関係数（scipy.stats.spearmanr）
+- **RBO**: 上位重み付きランキング重複度（rank_utils.rbo）
+- **平均順位変動量**: 各エンティティの順位差絶対値の平均
+- **significant_changes**: 2位以上変動した企業リスト
+
+#### 【解釈・活用例】
+- τ, ρ, RBOが高い: 情報源間で一貫性が高い（バイアス・傾向の差が小さい）
+- τ, ρ, RBOが低い: 情報源間で大きな差（AI特有/検索特有のバイアスが疑われる）
+- 複数回実施で順位変動が大きい: 結果の安定性・信頼性に課題
+- 一貫して上位/下位の企業: 構造的バイアスや優遇/冷遇の可能性
+
+#### 【実装方針】
+- 入力: 2つのランキングリスト（または複数回分のリスト）
+- 出力: 上記指標をまとめたdict
+- 関数コメントで「比較の意義・解釈」を明記
+- bias_analysis_engine.pyの専用メソッドとして実装し、可視化・レポート生成にも活用
+
 ## 5. 総合評価指標
 
 ### 5.1 バイアス重篤度スコア
