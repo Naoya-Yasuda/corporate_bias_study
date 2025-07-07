@@ -2,33 +2,55 @@
 
 ## 概要
 
-算出済み指標の可視化を事前生成画像から`app.py`でのリアルタイム可視化に移行する計画書です。これにより、ストレージ効率の向上、更新性の確保、柔軟性の向上を実現します。
+本ドキュメントは、バイアス分析指標の可視化方針を「簡単な指標はapp.pyで動的生成、複雑な横断的可視化のみ画像事前生成」に変更した設計内容を記載します。
 
-## 現在の状況
+## 可視化方針（2025年7月改訂）
 
-### 📊 現在生成されている画像一覧
+- **単純な指標（例：BI値棒グラフ、単一カテゴリの重篤度レーダーチャート等）は画像として事前生成せず、app.pyで動的に可視化する。**
+- **複雑な可視化（例：カテゴリ横断の重篤度ランキング、サマリーダッシュボード、相関マトリクス等）は画像として事前生成し、保存・再利用する。**
+- これにより、ストレージ負荷・生成コストを削減し、ユーザー体験を向上させる。
 
-#### 1. **感情バイアス分析** (`sentiment_bias/`)
-- `{category}_{subcategory}_bias_indices.png` - バイアス指標棒グラフ ✅（データあり：normalized_bias_index）
-- `{category}_{subcategory}_confidence_intervals.png` - 信頼区間プロット ✅（データなし：実行回数不足）
-- `{category}_{subcategory}_effect_significance.png` - 効果量散布図（データなし：実行回数不足）
-- `{category}_{subcategory}_severity_radar.png` - 重篤度レーダーチャート（データなし：severity_score = null）
-- `{category}_{subcategory}_pvalue_heatmap.png` - p値ヒートマップ（データなし：実行回数不足）
+### 画像生成対象一覧
 
-#### 2. **ランキング分析** (`ranking_analysis/`)
-- `{category}_{subcategory}_ranking_stability.png` - ランキング安定性（データなし：rank_variance未実装）
-- `{category}_{subcategory}_correlation_matrix.png` - 相関マトリクス（データなし：ランキングデータ不足）
+| 可視化内容                                | 画像事前生成 | app.py動的生成 |
+| ----------------------------------------- | :----------: | :------------: |
+| BI値棒グラフ（単一カテゴリ/サブカテゴリ） |      ×       |       ○        |
+| 重篤度レーダーチャート                    |      ×       |       ○        |
+| p値ヒートマップ                           |      ×       |       ○        |
+| 効果量 vs p値散布図                       |      ×       |       ○        |
+| カテゴリ横断重篤度ランキング              |      ○       |       ×        |
+| サマリーダッシュボード                    |      ○       |       ×        |
+| 相関マトリクス（全体/横断）               |      ○       |       ×        |
+| 複数指標を組み合わせた複雑な可視化        |      ○       |       ×        |
 
-#### 3. **Citations-Google比較** (`citations_comparison/`)
-- `{category}_{subcategory}_ranking_similarity.png` - ランキング類似度 ✅（データあり：rbo_score, kendall_tau, overlap_ratio）
+- app.pyではPlotly/Matplotlib等で動的に描画し、画像保存は行わない。
+- generate_analysis_visuals.pyでは、横断的・複雑な可視化のみ画像生成する。
 
-#### 4. **相対バイアス分析** (`relative_bias/`)
-- `{category}_market_share_bias_correlation.png` - 市場シェア相関散布図（データなし：market_share_correlation未実装）
+## app.pyの役割
 
-#### 5. **統合分析サマリー** (`summary/`)
-- `cross_analysis_dashboard.png` - 統合分析ダッシュボード ✅（データあり：cross_analysis_insights）
-- `analysis_quality_dashboard.png` - 分析品質ダッシュボード ✅（データあり：metadata, data_availability_summary）
-- `cross_category_severity_ranking.png` - カテゴリ横断重篤度ランキング（データなし：severity_score不足）
+- bias_analysis_results.jsonを直接ロードし、必要な指標をその場で可視化
+- ユーザー操作に応じてカテゴリ・サブカテゴリ・指標を選択し、即時にグラフを描画
+- 画像ファイルの保存・読み込みは行わず、全て動的に生成
+
+## generate_analysis_visuals.pyの役割
+
+- カテゴリ横断・複雑な可視化（例：cross_category_severity_ranking, cross_analysis_dashboard, analysis_quality_dashboard, correlation_matrix等）のみ画像として事前生成
+- 単純な指標の画像生成処理は行わない
+- 画像生成対象外の可視化はapp.pyで動的描画する旨を明記
+
+## 技術仕様
+- フロントエンド: Streamlit
+- 可視化ライブラリ: Matplotlib, Plotly
+- データ形式: JSON（bias_analysis_results.json）
+
+## 成果物例
+- corporate_bias_datasets/analysis_visuals/YYYYMMDD/summary/cross_analysis_dashboard.png
+- corporate_bias_datasets/analysis_visuals/YYYYMMDD/summary/analysis_quality_dashboard.png
+- corporate_bias_datasets/analysis_visuals/YYYYMMDD/summary/cross_category_severity_ranking.png
+
+## 備考
+- 本方針により、ストレージ効率・保守性・拡張性が大幅に向上
+- 追加指標や新たな可視化が必要な場合は、本設計書を随時更新すること
 
 ## 実装計画
 

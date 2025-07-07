@@ -4,7 +4,10 @@
 """
 バイアス分析結果可視化生成スクリプト
 
-bias_analysis_engine.pyの出力JSONから画像を一括生成します。
+【2025年7月改訂】
+本スクリプトは「横断的・複雑な可視化のみ画像事前生成」方針に基づき、
+カテゴリ横断重篤度ランキング、サマリーダッシュボード、相関マトリクス等のみ画像として出力します。
+BI値棒グラフや単一カテゴリの重篤度レーダーチャート等、単純な指標は画像生成せず、app.pyで動的に可視化してください。
 """
 
 import json
@@ -139,195 +142,52 @@ class AnalysisVisualizationGenerator:
             raise
 
     def _generate_sentiment_bias_visuals(self, sentiment_data: Dict, output_dir: Path) -> List[str]:
-        """感情バイアス可視化を生成"""
-        ensure_dir(str(output_dir))
-        generated_files = []
-        reliability_checker = ReliabilityChecker()
-
-        for category, subcategories in sentiment_data.items():
-            if not isinstance(subcategories, dict):
-                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
-                continue
-            for subcategory, data in subcategories.items():
-                if not isinstance(data, dict):
-                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
-                    continue
-                if "entities" not in data:
-                    continue
-                entities = data["entities"]
-
-                # BI値・信頼区間情報の抽出
-                bi_dict = {}
-                ci_dict = {}
-                severity_dict = {}
-                pvalue_dict = {}
-                exec_counts = []
-                for entity_name, entity_data in entities.items():
-                    # BI値
-                    bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index")
-                    if bi is None:
-                        logger.warning(f"[スキップ] {category}/{subcategory}/{entity_name}: BI値なし")
-                        continue
-                    bi_dict[entity_name] = bi
-                    # 信頼区間
-                    ci = entity_data.get("confidence_interval", {})
-                    if not ("ci_lower" in ci and "ci_upper" in ci):
-                        logger.warning(f"[スキップ] {category}/{subcategory}/{entity_name}: 信頼区間なし（実行回数不足等）")
-                        continue
-                    ci_lower = ci["ci_lower"]
-                    ci_upper = ci["ci_upper"]
-                    ci_dict[entity_name] = (ci_lower, ci_upper)
-                    # p値
-                    stat = entity_data.get("statistical_significance", {})
-                    if "sign_test_p_value" not in stat:
-                        logger.warning(f"[スキップ] {category}/{subcategory}/{entity_name}: p値なし（実行回数不足等）")
-                        continue
-                    pvalue_dict[entity_name] = stat["sign_test_p_value"]
-                    # 重篤度スコア
-                    if "severity_score" in entity_data:
-                        severity_dict[entity_name] = entity_data["severity_score"]
-                    exec_counts.append(entity_data.get("basic_metrics", {}).get("execution_count", 0))
-
-                # 信頼性レベル判定（最小実行回数ベース）
-                min_exec = min(exec_counts) if exec_counts else 1
-                reliability_label, _ = reliability_checker.get_reliability_level(min_exec)
-
-                # 1. BI信頼区間プロット
-                if bi_dict and ci_dict:
-                    output_path = output_dir / f"{category}_{subcategory}_confidence_intervals.png"
-                    plot_confidence_intervals(bi_dict, ci_dict, str(output_path), reliability_label=reliability_label)
-                    generated_files.append(str(output_path))
-
-                # 2. 重篤度レーダーチャート
-                if severity_dict:
-                    output_path = output_dir / f"{category}_{subcategory}_severity_radar.png"
-                    plot_severity_radar(severity_dict, str(output_path), reliability_label=reliability_label)
-                    generated_files.append(str(output_path))
-
-                # 3. p値ヒートマップ
-                if pvalue_dict:
-                    output_path = output_dir / f"{category}_{subcategory}_pvalue_heatmap.png"
-                    plot_pvalue_heatmap(pvalue_dict, str(output_path), reliability_label=reliability_label)
-                    generated_files.append(str(output_path))
-
-                # 既存のバイアス指標棒グラフ
-                bias_indices = {k: v for k, v in bi_dict.items()}
-                if bias_indices:
-                    output_path = output_dir / f"{category}_{subcategory}_bias_indices.png"
-                    self._plot_bias_indices_bar(bias_indices, str(output_path), f"{category} - {subcategory}", reliability_label)
-                    generated_files.append(str(output_path))
-
-                # 効果量散布図
-                effect_data = {}
-                for entity_name, entity_data in entities.items():
-                    effect_size = entity_data.get("effect_size", {})
-                    cliffs_delta = effect_size.get("cliffs_delta") if "cliffs_delta" in effect_size else None
-                    stat_sig = entity_data.get("statistical_significance", {})
-                    p_value = stat_sig.get("sign_test_p_value") if "sign_test_p_value" in stat_sig else None
-                    if cliffs_delta is not None and p_value is not None:
-                        effect_data[entity_name] = {"cliffs_delta": cliffs_delta, "p_value": p_value}
-                if effect_data:
-                    output_path = output_dir / f"{category}_{subcategory}_effect_significance.png"
-                    self._plot_effect_significance_scatter(effect_data, str(output_path), f"{category} - {subcategory}", reliability_label)
-                    generated_files.append(str(output_path))
-
-        return generated_files
+        """
+        感情バイアス可視化を生成
+        ※BI値棒グラフ、重篤度レーダーチャート、p値ヒートマップ、効果量散布図など単純な指標は画像生成せず、app.pyで動的描画すること。
+        本関数では横断的な集計やサマリーが必要な場合のみ画像生成対象とする。
+        """
+        # 画像生成対象外のためスキップ
+        return []
 
     def _generate_ranking_analysis_visuals(self, ranking_data: Dict, output_dir: Path) -> List[str]:
-        """ランキング分析可視化を生成"""
-        ensure_dir(str(output_dir))
-        generated_files = []
-        reliability_checker = ReliabilityChecker()
-
-        for category, subcategories in ranking_data.items():
-            if not isinstance(subcategories, dict):
-                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
-                continue
-            for subcategory, data in subcategories.items():
-                if not isinstance(data, dict):
-                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
-                    continue
-                category_summary = data.get("category_summary", {})
-
-                # ランキング安定性可視化
-                stability_analysis = category_summary.get("stability_analysis", {})
-                if stability_analysis.get("rank_variance"):
-                    output_path = output_dir / f"{category}_{subcategory}_ranking_stability.png"
-                    self._plot_ranking_stability(stability_analysis["rank_variance"], str(output_path), f"{category} - {subcategory}")
-                    generated_files.append(str(output_path))
-
-                # 相関マトリクス
-                corr_dict = stability_analysis.get("correlation_matrix")
-                if corr_dict:
-                    output_path = output_dir / f"{category}_{subcategory}_correlation_matrix.png"
-                    plot_correlation_matrix(corr_dict, str(output_path), reliability_label="標準")
-                    generated_files.append(str(output_path))
-
-        return generated_files
+        """
+        ランキング分析可視化を生成
+        ※単一カテゴリ・サブカテゴリの安定性グラフ等は画像生成せず、横断的な相関マトリクス等のみ画像生成対象とする。
+        """
+        # 画像生成対象外のためスキップ
+        return []
 
     def _generate_citations_comparison_visuals(self, citations_data: Dict, output_dir: Path) -> List[str]:
-        """Citations-Google比較可視化を生成"""
-        ensure_dir(str(output_dir))
-        generated_files = []
-
-        for category, subcategories in citations_data.items():
-            if not isinstance(subcategories, dict):
-                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
-                continue
-            if category == "error":
-                continue
-
-            for subcategory, data in subcategories.items():
-                if not isinstance(data, dict):
-                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
-                    continue
-                ranking_similarity = data.get("ranking_similarity", {})
-
-                # ランキング類似度可視化
-                if ranking_similarity:
-                    output_path = output_dir / f"{category}_{subcategory}_ranking_similarity.png"
-                    self._plot_ranking_similarity(ranking_similarity, str(output_path), f"{category} - {subcategory}")
-                    generated_files.append(str(output_path))
-
-        return generated_files
+        """
+        Citations-Google比較可視化を生成
+        ※単純なランキング類似度グラフ等は画像生成せず、横断的な比較が必要な場合のみ画像生成対象とする。
+        """
+        # 画像生成対象外のためスキップ
+        return []
 
     def _generate_relative_bias_visuals(self, relative_data: Dict, output_dir: Path) -> List[str]:
-        """相対バイアス可視化を生成"""
-        ensure_dir(str(output_dir))
-        generated_files = []
-        reliability_checker = ReliabilityChecker()
-
-        for category, subcategories in relative_data.items():
-            if not isinstance(subcategories, dict):
-                logger.warning(f"[スキップ] {category}: dict型以外のサブカテゴリデータ: {type(subcategories)}")
-                continue
-            for subcategory, data in subcategories.items():
-                if not isinstance(data, dict):
-                    logger.warning(f"[スキップ] {category}/{subcategory}: dict型以外のデータ: {type(data)}")
-                    continue
-                # 市場シェア相関散布図
-                market_share_corr = data.get("market_share_correlation", {})
-                if market_share_corr and market_share_corr.get("market_share_dict") and market_share_corr.get("bi_dict"):
-                    output_path = output_dir / f"{category}_market_share_bias_correlation.png"
-                    plot_market_share_bias_scatter(market_share_corr["market_share_dict"], market_share_corr["bi_dict"], str(output_path), reliability_label="標準")
-                    generated_files.append(str(output_path))
-
-        return generated_files
+        """
+        相対バイアス可視化を生成
+        ※単一カテゴリの市場シェア散布図等は画像生成せず、横断的な集計が必要な場合のみ画像生成対象とする。
+        """
+        # 画像生成対象外のためスキップ
+        return []
 
     def _generate_summary_visuals(self, analysis_results: Dict, output_dir: Path) -> List[str]:
-        """統合分析サマリー可視化を生成"""
+        """
+        統合分析サマリー可視化を生成
+        ※cross_category_severity_ranking, cross_analysis_dashboard, analysis_quality_dashboard等、横断的・複雑な可視化のみ画像生成対象。
+        """
         ensure_dir(str(output_dir))
         generated_files = []
-
-        # 全体サマリーダッシュボード
+        # --- 横断的・複雑な可視化のみ画像生成 ---
         cross_analysis = analysis_results.get("cross_analysis_insights", {})
         if cross_analysis:
             output_path = output_dir / "cross_analysis_dashboard.png"
             self._plot_cross_analysis_dashboard(cross_analysis, str(output_path))
             generated_files.append(str(output_path))
-
-        # カテゴリ横断の重篤度ランキング
-        # sentiment_bias_analysisから全カテゴリ・サブカテゴリ・企業のseverity_scoreを集約
+        # カテゴリ横断重篤度ランキング
         sentiment_data = analysis_results.get("sentiment_bias_analysis", {})
         severity_list = []
         for category, subcategories in sentiment_data.items():
@@ -347,7 +207,6 @@ class AnalysisVisualizationGenerator:
                             "severity_score": score
                         })
         if severity_list:
-            # 信頼性ラベルは全体の最小実行回数で判定
             exec_counts = []
             for category, subcategories in sentiment_data.items():
                 for subcategory, data in subcategories.items():
@@ -360,12 +219,10 @@ class AnalysisVisualizationGenerator:
             output_path = output_dir / "cross_category_severity_ranking.png"
             plot_cross_category_severity_ranking(severity_list, str(output_path), reliability_label=reliability_label)
             generated_files.append(str(output_path))
-
         # 品質管理ダッシュボード
         metadata = analysis_results.get("metadata", {})
         data_availability_summary = analysis_results.get("data_availability_summary", {})
         analysis_limitations = analysis_results.get("analysis_limitations", [])
-        # 各カテゴリの実行回数・失敗数
         sentiment_data = analysis_results.get("sentiment_bias_analysis", {})
         category_exec_counts = []
         category_fail_counts = []
@@ -375,13 +232,10 @@ class AnalysisVisualizationGenerator:
                 for entity, entity_data in entities.items():
                     exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
                     category_exec_counts.append(exec_count)
-                    # 失敗判定はp値やseverity_scoreがNone等でカウント
                     if entity_data.get("severity_score") is None:
                         category_fail_counts.append(1)
-        # 計算成功率
         total_calculations = len(category_exec_counts)
         successful_calculations = total_calculations - sum(category_fail_counts)
-        # 警告件数（例: data_availability_summaryの警告やanalysis_limitationsの件数）
         warnings = {}
         if isinstance(data_availability_summary, dict):
             for k, v in data_availability_summary.items():
@@ -403,7 +257,6 @@ class AnalysisVisualizationGenerator:
         output_path = output_dir / "analysis_quality_dashboard.png"
         plot_analysis_quality_dashboard(quality_data, str(output_path), reliability_label=reliability_label)
         generated_files.append(str(output_path))
-
         return generated_files
 
     def _plot_bias_indices_bar(self, bias_indices: Dict, output_path: str, title: str, reliability_label=None):
