@@ -54,7 +54,8 @@ class AnalysisVisualizationGenerator:
         self.storage_mode = storage_mode
         self.data_loader = HybridDataLoader(storage_mode)
 
-        # 出力ディレクトリの設定
+        # 出力ディレクトリの設定（corporate_bias_datasets配下に統一）
+        # ローカル・S3共にcorporate_bias_datasets/analysis_visuals/YYYYMMDD/
         self.output_base_dir = "corporate_bias_datasets/analysis_visuals"
         ensure_dir(self.output_base_dir)
 

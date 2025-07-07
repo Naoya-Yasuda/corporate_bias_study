@@ -300,6 +300,14 @@ def get_image_files():
         st.error(f"S3からの画像ファイル一覧取得エラー: {e}")
         return []
 
+def get_visualization_files(date_str):
+    """指定日付の可視化画像ファイル一覧を取得"""
+    # integratedの日付ディレクトリと同じ日付のanalysis_visuals/配下を参照
+    # ローカル・S3共にcorporate_bias_datasets/analysis_visuals/YYYYMMDD/に統一
+
+    visuals_dir = os.path.join("corporate_bias_datasets/analysis_visuals", date_str)
+    return visuals_dir
+
 # CSSでフォント設定を追加
 st.markdown("""
 <style>
@@ -577,6 +585,7 @@ with st.expander("従来の事前生成画像（参考）"):
 
     def get_latest_visuals_dir():
         # integratedの日付ディレクトリと同じ日付のanalysis_visuals/配下を参照
+        # ローカル・S3共にcorporate_bias_datasets/analysis_visuals/YYYYMMDD/に統一
         latest_dir = get_latest_integrated_dir()
         if not latest_dir:
             return None

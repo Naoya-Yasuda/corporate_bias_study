@@ -22,6 +22,7 @@ from pathlib import Path
 
 from src.utils.storage_utils import load_json
 from src.utils.storage_utils import save_results, list_s3_files
+from src.utils.storage_config import get_base_paths, S3_BUCKET_NAME
 from dotenv import load_dotenv
 
 # 環境変数を読み込み
@@ -162,12 +163,14 @@ class HybridDataLoader:
     def _load_from_s3(self, date_or_path: str) -> Dict[str, Any]:
         """S3からbias_analysis_resultsを読み込み"""
         from src.utils.storage_utils import load_json
+        from src.utils.storage_config import get_base_paths
 
         try:
-            # パス構築
+            # パス構築（一元管理されたパス設定を使用）
             if len(date_or_path) == 8 and date_or_path.isdigit():
                 # 日付形式の場合
-                s3_path = f"s3://corporate-bias-datasets/datasets/integrated/{date_or_path}/bias_analysis_results.json"
+                paths = get_base_paths(date_or_path)
+                s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/bias_analysis_results.json"
             else:
                 # パス形式の場合（日付を抽出）
                 if "integrated/" in date_or_path:
@@ -179,11 +182,12 @@ class HybridDataLoader:
                             date_part = part
                             break
                     if date_part:
-                        s3_path = f"s3://corporate-bias-datasets/datasets/integrated/{date_part}/bias_analysis_results.json"
+                        paths = get_base_paths(date_part)
+                        s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/bias_analysis_results.json"
                     else:
                         raise ValueError(f"日付を抽出できませんでした: {date_or_path}")
                 else:
-                    s3_path = f"s3://corporate-bias-datasets/datasets/{date_or_path}/bias_analysis_results.json"
+                    s3_path = f"s3://{S3_BUCKET_NAME}/datasets/{date_or_path}/bias_analysis_results.json"
 
             # S3から読み込み（storage_utilsのload_json関数を使用）
             data = load_json(s3_path)
@@ -341,11 +345,23 @@ class HybridDataLoader:
     def _save_to_s3_integrated(self, analysis_results: Dict[str, Any], date_or_path: str) -> str:
         """S3に統合保存（既存のsave_resultsを使用）"""
 
-        # パス構築
+        # パス構築（一元管理されたパス設定を使用）
         if len(date_or_path) == 8 and date_or_path.isdigit():
-            s3_prefix = f"integrated/{date_or_path}/"
+            paths = get_base_paths(date_or_path)
+            s3_prefix = f"{paths['s3']['integrated']}/"
         else:
-            s3_prefix = f"integrated/{date_or_path}/"
+            # パス形式の場合、日付を抽出
+            path_parts = date_or_path.split("/")
+            date_part = None
+            for part in path_parts:
+                if len(part) == 8 and part.isdigit():
+                    date_part = part
+                    break
+            if date_part:
+                paths = get_base_paths(date_part)
+                s3_prefix = f"{paths['s3']['integrated']}/"
+            else:
+                raise ValueError(f"日付を抽出できませんでした: {date_or_path}")
 
         # ファイル出力内容を準備
         output_files = {

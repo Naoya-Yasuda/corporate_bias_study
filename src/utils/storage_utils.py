@@ -315,9 +315,10 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight", sto
             s3_path = local_path.replace("\\", "/")
             # corporate_bias_datasetsディレクトリプレフィックスを削除（S3のパスを短くするため）
             if s3_path.startswith("corporate_bias_datasets/"):
-                s3_path = s3_path[25:]  # "corporate_bias_datasets/"の長さ
+                # 文字数カウントではなく、文字列置換で安全に処理
+                s3_path = s3_path.replace("corporate_bias_datasets/", "", 1)
             elif s3_path.startswith("results/"):
-                s3_path = s3_path[8:]
+                s3_path = s3_path.replace("results/", "", 1)
 
         try:
             s3_client = get_s3_client()

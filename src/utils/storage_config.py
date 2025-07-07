@@ -75,10 +75,22 @@ def get_base_paths(date_str):
         },
         # 統合データセット
         "integrated": f"corporate_bias_datasets/integrated/{date_str}",
+        # 可視化画像（corporate_bias_datasets配下に統一）
+        "analysis_visuals": f"corporate_bias_datasets/analysis_visuals/{date_str}",
         # 研究成果・出版物
         "publications": "corporate_bias_datasets/publications",
         # 一時ファイル
-        "temp": "corporate_bias_datasets/temp"
+        "temp": "corporate_bias_datasets/temp",
+        # S3用パス設定（読み込み・保存パスの統一）
+        "s3": {
+            "integrated": f"corporate-bias-datasets/datasets/integrated/{date_str}",
+            "raw_data": {
+                "google": f"corporate-bias-datasets/datasets/corporate_bias_datasets/raw_data/{date_str}/google",
+                "perplexity": f"corporate-bias-datasets/datasets/corporate_bias_datasets/raw_data/{date_str}/perplexity"
+            },
+            "analysis_visuals": f"corporate-bias-datasets/datasets/corporate_bias_datasets/analysis_visuals/{date_str}",
+            "publications": f"corporate-bias-datasets/datasets/corporate_bias_datasets/publications"
+        }
     }
 
 def get_s3_key(filename, date_str, data_type):
@@ -116,7 +128,10 @@ def get_s3_key(filename, date_str, data_type):
             # デフォルトの分析パスを使用
             return f"{paths['analysis']['perplexity']}/{filename}"
     elif data_type == "integrated":
-        return f"{paths['integrated']}/{filename}"
+        # 一元管理されたS3パス設定を使用
+        return f"{paths['s3']['integrated']}/{filename}"
+    elif data_type == "analysis_visuals":
+        return f"{paths['analysis_visuals']}/{filename}"
     elif data_type == "publications":
         return f"{paths['publications']}/{filename}"
     elif data_type == "temp":
