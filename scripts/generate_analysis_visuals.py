@@ -90,42 +90,10 @@ class AnalysisVisualizationGenerator:
             ensure_dir(str(output_dir))
 
             generated_files = {
-                "sentiment_bias": [],
-                "ranking_analysis": [],
-                "citations_comparison": [],
-                "relative_bias": [],
                 "cross_analysis": []
             }
 
-            # 1. 感情バイアス可視化
-            sentiment_files = self._generate_sentiment_bias_visuals(
-                analysis_results.get("sentiment_bias_analysis", {}),
-                output_dir / "sentiment_bias"
-            )
-            generated_files["sentiment_bias"].extend(sentiment_files)
-
-            # 2. ランキング分析可視化
-            ranking_files = self._generate_ranking_analysis_visuals(
-                analysis_results.get("ranking_bias_analysis", {}),
-                output_dir / "ranking_analysis"
-            )
-            generated_files["ranking_analysis"].extend(ranking_files)
-
-            # 3. Citations-Google比較可視化
-            citations_files = self._generate_citations_comparison_visuals(
-                analysis_results.get("citations_google_comparison", {}),
-                output_dir / "citations_comparison"
-            )
-            generated_files["citations_comparison"].extend(citations_files)
-
-            # 4. 相対バイアス可視化
-            relative_files = self._generate_relative_bias_visuals(
-                analysis_results.get("relative_bias_analysis", {}),
-                output_dir / "relative_bias"
-            )
-            generated_files["relative_bias"].extend(relative_files)
-
-            # 5. 統合分析サマリー可視化
+            # 統合分析サマリー可視化のみ生成
             summary_files = self._generate_summary_visuals(
                 analysis_results,
                 output_dir / "summary"
@@ -140,39 +108,6 @@ class AnalysisVisualizationGenerator:
         except Exception as e:
             logger.error(f"可視化画像生成エラー: {e}")
             raise
-
-    def _generate_sentiment_bias_visuals(self, sentiment_data: Dict, output_dir: Path) -> List[str]:
-        """
-        感情バイアス可視化を生成
-        ※BI値棒グラフ、重篤度レーダーチャート、p値ヒートマップ、効果量散布図など単純な指標は画像生成せず、app.pyで動的描画すること。
-        本関数では横断的な集計やサマリーが必要な場合のみ画像生成対象とする。
-        """
-        # 画像生成対象外のためスキップ
-        return []
-
-    def _generate_ranking_analysis_visuals(self, ranking_data: Dict, output_dir: Path) -> List[str]:
-        """
-        ランキング分析可視化を生成
-        ※単一カテゴリ・サブカテゴリの安定性グラフ等は画像生成せず、横断的な相関マトリクス等のみ画像生成対象とする。
-        """
-        # 画像生成対象外のためスキップ
-        return []
-
-    def _generate_citations_comparison_visuals(self, citations_data: Dict, output_dir: Path) -> List[str]:
-        """
-        Citations-Google比較可視化を生成
-        ※単純なランキング類似度グラフ等は画像生成せず、横断的な比較が必要な場合のみ画像生成対象とする。
-        """
-        # 画像生成対象外のためスキップ
-        return []
-
-    def _generate_relative_bias_visuals(self, relative_data: Dict, output_dir: Path) -> List[str]:
-        """
-        相対バイアス可視化を生成
-        ※単一カテゴリの市場シェア散布図等は画像生成せず、横断的な集計が必要な場合のみ画像生成対象とする。
-        """
-        # 画像生成対象外のためスキップ
-        return []
 
     def _generate_summary_visuals(self, analysis_results: Dict, output_dir: Path) -> List[str]:
         """
