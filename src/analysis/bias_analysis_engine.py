@@ -811,9 +811,8 @@ class BiasAnalysisEngine:
 
         return env_mode
 
-    def _load_config(self, config_path: str = None) -> Dict[str, Any]:
-        """設定ファイルを読み込み（暫定的にデフォルト設定を使用）"""
-        # TODO: config/analysis_config.ymlから読み込み実装
+    def _load_config(self, config_path: str = "config/analysis_config.yml") -> Dict[str, Any]:
+        """設定ファイルを読み込み（YAML外部設定対応）"""
         default_config = {
             "reliability_levels": {
                 "参考程度": {"min_count": 2, "max_count": 2},
@@ -854,12 +853,18 @@ class BiasAnalysisEngine:
 
         if config_path and os.path.exists(config_path):
             try:
+                import yaml
                 with open(config_path, 'r', encoding='utf-8') as f:
-                    import yaml
                     loaded_config = yaml.safe_load(f)
-                    default_config.update(loaded_config.get('bias_analysis', {}))
+                    if loaded_config and 'bias_analysis' in loaded_config:
+                        default_config.update(loaded_config['bias_analysis'])
+                    else:
+                        logger.warning(f"設定ファイルに'bias_analysis'キーがありません: {config_path}")
             except Exception as e:
                 logger.warning(f"設定ファイル読み込みエラー、デフォルト設定を使用: {e}")
+        else:
+            if config_path:
+                logger.info(f"設定ファイルが見つかりません: {config_path}。デフォルト設定を使用します。")
 
         return default_config
 

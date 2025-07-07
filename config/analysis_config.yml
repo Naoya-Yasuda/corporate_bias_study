@@ -1,0 +1,40 @@
+bias_analysis:
+  # 実行回数に応じた信頼性レベルの閾値
+  reliability_levels:
+    参考程度: {min_count: 2, max_count: 2}      # 2回のみ実行時の速報・参考レベル
+    基本分析: {min_count: 3, max_count: 4}      # 3-4回実行時の初期評価レベル
+    実用分析: {min_count: 5, max_count: 9}      # 5-9回実行時の実用・傾向把握レベル
+    標準分析: {min_count: 10, max_count: 19}    # 10-19回実行時の標準・政策判断レベル
+    高精度分析: {min_count: 20, max_count: null} # 20回以上実行時の高精度・法的水準
+
+  # 各指標の計算に必要な最小実行回数
+  minimum_execution_counts:
+    raw_delta: 2              # Raw Delta（生の差分値）
+    normalized_bias_index: 3  # 正規化バイアス指標（BI）
+    sign_test_p_value: 5      # 符号検定p値（統計的有意性）
+    cliffs_delta: 5           # Cliff's Delta（効果量）
+    confidence_interval: 5    # 信頼区間（ブートストラップ）
+    stability_score: 3        # 安定性スコア
+    correlation_analysis: 3   # 相関分析
+
+  # バイアス強度の解釈用閾値
+  bias_strength_thresholds:
+    very_strong: 1.5   # 非常に強いバイアス（カテゴリ平均の1.5倍以上）
+    strong: 0.8        # 強いバイアス（カテゴリ平均に近い）
+    moderate: 0.3      # 中程度のバイアス（カテゴリ平均の3分の1程度）
+    weak: 0.0          # 軽微なバイアス（ほとんど影響なし）
+
+  # 効果量（Cliff's Delta）の解釈用閾値
+  effect_size_thresholds:
+    large: 0.474       # 大きな効果量
+    medium: 0.330      # 中程度の効果量
+    small: 0.147       # 小さな効果量
+    negligible: 0.0    # 無視できる効果量
+
+  # 安定性スコアの解釈用閾値
+  stability_thresholds:
+    very_stable: 0.9         # 非常に安定
+    stable: 0.8              # 安定
+    somewhat_stable: 0.7     # やや安定
+    somewhat_unstable: 0.5   # やや不安定
+    unstable: 0.0            # 不安定
