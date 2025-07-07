@@ -46,12 +46,13 @@
 corporate_bias_datasets/
 └── integrated/
     └── YYYYMMDD/
-        ├── corporate_bias_dataset.json    # 生データ統合（従来通り保持）
-        ├── bias_analysis_results.json     # 全バイアス分析統合（感情・ランキング・相対優遇）
-        ├── dataset_schema.json            # データ構造定義（変更時のみ生成）
-        ├── collection_summary.json        # 収集サマリー（従来通り）
-        ├── analysis_metadata.json         # 分析メタデータ（新規追加）
-        └── quality_report.json            # データ品質レポート（新規追加）
+        ├── corporate_bias_dataset.json      # 生データ統合（従来通り保持）
+        ├── bias_analysis_results.json       # 全バイアス分析統合（感情・ランキング・相対優遇）
+        ├── dataset_schema.json              # データ構造定義（変更時のみ生成）
+        ├── integration_metadata.json        # 統合処理メタデータ・品質情報
+        ├── collection_summary.json          # 収集サマリー（従来通り）
+        ├── analysis_metadata.json           # 分析メタデータ（新規追加）
+        └── quality_report.json              # データ品質レポート（新規追加）
 ```
 
 ### 2.2 各ファイルの目的・用途説明
@@ -2363,3 +2364,24 @@ print(f'分析結果: {len(results)}項目生成')
 **統合設計策定日**: 2025年7月2日
 **実装責任者**: AI Assistant
 **レビュー**: 各Phase完了時
+
+## 2.5 統合データセット保存パス・命名規則の厳格化
+
+### 2.5.1 保存パスの原則
+- **ローカル保存先**: `corporate_bias_datasets/integrated/YYYYMMDD/`（必ずこのディレクトリ構造を厳守）
+- **S3保存先**: `corporate_bias_datasets/datasets/integrated/YYYYMMDD/`（バケット名・prefix含めても corporate_bias_datasets で統一）
+- **誤記例**: `corporate-bias-datasets`（ハイフン区切り）は絶対に使用しない
+- **全ての保存・参照ロジックは get_base_paths() の返すパスを必ず利用し、ベタ書き・手動連結は禁止**
+
+### 2.5.2 命名規則
+- ディレクトリ名・ファイル名は全てスネークケース（例: `bias_analysis_results.json`）
+- 日付ディレクトリは8桁（YYYYMMDD）
+- サブディレクトリやファイル追加時も `corporate_bias_datasets` 配下で統一
+
+### 2.5.3 実装上の注意
+- `get_base_paths(date_str)` の "integrated" キーで返されるパスがローカル保存先の唯一の正解
+- S3保存時も "s3" キー配下のパスで `corporate_bias_datasets` をprefixに含めること
+- 既存実装で `corporate-bias-datasets` など誤ったパスが混入していないか必ずレビュー・修正すること
+- パス生成・保存ロジックの共通化を徹底し、分岐・例外処理でのベタ書き禁止
+
+---
