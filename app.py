@@ -83,8 +83,8 @@ def plot_ranking_similarity(similarity_data, title):
     plt.tight_layout()
     return fig
 
-def plot_sentiment_bias(bias_data, title):
-    """感情バイアスの動的可視化"""
+def plot_bias_indices_bar(bias_data, title, reliability_label=None):
+    """感情バイアス指標の動的可視化"""
     entities = list(bias_data.keys())
     values = [bias_data[e] for e in entities]
 
@@ -95,6 +95,11 @@ def plot_sentiment_bias(bias_data, title):
     ax.set_title(title)
     plt.xticks(rotation=30, ha="right")
     plt.tight_layout()
+
+    # 信頼性ラベルを追加
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+
     return fig
 
 def plot_official_domain_comparison(official_data, title):
@@ -145,6 +150,35 @@ def plot_sentiment_comparison(sentiment_data, title):
 
     plt.tight_layout()
     return fig
+
+def get_reliability_label(execution_count):
+    """実行回数に基づいて信頼性ラベルを取得"""
+    if execution_count >= 15:
+        return "高信頼性"
+    elif execution_count >= 10:
+        return "中信頼性"
+    elif execution_count >= 5:
+        return "標準"
+    elif execution_count >= 2:
+        return "参考"
+    else:
+        return "参考（実行回数不足）"
+
+def load_analysis_data(date_str):
+    """指定日付の分析データを読み込む"""
+    try:
+        # ローカルファイルパス
+        local_path = f"corporate_bias_datasets/integrated/{date_str}/bias_analysis_results.json"
+
+        if os.path.exists(local_path):
+            with open(local_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            st.error(f"分析データが見つかりません: {local_path}")
+            return None
+    except Exception as e:
+        st.error(f"データ読み込みエラー: {str(e)}")
+        return None
 
 def get_data_files():
     """S3からデータファイル（JSON/CSV）のみを取得"""
@@ -419,165 +453,255 @@ else:
     st.subheader(f"{selected_category} - {selected_subcategory} の詳細データ")
     st.json(subcat_data)
 
-# --- 動的可視化セクション ---
-st.header("動的可視化（リアルタイム生成）")
+# --- サイドバー設定 ---
+st.sidebar.header("📊 データ選択")
 
-def get_latest_bias_analysis():
-    """最新のbias_analysis_results.jsonを取得"""
-    latest_dir = get_latest_integrated_dir()
-    if not latest_dir:
-        return None
-    bias_path = os.path.join(latest_dir, "bias_analysis_results.json")
-    if not os.path.exists(bias_path):
-        return None
-    with open(bias_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+# 利用可能な日付を取得
+def get_available_dates():
+    """利用可能な分析日付を取得"""
+    integrated_dir = "corporate_bias_datasets/integrated"
+    if not os.path.exists(integrated_dir):
+        return []
 
-bias_data = get_latest_bias_analysis()
-if not bias_data:
-    st.warning("bias_analysis_results.json が見つかりません")
-else:
-    # 可視化タイプ選択
-    viz_type = st.selectbox(
-        "可視化タイプを選択",
-        ["Citations-Google比較", "感情バイアス分析", "ランキング分析", "統合分析"]
-    )
+    dates = []
+    for item in os.listdir(integrated_dir):
+        item_path = os.path.join(integrated_dir, item)
+        if os.path.isdir(item_path):
+            bias_path = os.path.join(item_path, "bias_analysis_results.json")
+            if os.path.exists(bias_path):
+                dates.append(item)
 
-    if viz_type == "Citations-Google比較":
-        st.subheader("Citations-Google比較分析")
-        citations_data = bias_data.get("citations_google_comparison", {})
+    return sorted(dates, reverse=True)
 
-        if not citations_data:
-            st.info("Citations-Google比較データがありません")
+available_dates = get_available_dates()
+
+if not available_dates:
+    st.sidebar.error("分析データが見つかりません")
+    st.stop()
+
+# 日付選択
+selected_date = st.sidebar.selectbox(
+    "分析日付を選択",
+    available_dates,
+    index=0
+)
+
+# 分析データを読み込み
+analysis_data = load_analysis_data(selected_date)
+
+if not analysis_data:
+    st.sidebar.error(f"分析データの読み込みに失敗しました: {selected_date}")
+    st.stop()
+
+# 可視化タイプ選択
+viz_type = st.sidebar.selectbox(
+    "可視化タイプを選択",
+    ["感情バイアス分析", "Citations-Google比較", "統合分析"]
+)
+
+# カテゴリ・サブカテゴリ選択（サイドバー）
+if viz_type == "感情バイアス分析":
+    sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
+    if sentiment_data:
+        categories = list(sentiment_data.keys())
+        selected_category = st.sidebar.selectbox("カテゴリを選択", categories)
+
+        subcategories = list(sentiment_data[selected_category].keys())
+        selected_subcategory = st.sidebar.selectbox("サブカテゴリを選択", subcategories)
+
+        # エンティティ選択
+        entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
+        entities = list(entities_data.keys())
+        selected_entities = st.sidebar.multiselect(
+            "エンティティを選択（複数選択可）",
+            entities,
+            default=entities[:5] if len(entities) > 5 else entities
+        )
+
+elif viz_type == "Citations-Google比較":
+    citations_data = analysis_data.get("citations_google_comparison", {})
+    if citations_data:
+        categories = list(citations_data.keys())
+        if "error" in categories:
+            categories.remove("error")
+
+        if categories:
+            selected_category = st.sidebar.selectbox("カテゴリを選択", categories)
+            subcategories = list(citations_data[selected_category].keys())
+            selected_subcategory = st.sidebar.selectbox("サブカテゴリを選択", subcategories)
+
+# --- メイン画面 ---
+st.header(f"📈 動的可視化ダッシュボード - {selected_date}")
+
+# データ読み込み状況の表示
+st.sidebar.markdown("---")
+st.sidebar.markdown("**📋 データ状況**")
+
+# データ可用性の確認
+data_availability = analysis_data.get("data_availability_summary", {})
+if data_availability:
+    available_count = sum(1 for item in data_availability.values() if isinstance(item, dict) and item.get("available", False))
+    total_count = len(data_availability)
+    st.sidebar.metric("利用可能指標", f"{available_count}/{total_count}")
+
+# 分析制限事項の表示
+limitations = analysis_data.get("analysis_limitations", {})
+if limitations and isinstance(limitations, dict):
+    warnings = []
+    if "execution_count_warning" in limitations:
+        warnings.append("⚠️ 実行回数不足")
+    if "reliability_note" in limitations:
+        warnings.append("📊 参考レベルの信頼性")
+
+    if warnings:
+        st.sidebar.markdown("**⚠️ 注意事項**")
+        for warning in warnings:
+            st.sidebar.markdown(warning)
+
+# --- メイン可視化画面 ---
+if viz_type == "感情バイアス分析":
+    st.subheader(f"🎯 感情バイアス分析 - {selected_category} / {selected_subcategory}")
+
+    if not selected_entities:
+        st.warning("エンティティを選択してください")
+    else:
+        # 選択されたエンティティのバイアス指標を抽出
+        bias_indices = {}
+        execution_counts = {}
+
+        for entity in selected_entities:
+            if entity in entities_data:
+                entity_data = entities_data[entity]
+                if "basic_metrics" in entity_data:
+                    bias_indices[entity] = entity_data["basic_metrics"].get("normalized_bias_index", 0)
+                    execution_counts[entity] = entity_data["basic_metrics"].get("execution_count", 0)
+
+        if bias_indices:
+            # 信頼性ラベルを計算（最小実行回数を使用）
+            min_exec_count = min(execution_counts.values()) if execution_counts else 0
+            reliability_label = get_reliability_label(min_exec_count)
+
+            # バイアス指標グラフを表示
+            fig = plot_bias_indices_bar(
+                bias_indices,
+                f"{selected_category} - {selected_subcategory}",
+                reliability_label
+            )
+            st.pyplot(fig)
+
+            # 詳細情報を表示
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**📊 バイアス指標詳細**")
+                for entity, bias_index in bias_indices.items():
+                    exec_count = execution_counts.get(entity, 0)
+                    st.markdown(f"- **{entity}**: {bias_index:.3f} (実行回数: {exec_count}回)")
+
+            with col2:
+                st.markdown("**📋 信頼性情報**")
+                st.markdown(f"- **信頼性レベル**: {reliability_label}")
+                st.markdown(f"- **最小実行回数**: {min_exec_count}回")
+                if min_exec_count < 5:
+                    st.warning("⚠️ 統計的有意性検定には最低5回の実行が必要です")
         else:
-            # カテゴリ・サブカテゴリ選択
-            categories = list(citations_data.keys())
-            if "error" in categories:
-                categories.remove("error")
+            st.info("選択されたエンティティにバイアス指標データがありません")
 
-            if categories:
-                selected_category = st.selectbox("カテゴリを選択", categories)
-                subcategories = list(citations_data[selected_category].keys())
-                selected_subcategory = st.selectbox("サブカテゴリを選択", subcategories)
+elif viz_type == "Citations-Google比較":
+    st.subheader(f"🔄 Citations-Google比較分析 - {selected_category} / {selected_subcategory}")
 
-                comparison_data = citations_data[selected_category][selected_subcategory]
+    comparison_data = citations_data[selected_category][selected_subcategory]
 
-                # タブで可視化を分ける
-                tab1, tab2, tab3, tab4 = st.tabs(["ランキング類似度", "公式ドメイン比較", "感情分析比較", "データ品質"])
+    # タブで可視化を分ける
+    tab1, tab2, tab3, tab4 = st.tabs(["ランキング類似度", "公式ドメイン比較", "感情分析比較", "データ品質"])
 
-                with tab1:
-                    if "ranking_similarity" in comparison_data:
-                        fig = plot_ranking_similarity(
-                            comparison_data["ranking_similarity"],
-                            f"{selected_category} - {selected_subcategory}"
-                        )
-                        st.pyplot(fig)
+    with tab1:
+        if "ranking_similarity" in comparison_data:
+            fig = plot_ranking_similarity(
+                comparison_data["ranking_similarity"],
+                f"{selected_category} - {selected_subcategory}"
+            )
+            st.pyplot(fig)
 
-                        # 指標の説明
-                        st.markdown("""
-                        **指標の説明:**
-                        - **RBO (Rank Biased Overlap)**: 上位の結果を重視した重複度（0-1）
-                        - **Kendall Tau**: 順位の相関係数（-1〜1）
-                        - **Overlap Ratio**: 共通要素の割合（0-1）
-                        """)
-                    else:
-                        st.info("ランキング類似度データがありません")
-
-                with tab2:
-                    if "official_domain_analysis" in comparison_data:
-                        fig = plot_official_domain_comparison(
-                            comparison_data["official_domain_analysis"],
-                            f"{selected_category} - {selected_subcategory}"
-                        )
-                        st.pyplot(fig)
-
-                        # 分析結果の説明
-                        official_data = comparison_data["official_domain_analysis"]
-                        st.markdown(f"""
-                        **分析結果:**
-                        - Google検索公式ドメイン率: {official_data.get('google_official_ratio', 0):.3f}
-                        - Perplexity公式ドメイン率: {official_data.get('citations_official_ratio', 0):.3f}
-                        - バイアス方向: {official_data.get('bias_direction', 'unknown')}
-                        """)
-                    else:
-                        st.info("公式ドメイン分析データがありません")
-
-                with tab3:
-                    if "sentiment_comparison" in comparison_data:
-                        fig = plot_sentiment_comparison(
-                            comparison_data["sentiment_comparison"],
-                            f"{selected_category} - {selected_subcategory}"
-                        )
-                        st.pyplot(fig)
-
-                        # 相関情報
-                        sentiment_data = comparison_data["sentiment_comparison"]
-                        st.markdown(f"""
-                        **感情分析相関:**
-                        - 相関係数: {sentiment_data.get('sentiment_correlation', 0):.3f}
-                        - ポジティブバイアス差分: {sentiment_data.get('positive_bias_delta', 0):.3f}
-                        """)
-                    else:
-                        st.info("感情分析比較データがありません")
-
-                with tab4:
-                    if "data_quality" in comparison_data:
-                        quality_data = comparison_data["data_quality"]
-                        st.markdown("**データ品質情報:**")
-                        st.json(quality_data)
-                    else:
-                        st.info("データ品質情報がありません")
-            else:
-                st.info("比較可能なカテゴリがありません")
-
-    elif viz_type == "感情バイアス分析":
-        st.subheader("感情バイアス分析")
-        sentiment_data = bias_data.get("sentiment_bias_analysis", {})
-
-        if not sentiment_data:
-            st.info("感情バイアス分析データがありません")
+            # 指標の説明
+            st.markdown("""
+            **📈 指標の説明:**
+            - **RBO (Rank Biased Overlap)**: 上位の結果を重視した重複度（0-1）
+            - **Kendall Tau**: 順位の相関係数（-1〜1）
+            - **Overlap Ratio**: 共通要素の割合（0-1）
+            """)
         else:
-            # カテゴリ・サブカテゴリ選択
-            categories = list(sentiment_data.keys())
-            selected_category = st.selectbox("カテゴリを選択", categories)
-            subcategories = list(sentiment_data[selected_category].keys())
-            selected_subcategory = st.selectbox("サブカテゴリを選択", subcategories)
+            st.info("ランキング類似度データがありません")
 
-            entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
+    with tab2:
+        if "official_domain_analysis" in comparison_data:
+            fig = plot_official_domain_comparison(
+                comparison_data["official_domain_analysis"],
+                f"{selected_category} - {selected_subcategory}"
+            )
+            st.pyplot(fig)
 
-            # バイアス指標を抽出
-            bias_indices = {}
-            for entity, data in entities_data.items():
-                if "basic_metrics" in data:
-                    bias_indices[entity] = data["basic_metrics"].get("normalized_bias_index", 0)
-
-            if bias_indices:
-                fig = plot_sentiment_bias(
-                    bias_indices,
-                    f"{selected_category} - {selected_subcategory}"
-                )
-                st.pyplot(fig)
-            else:
-                st.info("バイアス指標データがありません")
-
-    elif viz_type == "ランキング分析":
-        st.subheader("ランキング分析")
-        ranking_data = bias_data.get("ranking_bias_analysis", {})
-
-        if not ranking_data:
-            st.info("ランキング分析データがありません")
+            # 分析結果の説明
+            official_data = comparison_data["official_domain_analysis"]
+            st.markdown(f"""
+            **📊 分析結果:**
+            - Google検索公式ドメイン率: {official_data.get('google_official_ratio', 0):.3f}
+            - Perplexity公式ドメイン率: {official_data.get('citations_official_ratio', 0):.3f}
+            - バイアス方向: {official_data.get('bias_direction', 'unknown')}
+            """)
         else:
-            st.info("ランキング分析の可視化機能は開発中です")
+            st.info("公式ドメイン分析データがありません")
 
-    elif viz_type == "統合分析":
-        st.subheader("統合分析")
-        cross_data = bias_data.get("cross_analysis_insights", {})
+    with tab3:
+        if "sentiment_comparison" in comparison_data:
+            fig = plot_sentiment_comparison(
+                comparison_data["sentiment_comparison"],
+                f"{selected_category} - {selected_subcategory}"
+            )
+            st.pyplot(fig)
 
-        if not cross_data:
-            st.info("統合分析データがありません")
+            # 相関情報
+            sentiment_data = comparison_data["sentiment_comparison"]
+            st.markdown(f"""
+            **📈 感情分析相関:**
+            - 相関係数: {sentiment_data.get('sentiment_correlation', 0):.3f}
+            - ポジティブバイアス差分: {sentiment_data.get('positive_bias_delta', 0):.3f}
+            """)
         else:
-            st.markdown("**統合分析結果:**")
+            st.info("感情分析比較データがありません")
+
+    with tab4:
+        if "data_quality" in comparison_data:
+            quality_data = comparison_data["data_quality"]
+            st.markdown("**🔍 データ品質情報:**")
+            st.json(quality_data)
+        else:
+            st.info("データ品質情報がありません")
+
+elif viz_type == "統合分析":
+    st.subheader("📊 統合分析結果")
+    cross_data = analysis_data.get("cross_analysis_insights", {})
+
+    if cross_data:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**📈 主要指標**")
+            st.metric("感情-ランキング相関", f"{cross_data.get('sentiment_ranking_correlation', 0):.3f}")
+            st.metric("Google-Citations整合性", cross_data.get('google_citations_alignment', 'unknown'))
+            st.metric("全体的バイアスパターン", cross_data.get('overall_bias_pattern', 'unknown'))
+
+        with col2:
+            st.markdown("**📋 分析カバレッジ**")
+            coverage = cross_data.get('analysis_coverage', {})
+            for key, value in coverage.items():
+                status = "✅" if value else "❌"
+                st.markdown(f"- {key}: {status}")
+
+        # 詳細データ
+        with st.expander("詳細データ"):
             st.json(cross_data)
+    else:
+        st.info("統合分析データがありません")
 
 # --- 従来の画像表示セクション（参考用） ---
 with st.expander("従来の事前生成画像（参考）"):
