@@ -20,7 +20,6 @@ load_dotenv()
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 API_HOST = "api.perplexity.ai"
 API_VERSION = "v1"
-PERPLEXITY_MODELS_TO_TRY = os.environ.get("PERPLEXITY_MODELS_TO_TRY", "llama-3.1-sonar-large-128k-online,llama-3.1-sonar-large-128k").split(",")
 
 class PerplexityAPI:
     """Perplexity APIを呼び出すためのクラス"""
@@ -96,7 +95,7 @@ class PerplexityAPI:
         url = self._get_api_url("chat/completions")
         headers = self._get_headers()
         if model is None:
-            model = self.get_models_to_try()[0]
+            model = self.get_models_to_try()[0]  # デフォルトはsonar
         messages = [
             {"role": "system", "content": "情報は日本語ページ（.jpドメインや日本語サイト）を優先してください。"},
             {"role": "user", "content": prompt}
@@ -124,9 +123,11 @@ class PerplexityAPI:
                 time.sleep(retry_delay)
         return "", []
 
-    @staticmethod
-    def get_models_to_try():
+    def get_models_to_try(self):
         """
         利用可能なPerplexityモデルのリストを返す（.envで管理、なければデフォルト）
         """
-        return PERPLEXITY_MODELS_TO_TRY
+        # 環境変数を再読み込みして確実に最新値を取得
+        load_dotenv(override=True)
+        models_str = os.environ.get("PERPLEXITY_MODELS_TO_TRY", "sonar")
+        return models_str.split(",")
