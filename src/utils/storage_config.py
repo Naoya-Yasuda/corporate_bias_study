@@ -83,13 +83,13 @@ def get_base_paths(date_str):
         "temp": "corporate_bias_datasets/temp",
         # S3用パス設定（読み込み・保存パスの統一）
         "s3": {
-            "integrated": f"corporate_bias_datasets/datasets/integrated/{date_str}",
+            "integrated": f"corporate_bias_datasets/integrated/{date_str}",
             "raw_data": {
-                "google": f"corporate_bias_datasets/datasets/corporate_bias_datasets/raw_data/{date_str}/google",
-                "perplexity": f"corporate_bias_datasets/datasets/corporate_bias_datasets/raw_data/{date_str}/perplexity"
+                "google": f"corporate_bias_datasets/raw_data/{date_str}/google",
+                "perplexity": f"corporate_bias_datasets/raw_data/{date_str}/perplexity"
             },
-            "analysis_visuals": f"corporate_bias_datasets/datasets/corporate_bias_datasets/analysis_visuals/{date_str}",
-            "publications": f"corporate_bias_datasets/datasets/corporate_bias_datasets/publications"
+            "analysis_visuals": f"corporate_bias_datasets/analysis_visuals/{date_str}",
+            "publications": f"corporate_bias_datasets/publications"
         }
     }
 
