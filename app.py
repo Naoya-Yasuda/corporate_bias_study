@@ -474,6 +474,7 @@ def get_available_dates():
     return sorted(dates, reverse=True)
 
 available_dates = get_available_dates()
+st.write(f"利用可能な日付: {available_dates}")  # デバッグ用
 
 if not available_dates:
     st.sidebar.error("分析データが見つかりません")
@@ -488,6 +489,7 @@ selected_date = st.sidebar.selectbox(
 
 # 分析データを読み込み
 analysis_data = load_analysis_data(selected_date)
+st.write(f"分析データ読み込み結果: {analysis_data is not None}")  # デバッグ用
 
 if not analysis_data:
     st.sidebar.error(f"分析データの読み込みに失敗しました: {selected_date}")
