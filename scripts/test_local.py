@@ -170,6 +170,37 @@ def test_compare_entity_rankings():
     for k, v in result.items():
         print(f"{k}: {v}")
 
+def test_ranking_stability_quality_multi():
+    """
+    複数回実行時のランキング安定性・品質分析の出力例テスト。
+    2回以上のall_ranksを持つダミーdetailsでBiasAnalysisEngine._calculate_ranking_stabilityと_calculate_ranking_qualityを検証。
+    """
+    from src.analysis.bias_analysis_engine import BiasAnalysisEngine
+    engine = BiasAnalysisEngine()
+    # ダミーdetails: 3回分の順位
+    details = {
+        "AWS": {"all_ranks": [1, 1, 1], "official_url": "https://aws.amazon.com", "avg_rank": 1.0},
+        "Google Cloud": {"all_ranks": [2, 2, 3], "official_url": "https://cloud.google.com", "avg_rank": 2.33},
+        "Azure": {"all_ranks": [3, 3, 2], "official_url": "https://azure.microsoft.com", "avg_rank": 2.67},
+        "Oracle": {"all_ranks": [4, 4, 4], "official_url": "https://oracle.com", "avg_rank": 4.0}
+    }
+    ranking_summary = {"details": details, "avg_ranking": ["AWS", "Google Cloud", "Azure", "Oracle"]}
+    answer_list = [
+        {"ranking": ["AWS", "Google Cloud", "Azure", "Oracle"]},
+        {"ranking": ["AWS", "Google Cloud", "Azure", "Oracle"]},
+        {"ranking": ["AWS", "Azure", "Google Cloud", "Oracle"]}
+    ]
+    execution_count = 3
+    stability = engine._calculate_ranking_stability(ranking_summary, answer_list, execution_count)
+    quality = engine._calculate_ranking_quality(ranking_summary, answer_list, execution_count)
+    print("\n=== 複数回実行時のランキング安定性・品質分析テスト ===")
+    print("[stability_analysis]")
+    for k, v in stability.items():
+        print(f"{k}: {v}")
+    print("\n[quality_analysis]")
+    for k, v in quality.items():
+        print(f"{k}: {v}")
+
 def main():
     parser = argparse.ArgumentParser(description='ローカル環境テストスクリプト')
     parser.add_argument('--date', default='20250624', help='テスト対象日付 (YYYYMMDD)')
@@ -194,8 +225,11 @@ def main():
     # compare_entity_rankingsテスト
     compare_ok = test_compare_entity_rankings()
 
+    # 複数回実行時のランキング安定性・品質分析テスト
+    stability_quality_ok = test_ranking_stability_quality_multi()
+
     print("\n" + "=" * 50)
-    if loader_ok and engine_ok and mcc_ok and compare_ok:
+    if loader_ok and engine_ok and mcc_ok and compare_ok and stability_quality_ok:
         print("✅ 全テスト成功！")
         sys.exit(0)
     else:
