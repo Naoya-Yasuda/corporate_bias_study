@@ -26,6 +26,9 @@ plt.rcParams['font.family'] = ['IPAexGothic', 'Hiragino Sans', 'Yu Gothic', 'Mei
 plt.rcParams['font.size'] = 12
 plt.rcParams['axes.unicode_minus'] = False
 
+if not hasattr(np, 'float'):
+    np.float = float
+
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
     ΔRankをバーチャートで可視化
@@ -344,7 +347,11 @@ def plot_confidence_intervals(bi_dict, ci_dict, output_path=None, highlight_zero
     --------
     matplotlib.figure.Figure
     """
-    entities = list(bi_dict.keys())
+    # 共通キーのみを使う
+    common_entities = list(set(bi_dict.keys()) & set(ci_dict.keys()))
+    if not common_entities:
+        raise ValueError("bi_dictとci_dictに共通する企業名がありません")
+    entities = sorted(common_entities)
     bi_values = [bi_dict[e] for e in entities]
     ci_lowers = [ci_dict[e][0] for e in entities]
     ci_uppers = [ci_dict[e][1] for e in entities]
@@ -360,7 +367,8 @@ def plot_confidence_intervals(bi_dict, ci_dict, output_path=None, highlight_zero
             color = "gray"
         else:
             color = "red" if bi_values[i] > 0 else "green"
-        ax.errorbar(e, bi_values[i],
+        # x, yともリストで渡す
+        ax.errorbar([e], [bi_values[i]],
                     yerr=[[bi_values[i] - ci_lowers[i]], [ci_uppers[i] - bi_values[i]]],
                     fmt='o', color='black', ecolor=color, elinewidth=2, capsize=6, markerfacecolor='white', markersize=8)
         ax.scatter(e, bi_values[i], color=color, s=80, zorder=3)
