@@ -26,6 +26,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from src.prompts.prompt_manager import PromptManager
 from src.utils.storage_utils import save_results, get_results_paths, load_json
 from src.utils.storage_config import S3_BUCKET_NAME, get_s3_key
+from src.utils.perplexity_api import PerplexityAPI
 
 # 環境変数の読み込み
 load_dotenv()
@@ -36,27 +37,19 @@ PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 # プロンプトマネージャーのインスタンスを作成
 prompt_manager = PromptManager()
 
-def analyze_sentiments(texts):
-    """共通化されたPerplexity APIを使用して複数のテキストの感情分析を実行"""
+def analyze_sentiments(texts: list[str]) -> list[str]:
+    """PerplexityAPIクラスを使用して複数のテキストの感情分析を実行（loaderと同じ方式）"""
     if not PERPLEXITY_API_KEY:
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
 
-    # 共通化されたPerplexity APIクラスを使用
-    from src.utils.perplexity_api import PerplexityAPI
+    prompt = prompt_manager.get_sentiment_analysis_prompt(texts)
+    model = os.environ.get("PERPLEXITY_DEFAULT_MODEL", "sonar")
+    api = PerplexityAPI(PERPLEXITY_API_KEY)
 
     try:
-        # プロンプトを取得
-        prompt = prompt_manager.get_sentiment_analysis_prompt(texts)
-
-        # PerplexityAPIを初期化
-        api = PerplexityAPI(PERPLEXITY_API_KEY)
-
-        # API呼び出し（model引数のデフォルト値は "llama-3.1-sonar-large-128k-online" に統一）
-        response_text, _ = api.call_perplexity_api(prompt, model="llama-3.1-sonar-large-128k-online")
-
+        response_text, _ = api.call_perplexity_api(prompt, model=model)
         if response_text:
             sentiments = response_text.strip().lower().split(",")
-            # 結果を文字列値で返す（"positive"/"negative"/"unknown"）
             result = []
             for sentiment in sentiments:
                 sentiment = sentiment.strip()
@@ -65,7 +58,7 @@ def analyze_sentiments(texts):
                 elif sentiment == "negative":
                     result.append("negative")
                 else:
-                    result.append("unknown")  # 不明な場合
+                    result.append("unknown")
             return result
         return ["unknown"] * len(texts)
     except Exception as e:
