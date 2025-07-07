@@ -79,7 +79,7 @@ def collect_rankings(api_key, categories, num_runs=1):
                     print(f"  実行 {run+1}/{num_runs}")
 
                 prompt = prompt_manager.get_ranking_prompt(subcategory, services)
-                models_to_try = PerplexityAPI.get_models_to_try()
+                models_to_try = api.get_models_to_try()
                 response = None
                 citations = []
                 for model in models_to_try:

@@ -249,7 +249,8 @@ def collect_citation_rankings(categories):
     processed = 0
 
     # 試すモデル（成功するまで順に試す）
-    models_to_try = PerplexityAPI.get_models_to_try()
+    api = PerplexityAPI(PPLX_API_KEY)
+    models_to_try = api.get_models_to_try()
 
     # 全URLを収集するリスト（評判情報用のみ）
     reputation_urls = []
