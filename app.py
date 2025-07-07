@@ -20,17 +20,28 @@ from src.utils.storage_utils import get_s3_client, S3_BUCKET_NAME, get_latest_fi
 from src.utils.plot_utils import draw_reliability_badge
 import numpy as np
 
-# 利用可能な日本語フォントを優先的に取得
+# 日本語フォント設定（最初にインポート）
 import japanize_matplotlib
 
 # 環境変数の読み込み
 load_dotenv()
 
-# ヒラギノ角ゴシックのパス（W3を例に）
-font_path = '/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc'
-prop = fm.FontProperties(fname=font_path)
-plt.rcParams['font.family'] = prop.get_name()
-plt.rcParams['font.sans-serif'] = [prop.get_name()]
+# japanize_matplotlibで日本語フォントを自動設定
+# japanize_matplotlibが既にインポートされているため、自動的に日本語フォントが設定される
+# フォールバック用の設定
+try:
+    font_path = '/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc'
+    if os.path.exists(font_path):
+        prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+        plt.rcParams['font.sans-serif'] = [prop.get_name()]
+    else:
+        # japanize_matplotlibのデフォルト設定を使用
+        plt.rcParams['font.family'] = 'IPAexGothic'
+except:
+    # エラー時はjapanize_matplotlibのデフォルト設定を使用
+    plt.rcParams['font.family'] = 'IPAexGothic'
+
 plt.rcParams['axes.unicode_minus'] = False
 
 # グラフスタイル設定
@@ -45,6 +56,10 @@ def set_plot_style():
     plt.rcParams['legend.fontsize'] = 8
     plt.rcParams['figure.titlesize'] = 14
     plt.rcParams['axes.unicode_minus'] = False  # マイナス記号を正しく表示
+
+    # 日本語フォント設定の確認
+    if 'font.family' not in plt.rcParams or not plt.rcParams['font.family']:
+        plt.rcParams['font.family'] = 'IPAexGothic'
 
 # スタイル設定を適用
 set_plot_style()
