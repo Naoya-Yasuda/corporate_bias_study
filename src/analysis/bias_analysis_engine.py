@@ -2398,6 +2398,9 @@ class BiasAnalysisEngine:
         # クロスプラットフォーム一貫性
         cross_platform_consistency = "high" if google_citations_alignment == "high" and sentiment_ranking_correlation > 0.7 else "moderate"
 
+        # 感情-ランキング相関の計算（詳細版）
+        sentiment_ranking_correlation = self._calculate_sentiment_ranking_correlation(sentiment_analysis, ranking_analysis)
+
         return {
             "sentiment_ranking_correlation": sentiment_ranking_correlation,
             "consistent_leaders": consistent_leaders,
@@ -2411,6 +2414,57 @@ class BiasAnalysisEngine:
                 "citations_comparison_available": bool(citations_comparison and "error" not in citations_comparison)
             }
         }
+
+    def _calculate_sentiment_ranking_correlation(self, sentiment_analysis: Dict, ranking_analysis: Dict) -> Dict[str, any]:
+        """
+        感情バイアス指標（normalized_bias_index）とランキング指標（mean_rank等）の相関を計算。
+        ピアソン・スピアマン相関、解釈ラベル等を返す。
+        """
+        import numpy as np
+        from scipy.stats import pearsonr, spearmanr
+        results = {}
+        for category in sentiment_analysis:
+            if category not in ranking_analysis:
+                continue
+            for subcategory in sentiment_analysis[category]:
+                if subcategory not in ranking_analysis[category]:
+                    continue
+                sent_entities = sentiment_analysis[category][subcategory].get("entities", {})
+                rank_entities = ranking_analysis[category][subcategory].get("entities", {})
+                # 共通エンティティのみ
+                common = set(sent_entities.keys()) & set(rank_entities.keys())
+                bias_list = []
+                mean_rank_list = []
+                for e in common:
+                    bias = sent_entities[e].get("basic_metrics", {}).get("normalized_bias_index")
+                    mean_rank = rank_entities[e].get("mean_rank")
+                    if bias is not None and mean_rank is not None:
+                        bias_list.append(bias)
+                        mean_rank_list.append(mean_rank)
+                if len(bias_list) >= 2:
+                    pearson_corr, _ = pearsonr(bias_list, mean_rank_list)
+                    spearman_corr, _ = spearmanr(bias_list, mean_rank_list)
+                    # 解釈
+                    if pearson_corr < -0.7:
+                        interpretation = "感情バイアスとランキング順位には強い負の相関（高評価ほど上位）"
+                        direction = "高評価ほど上位"
+                    elif pearson_corr > 0.7:
+                        interpretation = "感情バイアスとランキング順位には強い正の相関（高評価ほど下位）"
+                        direction = "高評価ほど下位"
+                    elif abs(pearson_corr) > 0.4:
+                        interpretation = "感情バイアスとランキング順位には中程度の相関"
+                        direction = "中程度の相関"
+                    else:
+                        interpretation = "感情バイアスとランキング順位に明確な相関なし"
+                        direction = "無相関"
+                    results.setdefault(category, {})[subcategory] = {
+                        "pearson_correlation": round(float(pearson_corr), 3),
+                        "spearman_correlation": round(float(spearman_corr), 3),
+                        "n_entities": len(bias_list),
+                        "correlation_direction": direction,
+                        "interpretation": interpretation
+                    }
+        return results
 
     def _generate_analysis_limitations(self, execution_count: int) -> Dict[str, Any]:
         """実行回数・データ品質に基づく分析制限事項の自動生成"""
