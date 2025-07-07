@@ -18,7 +18,6 @@ from ..utils.storage_utils import save_results, get_results_paths
 from ..utils.storage_config import get_s3_key
 import logging
 import sys
-import pprint
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -175,22 +174,11 @@ def main():
         today_date = datetime.datetime.now().strftime("%Y%m%d")
         paths = get_results_paths(today_date)
 
-        if args.runs > 1:
-            print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
-        else:
-            print("Perplexity APIを使用して単一実行データを取得します")
 
         if args.verbose:
             logging.info(f"{args.runs}回の実行を開始します")
 
         result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
-
-        # --- すべてのカテゴリ・サブカテゴリのentities構造をprintで確認 ---
-        for cat in result:
-            for subcat in result[cat]:
-                print(f"[DEBUG] result['{cat}']['{subcat}'] = ")
-                pprint.pprint(result[cat][subcat])
-        # --------------------------------------
 
         file_name = f"rankings_{args.runs}runs.json"
         local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)

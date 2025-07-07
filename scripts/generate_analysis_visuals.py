@@ -268,8 +268,17 @@ class AnalysisVisualizationGenerator:
         import matplotlib.pyplot as plt
         from src.utils.storage_utils import save_figure
 
-        # 日本語フォント設定
-        plt.rcParams['font.family'] = ['IPAexGothic', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Takao', 'IPAexGothic', 'IPAPGothic', 'VL PGothic', 'Noto Sans CJK JP']
+        # 日本語フォント設定（警告の出るフォントはコメントアウト）
+        plt.rcParams['font.family'] = [
+            #'IPAexGothic',  # 警告あり
+            'Hiragino Sans',
+            #'Yu Gothic',     # 警告あり
+            #'Meiryo',       # 警告あり
+            #'Takao',        # 警告あり
+            #'IPAPGothic',   # 警告あり
+            #'VL PGothic',   # 警告あり
+            'Noto Sans CJK JP'
+        ]
 
         metrics = ['rbo_score', 'kendall_tau', 'overlap_ratio']
         values = [similarity_data.get(metric, 0) for metric in metrics]

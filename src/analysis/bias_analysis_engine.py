@@ -1049,9 +1049,6 @@ class BiasAnalysisEngine:
 
                 # 各企業のバイアス指標計算
                 for entity_name, entity_data in entities.items() if isinstance(entities, dict) else []:
-                    # entity_dataがdict型でない場合のデバッグ出力
-                    if not isinstance(entity_data, dict):
-                        print(f"[DEBUG] entity_data is not dict: entity_name={entity_name}, type={type(entity_data)}, value={entity_data}")
                     masked_values = entity_data.get("masked_values", []) if isinstance(entity_data, dict) else []
                     unmasked_values = entity_data.get("unmasked_values", []) if isinstance(entity_data, dict) else []
                     execution_count = len(masked_values)
