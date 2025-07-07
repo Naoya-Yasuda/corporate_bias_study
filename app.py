@@ -20,6 +20,8 @@ from src.utils.storage_utils import get_s3_client, S3_BUCKET_NAME, get_latest_fi
 from src.utils.plot_utils import draw_reliability_badge
 import numpy as np
 from src.analysis.hybrid_data_loader import HybridDataLoader
+import sys
+import argparse
 
 # 日本語フォント設定（最初にインポート）
 import japanize_matplotlib
@@ -212,6 +214,86 @@ def get_reliability_label(execution_count):
     else:
         return "参考（実行回数不足）"
 
+def plot_severity_radar(severity_dict, title, reliability_label=None):
+    """重篤度レーダーチャートの動的可視化"""
+    labels = list(severity_dict.keys())
+    values = [severity_dict[k] for k in labels]
+    num_vars = len(labels)
+    if num_vars < 3:
+        # レーダーチャートは3軸以上推奨
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, 'エンティティ数が少なすぎます', ha='center', va='center')
+        return fig
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    values += values[:1]
+    angles += angles[:1]
+    fig, ax = plt.subplots(subplot_kw=dict(polar=True))
+    ax.plot(angles, values, color='red', linewidth=2)
+    ax.fill(angles, values, color='red', alpha=0.25)
+    ax.set_thetagrids(np.degrees(angles[:-1]), labels)
+    ax.set_title(title)
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
+    return fig
+
+def plot_pvalue_heatmap(pvalue_dict, title, reliability_label=None):
+    """p値ヒートマップの動的可視化"""
+    labels = list(pvalue_dict.keys())
+    values = [pvalue_dict[k] for k in labels]
+    fig, ax = plt.subplots(figsize=(max(6, len(labels)), 2))
+    im = ax.imshow([values], cmap='coolwarm', aspect='auto', vmin=0, vmax=1)
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, rotation=30, ha='right')
+    ax.set_yticks([])
+    ax.set_title(title)
+    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.02)
+    cbar.set_label('p値')
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
+    return fig
+
+def plot_effect_significance_scatter(effect_data, title, reliability_label=None):
+    """効果量 vs p値散布図の動的可視化"""
+    entities = list(effect_data.keys())
+    cliffs = [effect_data[e]["cliffs_delta"] for e in entities]
+    pvals = [effect_data[e]["p_value"] for e in entities]
+    fig, ax = plt.subplots(figsize=(8, 6))
+    scatter = ax.scatter(cliffs, [-np.log10(p) if p > 0 else 0 for p in pvals], c=["red" if c > 0 else "green" for c in cliffs], s=80)
+    for i, e in enumerate(entities):
+        ax.annotate(e, (cliffs[i], -np.log10(pvals[i]) if pvals[i] > 0 else 0), fontsize=10)
+    ax.set_xlabel("Cliff's Delta")
+    ax.set_ylabel("-log10(p値)")
+    ax.set_title(title)
+    if reliability_label:
+        draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
+    return fig
+
+# コマンドライン引数でstorage-modeを受け取る
+if not hasattr(st, 'session_state') or 'storage_mode' not in st.session_state:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--storage-mode', type=str, default='auto', choices=['auto', 'local', 's3'], help='データ取得元')
+    args, _ = parser.parse_known_args()
+    st.session_state['storage_mode'] = args.storage_mode
+
+# サイドバーでデータ取得元を選択（コマンドライン引数があればそれを優先）
+def get_storage_mode():
+    cli_mode = st.session_state.get('storage_mode', 'auto')
+    if 'storage_mode_sidebar' not in st.session_state:
+        st.session_state['storage_mode_sidebar'] = cli_mode
+    mode = st.sidebar.selectbox(
+        'データ取得元を選択',
+        ['auto', 'local', 's3'],
+        index=['auto', 'local', 's3'].index(cli_mode),
+        key='storage_mode_sidebar',
+        help='auto: ローカル優先、なければS3 / local: ローカルのみ / s3: S3のみ'
+    )
+    return mode
+
+storage_mode = get_storage_mode()
+
 # タイトル
 st.title("企業バイアス分析ダッシュボード")
 st.markdown("AI検索サービスにおける企業優遇バイアスの可視化")
@@ -220,8 +302,8 @@ st.markdown("AI検索サービスにおける企業優遇バイアスの可視�
 st.sidebar.header("📊 データ選択")
 
 # HybridDataLoaderで日付リスト・データ取得
-loader = HybridDataLoader("auto")
-available_dates = loader.list_available_dates()
+loader = HybridDataLoader(storage_mode)
+available_dates = loader.list_available_dates(mode=storage_mode)
 
 if not available_dates:
     st.sidebar.error("分析データが見つかりません")
@@ -248,6 +330,15 @@ viz_type = st.sidebar.selectbox(
     ["感情バイアス分析", "Citations-Google比較", "統合分析"],
     key=f"viz_type_selector_{selected_date}"
 )
+
+# 指標タイプ選択肢を追加
+sentiment_metric_type = None
+if viz_type == "感情バイアス分析":
+    sentiment_metric_type = st.sidebar.selectbox(
+        "指標タイプを選択",
+        ["BI値棒グラフ", "重篤度レーダーチャート", "p値ヒートマップ", "効果量 vs p値散布図"],
+        key=f"sentiment_metric_type_{selected_date}"
+    )
 
 # --- メインダッシュボード（統合版） ---
 st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
@@ -301,35 +392,49 @@ if viz_type == "感情バイアス分析":
     else:
         bias_indices = {}
         execution_counts = {}
+        severity_dict = {}
+        pvalue_dict = {}
+        effect_data = {}
         for entity in selected_entities:
             if entity in entities_data:
                 entity_data = entities_data[entity]
                 if "basic_metrics" in entity_data:
                     bias_indices[entity] = entity_data["basic_metrics"].get("normalized_bias_index", 0)
                     execution_counts[entity] = entity_data["basic_metrics"].get("execution_count", 0)
-
-        if bias_indices:
-            min_exec_count = min(execution_counts.values()) if execution_counts else 0
-            reliability_label = get_reliability_label(min_exec_count)
-            title = "全カテゴリ統合 - バイアス指標ランキング" if selected_category == "全体" else f"{selected_category} - {selected_subcategory}"
+                if "severity_score" in entity_data:
+                    sev = entity_data["severity_score"]
+                    if isinstance(sev, dict):
+                        score = sev.get("severity_score")
+                    else:
+                        score = sev
+                    if score is not None:
+                        severity_dict[entity] = score
+                stat = entity_data.get("statistical_significance", {})
+                if "sign_test_p_value" in stat:
+                    pvalue_dict[entity] = stat["sign_test_p_value"]
+                effect_size = entity_data.get("effect_size", {})
+                cliffs_delta = effect_size.get("cliffs_delta") if "cliffs_delta" in effect_size else None
+                p_value = stat.get("sign_test_p_value") if "sign_test_p_value" in stat else None
+                if cliffs_delta is not None and p_value is not None:
+                    effect_data[entity] = {"cliffs_delta": cliffs_delta, "p_value": p_value}
+        min_exec_count = min(execution_counts.values()) if execution_counts else 0
+        reliability_label = get_reliability_label(min_exec_count)
+        title = "全カテゴリ統合 - バイアス指標ランキング" if selected_category == "全体" else f"{selected_category} - {selected_subcategory}"
+        # 指標タイプに応じてグラフを動的描画
+        if sentiment_metric_type == "BI値棒グラフ" and bias_indices:
             fig = plot_bias_indices_bar(bias_indices, title, reliability_label)
             st.pyplot(fig, use_container_width=True)
-
-            # 詳細情報
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**📊 バイアス指標詳細**")
-                for entity, bias_index in bias_indices.items():
-                    exec_count = execution_counts.get(entity, 0)
-                    st.markdown(f"- **{entity}**: {bias_index:.3f} (実行回数: {exec_count}回)")
-            with col2:
-                st.markdown("**📋 信頼性情報**")
-                st.markdown(f"- **信頼性レベル**: {reliability_label}")
-                st.markdown(f"- **最小実行回数**: {min_exec_count}回")
-                if min_exec_count < 5:
-                    st.warning("⚠️ 統計的有意性検定には最低5回の実行が必要です")
+        elif sentiment_metric_type == "重篤度レーダーチャート" and severity_dict:
+            fig = plot_severity_radar(severity_dict, title, reliability_label)
+            st.pyplot(fig, use_container_width=True)
+        elif sentiment_metric_type == "p値ヒートマップ" and pvalue_dict:
+            fig = plot_pvalue_heatmap(pvalue_dict, title, reliability_label)
+            st.pyplot(fig, use_container_width=True)
+        elif sentiment_metric_type == "効果量 vs p値散布図" and effect_data:
+            fig = plot_effect_significance_scatter(effect_data, title, reliability_label)
+            st.pyplot(fig, use_container_width=True)
         else:
-            st.info("選択されたエンティティにバイアス指標データがありません")
+            st.info("選択された指標・エンティティに可視化データがありません")
 
 elif viz_type == "Citations-Google比較":
     # Citations-Google比較のサイドバー設定
