@@ -21,6 +21,11 @@ from matplotlib import colors as mcolors
 from matplotlib.sankey import Sankey
 from .storage_utils import save_figure
 
+# 日本語フォント設定
+plt.rcParams['font.family'] = ['IPAexGothic', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Takao', 'IPAexGothic', 'IPAPGothic', 'VL PGothic', 'Noto Sans CJK JP', 'DejaVu Sans']
+plt.rcParams['font.size'] = 12
+plt.rcParams['axes.unicode_minus'] = False
+
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
     ΔRankをバーチャートで可視化

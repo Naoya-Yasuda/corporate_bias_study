@@ -463,18 +463,30 @@ class AnalysisVisualizationGenerator:
     def _plot_ranking_similarity(self, similarity_data: Dict, output_path: str, title: str):
         import matplotlib.pyplot as plt
         from src.utils.storage_utils import save_figure
+
+        # 日本語フォント設定
+        plt.rcParams['font.family'] = ['IPAexGothic', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Takao', 'IPAexGothic', 'IPAPGothic', 'VL PGothic', 'Noto Sans CJK JP']
+
         metrics = ['rbo_score', 'kendall_tau', 'overlap_ratio']
         values = [similarity_data.get(metric, 0) for metric in metrics]
-        labels = ['RBO', 'Kendall Tau', 'Overlap Ratio']
-        fig, ax = plt.subplots(figsize=(8, 6))
+        labels = ['RBO\n(上位重視重複度)', 'Kendall Tau\n(順位相関)', 'Overlap Ratio\n(共通要素率)']
+        fig, ax = plt.subplots(figsize=(10, 7))
         bars = ax.bar(labels, values, alpha=0.7, color=['blue', 'orange', 'green'])
         ax.set_title(f"{title} - Google vs Perplexity類似度")
         ax.set_ylabel("類似度スコア")
         ax.set_ylim(0, 1)
+
+        # X軸ラベルの回転と位置調整
+        plt.xticks(rotation=0, ha='center')
+
         for bar, value in zip(bars, values):
             if value is not None:
                 ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.02,
-                        f'{value:.3f}', ha='center', va='bottom')
+                        f'{value:.3f}', ha='center', va='bottom', fontweight='bold')
+
+        # グリッド追加
+        ax.grid(axis='y', alpha=0.3)
+
         plt.tight_layout()
         save_figure(fig, output_path, storage_mode=self.storage_mode)
 
