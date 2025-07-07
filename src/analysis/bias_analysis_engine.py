@@ -885,11 +885,12 @@ class BiasAnalysisEngine:
         try:
             # 1. 入力データ読み込み
             integrated_data = self.data_loader.load_integrated_data(date_or_path)
-            sentiment_data = self.data_loader.load_sentiment_data(date_or_path)
+            if integrated_data is None:
+                raise ValueError(f"統合データ（corporate_bias_dataset.json）が見つかりません: {date_or_path}")
+            # sentiment_data = self.data_loader.load_sentiment_data(date_or_path)  # 不要
 
-            # データをマージ
-            merged_data = integrated_data.copy()
-            merged_data['perplexity_sentiment'] = sentiment_data
+            # データをマージ（不要、integrated_dataのみでOK）
+            merged_data = integrated_data
 
             # 2. データ検証
             validation_errors = self._validate_input_data(merged_data)
@@ -2576,49 +2577,28 @@ def main():
     import argparse
     import logging
 
-    parser = argparse.ArgumentParser(description="企業バイアス分析エンジン")
-    parser.add_argument("--date", required=True, help="分析対象日付 (YYYYMMDD形式)")
-    parser.add_argument("--verbose", action="store_true", help="詳細ログを出力")
-    parser.add_argument("--output-mode", default="auto", choices=["auto", "json", "console"],
-                        help="出力モード")
-
+    parser = argparse.ArgumentParser(description="バイアス分析エンジン")
+    parser.add_argument("--date", required=True, help="分析対象日付 (YYYYMMDD)")
+    parser.add_argument("--verbose", action="store_true", help="詳細ログ")
+    parser.add_argument("--output-mode", choices=["auto", "json", "console"], default="auto", help="出力モード")
+    parser.add_argument("--storage-mode", choices=["auto", "local", "s3"], default="auto", help="ストレージモード")
     args = parser.parse_args()
 
-    # ログ設定
     if args.verbose:
-        logging.basicConfig(level=logging.INFO)
-    else:
-        logging.basicConfig(level=logging.WARNING)
-
-    logger = logging.getLogger(__name__)
+        logging.basicConfig(level=logging.DEBUG)
 
     try:
-        # ストレージモードを環境変数から取得
-        import os
-        storage_mode = os.getenv('STORAGE_MODE', 'auto')
-        logger.info(f"環境変数STORAGE_MODEから取得: {storage_mode}")
-
-        engine = BiasAnalysisEngine(storage_mode=storage_mode)
-        logger.info(f"BiasAnalysisEngine初期化: storage_mode={storage_mode}")
-
-        logger.info(f"バイアス分析開始: {args.date}")
+        engine = BiasAnalysisEngine(storage_mode=args.storage_mode)
         results = engine.analyze_integrated_dataset(args.date, output_mode=args.output_mode)
-
-        logger.info("バイアス分析が正常に完了しました")
-        logger.info(f"分析結果: {len(results)} つのカテゴリを分析")
-
-        if args.output_mode == "console":
-            print("=== バイアス分析結果 ===")
-            for category, result in results.items():
-                print(f"\n[{category}]")
-                if isinstance(result, dict) and "sentiment_analysis" in result:
-                    sentiment = result["sentiment_analysis"]
-                    if "category_analysis" in sentiment:
-                        print(f"  カテゴリ分析: {sentiment['category_analysis'].get('total_entities', 0)}エンティティ")
-
+        if args.output_mode == "json":
+            import json
+            print(json.dumps(results, ensure_ascii=False, indent=2))
+        elif args.output_mode == "console":
+            print("バイアス分析結果:")
+            print(results)
     except Exception as e:
-        logger.error(f"バイアス分析でエラーが発生: {e}")
-        print(f"エラーが発生しました: {e}")
+        logger.error(f"バイアス分析エンジン実行失敗: {e}")
+        exit(1)
 
 
 if __name__ == "__main__":

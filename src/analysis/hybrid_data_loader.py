@@ -58,29 +58,17 @@ class HybridDataLoader:
         logger.info(f"HybridDataLoader初期化: mode={storage_mode}")
 
     def load_integrated_data(self, date_or_path: str) -> Dict[str, Any]:
-        """統合データセットを読み込み
-
-        Parameters:
-        -----------
-        date_or_path : str
-            日付（YYYYMMDD）またはディレクトリパス
-
-        Returns:
-        --------
-        Dict[str, Any]
-            読み込まれた統合データセット
-        """
-
+        """統合データセットを読み込み"""
         if self.storage_mode == "local":
             return self._load_from_local(date_or_path)
         elif self.storage_mode == "s3":
-            return self._load_from_s3(date_or_path)
+            return self._load_from_s3_integrated_dataset(date_or_path)
         else:  # auto mode
             try:
                 return self._load_from_local(date_or_path)
             except (FileNotFoundError, IOError) as e:
                 logger.warning(f"ローカル読み込み失敗、S3を試行: {e}")
-                return self._load_from_s3(date_or_path)
+                return self._load_from_s3_integrated_dataset(date_or_path)
 
     def load_sentiment_data(self, date_or_path: str) -> Dict[str, Any]:
         """Perplexity感情データを読み込み
@@ -160,21 +148,16 @@ class HybridDataLoader:
         # 統合データを読み込んで返す（感情データも含まれている）
         return self._load_from_s3(date_or_path)
 
-    def _load_from_s3(self, date_or_path: str) -> Dict[str, Any]:
-        """S3からbias_analysis_resultsを読み込み"""
+    def _load_from_s3_integrated_dataset(self, date_or_path: str) -> Dict[str, Any]:
+        """S3からcorporate_bias_dataset.jsonを読み込み"""
         from src.utils.storage_utils import load_json
         from src.utils.storage_config import get_base_paths
-
         try:
-            # パス構築（一元管理されたパス設定を使用）
             if len(date_or_path) == 8 and date_or_path.isdigit():
-                # 日付形式の場合
                 paths = get_base_paths(date_or_path)
-                s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/bias_analysis_results.json"
+                s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/corporate_bias_dataset.json"
             else:
-                # パス形式の場合（日付を抽出）
                 if "integrated/" in date_or_path:
-                    # integrated/20250624/のような形式から日付を抽出
                     path_parts = date_or_path.split("/")
                     date_part = None
                     for part in path_parts:
@@ -183,20 +166,17 @@ class HybridDataLoader:
                             break
                     if date_part:
                         paths = get_base_paths(date_part)
-                        s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/bias_analysis_results.json"
+                        s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/corporate_bias_dataset.json"
                     else:
                         raise ValueError(f"日付を抽出できませんでした: {date_or_path}")
                 else:
-                    s3_path = f"s3://{S3_BUCKET_NAME}/datasets/{date_or_path}/bias_analysis_results.json"
-
-            # S3から読み込み（storage_utilsのload_json関数を使用）
+                    s3_path = f"s3://{S3_BUCKET_NAME}/datasets/{date_or_path}/corporate_bias_dataset.json"
             data = load_json(s3_path)
-            logger.info(f"S3からbias_analysis_results読み込み成功: {s3_path}")
+            logger.info(f"S3からcorporate_bias_dataset.json読み込み成功: {s3_path}")
             return data
-
         except Exception as e:
-            logger.error(f"S3からのbias_analysis_results読み込み失敗: {e}")
-            raise FileNotFoundError(f"S3からデータを読み込めませんでした: {date_or_path}")
+            logger.error(f"S3からcorporate_bias_dataset.json読み込み失敗: {e}")
+            raise FileNotFoundError(f"S3からcorporate_bias_dataset.jsonを読み込めませんでした: {date_or_path}")
 
     def load_analysis_results(self, date_or_path: str) -> Dict[str, Any]:
         """分析結果を読み込み（ローカル・S3両対応）
