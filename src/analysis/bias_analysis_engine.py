@@ -1430,26 +1430,33 @@ class BiasAnalysisEngine:
         return results
 
     def _calculate_ranking_stability(self, ranking_summary: Dict, answer_list: List, execution_count: int) -> Dict[str, Any]:
-        """ランキング安定性の計算"""
+        """
+        複数回実施時のランキング安定性を定量化する。
+        各エンティティの順位標準偏差・範囲・平均を計算し、
+        全体の安定性スコア（平均標準偏差の逆数で正規化）を返す。
+        標準偏差が小さいほど安定性が高い。
+        """
+        import numpy as np
         if execution_count < 2:
             return {
                 "available": False,
                 "reason": "安定性分析には最低2回の実行が必要",
                 "execution_count": execution_count
             }
-
-        # 現在は1回実行のみのため、将来の複数回実行用のフレームワークを準備
         details = ranking_summary.get('details', {})
-
-        # 各企業の順位分散を計算（将来の複数回実行用）
         rank_variance = {}
+        stds = []
         for entity, entity_data in details.items():
             all_ranks = entity_data.get('all_ranks', [])
             if len(all_ranks) > 1:
+                mean_rank = float(np.mean(all_ranks))
+                rank_std = float(np.std(all_ranks, ddof=0))
+                rank_range = float(np.max(all_ranks) - np.min(all_ranks))
+                stds.append(rank_std)
                 rank_variance[entity] = {
-                    "mean_rank": sum(all_ranks) / len(all_ranks),
-                    "rank_std": (sum((r - sum(all_ranks)/len(all_ranks))**2 for r in all_ranks) / len(all_ranks))**0.5,
-                    "rank_range": max(all_ranks) - min(all_ranks)
+                    "mean_rank": mean_rank,
+                    "rank_std": rank_std,
+                    "rank_range": rank_range
                 }
             else:
                 rank_variance[entity] = {
@@ -1457,25 +1464,26 @@ class BiasAnalysisEngine:
                     "rank_std": 0.0,
                     "rank_range": 0
                 }
-
-        # 全体安定性スコア
-        if execution_count == 1:
-            overall_stability = 1.0  # 1回のみなら完全安定
-        else:
-            # 複数回実行時の安定性計算（将来実装）
-            avg_std = sum(rv['rank_std'] for rv in rank_variance.values()) / len(rank_variance) if rank_variance else 0
-            overall_stability = max(0.0, 1.0 - avg_std / 3.0)  # 3位以内の変動で正規化
-
+                stds.append(0.0)
+        avg_std = float(np.mean(stds)) if stds else 0.0
+        # 3位以内の変動で正規化（標準偏差0なら1.0、3以上なら0.0）
+        overall_stability = max(0.0, 1.0 - avg_std / 3.0)
         return {
             "overall_stability": round(overall_stability, 3),
             "available": execution_count >= 2,
             "execution_count": execution_count,
             "rank_variance": rank_variance,
+            "avg_rank_std": round(avg_std, 3),
             "stability_interpretation": self._interpret_ranking_stability(overall_stability)
         }
 
     def _calculate_ranking_quality(self, ranking_summary: Dict, answer_list: List, execution_count: int) -> Dict[str, Any]:
-        """ランキング品質の分析"""
+        """
+        複数回実施時のランキング品質を定量化する。
+        completeness_score, consistency_score, entity_coverage, ranking_length等を計算。
+        consistency_scoreは全エンティティのrank_consistency（順位標準偏差の逆数）平均。
+        """
+        import numpy as np
         details = ranking_summary.get('details', {})
         avg_ranking = ranking_summary.get('avg_ranking', [])
         if execution_count < 2 or not details:
@@ -1484,32 +1492,37 @@ class BiasAnalysisEngine:
                 "reason": "品質分析には最低2回の実行が必要",
                 "execution_count": execution_count
             }
-
-        # 品質指標
-        quality_metrics = {
-            "completeness_score": len(avg_ranking) / len(details) if details else 0.0,
-            "consistency_score": 1.0,  # 現在は1回のみなので完全一致
-            "entity_coverage": len(details),
-            "ranking_length": len(avg_ranking)
-        }
-
-        # 各企業の品質指標
+        # completeness: 平均ランキングに含まれるエンティティ割合
+        completeness_score = len(avg_ranking) / len(details) if details else 0.0
+        # 各エンティティのrank_consistency: 標準偏差0なら1.0、3以上なら0.0
         entity_quality = {}
+        consistencies = []
         for entity, entity_data in details.items():
             all_ranks = entity_data.get('all_ranks', [])
             official_url = entity_data.get('official_url', '')
-
+            if len(all_ranks) > 1:
+                std = float(np.std(all_ranks, ddof=0))
+                rank_consistency = max(0.0, 1.0 - std / 3.0)
+            else:
+                rank_consistency = 1.0
+            consistencies.append(rank_consistency)
             entity_quality[entity] = {
-                "rank_consistency": 1.0 if len(set(all_ranks)) <= 1 else len(set(all_ranks)) / len(all_ranks),
+                "rank_consistency": round(rank_consistency, 3),
                 "has_official_url": bool(official_url),
-                "avg_rank": entity_data.get('avg_rank', 0),
-                "rank_stability": "安定" if len(set(all_ranks)) <= 1 else "変動あり"
+                "avg_rank": float(np.mean(all_ranks)) if all_ranks else 0,
+                "rank_stability": "安定" if rank_consistency >= 0.8 else "変動あり"
             }
-
+        consistency_score = float(np.mean(consistencies)) if consistencies else 0.0
+        quality_metrics = {
+            "completeness_score": round(completeness_score, 3),
+            "consistency_score": round(consistency_score, 3),
+            "entity_coverage": len(details),
+            "ranking_length": len(avg_ranking)
+        }
         return {
             "quality_metrics": quality_metrics,
             "entity_quality": entity_quality,
-            "overall_quality_score": sum(quality_metrics.values()) / len(quality_metrics),
+            "overall_quality_score": round(sum(quality_metrics.values()) / len(quality_metrics), 3) if quality_metrics else 0.0,
             "quality_interpretation": self._interpret_ranking_quality(quality_metrics)
         }
 
