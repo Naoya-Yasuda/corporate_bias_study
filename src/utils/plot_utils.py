@@ -20,6 +20,7 @@ import japanize_matplotlib
 from matplotlib import colors as mcolors
 from matplotlib.sankey import Sankey
 from .storage_utils import save_figure
+import sys
 
 # 日本語フォント設定
 plt.rcParams['font.family'] = ['IPAexGothic', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', 'Takao', 'IPAexGothic', 'IPAPGothic', 'VL PGothic', 'Noto Sans CJK JP', 'DejaVu Sans']
@@ -417,8 +418,12 @@ def plot_severity_radar(severity_dict, output_path=None, title="重篤度レー�
         ]
         values += values[:1]
         score = comp.get("severity_score", 0)
-        color = "red" if score >= threshold else "blue"
-        ax.plot(angles, values, label=f"{entity} ({score:.2f})", color=color, linewidth=2)
+        if isinstance(score, dict):
+            score_val = score.get("severity_score", 0)
+        else:
+            score_val = score
+        color = "red" if score_val >= threshold else "blue"
+        ax.plot(angles, values, label=f"{entity} ({score_val:.2f})", color=color, linewidth=2)
         ax.fill(angles, values, color=color, alpha=0.15)
     ax.set_thetagrids(np.degrees(angles[:-1]), labels)
     ax.set_title(title, y=1.1)
@@ -744,9 +749,13 @@ def plot_cross_category_severity_ranking(severity_list, output_path, max_entitie
         return None
 
     # 降順ソート＆上位のみ
-    sorted_list = sorted(severity_list, key=lambda x: x["severity_score"], reverse=True)[:max_entities]
+    sorted_list = sorted(
+        severity_list,
+        key=lambda x: x["severity_score"]["severity_score"] if isinstance(x["severity_score"], dict) else x["severity_score"],
+        reverse=True
+    )[:max_entities]
     labels = [f"{d['entity']}\n({d['category']}/{d['subcategory']})" for d in sorted_list]
-    scores = [d["severity_score"] for d in sorted_list]
+    scores = [d["severity_score"]["severity_score"] if isinstance(d["severity_score"], dict) else d["severity_score"] for d in sorted_list]
 
     # 色分け
     def get_color(score):

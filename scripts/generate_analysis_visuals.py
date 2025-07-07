@@ -16,6 +16,8 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List
+import sys
+import traceback
 
 # 既存のplot_utilsを活用
 from src.utils.plot_utils import (
@@ -124,23 +126,31 @@ class AnalysisVisualizationGenerator:
             generated_files.append(str(output_path))
         # カテゴリ横断重篤度ランキング
         sentiment_data = analysis_results.get("sentiment_bias_analysis", {})
-        severity_list = []
-        for category, subcategories in sentiment_data.items():
-            for subcategory, data in subcategories.items():
-                entities = data.get("entities", {})
-                for entity, entity_data in entities.items():
-                    sev = entity_data.get("severity_score")
-                    if isinstance(sev, dict):
-                        score = sev.get("severity_score")
-                    else:
-                        score = sev
-                    if score is not None:
-                        severity_list.append({
-                            "entity": entity,
-                            "category": category,
-                            "subcategory": subcategory,
-                            "severity_score": score
-                        })
+        try:
+            severity_list = []
+            for category, subcategories in sentiment_data.items():
+                for subcategory, data in subcategories.items():
+                    entities = data.get("entities", {})
+                    for entity, entity_data in entities.items():
+                        sev = entity_data.get("severity_score")
+                        if isinstance(sev, dict):
+                            score = sev.get("severity_score")
+                        else:
+                            score = sev
+                        if isinstance(score, dict):
+                            score = None
+                        if score is not None and isinstance(score, (int, float)):
+                            severity_list.append({
+                                "entity": entity,
+                                "category": category,
+                                "subcategory": subcategory,
+                                "severity_score": sev
+                            })
+        except Exception as e:
+            logger.error(f"[ERROR] sentiment_dataループで例外: {e}")
+            logger.error(f"[ERROR] sentiment_data: {sentiment_data}")
+            logger.error(f"[ERROR] sentiment_data type: {type(sentiment_data)}")
+            raise
         if severity_list:
             exec_counts = []
             for category, subcategories in sentiment_data.items():
@@ -148,7 +158,8 @@ class AnalysisVisualizationGenerator:
                     entities = data.get("entities", {})
                     for entity, entity_data in entities.items():
                         exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
-                        exec_counts.append(exec_count)
+                        if isinstance(exec_count, (int, float)):
+                            exec_counts.append(exec_count)
             min_exec = min(exec_counts) if exec_counts else 1
             reliability_label, _ = ReliabilityChecker().get_reliability_level(min_exec)
             output_path = output_dir / "cross_category_severity_ranking.png"
@@ -166,9 +177,13 @@ class AnalysisVisualizationGenerator:
                 entities = data.get("entities", {})
                 for entity, entity_data in entities.items():
                     exec_count = entity_data.get("basic_metrics", {}).get("execution_count", 1)
-                    category_exec_counts.append(exec_count)
+                    # int/float型のみappend
+                    if isinstance(exec_count, (int, float)):
+                        category_exec_counts.append(exec_count)
                     if entity_data.get("severity_score") is None:
                         category_fail_counts.append(1)
+                    else:
+                        category_fail_counts.append(0)
         total_calculations = len(category_exec_counts)
         successful_calculations = total_calculations - sum(category_fail_counts)
         warnings = {}
@@ -285,6 +300,8 @@ class AnalysisVisualizationGenerator:
         from src.utils.storage_utils import save_figure
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
         correlation = cross_analysis.get("sentiment_ranking_correlation", 0)
+        if isinstance(correlation, dict):
+            correlation = correlation.get("pearson_correlation", 0.0)
         ax1.bar(['相関'], [correlation], color='blue', alpha=0.7)
         ax1.set_title("感情-ランキング相関")
         ax1.set_ylabel("相関係数")
@@ -348,4 +365,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"[FATAL ERROR] {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        raise
