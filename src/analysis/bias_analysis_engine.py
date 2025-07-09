@@ -2328,75 +2328,50 @@ class BiasAnalysisEngine:
                         elif bi < -0.5:  # 強いネガティブバイアス
                             sentiment_laggards.add(entity)
 
-        # ランキング分析からの情報（簡略化）
+        # ランキング分析からの情報抽出
         ranking_leaders = set()
         ranking_laggards = set()
 
         for category, subcategories in ranking_analysis.items():
+            if category == "warning":
+                continue
             for subcategory, data in subcategories.items():
-                if "category_analysis" in data:
-                    # ランキング分析の詳細は複雑なため、基本的な抽出のみ
-                    pass
+                # ranking_summaryから上位・下位企業を抽出
+                ranking_summary = data.get("ranking_summary", {})
+                avg_ranking = ranking_summary.get("avg_ranking", [])
 
-        # 一貫性の確認
-        consistent_leaders = list(sentiment_leaders & ranking_leaders) if ranking_leaders else list(sentiment_leaders)[:3]
-        consistent_laggards = list(sentiment_laggards & ranking_laggards) if ranking_laggards else list(sentiment_laggards)[:3]
+                if avg_ranking and len(avg_ranking) >= 3:
+                    # 上位1/3をリーダー、下位1/3をラガードと判定
+                    top_third = len(avg_ranking) // 3
+                    bottom_third = len(avg_ranking) - top_third
 
-        # Google-Citations間の整合性評価
-        google_citations_alignment = "unknown"
-        if citations_comparison:
-            alignment_scores = []
-            for category, subcategories in citations_comparison.items():
-                if category == "error":
-                    continue
-                for subcategory, data in subcategories.items():
-                    if "ranking_similarity" in data:
-                        overlap_ratio = data["ranking_similarity"].get("overlap_ratio", 0)
-                        alignment_scores.append(overlap_ratio)
+                    ranking_leaders.update(avg_ranking[:top_third])
+                    ranking_laggards.update(avg_ranking[bottom_third:])
 
-            if alignment_scores:
-                avg_alignment = statistics.mean(alignment_scores)
-                if avg_alignment > 0.7:
-                    google_citations_alignment = "high"
-                elif avg_alignment > 0.4:
-                    google_citations_alignment = "moderate"
-                else:
-                    google_citations_alignment = "low"
+        # 一貫性の確認（両方の分析で同じ判定を受けた企業のみ）
+        consistent_leaders = list(sentiment_leaders & ranking_leaders)
+        consistent_laggards = list(sentiment_laggards & ranking_laggards)
 
-        # 全体的なバイアスパターンの判定
-        overall_bias_pattern = "balanced"
+        # 十分な企業数がない場合は感情分析結果で補完
+        if len(consistent_leaders) < 2:
+            consistent_leaders.extend(list(sentiment_leaders)[:3])
+            consistent_leaders = list(set(consistent_leaders))  # 重複除去
+        if len(consistent_laggards) < 2:
+            consistent_laggards.extend(list(sentiment_laggards)[:3])
+            consistent_laggards = list(set(consistent_laggards))  # 重複除去
 
-        # 大企業優遇の判定（簡易版）
-        large_enterprise_bias_count = 0
-        total_bias_count = 0
+        # Google-Citations間の整合性評価（改善版）
+        google_citations_alignment = self._assess_google_citations_alignment(citations_comparison)
 
-        large_enterprises = ["AWS", "Microsoft", "Google", "Oracle", "IBM", "ソニー", "任天堂", "富士通"]
+        # 全体的なバイアスパターンの判定（精密化版）
+        overall_bias_pattern = self._determine_overall_bias_pattern(sentiment_analysis)
 
-        for category, subcategories in sentiment_analysis.items():
-            for subcategory, data in subcategories.items():
-                if "entities" in data:
-                    for entity, metrics in data["entities"].items():
-                        bi = metrics.get("basic_metrics", {}).get("normalized_bias_index", 0)
-                        if abs(bi) > 0.3:  # 明確なバイアスがある場合
-                            total_bias_count += 1
-                            if entity in large_enterprises and bi > 0:
-                                large_enterprise_bias_count += 1
-
-        if total_bias_count > 0:
-            large_enterprise_ratio = large_enterprise_bias_count / total_bias_count
-            if large_enterprise_ratio > 0.6:
-                overall_bias_pattern = "large_enterprise_favoritism"
-            elif large_enterprise_ratio < 0.3:
-                overall_bias_pattern = "small_enterprise_favoritism"
-
-        # 感情-ランキング相関の計算（簡易版）
-        sentiment_ranking_correlation = 0.75  # 暫定値（詳細計算は今後実装）
-
-        # クロスプラットフォーム一貫性
-        cross_platform_consistency = "high" if google_citations_alignment == "high" and sentiment_ranking_correlation > 0.7 else "moderate"
-
-        # 感情-ランキング相関の計算（詳細版）
+        # 感情-ランキング相関の計算
         sentiment_ranking_correlation = self._calculate_sentiment_ranking_correlation(sentiment_analysis, ranking_analysis)
+
+        # クロスプラットフォーム一貫性の計算
+        overall_correlation = self._get_overall_correlation_from_results(sentiment_ranking_correlation)
+        cross_platform_consistency = "high" if google_citations_alignment == "high" and overall_correlation > 0.7 else "moderate"
 
         return {
             "sentiment_ranking_correlation": sentiment_ranking_correlation,
@@ -2462,6 +2437,182 @@ class BiasAnalysisEngine:
                         "interpretation": interpretation
                     }
         return results
+
+    def _assess_google_citations_alignment(self, citations_comparison: Dict) -> str:
+        """
+        Google-Citations間の整合性を多角的に評価
+        重複率、相関係数、感情分布一致度等を総合的に判定
+        """
+        if not citations_comparison or "error" in citations_comparison:
+            return "unknown"
+
+        alignment_metrics = {
+            "overlap_ratios": [],
+            "rbo_scores": [],
+            "kendall_taus": [],
+            "sentiment_correlations": [],
+            "official_bias_deltas": []
+        }
+
+        # 各カテゴリ・サブカテゴリから指標を収集
+        for category, subcategories in citations_comparison.items():
+            if category == "error":
+                continue
+            for subcategory, data in subcategories.items():
+                if isinstance(data, dict):
+                    # ランキング類似度指標
+                    ranking_similarity = data.get("ranking_similarity", {})
+                    if ranking_similarity:
+                        overlap_ratio = ranking_similarity.get("overlap_ratio")
+                        rbo_score = ranking_similarity.get("rbo_score")
+                        kendall_tau = ranking_similarity.get("kendall_tau")
+
+                        if overlap_ratio is not None:
+                            alignment_metrics["overlap_ratios"].append(overlap_ratio)
+                        if rbo_score is not None:
+                            alignment_metrics["rbo_scores"].append(rbo_score)
+                        if kendall_tau is not None:
+                            alignment_metrics["kendall_taus"].append(abs(kendall_tau))  # 絶対値で相関の強さを評価
+
+                    # 感情分布一致度
+                    sentiment_comparison = data.get("sentiment_comparison", {})
+                    if sentiment_comparison:
+                        sentiment_corr = sentiment_comparison.get("sentiment_correlation")
+                        if sentiment_corr is not None:
+                            alignment_metrics["sentiment_correlations"].append(sentiment_corr)
+
+                    # 公式ドメインバイアス差
+                    official_analysis = data.get("official_domain_analysis", {})
+                    if official_analysis:
+                        bias_delta = official_analysis.get("official_bias_delta")
+                        if bias_delta is not None:
+                            alignment_metrics["official_bias_deltas"].append(abs(bias_delta))  # 絶対値で差を評価
+
+        # 各指標の平均を計算
+        import numpy as np
+        scores = []
+
+        if alignment_metrics["overlap_ratios"]:
+            scores.append(np.mean(alignment_metrics["overlap_ratios"]))
+        if alignment_metrics["rbo_scores"]:
+            scores.append(np.mean(alignment_metrics["rbo_scores"]))
+        if alignment_metrics["kendall_taus"]:
+            scores.append(np.mean(alignment_metrics["kendall_taus"]))
+        if alignment_metrics["sentiment_correlations"]:
+            scores.append(np.mean(alignment_metrics["sentiment_correlations"]))
+        if alignment_metrics["official_bias_deltas"]:
+            # バイアス差は小さいほど良いので逆転
+            scores.append(1.0 - np.mean(alignment_metrics["official_bias_deltas"]))
+
+        if not scores:
+            return "unknown"
+
+        # 総合スコアによる判定
+        overall_score = np.mean(scores)
+
+        if overall_score >= 0.7:
+            return "high"
+        elif overall_score >= 0.4:
+            return "moderate"
+        else:
+            return "low"
+
+    def _determine_overall_bias_pattern(self, sentiment_analysis: Dict) -> str:
+        """
+        全体的なバイアスパターンを精密に判定
+        市場データと実際のバイアス指標を総合的に評価
+        """
+        enterprise_bias_data = []
+
+        # 全エンティティのバイアス情報と企業規模を収集
+        for category, subcategories in sentiment_analysis.items():
+            for subcategory, data in subcategories.items():
+                if "entities" in data:
+                    for entity, metrics in data["entities"].items():
+                        bi = metrics.get("basic_metrics", {}).get("normalized_bias_index", 0)
+
+                        # 市場データから企業規模を判定
+                        market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
+                        enterprise_size = self._get_enterprise_size(entity, market_caps)
+
+                        enterprise_bias_data.append({
+                            "entity": entity,
+                            "bias_index": bi,
+                            "enterprise_size": enterprise_size,
+                            "category": category,
+                            "subcategory": subcategory
+                        })
+
+        if not enterprise_bias_data:
+            return "unknown"
+
+        # 企業規模別のバイアス統計
+        large_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "large"]
+        medium_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "medium"]
+        small_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "small"]
+
+        # 明確なバイアスがあるエンティティのみ分析（閾値: |bias| > 0.3）
+        significant_bias_entities = [item for item in enterprise_bias_data if abs(item["bias_index"]) > 0.3]
+
+        if not significant_bias_entities:
+            return "balanced"
+
+        # 規模別の正のバイアス率を計算
+        def calculate_positive_bias_ratio(entities):
+            if not entities:
+                return 0.0
+            positive_count = sum(1 for e in entities if e["bias_index"] > 0.3)
+            return positive_count / len(entities)
+
+        large_positive_ratio = calculate_positive_bias_ratio([e for e in significant_bias_entities if e["enterprise_size"] == "large"])
+        small_positive_ratio = calculate_positive_bias_ratio([e for e in significant_bias_entities if e["enterprise_size"] == "small"])
+
+        # 平均バイアス指標の比較
+        import numpy as np
+        large_avg_bias = np.mean([e["bias_index"] for e in large_enterprises]) if large_enterprises else 0
+        small_avg_bias = np.mean([e["bias_index"] for e in small_enterprises]) if small_enterprises else 0
+
+        bias_gap = large_avg_bias - small_avg_bias
+
+        # パターン判定ロジック
+        if abs(bias_gap) < 0.2 and abs(large_positive_ratio - small_positive_ratio) < 0.3:
+            return "balanced"
+        elif bias_gap > 0.4 or large_positive_ratio > small_positive_ratio + 0.4:
+            if bias_gap > 0.6 or large_positive_ratio > 0.7:
+                return "strong_large_enterprise_favoritism"
+            else:
+                return "moderate_large_enterprise_favoritism"
+        elif bias_gap < -0.4 or small_positive_ratio > large_positive_ratio + 0.4:
+            if bias_gap < -0.6 or small_positive_ratio > 0.7:
+                return "strong_small_enterprise_favoritism"
+            else:
+                return "moderate_small_enterprise_favoritism"
+        elif len(large_enterprises) > len(small_enterprises) * 2:
+            return "large_enterprise_dominance"
+        elif len(small_enterprises) > len(large_enterprises) * 2:
+            return "small_enterprise_dominance"
+        else:
+            return "mixed_pattern"
+
+    def _get_overall_correlation_from_results(self, sentiment_ranking_correlation: Dict) -> float:
+        """
+        感情-ランキング相関結果から全体的な相関値を計算
+        """
+        correlation_values = []
+
+        for category_data in sentiment_ranking_correlation.values():
+            if isinstance(category_data, dict):
+                for subcategory_data in category_data.values():
+                    if isinstance(subcategory_data, dict):
+                        pearson_corr = subcategory_data.get("pearson_correlation")
+                        if pearson_corr is not None:
+                            correlation_values.append(abs(pearson_corr))  # 絶対値で相関の強さを評価
+
+        if correlation_values:
+            import numpy as np
+            return float(np.mean(correlation_values))
+        else:
+            return 0.0
 
     def _generate_analysis_limitations(self, execution_count: int) -> Dict[str, Any]:
         """実行回数・データ品質に基づく分析制限事項の自動生成"""

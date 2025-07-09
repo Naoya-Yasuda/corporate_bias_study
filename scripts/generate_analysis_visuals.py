@@ -30,8 +30,7 @@ from src.utils.plot_utils import (
     plot_pvalue_heatmap,
     plot_correlation_matrix,
     plot_market_share_bias_scatter,
-    plot_cross_category_severity_ranking,
-    plot_analysis_quality_dashboard
+    plot_cross_category_severity_ranking
 )
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import ensure_dir, save_figure
@@ -193,20 +192,7 @@ class AnalysisVisualizationGenerator:
                     warnings[k] = warnings.get(k, 0) + 1
         if isinstance(analysis_limitations, list):
             warnings["制限事項"] = len(analysis_limitations)
-        quality_data = {
-            "metadata": metadata,
-            "data_availability_summary": data_availability_summary,
-            "analysis_limitations": analysis_limitations,
-            "category_exec_counts": category_exec_counts,
-            "category_fail_counts": category_fail_counts,
-            "total_calculations": total_calculations,
-            "successful_calculations": successful_calculations,
-            "warnings": warnings
-        }
-        reliability_label = metadata.get("reliability_level", "参考")
-        output_path = output_dir / "analysis_quality_dashboard.png"
-        plot_analysis_quality_dashboard(quality_data, str(output_path), reliability_label=reliability_label)
-        generated_files.append(str(output_path))
+        # 品質管理ダッシュボードは削除済みのため、処理をスキップ
         return generated_files
 
     def _plot_bias_indices_bar(self, bias_indices: Dict, output_path: str, title: str, reliability_label=None):
@@ -307,40 +293,138 @@ class AnalysisVisualizationGenerator:
         import matplotlib.pyplot as plt
         import numpy as np
         from src.utils.storage_utils import save_figure
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
-        correlation = cross_analysis.get("sentiment_ranking_correlation", 0)
-        if isinstance(correlation, dict):
-            correlation = correlation.get("pearson_correlation", 0.0)
-        ax1.bar(['相関'], [correlation], color='blue', alpha=0.7)
-        ax1.set_title("感情-ランキング相関")
+
+        # 日本語フォント設定
+        plt.rcParams['font.family'] = ['Hiragino Sans', 'Noto Sans CJK JP']
+
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 14))
+
+        # 1. 感情-ランキング相関（改善版）
+        correlation_data = cross_analysis.get("sentiment_ranking_correlation", {})
+        if isinstance(correlation_data, dict) and correlation_data:
+            # 全カテゴリ・サブカテゴリから相関値を抽出
+            correlations = []
+            for category_data in correlation_data.values():
+                if isinstance(category_data, dict):
+                    for subcategory_data in category_data.values():
+                        if isinstance(subcategory_data, dict):
+                            pearson_corr = subcategory_data.get("pearson_correlation")
+                            if pearson_corr is not None:
+                                correlations.append(pearson_corr)
+
+            if correlations:
+                avg_correlation = np.mean(correlations)
+                ax1.bar(['平均相関'], [avg_correlation], color='blue', alpha=0.7)
+                # 数値表示
+                ax1.text(0, avg_correlation + 0.05 if avg_correlation >= 0 else avg_correlation - 0.05,
+                        f'{avg_correlation:.3f}', ha='center', va='bottom' if avg_correlation >= 0 else 'top',
+                        fontweight='bold', fontsize=12)
+                ax1.axhline(0, color='k', linestyle='--', alpha=0.3)
+                ax1.set_ylim(-1, 1)
+            else:
+                ax1.text(0.5, 0.5, 'データ不足', ha='center', va='center',
+                        fontsize=14, color='gray',
+                        transform=ax1.transAxes)
+                ax1.set_ylim(0, 1)
+        else:
+            ax1.text(0.5, 0.5, 'データ不足', ha='center', va='center',
+                    fontsize=14, color='gray',
+                    transform=ax1.transAxes)
+            ax1.set_ylim(0, 1)
+
+        ax1.set_title("感情-ランキング相関", fontsize=14, fontweight='bold')
         ax1.set_ylabel("相関係数")
-        ax1.set_ylim(-1, 1)
+        ax1.grid(axis='y', alpha=0.3)
+
+        # 2. 一貫性企業数（改善版）
         leaders = cross_analysis.get("consistent_leaders", [])
         laggards = cross_analysis.get("consistent_laggards", [])
-        ax2.bar(['リーダー', 'ラガード'], [len(leaders), len(laggards)],
-                color=['green', 'red'], alpha=0.7)
-        ax2.set_title("一貫性企業数")
+
+        if leaders or laggards:
+            counts = [len(leaders), len(laggards)]
+            bars = ax2.bar(['リーダー', 'ラガード'], counts,
+                          color=['#28a745', '#dc3545'], alpha=0.8)
+
+            # 数値表示と企業名表示
+            for i, (bar, count, entities) in enumerate(zip(bars, counts, [leaders, laggards])):
+                if count > 0:
+                    ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.1,
+                            f'{count}社', ha='center', va='bottom',
+                            fontweight='bold', fontsize=11)
+
+                    # 企業名をリスト表示（最大3社まで）
+                    if entities:
+                        entity_text = ', '.join(entities[:3])
+                        if len(entities) > 3:
+                            entity_text += f"他{len(entities)-3}社"
+                        ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height()/2,
+                                entity_text, ha='center', va='center',
+                                fontsize=9, wrap=True)
+        else:
+            ax2.text(0.5, 0.5, 'データ不足', ha='center', va='center',
+                    fontsize=14, color='gray',
+                    transform=ax2.transAxes)
+
+        ax2.set_title("一貫性企業数", fontsize=14, fontweight='bold')
         ax2.set_ylabel("企業数")
+        ax2.grid(axis='y', alpha=0.3)
+
+        # 3. Google-Citations整合性（改善版）
         alignment = cross_analysis.get("google_citations_alignment", "unknown")
-        alignment_score = {"high": 3, "moderate": 2, "low": 1, "unknown": 0}.get(alignment, 0)
-        ax3.bar(['整合性'], [alignment_score], color='orange', alpha=0.7)
-        ax3.set_title("Google-Citations整合性")
+        alignment_mapping = {
+            "high": {"score": 3, "color": "#28a745", "label": "高"},
+            "moderate": {"score": 2, "color": "#ffc107", "label": "中"},
+            "low": {"score": 1, "color": "#dc3545", "label": "低"},
+            "unknown": {"score": 0, "color": "#6c757d", "label": "不明"}
+        }
+
+        alignment_info = alignment_mapping.get(alignment, alignment_mapping["unknown"])
+
+        if alignment_info["score"] > 0:
+            bar = ax3.bar(['整合性'], [alignment_info["score"]],
+                         color=alignment_info["color"], alpha=0.8)
+            ax3.text(0, alignment_info["score"] + 0.1,
+                    alignment_info["label"], ha='center', va='bottom',
+                    fontweight='bold', fontsize=12)
+        else:
+            ax3.text(0.5, 0.5, 'データ不足', ha='center', va='center',
+                    fontsize=14, color='gray',
+                    transform=ax3.transAxes)
+
+        ax3.set_title("Google-Citations整合性", fontsize=14, fontweight='bold')
         ax3.set_ylabel("整合性レベル")
-        ax3.set_ylim(0, 3)
+        ax3.set_ylim(0, 3.5)
+        ax3.grid(axis='y', alpha=0.3)
+
+        # 4. 全体バイアスパターン（改善版）
         pattern = cross_analysis.get("overall_bias_pattern", "balanced")
-        pattern_labels = {"large_enterprise_favoritism": "大企業優遇",
-                         "small_enterprise_favoritism": "中小優遇",
-                         "balanced": "バランス"}
-        ax4.text(0.5, 0.5, pattern_labels.get(pattern, pattern),
-                ha='center', va='center', fontsize=16,
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue"))
-        ax4.set_title("全体バイアスパターン")
+
+        pattern_mapping = {
+            "strong_large_enterprise_favoritism": {"label": "強い大企業優遇", "color": "#dc3545"},
+            "moderate_large_enterprise_favoritism": {"label": "中程度大企業優遇", "color": "#fd7e14"},
+            "strong_small_enterprise_favoritism": {"label": "強い中小優遇", "color": "#20c997"},
+            "moderate_small_enterprise_favoritism": {"label": "中程度中小優遇", "color": "#17a2b8"},
+            "balanced": {"label": "バランス", "color": "#28a745"},
+            "large_enterprise_dominance": {"label": "大企業支配", "color": "#6f42c1"},
+            "small_enterprise_dominance": {"label": "中小企業支配", "color": "#e83e8c"},
+            "mixed_pattern": {"label": "混合パターン", "color": "#6c757d"},
+            "unknown": {"label": "不明", "color": "#adb5bd"}
+        }
+
+        pattern_info = pattern_mapping.get(pattern, pattern_mapping.get("unknown"))
+
+        ax4.text(0.5, 0.5, pattern_info["label"],
+                ha='center', va='center', fontsize=14, fontweight='bold',
+                bbox=dict(boxstyle="round,pad=0.5", facecolor=pattern_info["color"], alpha=0.7, edgecolor='black'))
+        ax4.set_title("全体バイアスパターン", fontsize=14, fontweight='bold')
         ax4.set_xlim(0, 1)
         ax4.set_ylim(0, 1)
         ax4.set_xticks([])
         ax4.set_yticks([])
-        fig.suptitle("統合バイアス分析ダッシュボード", fontsize=16)
-        plt.tight_layout()
+
+        # 全体タイトルと調整
+        fig.suptitle("統合バイアス分析ダッシュボード", fontsize=18, fontweight='bold', y=0.95)
+        plt.tight_layout(rect=[0, 0, 1, 0.93])
         save_figure(fig, output_path, storage_mode=self.storage_mode)
 
 
