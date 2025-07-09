@@ -9,21 +9,16 @@ Streamlitを使用して、企業バイアス分析の結果データを可視�
 """
 
 import os
-import json
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from datetime import datetime
 from dotenv import load_dotenv
-from src.utils.storage_utils import get_s3_client, S3_BUCKET_NAME, get_latest_file, load_json
 from src.utils.plot_utils import draw_reliability_badge
 import numpy as np
 from src.analysis.hybrid_data_loader import HybridDataLoader
-import sys
 import argparse
-
-# 日本語フォント設定（最初にインポート）
 import japanize_matplotlib
 
 # 環境変数の読み込み
@@ -376,31 +371,29 @@ if viz_type == "単日分析":
         analysis_data = dashboard_data["analysis_results"]
         sentiment_bias = analysis_data.get("sentiment_bias_analysis", {})
         bias_entities_data = {}
+        category_level_analysis = {}
         if selected_category in sentiment_bias and selected_subcategory in sentiment_bias[selected_category]:
             bias_entities_data = sentiment_bias[selected_category][selected_subcategory].get("entities", {})
-        # 結合用DataFrame作成
-        df_entities = pd.DataFrame.from_dict(entities_data, orient="index")
-        df_entities.index.name = "エンティティ"
-        # 除外カラム
-        exclude_cols = ["unmasked_answer", "unmasked_reasons", "unmasked_url"]
-        display_cols = [col for col in df_entities.columns if col not in exclude_cols]
-        df_entities = df_entities[display_cols]
-        # bias_analysis_resultsの指標をDataFrame化
-        bias_rows = []
-        for entity, edata in bias_entities_data.items():
-            metrics = edata.get("basic_metrics", {})
-            row = {
-                "エンティティ": entity,
-                "感情スコア平均": metrics.get("sentiment_score_avg"),
-                "実行回数": metrics.get("execution_count"),
-                "BI値": metrics.get("normalized_bias_index"),
-            }
-            bias_rows.append(row)
-        df_bias = pd.DataFrame(bias_rows).set_index("エンティティ") if bias_rows else pd.DataFrame(columns=["感情スコア平均", "実行回数", "BI値"])
-        # エンティティ名で結合（外部結合: 元データに分析指標を付与）
-        df_merged = df_entities.join(df_bias, how="left")
-        st.dataframe(df_merged)
-
+            category_level_analysis = sentiment_bias[selected_category][selected_subcategory].get("category_level_analysis", {})
+        # DataFrame化できる場合のみ自動変換
+        try:
+            df_entities = pd.DataFrame.from_dict(entities_data, orient="index")
+            if not df_entities.empty:
+                # 除外カラム仕様を復活
+                exclude_cols = ["unmasked_answer", "unmasked_reasons", "unmasked_url"]
+                display_cols = [col for col in df_entities.columns if col not in exclude_cols]
+                st.subheader(f"【{analysis_type}データ表示】")
+                st.dataframe(df_entities[display_cols])
+        except Exception:
+            pass
+        try:
+            df_bias = pd.DataFrame.from_dict(bias_entities_data, orient="index")
+            if not df_bias.empty:
+                st.subheader("【分析結果表示】")
+                st.dataframe(df_bias)
+        except Exception:
+            pass
+        # エンティティごとに詳細展開
     elif analysis_type == "ランキング":
         rows = []
         for entity, edata in entities_data.items():
