@@ -463,3 +463,49 @@ def save_results(data, local_path, s3_key=None, verbose=False):
         if verbose:
             print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
     return local_path
+
+def load_json_from_s3_integrated(date_or_path: str, filename: str = "bias_analysis_results.json") -> dict:
+    """
+    S3のintegratedディレクトリから指定ファイル（bias_analysis_results.json等）をロード
+    Parameters:
+    -----------
+    date_or_path : str
+        日付（YYYYMMDD）またはintegrated/パス
+    filename : str
+        読み込むファイル名（デフォルト: bias_analysis_results.json）
+    Returns:
+    --------
+    dict
+        読み込んだデータ
+    Raises:
+    -------
+    FileNotFoundError
+        ファイルが見つからない場合
+    """
+    from .storage_config import get_base_paths, S3_BUCKET_NAME
+    try:
+        if len(date_or_path) == 8 and date_or_path.isdigit():
+            paths = get_base_paths(date_or_path)
+            s3_path = f"s3://{S3_BUCKET_NAME}/{paths['integrated']}/{filename}"
+        else:
+            if "integrated/" in date_or_path:
+                path_parts = date_or_path.split("/")
+                date_part = None
+                for part in path_parts:
+                    if len(part) == 8 and part.isdigit():
+                        date_part = part
+                        break
+                if date_part:
+                    paths = get_base_paths(date_part)
+                    s3_path = f"s3://{S3_BUCKET_NAME}/{paths['integrated']}/{filename}"
+                else:
+                    raise ValueError(f"日付を抽出できませんでした: {date_or_path}")
+            else:
+                s3_path = f"s3://{S3_BUCKET_NAME}/datasets/{date_or_path}/{filename}"
+        data = load_json(s3_path)
+        if data is None:
+            raise FileNotFoundError(f"S3から{s3_path}を読み込めませんでした")
+        return data
+    except Exception as e:
+        print(f"S3から{s3_path}の読み込み失敗: {e}")
+        raise FileNotFoundError(f"S3から{s3_path}を読み込めませんでした: {date_or_path}")

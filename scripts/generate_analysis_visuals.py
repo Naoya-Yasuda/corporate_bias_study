@@ -35,6 +35,7 @@ from src.utils.plot_utils import (
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import ensure_dir, save_figure
 from src.analysis.bias_analysis_engine import ReliabilityChecker
+from src.utils.storage_config import get_base_paths
 
 import matplotlib.pyplot as plt
 import japanize_matplotlib
@@ -87,7 +88,7 @@ class AnalysisVisualizationGenerator:
                 return {}
 
             # 出力ディレクトリの作成
-            output_dir = Path(self.data_loader.get_base_paths()["analysis_visuals"]) / date_or_path
+            output_dir = Path(get_base_paths(date_or_path)["analysis_visuals"]) / date_or_path
             ensure_dir(str(output_dir))
 
             generated_files = {

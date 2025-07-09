@@ -24,6 +24,7 @@ from src.utils.storage_utils import load_json
 from src.utils.storage_utils import save_results, list_s3_files
 from src.utils.storage_config import get_base_paths, S3_BUCKET_NAME
 from dotenv import load_dotenv
+from src.utils.storage_utils import load_json_from_s3_integrated
 
 # 環境変数を読み込み
 load_dotenv()
@@ -62,13 +63,13 @@ class HybridDataLoader:
         if self.storage_mode == "local":
             return self._load_from_local(date_or_path)
         elif self.storage_mode == "s3":
-            return self._load_from_s3_integrated_dataset(date_or_path)
+            return load_json_from_s3_integrated(date_or_path, filename="corporate_bias_dataset.json")
         else:  # auto mode
             try:
                 return self._load_from_local(date_or_path)
             except (FileNotFoundError, IOError) as e:
                 logger.warning(f"ローカル読み込み失敗、S3を試行: {e}")
-                return self._load_from_s3_integrated_dataset(date_or_path)
+                return load_json_from_s3_integrated(date_or_path, filename="corporate_bias_dataset.json")
 
     def load_sentiment_data(self, date_or_path: str) -> Dict[str, Any]:
         """Perplexity感情データを読み込み
@@ -148,36 +149,6 @@ class HybridDataLoader:
         # 統合データを読み込んで返す（感情データも含まれている）
         return self._load_from_s3(date_or_path)
 
-    def _load_from_s3_integrated_dataset(self, date_or_path: str) -> Dict[str, Any]:
-        """S3からcorporate_bias_dataset.jsonを読み込み"""
-        from src.utils.storage_utils import load_json
-        from src.utils.storage_config import get_base_paths
-        try:
-            if len(date_or_path) == 8 and date_or_path.isdigit():
-                paths = get_base_paths(date_or_path)
-                s3_path = f"s3://{S3_BUCKET_NAME}/{paths['integrated']}/corporate_bias_dataset.json"
-            else:
-                if "integrated/" in date_or_path:
-                    path_parts = date_or_path.split("/")
-                    date_part = None
-                    for part in path_parts:
-                        if len(part) == 8 and part.isdigit():
-                            date_part = part
-                            break
-                    if date_part:
-                        paths = get_base_paths(date_part)
-                        s3_path = f"s3://{S3_BUCKET_NAME}/{paths['integrated']}/corporate_bias_dataset.json"
-                    else:
-                        raise ValueError(f"日付を抽出できませんでした: {date_or_path}")
-                else:
-                    s3_path = f"s3://{S3_BUCKET_NAME}/datasets/{date_or_path}/corporate_bias_dataset.json"
-            data = load_json(s3_path)
-            logger.info(f"S3からcorporate_bias_dataset.json読み込み成功: {s3_path}")
-            return data
-        except Exception as e:
-            logger.error(f"S3からcorporate_bias_dataset.json読み込み失敗: {e}")
-            raise FileNotFoundError(f"S3からcorporate_bias_dataset.jsonを読み込めませんでした: {date_or_path}")
-
     def load_analysis_results(self, date_or_path: str) -> Dict[str, Any]:
         """分析結果を読み込み（ローカル・S3両対応）
 
@@ -195,7 +166,7 @@ class HybridDataLoader:
         if self.storage_mode == "local":
             return self._load_analysis_results_from_local(date_or_path)
         elif self.storage_mode == "s3":
-            return self._load_analysis_results_from_s3(date_or_path)
+            return load_json_from_s3_integrated(date_or_path, filename="bias_analysis_results.json")
         else:  # auto mode
             # ローカル優先、失敗時S3フォールバック
             try:
@@ -203,7 +174,7 @@ class HybridDataLoader:
             except Exception as e:
                 logger.warning(f"ローカル分析結果読み込み失敗: {e}")
                 logger.info("S3から分析結果読み込みを試行中...")
-                return self._load_analysis_results_from_s3(date_or_path)
+                return load_json_from_s3_integrated(date_or_path, filename="bias_analysis_results.json")
 
     def _load_analysis_results_from_local(self, date_or_path: str) -> Dict[str, Any]:
         """ローカルからbias_analysis_resultsを読み込み"""
@@ -224,10 +195,6 @@ class HybridDataLoader:
 
         logger.info(f"ローカルからbias_analysis_results読み込み成功: {target_file}")
         return data
-
-    def _load_analysis_results_from_s3(self, date_or_path: str) -> Dict[str, Any]:
-        """S3からbias_analysis_resultsを読み込み"""
-        return self._load_from_s3(date_or_path)
 
     def save_analysis_results(self,
                             analysis_results: Dict[str, Any],
