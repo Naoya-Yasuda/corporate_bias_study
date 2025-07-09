@@ -1,5 +1,4 @@
 import os
-from src.utils.plot_utils import plot_analysis_quality_dashboard
 
 # テスト用ダミーデータ
 dummy_quality_data = {
@@ -15,10 +14,6 @@ dummy_quality_data = {
 
 os.makedirs("test_outputs", exist_ok=True)
 
-plot_analysis_quality_dashboard(
-    dummy_quality_data,
-    output_path="test_outputs/test_analysis_quality_dashboard.png",
-    reliability_label=dummy_quality_data["metadata"]["reliability_level"]
-)
+# --- plot_analysis_quality_dashboardのimportとテスト呼び出しを削除 ---
 
 print("品質管理ダッシュボード画像をtest_outputs/に出力しました。")

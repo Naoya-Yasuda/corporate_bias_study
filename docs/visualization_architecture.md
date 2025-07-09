@@ -485,11 +485,6 @@ def _validate_generated_images(self, generated_files: Dict) -> Dict[str, Any]:
 - **信頼性レベル別結果表示**: データ量に応じた結果区分
   - 各画像に信頼性バッジ表示（高精度・標準・実用・基本・参考）
   - 実行回数不足指標の「計算不可」マーキング
-- **品質管理ダッシュボード**: 分析品質の総合評価
-  - `analysis_quality_dashboard.png`
-  - 実行回数・データ完全性・計算成功率・警告件数の統合表示
-
-##### 🔢 **品質管理ダッシュボード（analysis_quality_dashboard.png）**: 分析全体の品質（実行回数分布、データ完全性、計算成功率、警告・エラー件数など）を4分割パネル（ヒストグラム・ゲージ・円グラフ・バー）で可視化。右上に信頼性バッジ、主要な制限事項を注釈で表示。Phase4-1で重篤度ランキングと並び最優先実装。
 
 ##### 🔢 **多重比較補正p値ヒートマップ（multiple_comparison_pvalue_heatmap.png）**: 各カテゴリ・企業間のバイアス指標のp値（多重比較補正済み）をヒートマップで可視化。入力はp値行列（カテゴリ×カテゴリまたは企業×企業）、出力は色分けヒートマップ（閾値強調・注釈付き）。plot_utils.pyにplot_multiple_comparison_pvalue_heatmap関数を実装。
 

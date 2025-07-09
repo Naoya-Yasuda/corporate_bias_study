@@ -52,7 +52,6 @@
 
 ## 成果物例
 - corporate_bias_datasets/analysis_visuals/YYYYMMDD/summary/cross_analysis_dashboard.png
-- corporate_bias_datasets/analysis_visuals/YYYYMMDD/summary/analysis_quality_dashboard.png
 - corporate_bias_datasets/analysis_visuals/YYYYMMDD/summary/cross_category_severity_ranking.png
 
 ## 備考
