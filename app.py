@@ -350,14 +350,6 @@ if viz_type == "単日分析":
 
     # --- 画面上部 ---
     analysis_type = st.radio("分析タイプを選択", ["感情スコア", "ランキング", "Google検索 vs Citations比較"])
-    prompts = {
-        "感情スコア": "感情分析用プロンプト例: 'このテキストの感情を判定してください。'",
-        "ランキング": "ランキング用プロンプト例: 'おすすめサービスを順位付けしてください。'",
-        "Google検索 vs Citations比較": "Google検索クエリ例: 'クラウドサービス 比較'\nCitations用プロンプト例: 'クラウドサービスの評判をまとめてください。'"
-    }
-    with st.expander("プロンプト（クエリ/AIプロンプト文）を表示", expanded=False):
-        st.markdown(f"**{analysis_type} 用プロンプト**")
-        st.code(prompts[analysis_type], language="text")
 
     if analysis_type == "感情スコア":
         # 元データ（corporate_bias_dataset.json）のperplexity_sentimentを参照
@@ -375,8 +367,11 @@ if viz_type == "単日分析":
             st.warning("エンティティデータがありません（perplexity_sentiment→entities）")
             st.stop()
         selected_entity = st.sidebar.selectbox("エンティティを選択", entity_names)
-        # デバッグ表示
-        st.write("## 元データ（perplexity_sentiment→entities）", entities_data)
+        # プロンプト（クエリ/AIプロンプト文）を表示: masked_promptを表示
+        masked_prompt = sentiment_data[selected_category][selected_subcategory].get("masked_prompt", "（masked_promptがありません）")
+        with st.expander("プロンプト（クエリ文）を表示", expanded=False):
+            st.markdown(f"**{analysis_type}用プロンプト**")
+            st.code(masked_prompt, language="text")
         # 各エンティティの属性を1行ずつDataFrame化
         if entities_data:
             df = pd.DataFrame.from_dict(entities_data, orient="index")
@@ -384,15 +379,6 @@ if viz_type == "単日分析":
             st.dataframe(df)
         else:
             st.info("エンティティデータがありません")
-        # プロンプトexpanderも全属性を網羅的に表示
-        entity_data = entities_data.get(selected_entity, {})
-        prompt_text = ""
-        for k, v in entity_data.items():
-            prompt_text += f"【{k}】\n{v}\n"
-        if not prompt_text:
-            prompt_text = "（このエンティティの属性データはありません）"
-        with st.expander("プロンプト（全属性表示）", expanded=False):
-            st.markdown(prompt_text)
         # データプレビュー表（分析タイプごとにカラム名・値を厳密制御）
         rows = []
         for entity, edata in entities_data.items():
