@@ -348,105 +348,88 @@ if viz_type == "単日分析":
         key=f"viz_type_detail_selector_{selected_date}"
     )
 
-    # データプレビュー表（エンティティごと集約、実行回数カラムなし）
-    import numpy as np
-    # google_dataを正しく取得
-    google_data = dashboard_data["source_data"].get("google_data", {})
-    preview_rows = []
-    for category, subcats in google_data.items():
-        for subcat, subcat_data in subcats.items():
-            for entity, entity_data in subcat_data["entities"].items():
-                # 感情スコア配列
-                sentiments = [r.get("sentiment_score") for r in entity_data.get("reputation_results", []) if r.get("sentiment_score") is not None]
-                sentiment_avg = np.mean(sentiments) if sentiments else None
-                # ランキング配列
-                ranks = [r.get("rank") for r in entity_data.get("official_results", []) if r.get("rank") is not None]
-                rank_avg = np.mean(ranks) if ranks else None
-                # 公式URL率
-                official_url_count = sum(1 for r in entity_data.get("official_results", []) if "official" in r.get("domain", ""))
-                total_count = len(entity_data.get("official_results", []))
-                official_url_rate = official_url_count / total_count if total_count else None
-
-                preview_rows.append({
-                    "カテゴリ": category,
-                    "サブカテゴリ": subcat,
-                    "エンティティ": entity,
-                    "感情スコア平均": round(sentiment_avg, 2) if sentiment_avg is not None else "-",
-                    "ランキング平均": round(rank_avg, 2) if rank_avg is not None else "-",
-                    "公式URL率": round(official_url_rate, 2) if official_url_rate is not None else "-"
-                })
-    st.dataframe(preview_rows)
-
-    # 分析タイプ切り替え
+    # --- 画面上部 ---
     analysis_type = st.radio("分析タイプを選択", ["感情スコア", "ランキング", "Google検索 vs Citations比較"])
-
-    # 分析タイプごとのプロンプト（例示。実際はデータやconfigから取得する場合も）
     prompts = {
         "感情スコア": "感情分析用プロンプト例: 'このテキストの感情を判定してください。'",
         "ランキング": "ランキング用プロンプト例: 'おすすめサービスを順位付けしてください。'",
         "Google検索 vs Citations比較": "Google検索クエリ例: 'クラウドサービス 比較'\nCitations用プロンプト例: 'クラウドサービスの評判をまとめてください。'"
     }
-
     with st.expander("プロンプト（クエリ/AIプロンプト文）を表示", expanded=False):
         st.markdown(f"**{analysis_type} 用プロンプト**")
         st.code(prompts[analysis_type], language="text")
 
-    # 分析タイプごとの可視化
+    # --- サイドバーでカテゴリ・サブカテゴリ・エンティティ選択 ---
+    sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
+    categories = list(sentiment_data.keys())
+    if not categories:
+        st.warning("カテゴリデータがありません")
+        st.stop()
+    selected_category = st.sidebar.selectbox("カテゴリを選択", categories)
+    subcategories = list(sentiment_data[selected_category].keys())
+    selected_subcategory = st.sidebar.selectbox("サブカテゴリを選択", subcategories)
+    entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
+    entity_names = list(entities_data.keys())
+    if not entity_names:
+        st.warning("エンティティデータがありません")
+        st.stop()
+    selected_entity = st.sidebar.selectbox("エンティティを選択", entity_names)
+
+    # --- プロンプト（クエリ/AIプロンプト文）をデータセットから取得して表示 ---
+    prompt_text = ""
+    entity_data = entities_data.get(selected_entity, {})
+    official_answer = entity_data.get("official_answer", "")
+    reputation_answer = entity_data.get("reputation_answer", "")
+    if official_answer:
+        prompt_text += f"【公式説明】\n{official_answer}\n"
+    if reputation_answer:
+        prompt_text += f"【評判要約】\n{reputation_answer}\n"
+    if not prompt_text:
+        prompt_text = "（このエンティティのプロンプト・説明文データはありません）"
+    with st.expander("プロンプト（クエリ/AIプロンプト文）を表示", expanded=False):
+        st.markdown(prompt_text)
+
+    # --- データプレビュー表（分析タイプごとにカラム名・値を厳密制御） ---
     if analysis_type == "感情スコア":
-        st.subheader("感情スコア分布（エンティティ別）")
-        import matplotlib.pyplot as plt
-        import japanize_matplotlib
-        entity_names = [row["エンティティ"] for row in preview_rows]
-        sentiment_avgs = [row["感情スコア平均"] if row["感情スコア平均"] != "-" else 0 for row in preview_rows]
-        fig, ax = plt.subplots(figsize=(8, max(3, len(entity_names)//2)))
-        ax.barh(entity_names, sentiment_avgs, color="skyblue")
-        ax.set_xlabel("感情スコア平均")
-        ax.set_ylabel("エンティティ")
-        ax.set_title("感情スコア平均（棒グラフ）")
-        st.pyplot(fig, use_container_width=True)
-        # 詳細展開
-        for row in preview_rows:
-            with st.expander(f"{row['エンティティ']} の感情スコア詳細"):
-                # 実データから全件表示
-                category = row["カテゴリ"]
-                subcat = row["サブカテゴリ"]
-                entity = row["エンティティ"]
-                entity_data = google_data[category][subcat]["entities"][entity]
-                sentiments = [r.get("sentiment_score") for r in entity_data.get("reputation_results", [])]
-                st.write(sentiments)
+        rows = []
+        for entity, edata in entities_data.items():
+            metrics = edata.get("basic_metrics", {})
+            row = {
+                "エンティティ": entity,
+                "感情スコア平均": metrics.get("sentiment_score_avg"),
+                "実行回数": metrics.get("execution_count"),
+                "BI値": metrics.get("normalized_bias_index"),
+            }
+            rows.append(row)
+        df = pd.DataFrame(rows, columns=["エンティティ", "感情スコア平均", "実行回数", "BI値"])
+        st.dataframe(df)
     elif analysis_type == "ランキング":
-        st.subheader("ランキング分布（エンティティ別）")
-        import matplotlib.pyplot as plt
-        import japanize_matplotlib
-        entity_names = [row["エンティティ"] for row in preview_rows]
-        rank_avgs = [row["ランキング平均"] if row["ランキング平均"] != "-" else 0 for row in preview_rows]
-        fig, ax = plt.subplots(figsize=(8, max(3, len(entity_names)//2)))
-        ax.barh(entity_names, rank_avgs, color="orange")
-        ax.set_xlabel("ランキング平均")
-        ax.set_ylabel("エンティティ")
-        ax.set_title("ランキング平均（棒グラフ）")
-        st.pyplot(fig, use_container_width=True)
-        # 詳細展開
-        for row in preview_rows:
-            with st.expander(f"{row['エンティティ']} のランキング詳細"):
-                category = row["カテゴリ"]
-                subcat = row["サブカテゴリ"]
-                entity = row["エンティティ"]
-                entity_data = google_data[category][subcat]["entities"][entity]
-                ranks = [r.get("rank") for r in entity_data.get("official_results", [])]
-                st.write(ranks)
+        rows = []
+        for entity, edata in entities_data.items():
+            metrics = edata.get("basic_metrics", {})
+            row = {
+                "エンティティ": entity,
+                "ランキング平均": metrics.get("ranking_avg"),
+                "実行回数": metrics.get("execution_count"),
+            }
+            rows.append(row)
+        df = pd.DataFrame(rows, columns=["エンティティ", "ランキング平均", "実行回数"])
+        st.dataframe(df)
     elif analysis_type == "Google検索 vs Citations比較":
-        st.subheader("Google検索 vs Citations比較（エンティティ別）")
-        for row in preview_rows:
-            with st.expander(f"{row['エンティティ']} のGoogle vs Citations詳細"):
-                category = row["カテゴリ"]
-                subcat = row["サブカテゴリ"]
-                entity = row["エンティティ"]
-                entity_data = google_data[category][subcat]["entities"][entity]
-                st.markdown("**Google検索結果（official_results）**")
-                st.write(entity_data.get("official_results", []))
-                st.markdown("**Citations（reputation_results）**")
-                st.write(entity_data.get("reputation_results", []))
+        rows = []
+        for entity, edata in entities_data.items():
+            metrics = edata.get("basic_metrics", {})
+            row = {
+                "エンティティ": entity,
+                "Google公式URL率": metrics.get("google_official_ratio"),
+                "Citations公式URL率": metrics.get("citations_official_ratio"),
+                "RBOスコア": metrics.get("rbo_score"),
+                "Kendall Tau": metrics.get("kendall_tau"),
+                "Overlap Ratio": metrics.get("overlap_ratio"),
+            }
+            rows.append(row)
+        df = pd.DataFrame(rows, columns=["エンティティ", "Google公式URL率", "Citations公式URL率", "RBOスコア", "Kendall Tau", "Overlap Ratio"])
+        st.dataframe(df)
 
     # --- メインダッシュボード（統合版） ---
     st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
