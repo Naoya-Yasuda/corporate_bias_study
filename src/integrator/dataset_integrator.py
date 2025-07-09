@@ -23,9 +23,8 @@ logger = logging.getLogger(__name__)
 class DatasetIntegrator:
     """統合データセット作成クラス"""
 
-    def __init__(self, date_str: str, output_base_dir: str = "corporate_bias_datasets"):
+    def __init__(self, date_str: str):
         self.date_str = date_str
-        self.output_base_dir = output_base_dir
         self.validator = DataValidator()
         self.schema_generator = SchemaGenerator()
 

@@ -60,8 +60,8 @@ class AnalysisVisualizationGenerator:
 
         # 出力ディレクトリの設定（corporate_bias_datasets配下に統一）
         # ローカル・S3共にcorporate_bias_datasets/analysis_visuals/YYYYMMDD/
-        self.output_base_dir = "corporate_bias_datasets/analysis_visuals"
-        ensure_dir(self.output_base_dir)
+        # self.output_base_dir = "corporate_bias_datasets/analysis_visuals"  # 不要なので削除
+        # ensure_dir(self.output_base_dir)  # 不要なので削除
 
     def generate_all_visuals(self, date_or_path: str) -> Dict[str, List[str]]:
         """指定日付の分析結果から全可視化画像を生成
@@ -87,7 +87,7 @@ class AnalysisVisualizationGenerator:
                 return {}
 
             # 出力ディレクトリの作成
-            output_dir = Path(self.output_base_dir) / date_or_path
+            output_dir = Path(self.data_loader.get_base_paths()["analysis_visuals"]) / date_or_path
             ensure_dir(str(output_dir))
 
             generated_files = {
