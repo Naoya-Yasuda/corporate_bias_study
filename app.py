@@ -372,16 +372,22 @@ if viz_type == "単日分析":
         with st.expander("プロンプト（クエリ文）を表示", expanded=False):
             st.markdown(f"**{analysis_type}用プロンプト**")
             st.code(masked_prompt, language="text")
-        # 各エンティティの属性を1行ずつDataFrame化
-        if entities_data:
-            df = pd.DataFrame.from_dict(entities_data, orient="index")
-            df.index.name = "エンティティ"
-            st.dataframe(df)
-        else:
-            st.info("エンティティデータがありません")
-        # データプレビュー表（分析タイプごとにカラム名・値を厳密制御）
-        rows = []
-        for entity, edata in entities_data.items():
+        # bias_analysis_results側のデータ取得
+        analysis_data = dashboard_data["analysis_results"]
+        sentiment_bias = analysis_data.get("sentiment_bias_analysis", {})
+        bias_entities_data = {}
+        if selected_category in sentiment_bias and selected_subcategory in sentiment_bias[selected_category]:
+            bias_entities_data = sentiment_bias[selected_category][selected_subcategory].get("entities", {})
+        # 結合用DataFrame作成
+        df_entities = pd.DataFrame.from_dict(entities_data, orient="index")
+        df_entities.index.name = "エンティティ"
+        # 除外カラム
+        exclude_cols = ["unmasked_answer", "unmasked_reasons", "unmasked_url"]
+        display_cols = [col for col in df_entities.columns if col not in exclude_cols]
+        df_entities = df_entities[display_cols]
+        # bias_analysis_resultsの指標をDataFrame化
+        bias_rows = []
+        for entity, edata in bias_entities_data.items():
             metrics = edata.get("basic_metrics", {})
             row = {
                 "エンティティ": entity,
@@ -389,9 +395,11 @@ if viz_type == "単日分析":
                 "実行回数": metrics.get("execution_count"),
                 "BI値": metrics.get("normalized_bias_index"),
             }
-            rows.append(row)
-        df = pd.DataFrame(rows, columns=["エンティティ", "感情スコア平均", "実行回数", "BI値"])
-        st.dataframe(df)
+            bias_rows.append(row)
+        df_bias = pd.DataFrame(bias_rows).set_index("エンティティ") if bias_rows else pd.DataFrame(columns=["感情スコア平均", "実行回数", "BI値"])
+        # エンティティ名で結合（外部結合: 元データに分析指標を付与）
+        df_merged = df_entities.join(df_bias, how="left")
+        st.dataframe(df_merged)
 
     elif analysis_type == "ランキング":
         rows = []
