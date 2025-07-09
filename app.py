@@ -359,38 +359,41 @@ if viz_type == "単日分析":
         st.markdown(f"**{analysis_type} 用プロンプト**")
         st.code(prompts[analysis_type], language="text")
 
-    # --- サイドバーでカテゴリ・サブカテゴリ・エンティティ選択 ---
-    sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
-    categories = list(sentiment_data.keys())
-    if not categories:
-        st.warning("カテゴリデータがありません")
-        st.stop()
-    selected_category = st.sidebar.selectbox("カテゴリを選択", categories)
-    subcategories = list(sentiment_data[selected_category].keys())
-    selected_subcategory = st.sidebar.selectbox("サブカテゴリを選択", subcategories)
-    entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
-    entity_names = list(entities_data.keys())
-    if not entity_names:
-        st.warning("エンティティデータがありません")
-        st.stop()
-    selected_entity = st.sidebar.selectbox("エンティティを選択", entity_names)
-
-    # --- プロンプト（クエリ/AIプロンプト文）をデータセットから取得して表示 ---
-    prompt_text = ""
-    entity_data = entities_data.get(selected_entity, {})
-    official_answer = entity_data.get("official_answer", "")
-    reputation_answer = entity_data.get("reputation_answer", "")
-    if official_answer:
-        prompt_text += f"【公式説明】\n{official_answer}\n"
-    if reputation_answer:
-        prompt_text += f"【評判要約】\n{reputation_answer}\n"
-    if not prompt_text:
-        prompt_text = "（このエンティティのプロンプト・説明文データはありません）"
-    with st.expander("プロンプト（クエリ/AIプロンプト文）を表示", expanded=False):
-        st.markdown(prompt_text)
-
-    # --- データプレビュー表（分析タイプごとにカラム名・値を厳密制御） ---
     if analysis_type == "感情スコア":
+        # 元データ（corporate_bias_dataset.json）のperplexity_sentimentを参照
+        sentiment_data = dashboard_data["source_data"].get("perplexity_sentiment", {})
+        categories = list(sentiment_data.keys())
+        if not categories:
+            st.warning("カテゴリデータがありません（perplexity_sentiment）")
+            st.stop()
+        selected_category = st.sidebar.selectbox("カテゴリを選択", categories)
+        subcategories = list(sentiment_data[selected_category].keys())
+        selected_subcategory = st.sidebar.selectbox("サブカテゴリを選択", subcategories)
+        entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
+        entity_names = list(entities_data.keys())
+        if not entity_names:
+            st.warning("エンティティデータがありません（perplexity_sentiment→entities）")
+            st.stop()
+        selected_entity = st.sidebar.selectbox("エンティティを選択", entity_names)
+        # デバッグ表示
+        st.write("## 元データ（perplexity_sentiment→entities）", entities_data)
+        # 各エンティティの属性を1行ずつDataFrame化
+        if entities_data:
+            df = pd.DataFrame.from_dict(entities_data, orient="index")
+            df.index.name = "エンティティ"
+            st.dataframe(df)
+        else:
+            st.info("エンティティデータがありません")
+        # プロンプトexpanderも全属性を網羅的に表示
+        entity_data = entities_data.get(selected_entity, {})
+        prompt_text = ""
+        for k, v in entity_data.items():
+            prompt_text += f"【{k}】\n{v}\n"
+        if not prompt_text:
+            prompt_text = "（このエンティティの属性データはありません）"
+        with st.expander("プロンプト（全属性表示）", expanded=False):
+            st.markdown(prompt_text)
+        # データプレビュー表（分析タイプごとにカラム名・値を厳密制御）
         rows = []
         for entity, edata in entities_data.items():
             metrics = edata.get("basic_metrics", {})
@@ -403,6 +406,7 @@ if viz_type == "単日分析":
             rows.append(row)
         df = pd.DataFrame(rows, columns=["エンティティ", "感情スコア平均", "実行回数", "BI値"])
         st.dataframe(df)
+
     elif analysis_type == "ランキング":
         rows = []
         for entity, edata in entities_data.items():
