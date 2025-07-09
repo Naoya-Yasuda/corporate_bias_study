@@ -155,7 +155,7 @@ class HybridDataLoader:
         try:
             if len(date_or_path) == 8 and date_or_path.isdigit():
                 paths = get_base_paths(date_or_path)
-                s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/corporate_bias_dataset.json"
+                s3_path = f"s3://{S3_BUCKET_NAME}/{paths['integrated']}/corporate_bias_dataset.json"
             else:
                 if "integrated/" in date_or_path:
                     path_parts = date_or_path.split("/")
@@ -166,7 +166,7 @@ class HybridDataLoader:
                             break
                     if date_part:
                         paths = get_base_paths(date_part)
-                        s3_path = f"s3://{S3_BUCKET_NAME}/{paths['s3']['integrated']}/corporate_bias_dataset.json"
+                        s3_path = f"s3://{S3_BUCKET_NAME}/{paths['integrated']}/corporate_bias_dataset.json"
                     else:
                         raise ValueError(f"日付を抽出できませんでした: {date_or_path}")
                 else:
@@ -328,7 +328,7 @@ class HybridDataLoader:
         # パス構築（一元管理されたパス設定を使用）
         if len(date_or_path) == 8 and date_or_path.isdigit():
             paths = get_base_paths(date_or_path)
-            s3_prefix = f"{paths['s3']['integrated']}/"
+            s3_prefix = f"{paths['integrated']}/"
         else:
             # パス形式の場合、日付を抽出
             path_parts = date_or_path.split("/")
@@ -339,7 +339,7 @@ class HybridDataLoader:
                     break
             if date_part:
                 paths = get_base_paths(date_part)
-                s3_prefix = f"{paths['s3']['integrated']}/"
+                s3_prefix = f"{paths['integrated']}/"
             else:
                 raise ValueError(f"日付を抽出できませんでした: {date_or_path}")
 

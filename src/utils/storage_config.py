@@ -50,10 +50,7 @@ def get_storage_config():
 
 def get_base_paths(date_str):
     """
-    基本パスを取得 - corporate_bias_datasets/ 階層を含む標準的なディレクトリ構造
-
-    学術研究用データセットとして設計された固定パス構造を使用。
-    データの一貫性と互換性を保つため、パス構造は変更不可。
+    corporate_bias_datasets/配下の標準ディレクトリ構造を返す（重複なし・シンプル構造）
     """
     return {
         # 生データディレクトリ（API別）
@@ -75,17 +72,7 @@ def get_base_paths(date_str):
         # 研究成果・出版物
         "publications": "corporate_bias_datasets/publications",
         # 一時ファイル
-        "temp": "corporate_bias_datasets/temp",
-        # S3用パス設定
-        "s3": {
-            "integrated": f"corporate_bias_datasets/integrated/{date_str}",
-            "raw_data": {
-                "google": f"corporate_bias_datasets/raw_data/{date_str}/google",
-                "perplexity": f"corporate_bias_datasets/raw_data/{date_str}/perplexity"
-            },
-            "analysis_visuals": f"corporate_bias_datasets/analysis_visuals/{date_str}",
-            "publications": f"corporate_bias_datasets/publications"
-        }
+        "temp": "corporate_bias_datasets/temp"
     }
 
 def get_s3_key(filename, date_str, data_type):
@@ -121,7 +108,7 @@ def get_s3_key(filename, date_str, data_type):
         else:
             return f"{paths['analysis']['perplexity']}/{filename}"
     elif data_type == "integrated":
-        return f"{paths['s3']['integrated']}/{filename}"
+        return f"{paths['integrated']}/{filename}"
     elif data_type == "analysis_visuals":
         return f"{paths['analysis_visuals']}/{filename}"
     elif data_type == "publications":
