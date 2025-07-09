@@ -280,7 +280,6 @@ def main():
 
     if args.verbose:
         logging.info(f"対象ファイル: {input_file}")
-        logging.info(f"期待するS3パス: s3://{S3_BUCKET_NAME}/results/{args.data_type}/{date_str}/{os.path.basename(input_file)}")
 
     # data_typeが対応しているかチェック
     if args.data_type not in ['google_search', 'perplexity_citations']:

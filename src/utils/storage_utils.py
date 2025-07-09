@@ -315,10 +315,7 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight", sto
             s3_path = local_path.replace("\\", "/")
             # corporate_bias_datasetsディレクトリプレフィックスを削除（S3のパスを短くするため）
             if s3_path.startswith("corporate_bias_datasets/"):
-                # 文字数カウントではなく、文字列置換で安全に処理
                 s3_path = s3_path.replace("corporate_bias_datasets/", "", 1)
-            elif s3_path.startswith("results/"):
-                s3_path = s3_path.replace("results/", "", 1)
 
         try:
             s3_client = get_s3_client()
@@ -412,7 +409,7 @@ def list_s3_files(prefix):
     Parameters:
     -----------
     prefix : str
-        S3バケット内のプレフィックス（例: 'results/rankings/'）
+        S3バケット内のプレフィックス（例: 'corporate_bias_datasets/raw_data/rankings/'）
 
     Returns:
     --------
@@ -454,8 +451,6 @@ def save_results(data, local_path, s3_key=None, verbose=False):
         if not s3_key:
             # デフォルトでlocal_pathからS3キーを生成
             s3_key = local_path.replace("\\", "/")
-            if s3_key.startswith("results/"):
-                s3_key = s3_key[8:]
         try:
             s3_client = get_s3_client()
             with open(local_path, 'rb') as f:
