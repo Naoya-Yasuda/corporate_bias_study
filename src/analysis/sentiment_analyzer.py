@@ -225,9 +225,9 @@ def process_results_file(file_path, date_str, args):
         if args.verbose:
             logging.info("Google検索データを処理しています...")
         return process_google_search_results(data)
-    elif args.data_type == "perplexity_citations":
+    elif args.data_type == "perplexity":
         if args.verbose:
-            logging.info("Perplexity Citations（新構造）データを処理しています...")
+            logging.info("Perplexityデータを処理しています...")
         return process_perplexity_results(data)
     else:
         if args.verbose:
@@ -239,8 +239,8 @@ def main():
     # 引数処理
     parser = argparse.ArgumentParser(description='感情分析を実行し、結果を保存する')
     parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
-    parser.add_argument('--data-type', choices=['perplexity_citations', 'google_search'], default='perplexity_citations',
-                        help='分析対象のデータタイプ（デフォルト: perplexity_citations）')
+    parser.add_argument('--data-type', choices=['perplexity', 'google_search'], default='perplexity',
+                        help='分析対象のデータタイプ（デフォルト: perplexity）')
     parser.add_argument('--runs', type=int, default=1, help='実行回数（ファイル名に含まれる、デフォルト: 1）')
     parser.add_argument('--input-file', help='入力ファイルのパス')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
@@ -267,8 +267,8 @@ def main():
     if args.input_file:
         input_file = args.input_file
     else:
-        if args.data_type == "perplexity_citations":
-            # perplexity_citationsの場合は実行回数を使用
+        if args.data_type == "perplexity":
+            # perplexityの場合は実行回数を使用
             input_file = os.path.join(paths["raw_data"]["perplexity"], f"citations_{args.runs}runs.json")
         elif args.data_type == "google_search":
             # Google検索の場合は実行回数不要
@@ -281,9 +281,9 @@ def main():
         logging.info(f"対象ファイル: {input_file}")
 
     # data_typeが対応しているかチェック
-    if args.data_type not in ['google_search', 'perplexity_citations']:
+    if args.data_type not in ['google_search', 'perplexity']:
         logging.error(f"未対応のデータタイプです: {args.data_type}")
-        logging.info("対応データタイプ: google_search または perplexity_citations")
+        logging.info("対応データタイプ: google_search または perplexity")
         return
 
     # 感情分析を実行
@@ -301,7 +301,7 @@ def main():
     # data_typeによる正確な保存パス判定
     if args.data_type == "google_search":
         output_path = paths["raw_data"]["google"]
-    elif args.data_type == "perplexity_citations":
+    elif args.data_type == "perplexity":
         output_path = paths["raw_data"]["perplexity"]
     else:
         # その他のファイル

@@ -116,5 +116,5 @@ def get_s3_key(filename, date_str, data_type):
     elif data_type == "temp":
         return f"{paths['temp']}/{filename}"
     else:
-        # フォールバック: corporate_bias_datasets/raw_data/パターンで生成
-        return f"corporate_bias_datasets/raw_data/{date_str}/{data_type}/{filename}"
+        # フォールバックは廃止し、未対応data_typeは例外を投げる
+        raise ValueError(f"未対応のdata_typeが指定されました: {data_type}（パス生成失敗）")
