@@ -387,10 +387,19 @@ if viz_type == "単日分析":
         except Exception:
             pass
         try:
-            df_bias = pd.DataFrame.from_dict(bias_entities_data, orient="index")
-            if not df_bias.empty:
-                st.subheader("【分析結果表示】")
-                st.dataframe(df_bias)
+            # 除外カラム仕様
+            exclude_cols = ["unmasked_answer", "unmasked_reasons", "unmasked_url"]
+            # 親カラム（指標名）を抽出
+            parent_keys = set()
+            for v in bias_entities_data.values():
+                parent_keys.update(v.keys())
+            parent_keys -= set(exclude_cols)
+            for parent in sorted(parent_keys):
+                table = {entity: v.get(parent, {}) for entity, v in bias_entities_data.items()}
+                df = pd.DataFrame.from_dict(table, orient="index")
+                if not df.empty:
+                    st.subheader(f"【{parent}分析結果テーブル】")
+                    st.dataframe(df)
         except Exception:
             pass
         # エンティティごとに詳細展開
