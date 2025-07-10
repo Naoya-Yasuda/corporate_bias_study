@@ -142,6 +142,7 @@ jobs:
         continue-on-error: true
 
       - name: Google検索データの収集
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.run_sentiment_collection == 'true' }}
         run: |
           echo "開始: Google検索データ収集 ($(date))" | tee -a logs/execution.log
           if python -m src.loader.google_search_loader --verbose | tee -a logs/google_search.log; then
@@ -157,6 +158,7 @@ jobs:
         continue-on-error: true
 
       - name: Google検索データの感情分析
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.run_sentiment_collection == 'true' }}
         run: |
           echo "開始: Google検索データの感情分析 ($(date))" | tee -a logs/execution.log
           if python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_search --verbose | tee -a logs/sentiment_analysis_google.log; then
