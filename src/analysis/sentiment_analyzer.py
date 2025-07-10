@@ -16,17 +16,17 @@ import datetime
 import time
 import argparse
 import sys
+import logging
 from dotenv import load_dotenv
 from tqdm import tqdm
-import logging
+
+from src.prompts.prompt_manager import PromptManager
+from src.utils.storage_utils import save_results, load_json
+from src.utils.storage_config import S3_BUCKET_NAME, get_s3_key, get_base_paths
+from src.utils.perplexity_api import PerplexityAPI
 
 # パスの設定
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-
-from src.prompts.prompt_manager import PromptManager
-from src.utils.storage_utils import save_results, get_results_paths, load_json
-from src.utils.storage_config import S3_BUCKET_NAME, get_s3_key, get_base_paths
-from src.utils.perplexity_api import PerplexityAPI
 
 # 環境変数の読み込み
 load_dotenv()
@@ -99,6 +99,7 @@ def process_google_search_results(data):
                 for result in invalid_results:
                     result["sentiment"] = "unknown"
 
+                # --- ログ出力をperplexityと完全に揃える ---
                 if valid_results:
                     print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
 
