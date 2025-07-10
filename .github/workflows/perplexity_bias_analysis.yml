@@ -185,6 +185,7 @@ jobs:
 
       # データセット統合ステップ
       - name: Create integrated dataset
+        id: create_dataset
         run: |
           echo "開始: データセット統合処理 ($(date))" | tee -a logs/execution.log
           if python -m src.integrator.create_integrated_dataset --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/dataset_integration.log; then
@@ -198,6 +199,7 @@ jobs:
 
       # 自動バイアス分析ステップ
       - name: Run comprehensive bias analysis
+        id: run_bias_analysis
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_bias_analysis == 'true' }}
         run: |
           echo "開始: 統合バイアス分析 ($(date))" | tee -a logs/execution.log
@@ -370,12 +372,14 @@ jobs:
           retention-days: 7
 
       # 結果をアーティファクトとしてアップロード
-      - name: Upload results as artifact
-        if: ${{ always() }}
+      - name: Upload analysis outputs
+        if: ${{ steps.create_dataset.outcome == 'success' && steps.run_bias_analysis.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ai_bias_analysis_results
-          path: results/
+          name: analysis_outputs
+          path: |
+            corporate_bias_datasets/integrated/${{ env.TODAY_DATE }}/corporate_bias_dataset.json
+            corporate_bias_datasets/integrated/${{ env.TODAY_DATE }}/bias_analysis_results.json
           retention-days: 7
 
       # 最終的なエラーチェック（エラーがあった場合にワークフロー全体を失敗させる）
