@@ -116,12 +116,12 @@ def main():
     if args.dry_run:
         logger.info("=== ドライランモード ===")
         logger.info(f"処理対象日付: {args.date}")
-        logger.info(f"出力ディレクトリ: {args.output_dir}")
+        # 出力ディレクトリはintegrator生成後にintegrator.integrated_dirで表示
         logger.info(f"強制再作成: {args.force_recreate}")
         logger.info(f"検証のみ: {args.validate_only}")
 
         # 入力ファイルの存在確認
-        integrator = DatasetIntegrator(args.date, args.output_dir)
+        integrator = DatasetIntegrator(args.date)
         raw_data = integrator._load_raw_data(verbose=True)
 
         if raw_data:
@@ -136,9 +136,9 @@ def main():
         # 統合データセット作成実行
         logger.info("=== 統合データセット作成開始 ===")
         logger.info(f"処理対象日付: {args.date}")
-        logger.info(f"出力ディレクトリ: {args.output_dir}")
+        # 出力ディレクトリはintegrator生成後にintegrator.integrated_dirで表示
 
-        integrator = DatasetIntegrator(args.date, args.output_dir)
+        integrator = DatasetIntegrator(args.date)
 
         # 1. 生データの読み込み
         raw_data = integrator._load_raw_data(verbose=args.verbose)
