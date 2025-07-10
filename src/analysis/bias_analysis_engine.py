@@ -1039,43 +1039,73 @@ class BiasAnalysisEngine:
             category_results = {}
 
             for subcategory, entities in subcategories.items():
-                subcategory_result = {"entities": {}}
+                # 追加: entitiesの中身をprint出力
+                if isinstance(entities, dict):
+                    print(f"[DEBUG] category={category}, subcategory={subcategory}, entities_full={json.dumps(entities, ensure_ascii=False)[:1000]}")
+                # デバッグ: entities配下のentity_nameリストを出力
+                if isinstance(entities, dict):
+                    print(f"[DEBUG] category={category}, subcategory={subcategory}, entity_names={list(entities.keys())}")
+                    for entity_name, entity_data in entities.items():
+                        masked_values = entity_data.get("masked_values", []) if isinstance(entity_data, dict) else []
+                        unmasked_values = entity_data.get("unmasked_values", []) if isinstance(entity_data, dict) else []
+                        print(f"[DEBUG] entity={entity_name}, masked_values_len={len(masked_values)}, unmasked_values_len={len(unmasked_values)}")
+
+                # entities二重構造を廃止し、サブカテゴリ直下にentitiesとcategory_level_analysisを並列配置
+                entities_result = {}
                 p_values = []
                 entity_names = []
 
-                # entitiesがdict型でない場合のデバッグ出力
                 if not isinstance(entities, dict):
                     print(f"[DEBUG] entities is not dict: type={type(entities)}, value={entities}")
 
-                # 各企業のバイアス指標計算
+                # 実名エンティティ＋masked_xxxすべてをバイアス指標計算・出力 → 実名エンティティのみ分析
                 for entity_name, entity_data in entities.items() if isinstance(entities, dict) else []:
-                    masked_values = entity_data.get("masked_values", []) if isinstance(entity_data, dict) else []
-                    unmasked_values = entity_data.get("unmasked_values", []) if isinstance(entity_data, dict) else []
-                    execution_count = len(masked_values)
-                    metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
-                    subcategory_result["entities"][entity_name] = metrics
-                    # p値が利用可能ならリストに追加
-                    p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
-                    if p_val is not None:
-                        p_values.append(p_val)
-                        entity_names.append(entity_name)
+                    # 'entities'キーの場合はその中身もループ
+                    if entity_name == "entities" and isinstance(entity_data, dict):
+                        for real_entity_name, real_entity_data in entity_data.items():
+                            # 実名エンティティのみ分析（masked_xxxやentitiesなど除外）
+                            if real_entity_name.startswith("masked_") or real_entity_name == "entities":
+                                continue
+                            masked_values = real_entity_data.get("masked_values", []) if isinstance(real_entity_data, dict) else []
+                            unmasked_values = real_entity_data.get("unmasked_values", []) if isinstance(real_entity_data, dict) else []
+                            execution_count = len(masked_values)
+                            metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
+                            entities_result[real_entity_name] = metrics
+                            p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
+                            if p_val is not None:
+                                p_values.append(p_val)
+                                entity_names.append(real_entity_name)
+                    else:
+                        # 実名エンティティのみ分析（masked_xxxやentitiesなど除外）
+                        if entity_name.startswith("masked_") or entity_name == "entities":
+                            continue
+                        masked_values = entity_data.get("masked_values", []) if isinstance(entity_data, dict) else []
+                        unmasked_values = entity_data.get("unmasked_values", []) if isinstance(entity_data, dict) else []
+                        execution_count = len(masked_values)
+                        metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
+                        entities_result[entity_name] = metrics
+                        p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
+                        if p_val is not None:
+                            p_values.append(p_val)
+                            entity_names.append(entity_name)
 
-                # 多重比較補正の適用
+                # 多重比較補正
                 if len(p_values) > 1:
                     correction = self.apply_multiple_comparison_correction(p_values)
-                    # 補正後p値・有意判定を各企業に反映
                     for i, entity_name in enumerate(entity_names):
-                        subcategory_result["entities"][entity_name]["statistical_significance"]["corrected_p_value"] = correction["corrected_p_values"][i]
-                        subcategory_result["entities"][entity_name]["statistical_significance"]["rejected"] = correction["rejected"][i]
-                        subcategory_result["entities"][entity_name]["statistical_significance"]["correction_method"] = correction["method"]
-                        subcategory_result["entities"][entity_name]["statistical_significance"]["alpha"] = correction["alpha"]
+                        entities_result[entity_name]["statistical_significance"]["corrected_p_value"] = correction["corrected_p_values"][i]
+                        entities_result[entity_name]["statistical_significance"]["rejected"] = correction["rejected"][i]
+                        entities_result[entity_name]["statistical_significance"]["correction_method"] = correction["method"]
+                        entities_result[entity_name]["statistical_significance"]["alpha"] = correction["alpha"]
 
                 # カテゴリレベル分析
-                subcategory_result["category_level_analysis"] = self._calculate_category_level_analysis(
-                    subcategory_result["entities"]
-                )
+                category_level_analysis = self._calculate_category_level_analysis(entities_result)
 
-                category_results[subcategory] = subcategory_result
+                # サブカテゴリ直下にentitiesとcategory_level_analysisを並列配置
+                category_results[subcategory] = {
+                    "entities": entities_result,
+                    "category_level_analysis": category_level_analysis
+                }
 
             results[category] = category_results
 

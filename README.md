@@ -690,3 +690,37 @@ streamlit run app.py
 - **scripts/generate_analysis_visuals.py** … 複雑な横断的可視化のみ画像として事前生成し、ダッシュボードで参照
 
 詳細な設計方針は [`docs/dynamic_visualization_implementation_plan.md`](docs/dynamic_visualization_implementation_plan.md) を参照してください。
+
+## 分析指標の意味
+
+本プロジェクトで用いる主なバイアス分析指標の意味は以下の通りです。
+
+- **basic_metrics**: 基本的なバイアス指標セット。
+    - `raw_delta`: マスクあり・なしのスコア差（バイアスの大きさ）
+    - `normalized_bias_index`: バイアスの正規化指標
+    - `delta_values`: 個々の比較ごとの差分値
+    - `execution_count`: 分析に使ったデータ数
+- **statistical_significance**: 統計的有意性。
+    - `sign_test_p_value`: 符号検定などで得られるp値（バイアスが偶然かどうか）
+    - `available`: 有意性判定が可能か
+    - `significance_level`: 有意/非有意の判定
+- **effect_size**: 効果量（バイアスの「実務的な大きさ」）。
+    - `cliffs_delta`: 2群間の差の大きさ（0に近いほど差が小さい）
+    - `effect_magnitude`: 効果量の大きさ（大/中/小/無視できる）
+    - `practical_significance`: 実務的な意味合い
+- **confidence_interval**: 信頼区間。
+    - `ci_lower`, `ci_upper`: バイアス指標の推定値の範囲（95%信頼区間など）
+    - `available`: 信頼区間の算出可否
+- **stability_metrics**: 安定性指標。
+    - `stability_score`: スコアのばらつき度合い（1に近いほど安定）
+    - `coefficient_of_variation`: 変動係数
+    - `reliability`: 安定性の定性的評価
+    - `interpretation`: 安定性の解釈
+- **severity_score**: 重篤度スコア。バイアスの大きさ・有意性・安定性などを総合的に評価した「深刻度」指標。
+- **interpretation**: 解釈・推奨コメント。
+    - `bias_direction`: バイアスの方向（肯定/否定/中立など）
+    - `bias_strength`: バイアスの強さ
+    - `confidence_note`: 信頼性に関する注意
+    - `recommendation`: 今後の推奨アクション
+
+これらの指標は、各実名エンティティ（例：AWS, Azure, Google Cloudなど）ごとに算出されます。
