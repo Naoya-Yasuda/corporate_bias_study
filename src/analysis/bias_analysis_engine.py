@@ -1308,29 +1308,27 @@ class BiasAnalysisEngine:
 
         # バイアス分布の計算
         bias_indices = []
-        entity_rankings = []
+        entity_bias_list = []
         sentiment_values = {}
 
+        # まず各エンティティのバイアス値を収集
         for entity_name, entity_data in entities.items():
             if not isinstance(entity_data, dict):
                 continue  # dict型以外はスキップ
             bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
             bias_indices.append(bi)
-            entity_rankings.append({
-                "entity": entity_name,
-                "bias_rank": 0,  # 後で設定
-                "bias_index": bi
-            })
+            entity_bias_list.append((entity_name, bi))
             # 感情スコアリスト（unmasked_values）を取得
             unmasked = entity_data.get("basic_metrics", {}).get("unmasked_values")
             if unmasked is not None:
                 sentiment_values[entity_name] = unmasked
 
-        # バイアス順位の設定
-        entity_rankings = [r for r in entity_rankings if isinstance(r, dict)]
-        entity_rankings.sort(key=lambda x: x["bias_index"], reverse=True)
-        for i, item in enumerate(entity_rankings):
-            item["bias_rank"] = i + 1
+        # バイアス値で降順ソートし順位付与
+        entity_bias_list.sort(key=lambda x: x[1], reverse=True)
+        for rank, (entity_name, bi) in enumerate(entity_bias_list, 1):
+            if entity_name in entities:
+                entities[entity_name]["bias_index"] = bi
+                entities[entity_name]["bias_rank"] = rank
 
         # バイアス分布統計
         positive_bias_count = sum(1 for bi in bias_indices if bi > 0.1)
@@ -1349,7 +1347,7 @@ class BiasAnalysisEngine:
                 "neutral_count": neutral_count,
                 "bias_range": [min(bias_indices), max(bias_indices)] if bias_indices else [0, 0]
             },
-            "relative_ranking": entity_rankings if isinstance(entity_rankings, list) else [],
+            # relative_rankingは廃止
             "stability_metrics": stability_metrics if isinstance(stability_metrics, dict) or stability_metrics is None else {}
         }
 

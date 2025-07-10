@@ -248,7 +248,6 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
-        import logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         logging.info("詳細ログモードが有効になりました")
 
@@ -270,10 +269,10 @@ def main():
     else:
         if args.data_type == "perplexity_citations":
             # perplexity_citationsの場合は実行回数を使用
-            input_file = os.path.join(paths["perplexity_citations"], f"citations_{args.runs}runs.json")
+            input_file = os.path.join(paths["raw_data"]["perplexity"], f"citations_{args.runs}runs.json")
         elif args.data_type == "google_search":
             # Google検索の場合は実行回数不要
-            input_file = os.path.join(paths["google"], "custom_search.json")
+            input_file = os.path.join(paths["raw_data"]["google"], "custom_search.json")
         else:
             logging.error(f"未対応のデータタイプです: {args.data_type}")
             return
@@ -301,9 +300,9 @@ def main():
 
     # data_typeによる正確な保存パス判定
     if args.data_type == "google_search":
-        output_path = paths["google"]
+        output_path = paths["raw_data"]["google"]
     elif args.data_type == "perplexity_citations":
-        output_path = paths["perplexity_citations"]
+        output_path = paths["raw_data"]["perplexity"]
     else:
         # その他のファイル
         output_path = paths["perplexity_sentiment"]
