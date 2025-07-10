@@ -25,13 +25,13 @@ on:
         required: false
         default: true
         type: boolean
-      run_serp_collection:
-        description: 'Google SERPデータ取得を実行'
+      run_google_search_collection:
+        description: 'Google 検索データ取得を実行'
         required: false
         default: true
         type: boolean
-      run_serp_sentiment:
-        description: 'Google SERP感情分析を実行'
+      run_google_search_sentiment:
+        description: 'Google 検索データ感情分析を実行'
         required: false
         default: true
         type: boolean
@@ -56,8 +56,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      SERP_API_KEY: ${{ secrets.SERP_API_KEY }}
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       GOOGLE_CSE_ID: ${{ secrets.GOOGLE_CSE_ID }}
       AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
