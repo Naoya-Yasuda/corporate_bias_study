@@ -521,16 +521,16 @@ class HybridDataLoader:
         """S3から利用可能な日付を取得"""
         try:
             # S3のintegrated/ディレクトリをスキャン
-            prefix = "integrated/"
+            prefix = "corporate_bias_datasets/integrated/"
             s3_files = list_s3_files(prefix)
 
             # 日付ディレクトリを抽出
             dates = set()
             for file_path in s3_files:
-                # integrated/YYYYMMDD/bias_analysis_results.json のようなパスから日付を抽出
+                # corporate_bias_datasets/integrated/YYYYMMDD/filename.json のようなパスから日付を抽出
                 path_parts = file_path.split("/")
-                if len(path_parts) >= 3:  # integrated/YYYYMMDD/filename.json
-                    date_part = path_parts[1]
+                if len(path_parts) >= 4:  # corporate_bias_datasets/integrated/YYYYMMDD/filename.json
+                    date_part = path_parts[2]
                     if len(date_part) == 8 and date_part.isdigit():
                         # bias_analysis_results.jsonが存在するかチェック
                         if "bias_analysis_results.json" in file_path:
