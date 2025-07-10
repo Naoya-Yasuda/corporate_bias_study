@@ -356,7 +356,7 @@ def get_s3_key_path(date_str, data_type, file_type):
         base_path = paths["perplexity_sentiment"]
     elif data_type == "perplexity_citations":
         base_path = paths["perplexity_citations"]
-    elif data_type == "google_search" or data_type == "google":
+    elif data_type == "google":
         base_path = paths["google"]
     elif data_type == "perplexity_analysis":
         base_path = paths["perplexity_analysis"]

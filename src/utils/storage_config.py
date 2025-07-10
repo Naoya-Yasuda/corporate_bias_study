@@ -96,6 +96,8 @@ def get_s3_key(filename, date_str, data_type):
     """
     paths = get_base_paths(date_str)
 
+    # data_typeが短いAPI名の場合のマッピング処理を削除
+
     # get_base_pathsで一元管理されたパスのみを使用
     if data_type == "raw_data/google":
         return f"{paths['raw_data']['google']}/{filename}"

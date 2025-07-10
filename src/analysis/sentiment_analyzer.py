@@ -25,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.prompts.prompt_manager import PromptManager
 from src.utils.storage_utils import save_results, get_results_paths, load_json
-from src.utils.storage_config import S3_BUCKET_NAME, get_s3_key
+from src.utils.storage_config import S3_BUCKET_NAME, get_s3_key, get_base_paths
 from src.utils.perplexity_api import PerplexityAPI
 
 # 環境変数の読み込み
@@ -221,11 +221,11 @@ def process_results_file(file_path, date_str, args):
         return None
 
     # ファイル名からデータタイプを判定
-    if args.data_type == "google_search":
+    if args.data_type == "raw_data/google":
         if args.verbose:
             logging.info("Google検索データを処理しています...")
         return process_google_search_results(data)
-    elif args.data_type == "perplexity":
+    elif args.data_type == "raw_data/perplexity":
         if args.verbose:
             logging.info("Perplexityデータを処理しています...")
         return process_perplexity_results(data)
@@ -239,8 +239,8 @@ def main():
     # 引数処理
     parser = argparse.ArgumentParser(description='感情分析を実行し、結果を保存する')
     parser.add_argument('--date', help='分析対象の日付（YYYYMMDD形式）')
-    parser.add_argument('--data-type', choices=['perplexity', 'google_search'], default='perplexity',
-                        help='分析対象のデータタイプ（デフォルト: perplexity）')
+    parser.add_argument('--data-type', choices=['perplexity', 'google'], default='perplexity',
+                        help='分析対象のデータタイプ（perplexity または google）')
     parser.add_argument('--runs', type=int, default=1, help='実行回数（ファイル名に含まれる、デフォルト: 1）')
     parser.add_argument('--input-file', help='入力ファイルのパス')
     parser.add_argument('--verbose', action='store_true', help='詳細なログ出力を有効化')
@@ -261,33 +261,45 @@ def main():
             logging.info(f"実行回数: {args.runs}")
 
     # 結果の保存先パスを取得
-    paths = get_results_paths(date_str)
+    paths = get_base_paths(date_str)
+
+    # data_typeを内部用に変換
+    if args.data_type == 'google':
+        internal_data_type = 'raw_data/google'
+    elif args.data_type == 'perplexity':
+        internal_data_type = 'raw_data/perplexity'
+    else:
+        logging.error(f"未対応のデータタイプです: {args.data_type}")
+        return
 
     # 入力ファイルのパスを取得
     if args.input_file:
         input_file = args.input_file
     else:
-        if args.data_type == "perplexity":
-            # perplexityの場合は実行回数を使用
+        if internal_data_type == "raw_data/perplexity":
             input_file = os.path.join(paths["raw_data"]["perplexity"], f"citations_{args.runs}runs.json")
-        elif args.data_type == "google_search":
-            # Google検索の場合は実行回数不要
+        elif internal_data_type == "raw_data/google":
             input_file = os.path.join(paths["raw_data"]["google"], "custom_search.json")
         else:
-            logging.error(f"未対応のデータタイプです: {args.data_type}")
+            logging.error(f"未対応のデータタイプです: {internal_data_type}")
             return
 
     if args.verbose:
         logging.info(f"対象ファイル: {input_file}")
 
     # data_typeが対応しているかチェック
-    if args.data_type not in ['google_search', 'perplexity']:
-        logging.error(f"未対応のデータタイプです: {args.data_type}")
-        logging.info("対応データタイプ: google_search または perplexity")
+    if internal_data_type not in ['raw_data/google', 'raw_data/perplexity']:
+        logging.error(f"未対応のデータタイプです: {internal_data_type}")
+        logging.info("対応データタイプ: raw_data/google または raw_data/perplexity")
+        return
+
+    # 万一google_searchやgoogleが指定された場合は明示的にエラー
+    if internal_data_type in ['google_search', 'google']:
+        logging.error(f"data_typeは'raw_data/google'を指定してください（指定値: {internal_data_type}）")
         return
 
     # 感情分析を実行
-    result = process_results_file(input_file, date_str, args)
+    result = process_results_file(input_file, date_str, argparse.Namespace(**{**vars(args), 'data_type': internal_data_type}))
     if result is None:
         logging.error(f"感情分析をスキップしました")
         return
@@ -299,18 +311,17 @@ def main():
     input_filename = os.path.basename(input_file)
 
     # data_typeによる正確な保存パス判定
-    if args.data_type == "google_search":
+    if internal_data_type == "raw_data/google":
         output_path = paths["raw_data"]["google"]
-    elif args.data_type == "perplexity":
+    elif internal_data_type == "raw_data/perplexity":
         output_path = paths["raw_data"]["perplexity"]
     else:
-        # その他のファイル
         output_path = paths["perplexity_sentiment"]
 
-                # パス管理システムを使用した保存パス構築
+    # パス管理システムを使用した保存パス構築
     local_path = os.path.join(output_path, input_filename)
 
-    s3_key = get_s3_key(input_filename, date_str, args.data_type)
+    s3_key = get_s3_key(input_filename, date_str, internal_data_type)
 
     if args.verbose:
         logging.info(f"上書き保存: {input_filename}")
