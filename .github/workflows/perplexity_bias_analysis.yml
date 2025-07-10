@@ -166,7 +166,7 @@ jobs:
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_google_search_sentiment == 'true' }}
         run: |
           echo "開始: Google検索データの感情分析 ($(date))" | tee -a logs/execution.log
-          if python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google_search --verbose | tee -a logs/sentiment_analysis_google.log; then
+          if python -m src.analysis.sentiment_analyzer --date ${{ env.TODAY_DATE }} --data-type google --verbose | tee -a logs/sentiment_analysis_google.log; then
             echo "完了: Google検索データの感情分析 ($(date))" | tee -a logs/execution.log
           else
             echo "エラー: Google検索データの感情分析に失敗しました ($(date))" | tee -a logs/execution.log
