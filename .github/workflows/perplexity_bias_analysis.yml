@@ -40,6 +40,11 @@ on:
         required: false
         default: true
         type: boolean
+      run_dataset_integration:
+        description: 'データセット統合を実行'
+        required: false
+        default: true
+        type: boolean
       run_bias_analysis:
         description: '統合バイアス分析を実行'
         required: false
@@ -50,11 +55,6 @@ on:
         required: false
         default: true
         type: boolean
-      run_dataset_integration:
-        description: 'データセット統合を実行'
-        required: false
-        default: 'true'
-        type: string
 
 jobs:
   run-data-collection-analysis:
