@@ -83,7 +83,7 @@ python -m src.integrator.create_integrated_dataset --date 20251201
 ### データ分析
 ```bash
 # バイアス分析実行
-python -m src.analysis.bias_ranking_pipeline --perplexity-date 20251201 --data-type citations
+python -m src.analysis.bias_ranking_pipeline --perplexity-date 20251201 --data-type google
 ```
 
 ## データ品質

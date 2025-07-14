@@ -89,7 +89,7 @@ python -m src.loader.perplexity_citations_loader --runs 5 --verbose
 python -m src.integrator.create_integrated_dataset --date 20250623 --verbose
 
 # 感情分析実行
-python -m src.analysis.sentiment_analyzer --date 20251201 --data-type google_search --verbose
+python -m src.analysis.sentiment_analyzer --date 20251201 --data-type google --verbose
 
 # 統合バイアス分析実行 ⭐ NEW
 python -c "

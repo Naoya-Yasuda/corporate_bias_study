@@ -328,7 +328,6 @@ st.title("企業バイアス分析ダッシュボード")
 st.markdown("AI検索サービスにおける企業優遇バイアスの可視化")
 
 if viz_type == "単日分析":
-    # --- ここから従来の単日分析ロジック ---
     dashboard_data = loader.get_integrated_dashboard_data(selected_date)
     analysis_data = dashboard_data["analysis_results"] if dashboard_data else None
 
@@ -346,94 +345,44 @@ if viz_type == "単日分析":
     # --- 画面上部 ---
     analysis_type = st.radio("分析タイプを選択", ["感情スコア", "ランキング", "Google検索 vs Citations比較"])
 
+    # おすすめランキングボタン（感情スコア選択時のみ表示）
+    show_ranking = False
     if analysis_type == "感情スコア":
-        # 元データ（corporate_bias_dataset.json）のperplexity_sentimentを参照
-        sentiment_data = dashboard_data["source_data"].get("perplexity_sentiment", {})
-        categories = list(sentiment_data.keys())
-        if not categories:
-            st.warning("カテゴリデータがありません（perplexity_sentiment）")
-            st.stop()
-        selected_category = st.sidebar.selectbox("カテゴリを選択", categories)
-        subcategories = list(sentiment_data[selected_category].keys())
-        selected_subcategory = st.sidebar.selectbox("サブカテゴリを選択", subcategories)
-        entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
-        entity_names = list(entities_data.keys())
-        if not entity_names:
-            st.warning("エンティティデータがありません（perplexity_sentiment→entities）")
-            st.stop()
-        selected_entity = st.sidebar.selectbox("エンティティを選択", entity_names)
-        # プロンプト（クエリ/AIプロンプト文）を表示: masked_promptを表示
-        masked_prompt = sentiment_data[selected_category][selected_subcategory].get("masked_prompt", "（masked_promptがありません）")
-        with st.expander("プロンプト（クエリ文）を表示", expanded=False):
-            st.markdown(f"**{analysis_type}用プロンプト**")
-            st.code(masked_prompt, language="text")
-        # bias_analysis_results側のデータ取得
-        analysis_data = dashboard_data["analysis_results"]
-        sentiment_bias = analysis_data.get("sentiment_bias_analysis", {})
-        bias_entities_data = {}
-        category_level_analysis = {}
-        if selected_category in sentiment_bias and selected_subcategory in sentiment_bias[selected_category]:
-            bias_entities_data = sentiment_bias[selected_category][selected_subcategory].get("entities", {})
-            category_level_analysis = sentiment_bias[selected_category][selected_subcategory].get("category_level_analysis", {})
-        # DataFrame化できる場合のみ自動変換
-        try:
-            df_entities = pd.DataFrame.from_dict(entities_data, orient="index")
-            if not df_entities.empty:
-                # 除外カラム仕様を復活
-                exclude_cols = ["unmasked_answer", "unmasked_reasons", "unmasked_url"]
-                display_cols = [col for col in df_entities.columns if col not in exclude_cols]
-                st.subheader(f"【{analysis_type}データ表示】")
-                st.dataframe(df_entities[display_cols])
-        except Exception:
-            pass
-        try:
-            # 除外カラム仕様
-            exclude_cols = ["unmasked_answer", "unmasked_reasons", "unmasked_url"]
-            # 親カラム（指標名）を抽出
-            parent_keys = set()
-            for v in bias_entities_data.values():
-                parent_keys.update(v.keys())
-            parent_keys -= set(exclude_cols)
-            for parent in sorted(parent_keys):
-                table = {entity: v.get(parent, {}) for entity, v in bias_entities_data.items()}
-                df = pd.DataFrame.from_dict(table, orient="index")
-                if not df.empty:
-                    st.subheader(f"【{parent}分析結果テーブル】")
-                    st.dataframe(df)
-        except Exception:
-            pass
-        # エンティティごとに詳細展開
-    elif analysis_type == "ランキング":
-        rows = []
-        for entity, edata in entities_data.items():
-            metrics = edata.get("basic_metrics", {})
-            row = {
-                "エンティティ": entity,
-                "ランキング平均": metrics.get("ranking_avg"),
-                "実行回数": metrics.get("execution_count"),
-            }
-            rows.append(row)
-        df = pd.DataFrame(rows, columns=["エンティティ", "ランキング平均", "実行回数"])
-        st.dataframe(df)
-    elif analysis_type == "Google検索 vs Citations比較":
-        rows = []
-        for entity, edata in entities_data.items():
-            metrics = edata.get("basic_metrics", {})
-            row = {
-                "エンティティ": entity,
-                "Google公式URL率": metrics.get("google_official_ratio"),
-                "Citations公式URL率": metrics.get("citations_official_ratio"),
-                "RBOスコア": metrics.get("rbo_score"),
-                "Kendall Tau": metrics.get("kendall_tau"),
-                "Overlap Ratio": metrics.get("overlap_ratio"),
-            }
-            rows.append(row)
-        df = pd.DataFrame(rows, columns=["エンティティ", "Google公式URL率", "Citations公式URL率", "RBOスコア", "Kendall Tau", "Overlap Ratio"])
-        st.dataframe(df)
+        if st.button("⭐️ おすすめランキングを表示", key=f"show_ranking_{selected_date}"):
+            show_ranking = True
+    if show_ranking:
+        st.subheader("⭐️ おすすめランキング分析結果")
+        ranking_data = analysis_data.get("ranking_bias_analysis", {})
+        if ranking_data:
+            rows = []
+            for category, subcats in ranking_data.items():
+                for subcat, details in subcats.items():
+                    summary = details.get("category_summary", {})
+                    stability = summary.get("stability_analysis", {})
+                    row = {
+                        "カテゴリ": category,
+                        "サブカテゴリ": subcat,
+                        "execution_count": summary.get("execution_count"),
+                        "overall_stability": stability.get("overall_stability"),
+                        "avg_rank_std": stability.get("avg_rank_std"),
+                        "stability_interpretation": stability.get("stability_interpretation"),
+                        "quality_available": summary.get("quality_analysis", {}).get("available"),
+                        "category_level_available": summary.get("category_level_analysis", {}).get("available"),
+                    }
+                    rows.append(row)
+            if rows:
+                df_ranking = pd.DataFrame(rows)
+                st.dataframe(df_ranking)
+            else:
+                st.info("ランキング分析データが空です")
+        else:
+            st.info("ranking_bias_analysisデータがありません")
+        st.stop()
 
     # --- メインダッシュボード（統合版） ---
     st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
 
+    # 詳細可視化タイプ分岐
     if viz_type_detail == "感情バイアス分析":
         # 感情バイアス分析のサイドバー設定
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
@@ -638,6 +587,36 @@ if viz_type == "単日分析":
 
     # 横スクロールラッパー閉じタグ
     st.markdown("</div>", unsafe_allow_html=True)
-else:
+
+# --- CSS調整 ---
+st.markdown("""
+<style>
+    .main-dashboard-area {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-bottom: 2rem;
+        overflow-x: auto !important;
+    }
+    /* サイドバー分の余白をbodyに追加 */
+    .block-container {
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }
+    /* フォント設定 */
+    body {
+        font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+    }
+    .stDataFrame, .stTable, .stPlotlyChart, .element-container {
+        overflow-x: auto !important;
+        max-width: 100vw;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ここでif/else構造を正しく閉じる
+
+if viz_type != "単日分析":
     # --- 時系列分析（今後拡張予定） ---
     st.info("時系列分析機能は現在準備中です。今後のバージョンで実装予定です。")
