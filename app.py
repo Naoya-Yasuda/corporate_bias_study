@@ -398,12 +398,53 @@ if viz_type == "単日分析":
         # --- 表形式表示（常に上部に表示） ---
         sentiment_flat = dashboard_data.get("perplexity_sentiment_flat", [])
         filtered = [row for row in sentiment_flat if row["カテゴリ"] == selected_category and row["サブカテゴリ"] == selected_subcategory and (not selected_entities or row["エンティティ"] in selected_entities)]
-        st.subheader(f"📋 感情スコア表（perplexity_sentiment）")
-        if filtered:
-            df_sentiment = pd.DataFrame(filtered)
+        # 表用データ整形
+        table_rows = []
+        for row in filtered:
+            entity = row.get("エンティティ")
+            unmasked_values = row.get("unmasked_values")
+            masked_value = None
+            # masked_valuesはリスト想定（1要素目を表示）
+            if isinstance(row.get("masked_values"), list) and row["masked_values"]:
+                masked_value = row["masked_values"][0]
+            # unmasked_values: 整数のみカンマ区切りで表示
+            score_list_str = ""
+            score_avg = None
+            score_std = None
+            if isinstance(unmasked_values, list) and unmasked_values:
+                # 整数のみで表示
+                int_vals = [int(v) for v in unmasked_values if isinstance(v, (int, float))]
+                score_list_str = ", ".join([str(v) for v in int_vals])
+                if int_vals:
+                    score_avg = sum(int_vals) / len(int_vals)
+                    if len(int_vals) > 1:
+                        mean = score_avg
+                        score_std = (sum((x - mean) ** 2 for x in int_vals) / (len(int_vals) - 1)) ** 0.5
+            diff = None
+            # 差分は感情スコア平均 - 感情スコア（マスクあり）
+            if isinstance(score_avg, (int, float)) and isinstance(masked_value, (int, float)):
+                diff = score_avg - masked_value
+            table_rows.append({
+                "エンティティ": entity,
+                "感情スコア一覧": score_list_str,
+                "感情スコア平均": score_avg,
+                "感情スコア標準偏差": score_std,
+                "感情スコア（マスクあり）": masked_value,
+                "感情スコアバイアス（感情スコア差分）": diff
+            })
+        st.subheader(f"感情スコア表｜カテゴリ: {selected_category}｜サブカテゴリ: {selected_subcategory}")
+        if table_rows:
+            df_sentiment = pd.DataFrame(table_rows)
             st.dataframe(df_sentiment)
         else:
             st.info("perplexity_sentiment属性を持つ感情スコアデータがありません")
+        # --- JSONデータを折りたたみで表示 ---
+        source_data = dashboard_data.get("source_data", {})
+        perplexity_sentiment = source_data.get("perplexity_sentiment", {})
+        cat_data = perplexity_sentiment.get(selected_category, {})
+        subcat_data = cat_data.get(selected_subcategory, {})
+        with st.expander("詳細データ（JSON）", expanded=False):
+            st.json(subcat_data, expanded=False)
         # --- グラフ種別タブ ---
         tabs = st.tabs(["BI値棒グラフ", "重篤度レーダーチャート", "p値ヒートマップ", "効果量 vs p値散布図"])
         bias_indices = {}
