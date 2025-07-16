@@ -386,9 +386,8 @@ if viz_type == "単日分析":
             })
         st.subheader(f"感情スコア表｜{selected_category}｜{selected_subcategory}")
         source_data = dashboard_data.get("source_data", {})
-        perplexity_sentiment = source_data.get("perplexity_sentiment", {})
-        cat_data = perplexity_sentiment.get(selected_category, {})
-        subcat_data = cat_data.get(selected_subcategory, {})
+        perplexity_sentiment = source_data.get(selected_category, {})
+        subcat_data = perplexity_sentiment.get(selected_subcategory, {})
         masked_prompt = subcat_data.get("masked_prompt")
         if masked_prompt:
             with st.expander("プロンプト", expanded=True):
@@ -400,11 +399,66 @@ if viz_type == "単日分析":
             st.info("perplexity_sentiment属性を持つ感情スコアデータがありません")
         # --- JSONデータを折りたたみで表示 ---
         source_data = dashboard_data.get("source_data", {})
-        perplexity_sentiment = source_data.get("perplexity_sentiment", {})
-        cat_data = perplexity_sentiment.get(selected_category, {})
-        subcat_data = cat_data.get(selected_subcategory, {})
+        perplexity_sentiment = source_data.get(selected_category, {})
+        subcat_data = perplexity_sentiment.get(selected_subcategory, {})
         with st.expander("詳細データ（JSON）", expanded=False):
             st.json(subcat_data, expanded=False)
+        # --- 主要指標サマリー表の生成・表示（追加） ---
+        summary_rows = []
+        interpretation_dict = {}
+        for entity in selected_entities:
+            if entity in entities_data:
+                entity_data = entities_data[entity]
+                # 統計的有意性
+                stat = entity_data.get("statistical_significance", {})
+                p_value = stat.get("sign_test_p_value")
+                significance_level = stat.get("significance_level")
+                # 効果量
+                effect_size = entity_data.get("effect_size", {})
+                cliffs_delta = effect_size.get("cliffs_delta")
+                effect_magnitude = effect_size.get("effect_magnitude")
+                # 信頼区間
+                ci = entity_data.get("confidence_interval", {})
+                ci_lower = ci.get("ci_lower")
+                ci_upper = ci.get("ci_upper")
+                # 安定性
+                stability = entity_data.get("stability_metrics", {})
+                stability_score = stability.get("stability_score")
+                reliability = stability.get("reliability")
+                # バイアス指標・ランク
+                bias_index = entity_data.get("bias_index")
+                bias_rank = entity_data.get("bias_rank")
+                # interpretation
+                interpretation = entity_data.get("interpretation", {})
+                # サマリー行作成
+                summary_rows.append({
+                    "エンティティ": entity,
+                    "統計的有意性": significance_level or "-",
+                    "p値": p_value if p_value is not None else "-",
+                    "効果量": effect_magnitude or "-",
+                    "信頼区間": f"{ci_lower}～{ci_upper}" if ci_lower is not None and ci_upper is not None else "-",
+                    "安定性": reliability or "-",
+                    "バイアス指標": bias_index if bias_index is not None else "-",
+                    "ランク": bias_rank if bias_rank is not None else "-",
+                })
+                # interpretationまとめ
+                interp_lines = []
+                if isinstance(interpretation, dict):
+                    for k, v in interpretation.items():
+                        interp_lines.append(f"- **{k}**: {v}")
+                elif isinstance(interpretation, str):
+                    interp_lines.append(interpretation)
+                interpretation_dict[entity] = "\n".join(interp_lines)
+        if summary_rows:
+            st.subheader("主要指標サマリー表")
+            df_summary = pd.DataFrame(summary_rows)
+            st.dataframe(df_summary, use_container_width=True)
+            for idx, row in df_summary.iterrows():
+                entity = row["エンティティ"]
+                interp = interpretation_dict.get(entity)
+                if interp:
+                    with st.expander(f"{entity} の詳細解釈"):
+                        st.markdown(interp)
         # --- グラフ種別タブ ---
         tabs = st.tabs(["BI値棒グラフ", "重篤度レーダーチャート", "p値ヒートマップ", "効果量 vs p値散布図"])
         bias_indices = {}
