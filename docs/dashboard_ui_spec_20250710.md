@@ -42,6 +42,8 @@ date: "{{datetime.now().strftime('%Y-%m-%d')}}"
     - 表形式表示では、カテゴリ・サブカテゴリ・エンティティごとに主要属性（例：masked_answer, masked_values, masked_reasons, masked_url, entities配下のunmasked_answer等）を1行ずつ持つフラットなテーブルに変換して表示
     - 主要カラム例：カテゴリ / サブカテゴリ / エンティティ / masked_answer / masked_values / masked_reasons / masked_url / unmasked_answer など
     - 必要に応じて他の属性も追加可能
+    - サイドバー表示時はダッシュボード本体の最大横幅をサイドバー幅（約336px）分引いた幅にCSSで自動調整し、右側が見切れないようにする
+    - サイドバーを閉じた場合はダッシュボード本体の最大横幅が自動で100vw-32pxまで広がる（CSS+JSで切り替え）
 - S3/ローカル両方のデータ統合状況を都度HybridDataLoader経由で取得・検証
 
 ## 3. 操作フロー

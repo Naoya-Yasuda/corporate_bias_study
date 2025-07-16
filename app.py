@@ -8,39 +8,16 @@ Streamlitを使用して、企業バイアス分析の結果データを可視�
 動的可視化システム：事前生成画像ではなく、リアルタイムでグラフを生成
 """
 
-import os
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 from datetime import datetime
-from dotenv import load_dotenv
 from src.utils.plot_utils import draw_reliability_badge
 import numpy as np
 from src.analysis.hybrid_data_loader import HybridDataLoader
-import argparse
-import japanize_matplotlib
 
 # 環境変数の読み込み
-load_dotenv()
-
-# japanize_matplotlibで日本語フォントを自動設定
-# japanize_matplotlibが既にインポートされているため、自動的に日本語フォントが設定される
-# フォールバック用の設定
-try:
-    font_path = '/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc'
-    if os.path.exists(font_path):
-        prop = fm.FontProperties(fname=font_path)
-        plt.rcParams['font.family'] = prop.get_name()
-        plt.rcParams['font.sans-serif'] = [prop.get_name()]
-    else:
-        # japanize_matplotlibのデフォルト設定を使用
-        plt.rcParams['font.family'] = 'IPAexGothic'
-except:
-    # エラー時はjapanize_matplotlibのデフォルト設定を使用
-    plt.rcParams['font.family'] = 'IPAexGothic'
-
-plt.rcParams['axes.unicode_minus'] = False
+# load_dotenv() # 削除
 
 # グラフスタイル設定
 def set_plot_style():
@@ -71,31 +48,7 @@ st.set_page_config(
 )
 
 # 統一されたCSS設定
-st.markdown("""
-<style>
-    /* メインダッシュボードエリアの横スクロール設定 */
-    .main-dashboard-area {
-        width: calc(100vw - 336px - 32px);
-        min-width: 600px;
-        max-width: 100vw;
-        overflow-x: auto;
-        margin-left: 0;
-        margin-right: 0;
-        padding-bottom: 2rem;
-    }
-
-    /* フォント設定 */
-    body {
-        font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
-    }
-
-    /* データフレームとグラフの横スクロール */
-    .stDataFrame, .stTable, .stPlotlyChart, .element-container {
-        overflow-x: auto !important;
-        max-width: 100vw;
-    }
-</style>
-""", unsafe_allow_html=True)
+# （main-dashboard-areaやstDataFrame等のカスタムCSSは削除）
 
 # 動的可視化関数群
 def plot_ranking_similarity(similarity_data, title):
@@ -268,10 +221,10 @@ def plot_effect_significance_scatter(effect_data, title, reliability_label=None)
 
 # コマンドライン引数でstorage-modeを受け取る
 if not hasattr(st, 'session_state') or 'storage_mode' not in st.session_state:
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--storage-mode', type=str, default='auto', choices=['auto', 'local', 's3'], help='データ取得元')
-    args, _ = parser.parse_known_args()
-    st.session_state['storage_mode'] = args.storage_mode
+    # parser = argparse.ArgumentParser() # 削除
+    # parser.add_argument('--storage-mode', type=str, default='auto', choices=['auto', 'local', 's3'], help='データ取得元') # 削除
+    # args, _ = parser.parse_known_args() # 削除
+    st.session_state['storage_mode'] = 'auto' # デフォルト値を設定
 
 # サイドバーでデータ取得元を選択（コマンドライン引数があればそれを優先）
 def get_storage_mode():
@@ -641,34 +594,4 @@ if viz_type == "単日分析":
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- CSS調整 ---
-st.markdown("""
-<style>
-    .main-dashboard-area {
-        width: 100vw !important;
-        max-width: 100vw !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        padding-bottom: 2rem;
-        overflow-x: auto !important;
-    }
-    /* サイドバー分の余白をbodyに追加 */
-    .block-container {
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }
-    /* フォント設定 */
-    body {
-        font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
-    }
-    .stDataFrame, .stTable, .stPlotlyChart, .element-container {
-        overflow-x: auto !important;
-        max-width: 100vw;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# ここでif/else構造を正しく閉じる
-
-if viz_type != "単日分析":
-    # --- 時系列分析（今後拡張予定） ---
-    st.info("時系列分析機能は現在準備中です。今後のバージョンで実装予定です。")
+# （main-dashboard-areaやblock-container等のカスタムCSS・JSは削除）
