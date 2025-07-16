@@ -379,11 +379,11 @@ if viz_type == "単日分析":
                 diff = score_avg - masked_value
             table_rows.append({
                 "エンティティ": entity,
-                "感情スコア一覧": score_list_str,
+                "感情スコアバイアス": diff,
                 "感情スコア平均": score_avg,
-                "感情スコア標準偏差": score_std,
                 "感情スコア（マスクあり）": masked_value,
-                "感情スコアバイアス（感情スコア差分）": diff
+                "感情スコア一覧": score_list_str,
+                "感情スコア標準偏差": score_std
             })
         st.subheader(f"感情スコア表｜カテゴリ: {selected_category}｜サブカテゴリ: {selected_subcategory}")
         if table_rows:
