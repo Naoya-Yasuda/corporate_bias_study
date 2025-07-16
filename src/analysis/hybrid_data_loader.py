@@ -638,7 +638,8 @@ class HybridDataLoader:
                 "analysis_results": analysis_results,
                 "source_data": source_data,
                 "metadata": integrated_metadata,
-                "data_quality": data_quality
+                "data_quality": data_quality,
+                "perplexity_sentiment_flat": self._flatten_perplexity_sentiment(source_data.get("perplexity_sentiment", {}))
             }
 
         except Exception as e:
@@ -678,6 +679,40 @@ class HybridDataLoader:
                         valid_analyses += 1
 
         return (valid_analyses / total_entities) if total_entities > 0 else 0.0
+
+    def _flatten_perplexity_sentiment(self, perplexity_sentiment: dict) -> list:
+        """
+        perplexity_sentiment属性（多層構造）をカテゴリ/サブカテゴリ/エンティティごとにフラットなdictリストに変換
+        Returns:
+            List[dict] 各行が {カテゴリ, サブカテゴリ, エンティティ, masked_answer, masked_values, masked_reasons, masked_url, ...} など主要属性を持つ
+        """
+        rows = []
+        for category, subcats in perplexity_sentiment.items():
+            for subcat, subcat_data in subcats.items():
+                # masked系（全体）
+                masked_answer = subcat_data.get("masked_answer", [])
+                masked_values = subcat_data.get("masked_values", [])
+                masked_reasons = subcat_data.get("masked_reasons", [])
+                masked_url = subcat_data.get("masked_url", [])
+                # entities（エンティティごと）
+                entities = subcat_data.get("entities", {})
+                for entity, entity_data in entities.items():
+                    row = {
+                        "カテゴリ": category,
+                        "サブカテゴリ": subcat,
+                        "エンティティ": entity,
+                        # masked系は全体のリストなので、ここでは空欄または必要に応じて加工
+                        "masked_answer": masked_answer,
+                        "masked_values": masked_values,
+                        "masked_reasons": masked_reasons,
+                        "masked_url": masked_url,
+                    }
+                    # unmasked系（エンティティごと）
+                    for k in ["unmasked_answer", "unmasked_values", "unmasked_reasons", "unmasked_url"]:
+                        if k in entity_data:
+                            row[k] = entity_data[k]
+                    rows.append(row)
+        return rows
 
 
 def main():

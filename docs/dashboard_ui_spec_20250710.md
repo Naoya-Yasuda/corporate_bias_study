@@ -24,6 +24,14 @@ date: "{{datetime.now().strftime('%Y-%m-%d')}}"
   - p値ヒートマップ
   - 効果量 vs p値散布図
   - 表形式表示（perplexity_sentiment属性を表示。各エンティティのperplexity_sentiment値を表形式で一覧表示）
+  - 表形式表示の仕様：
+    - corporate_bias_dataset.jsonのperplexity_sentiment属性は「カテゴリ＞サブカテゴリ＞エンティティ＞属性」の多層構造
+    - 表形式表示は常にダッシュボード上部に表示し、カテゴリ・サブカテゴリ・エンティティ選択に応じて該当データをDataFrameで表示
+    - グラフ種別（BI値棒グラフ、重篤度レーダーチャート、p値ヒートマップ、効果量 vs p値散布図）はダッシュボード本体のタブ（st.tabs）で切り替え可能
+    - サイドバーでのグラフ種別選択UIは廃止
+    - 表形式表示では、カテゴリ・サブカテゴリ・エンティティごとに主要属性（例：masked_answer, masked_values, masked_reasons, masked_url, entities配下のunmasked_answer等）を1行ずつ持つフラットなテーブルに変換して表示
+    - 主要カラム例：カテゴリ / サブカテゴリ / エンティティ / masked_answer / masked_values / masked_reasons / masked_url / unmasked_answer など
+    - 必要に応じて他の属性も追加可能
 - S3/ローカル両方のデータ統合状況を都度HybridDataLoader経由で取得・検証
 
 ## 3. 操作フロー

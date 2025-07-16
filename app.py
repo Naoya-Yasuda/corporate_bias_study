@@ -395,97 +395,75 @@ if viz_type == "単日分析":
             default=entities[:10] if len(entities) > 10 else entities,
             key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}_{viz_type_detail}"
         )
-        # グラフ種別サブタイプ選択肢
-        sentiment_graph_types = [
-            "BI値棒グラフ",
-            "重篤度レーダーチャート",
-            "p値ヒートマップ",
-            "効果量 vs p値散布図",
-            "表形式表示（perplexity_sentiment）"
-        ]
-        selected_sentiment_graph = st.sidebar.selectbox(
-            "グラフ種別を選択",
-            sentiment_graph_types,
-            key=f"sentiment_graph_type_{selected_category}_{selected_subcategory}_{selected_date}_{viz_type_detail}"
-        )
-        st.subheader(f"🎯 感情スコア分析 - {selected_category} / {selected_subcategory}")
-        if not selected_entities:
-            st.warning("エンティティを選択してください")
+        # --- 表形式表示（常に上部に表示） ---
+        sentiment_flat = dashboard_data.get("perplexity_sentiment_flat", [])
+        filtered = [row for row in sentiment_flat if row["カテゴリ"] == selected_category and row["サブカテゴリ"] == selected_subcategory and (not selected_entities or row["エンティティ"] in selected_entities)]
+        st.subheader(f"📋 感情スコア表（perplexity_sentiment）")
+        if filtered:
+            df_sentiment = pd.DataFrame(filtered)
+            st.dataframe(df_sentiment)
         else:
-            bias_indices = {}
-            execution_counts = {}
-            severity_dict = {}
-            pvalue_dict = {}
-            effect_data = {}
-            sentiment_table_rows = []
-            for entity in selected_entities:
-                if entity in entities_data:
-                    entity_data = entities_data[entity]
-                    # BI値
-                    if "basic_metrics" in entity_data:
-                        bias_indices[entity] = entity_data["basic_metrics"].get("normalized_bias_index", 0)
-                        execution_counts[entity] = entity_data["basic_metrics"].get("execution_count", 0)
-                    # 重篤度
-                    if "severity_score" in entity_data:
-                        sev = entity_data["severity_score"]
-                        if isinstance(sev, dict):
-                            score = sev.get("severity_score")
-                        else:
-                            score = sev
-                        if score is not None:
-                            severity_dict[entity] = score
-                    # p値
-                    stat = entity_data.get("statistical_significance", {})
-                    if "sign_test_p_value" in stat:
-                        pvalue_dict[entity] = stat["sign_test_p_value"]
-                    # 効果量
-                    effect_size = entity_data.get("effect_size", {})
-                    cliffs_delta = effect_size.get("cliffs_delta") if "cliffs_delta" in effect_size else None
-                    p_value = stat.get("sign_test_p_value") if "sign_test_p_value" in stat else None
-                    if cliffs_delta is not None and p_value is not None:
-                        effect_data[entity] = {"cliffs_delta": cliffs_delta, "p_value": p_value}
-                    # perplexity_sentimentデータ
-                    sentiment_score = entity_data.get("perplexity_sentiment_score")
-                    sentiment_label = entity_data.get("perplexity_sentiment_label")
-                    sentiment_table_rows.append({
-                        "エンティティ": entity,
-                        "感情スコア": sentiment_score,
-                        "感情ラベル": sentiment_label
-                    })
-            min_exec_count = min(execution_counts.values()) if execution_counts else 0
-            reliability_label = get_reliability_label(min_exec_count)
-            title = f"{selected_category} - {selected_subcategory}"
-            # 選択されたグラフ種別で分岐
-            if selected_sentiment_graph == "BI値棒グラフ":
-                if bias_indices:
-                    fig = plot_bias_indices_bar(bias_indices, title, reliability_label)
-                    st.pyplot(fig, use_container_width=True)
-                else:
-                    st.info("BI値データがありません")
-            elif selected_sentiment_graph == "重篤度レーダーチャート":
-                if severity_dict:
-                    fig = plot_severity_radar(severity_dict, title, reliability_label)
-                    st.pyplot(fig, use_container_width=True)
-                else:
-                    st.info("重篤度データがありません")
-            elif selected_sentiment_graph == "p値ヒートマップ":
-                if pvalue_dict:
-                    fig = plot_pvalue_heatmap(pvalue_dict, title, reliability_label)
-                    st.pyplot(fig, use_container_width=True)
-                else:
-                    st.info("p値データがありません")
-            elif selected_sentiment_graph == "効果量 vs p値散布図":
-                if effect_data:
-                    fig = plot_effect_significance_scatter(effect_data, title, reliability_label)
-                    st.pyplot(fig, use_container_width=True)
-                else:
-                    st.info("効果量・p値データがありません")
-            elif selected_sentiment_graph == "表形式表示（perplexity_sentiment）":
-                if sentiment_table_rows:
-                    df_sentiment = pd.DataFrame(sentiment_table_rows)
-                    st.dataframe(df_sentiment)
-                else:
-                    st.info("perplexity_sentiment由来の感情スコアデータがありません")
+            st.info("perplexity_sentiment属性を持つ感情スコアデータがありません")
+        # --- グラフ種別タブ ---
+        tabs = st.tabs(["BI値棒グラフ", "重篤度レーダーチャート", "p値ヒートマップ", "効果量 vs p値散布図"])
+        bias_indices = {}
+        execution_counts = {}
+        severity_dict = {}
+        pvalue_dict = {}
+        effect_data = {}
+        for entity in selected_entities:
+            if entity in entities_data:
+                entity_data = entities_data[entity]
+                # BI値
+                if "basic_metrics" in entity_data:
+                    bias_indices[entity] = entity_data["basic_metrics"].get("normalized_bias_index", 0)
+                    execution_counts[entity] = entity_data["basic_metrics"].get("execution_count", 0)
+                # 重篤度
+                if "severity_score" in entity_data:
+                    sev = entity_data["severity_score"]
+                    if isinstance(sev, dict):
+                        score = sev.get("severity_score")
+                    else:
+                        score = sev
+                    if score is not None:
+                        severity_dict[entity] = score
+                # p値
+                stat = entity_data.get("statistical_significance", {})
+                if "sign_test_p_value" in stat:
+                    pvalue_dict[entity] = stat["sign_test_p_value"]
+                # 効果量
+                effect_size = entity_data.get("effect_size", {})
+                cliffs_delta = effect_size.get("cliffs_delta") if "cliffs_delta" in effect_size else None
+                p_value = stat.get("sign_test_p_value") if "sign_test_p_value" in stat else None
+                if cliffs_delta is not None and p_value is not None:
+                    effect_data[entity] = {"cliffs_delta": cliffs_delta, "p_value": p_value}
+        min_exec_count = min(execution_counts.values()) if execution_counts else 0
+        reliability_label = get_reliability_label(min_exec_count)
+        title = f"{selected_category} - {selected_subcategory}"
+        with tabs[0]:
+            if bias_indices:
+                fig = plot_bias_indices_bar(bias_indices, title, reliability_label)
+                st.pyplot(fig, use_container_width=True)
+            else:
+                st.info("BI値データがありません")
+        with tabs[1]:
+            if severity_dict:
+                fig = plot_severity_radar(severity_dict, title, reliability_label)
+                st.pyplot(fig, use_container_width=True)
+            else:
+                st.info("重篤度データがありません")
+        with tabs[2]:
+            if pvalue_dict:
+                fig = plot_pvalue_heatmap(pvalue_dict, title, reliability_label)
+                st.pyplot(fig, use_container_width=True)
+            else:
+                st.info("p値データがありません")
+        with tabs[3]:
+            if effect_data:
+                fig = plot_effect_significance_scatter(effect_data, title, reliability_label)
+                st.pyplot(fig, use_container_width=True)
+            else:
+                st.info("効果量・p値データがありません")
 
     elif viz_type_detail == "Citations-Google比較":
         # Citations-Google比較のサイドバー設定
