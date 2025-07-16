@@ -19,7 +19,12 @@ date: "{{datetime.now().strftime('%Y-%m-%d')}}"
   - corporate_bias_dataset.json（統合生データ）
   を両方読み込み、統合データを返却
 - 統合データをもとに各種可視化・表形式表示・詳細展開を行う
-- 感情スコア分析の表形式表示は「perplexity_sentiment」由来データのみを対象とし、st.dataframe等で表示
+- 感情スコア分析では以下のグラフ・表形式を選択・表示できる：
+  - BI値棒グラフ（Normalized Bias Indexの棒グラフ）
+  - 重篤度レーダーチャート
+  - p値ヒートマップ
+  - 効果量 vs p値散布図
+  - 表形式表示（perplexity_sentiment由来データのみ）
 - S3/ローカル両方のデータ統合状況を都度HybridDataLoader経由で取得・検証
 
 ## 3. 操作フロー
