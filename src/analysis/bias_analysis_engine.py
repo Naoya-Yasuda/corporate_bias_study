@@ -1128,7 +1128,8 @@ class BiasAnalysisEngine:
         bi = normalized_bias_index
         cliffs_delta = effect_size.get('cliffs_delta')
         p_value = statistical_significance.get('sign_test_p_value')
-        stability_score = stability_metrics if isinstance(stability_metrics, (int, float)) else None
+        # dictからstability_score(float)のみ抽出
+        stability_score = stability_metrics["stability_score"] if isinstance(stability_metrics, dict) and "stability_score" in stability_metrics else None
         severity_score = None
         if cliffs_delta is not None and p_value is not None and stability_score is not None:
             severity_score = self.calculate_severity_score(bi, cliffs_delta, p_value, stability_score)
@@ -1427,6 +1428,8 @@ class BiasAnalysisEngine:
                 subcategory_result = {
                     "category_summary": {
                         "execution_count": execution_count,
+                        "ranking_summary": ranking_summary,  # 追加
+                        "answer_list": answer_list,          # 追加
                         "stability_analysis": stability_analysis,
                         "quality_analysis": quality_analysis,
                         "category_level_analysis": category_level_analysis
@@ -1496,7 +1499,7 @@ class BiasAnalysisEngine:
         import numpy as np
         details = ranking_summary.get('details', {})
         avg_ranking = ranking_summary.get('avg_ranking', [])
-        if execution_count < 2 or not details:
+        if execution_count < 2:
             return {
                 "available": False,
                 "reason": "品質分析には最低2回の実行が必要",
@@ -1540,7 +1543,7 @@ class BiasAnalysisEngine:
         """カテゴリレベルのランキング分析"""
         details = ranking_summary.get('details', {})
         avg_ranking = ranking_summary.get('avg_ranking', [])
-        if execution_count < 2 or not details:
+        if execution_count < 2:
             return {
                 "available": False,
                 "reason": "カテゴリ分析には最低2回の実行が必要",
