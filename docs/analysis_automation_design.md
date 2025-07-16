@@ -2201,7 +2201,7 @@ python scripts/run_bias_analysis.py --date 20250624 --local
 - **対象**: `src/analysis/metrics_calculator.py` → `bias_analysis_engine.py`
 - **理由**: bias_analysis_engineでのみ使用、重複機能多数
 - **実装**: 全メソッドの移行、self.metrics_calculator参照を削除
-- **検証**: 感情バイアス分析・相対バイアス分析の動作確認
+- **検証**: 感情スコア分析・相対バイアス分析の動作確認
 
 **Step 3詳細設計**:
 ```python
@@ -2228,7 +2228,7 @@ Step 3.3: 初期化とimport削除（5分）
 
 Step 3.4: 動作確認（5分）
   - BiasAnalysisEngine初期化テスト
-  - 感情バイアス分析実行確認
+  - 感情スコア分析実行確認
 
 # 3.3 技術的注意事項
 - 必要なimport: numpy, scipy.stats（既に追加済み）, itertools, tqdm
@@ -2356,7 +2356,7 @@ print(f'分析結果: {len(results)}項目生成')
 | Phase 1 | 依存関係・機能重複の完全調査 | 調査結果レポート作成             |
 | Step 1  | ReliabilityChecker統合完了   | BiasAnalysisEngine初期化成功     |
 | Step 2  | serp_metrics機能統合完了     | Citations-Google比較分析実行成功 |
-| Step 3  | MetricsCalculator統合完了    | 感情バイアス分析実行成功         |
+| Step 3  | MetricsCalculator統合完了    | 感情スコア分析実行成功           |
 | Step 4  | 市場データ機能統合完了       | 企業優遇度分析実行成功           |
 | Step 5  | 統合完了・クリーンアップ     | 完全分析パイプライン実行成功     |
 

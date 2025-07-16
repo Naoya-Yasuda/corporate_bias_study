@@ -978,7 +978,7 @@ class BiasAnalysisEngine:
             "confidence_level": None  # 後で設定
         }
 
-        # 感情バイアス分析
+        # 感情スコア分析
         sentiment_bias_analysis = self._analyze_sentiment_bias(data.get('perplexity_sentiment', {}))
 
         # 実行回数に基づくメタデータ更新
@@ -1031,7 +1031,7 @@ class BiasAnalysisEngine:
 
     def _analyze_sentiment_bias(self, sentiment_data: Dict) -> Dict[str, Any]:
         """
-        感情バイアス分析（多重比較補正対応）
+        感情スコア分析（多重比較補正対応）
         """
         results = {}
 
@@ -2342,7 +2342,7 @@ class BiasAnalysisEngine:
         consistent_leaders = []
         consistent_laggards = []
 
-        # 感情バイアス分析から上位/下位企業を抽出
+        # 感情スコア分析から上位/下位企業を抽出
         sentiment_leaders = set()
         sentiment_laggards = set()
 

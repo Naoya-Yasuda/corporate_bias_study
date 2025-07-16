@@ -62,7 +62,7 @@
 
 ### **Phase 1: 基本可視化関数の実装**（優先度：最高）
 
-#### 1.1 感情バイアス分析可視化（データありのもののみ）
+#### 1.1 感情スコア分析可視化（データありのもののみ）
 - **実装関数**: `plot_bias_indices_bar()`
 - **データソース**: `bias_analysis_results.json` → `sentiment_bias_analysis`
 - **実装内容**:
@@ -149,7 +149,7 @@
 ## 実装優先順位
 
 ### 即座に実装可能（データあり）
-1. **Phase 1.1**: 感情バイアス分析可視化（normalized_bias_indexデータあり）→ **app.pyでリアルタイム生成**
+1. **Phase 1.1**: 感情スコア分析可視化（normalized_bias_indexデータあり）→ **app.pyでリアルタイム生成**
 2. **Phase 1.2**: Citations-Google比較可視化（rbo_score, kendall_tau, overlap_ratioデータあり）→ **app.pyでリアルタイム生成**
 3. **Phase 1.3**: 統合分析ダッシュボード（cross_analysis_insights, metadataデータあり）→ **事前生成維持（複合分析）**
 
@@ -232,7 +232,7 @@ app.py
 ## スケジュール
 
 ### Week 1: Phase 1
-- Day 1-2: 感情バイアス分析可視化
+- Day 1-2: 感情スコア分析可視化
 - Day 3-4: 統合分析ダッシュボード
 - Day 5: テスト・デバッグ
 

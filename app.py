@@ -366,7 +366,7 @@ if viz_type == "単日分析":
     # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
     viz_type_detail = st.sidebar.selectbox(
         "詳細可視化タイプを選択",
-        ["感情バイアス分析", "Citations-Google比較", "統合分析", "おすすめランキング分析結果"],
+        ["感情スコア分析", "Citations-Google比較", "統合分析", "おすすめランキング分析結果"],
         key=f"viz_type_detail_selector_{selected_date}"
     )
 
@@ -374,10 +374,10 @@ if viz_type == "単日分析":
     st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
 
     # --- 詳細可視化タイプ分岐 ---
-    if viz_type_detail == "感情バイアス分析":
+    if viz_type_detail == "感情スコア分析":
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
-        categories = list(sentiment_data.keys())
-        category_options = categories  # 「全体」除去
+        categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
+        category_options = categories
         selected_category = st.sidebar.selectbox(
             "カテゴリを選択", category_options,
             key=f"sentiment_category_{selected_date}_{viz_type_detail}"
@@ -395,7 +395,7 @@ if viz_type == "単日分析":
             default=entities[:10] if len(entities) > 10 else entities,
             key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}_{viz_type_detail}"
         )
-        st.subheader(f"🎯 感情バイアス分析 - {selected_category} / {selected_subcategory}")
+        st.subheader(f"🎯 感情スコア分析 - {selected_category} / {selected_subcategory}")
         if not selected_entities:
             st.warning("エンティティを選択してください")
         else:
