@@ -496,24 +496,28 @@ if viz_type == "単日分析":
         reliability_label = get_reliability_label(min_exec_count)
         title = f"{selected_category} - {selected_subcategory}"
         with tabs[0]:
+            st.info("各エンティティのNormalized Bias Index（バイアス指標）を棒グラフで表示します。値が大きいほどバイアスが強いことを示します。", icon="ℹ️")
             if bias_indices:
                 fig = plot_bias_indices_bar(bias_indices, title, reliability_label)
                 st.pyplot(fig, use_container_width=True)
             else:
                 st.info("BI値データがありません")
         with tabs[1]:
+            st.info("各エンティティのバイアス重篤度（影響度）をレーダーチャートで可視化します。値が高いほど影響が大きいことを示します。", icon="ℹ️")
             if severity_dict:
                 fig = plot_severity_radar(severity_dict, title, reliability_label)
                 st.pyplot(fig, use_container_width=True)
             else:
                 st.info("重篤度データがありません")
         with tabs[2]:
+            st.info("各エンティティの統計的有意性（p値）をヒートマップで表示します。色が濃いほど有意性が高いことを示します。", icon="ℹ️")
             if pvalue_dict:
                 fig = plot_pvalue_heatmap(pvalue_dict, title, reliability_label)
                 st.pyplot(fig, use_container_width=True)
             else:
                 st.info("p値データがありません")
         with tabs[3]:
+            st.info("各エンティティの効果量（Cliff's Delta）とp値の関係を散布図で表示します。", icon="ℹ️")
             if effect_data:
                 fig = plot_effect_significance_scatter(effect_data, title, reliability_label)
                 st.pyplot(fig, use_container_width=True)
