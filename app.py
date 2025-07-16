@@ -385,7 +385,15 @@ if viz_type == "単日分析":
                 "感情スコア一覧": score_list_str,
                 "感情スコア標準偏差": score_std
             })
-        st.subheader(f"感情スコア表｜カテゴリ: {selected_category}｜サブカテゴリ: {selected_subcategory}")
+        st.subheader(f"感情スコア表｜{selected_category}｜{selected_subcategory}")
+        source_data = dashboard_data.get("source_data", {})
+        perplexity_sentiment = source_data.get("perplexity_sentiment", {})
+        cat_data = perplexity_sentiment.get(selected_category, {})
+        subcat_data = cat_data.get(selected_subcategory, {})
+        masked_prompt = subcat_data.get("masked_prompt")
+        if masked_prompt:
+            with st.expander("プロンプト", expanded=True):
+                st.markdown(masked_prompt)
         if table_rows:
             df_sentiment = pd.DataFrame(table_rows)
             st.dataframe(df_sentiment)
