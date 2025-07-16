@@ -15,6 +15,7 @@ from datetime import datetime
 from src.utils.plot_utils import draw_reliability_badge
 import numpy as np
 from src.analysis.hybrid_data_loader import HybridDataLoader
+import japanize_matplotlib
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
@@ -31,10 +32,8 @@ def set_plot_style():
     plt.rcParams['legend.fontsize'] = 8
     plt.rcParams['figure.titlesize'] = 14
     plt.rcParams['axes.unicode_minus'] = False  # マイナス記号を正しく表示
-
-    # 日本語フォント設定の確認
-    if 'font.family' not in plt.rcParams or not plt.rcParams['font.family']:
-        plt.rcParams['font.family'] = 'IPAexGothic'
+    # 日本語フォントを複数指定
+    plt.rcParams['font.family'] = ['IPAexGothic', 'Noto Sans CJK JP', 'Yu Gothic', 'Meiryo', 'Takao', 'IPAPGothic', 'VL PGothic', 'DejaVu Sans']
 
 # スタイル設定を適用
 set_plot_style()
