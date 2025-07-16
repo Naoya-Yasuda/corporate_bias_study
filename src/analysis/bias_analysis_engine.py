@@ -24,12 +24,17 @@ from pathlib import Path
 import scipy.stats as stats
 import itertools
 from tqdm import trange
-
-# ReliabilityChecker統合済み（reliability_checker.py削除完了）
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import load_json
 from dotenv import load_dotenv
-# プロットユーティリティ（統合時に必要に応じて追加）
+from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+from statsmodels.stats.multitest import multipletests
+from scipy.stats import kendalltau
+from collections import defaultdict
+from urllib.parse import urlparse
+import yaml
+from scipy.stats import ttest_ind, pearsonr, spearmanr
+import argparse
 
 # 環境変数を読み込み
 load_dotenv()
@@ -269,29 +274,6 @@ class BiasAnalysisEngine:
         self.storage_mode = storage_mode or os.getenv("STORAGE_MODE", "auto")
         logger.info(f"環境変数STORAGE_MODEから取得: {self.storage_mode}")
 
-        # rank_utilsのインポートとフォールバック設定
-        try:
-            from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
-            self.rank_utils_available = True
-            self._rbo = rbo
-            self._compute_tau = compute_tau
-            self._compute_delta_ranks = compute_delta_ranks
-        except ImportError as e:
-            logger.warning(f"rank_utils インポートエラー: {e}")
-            self.rank_utils_available = False
-
-            # フォールバック関数を定義
-            def rbo_fallback(list1, list2, p=0.9):
-                return 0.0
-            def compute_tau_fallback(list1, list2):
-                return 0.0
-            def compute_delta_ranks_fallback(list1, list2):
-                return {}
-
-            self._rbo = rbo_fallback
-            self._compute_tau = compute_tau_fallback
-            self._compute_delta_ranks = compute_delta_ranks_fallback
-
         # 信頼性チェック器の初期化
         self.reliability_checker = ReliabilityChecker()
 
@@ -478,6 +460,8 @@ class BiasAnalysisEngine:
 
     def calculate_stability_score(self, values: List[float]) -> Dict[str, Any]:
         """安定性スコアを計算"""
+        # Noneを除外
+        values = [v for v in values if v is not None]
         if len(values) <= 1:
             return {
                 "stability_score": 1.0,
@@ -897,6 +881,16 @@ class BiasAnalysisEngine:
             # データをマージ（不要、integrated_dataのみでOK）
             merged_data = integrated_data
 
+            # 追加: perplexity_sentimentデータの受け渡し状況をprint
+            perplexity_sentiment = merged_data.get('perplexity_sentiment', None)
+            print(f"[DEBUG] perplexity_sentiment type={type(perplexity_sentiment)}, keys={list(perplexity_sentiment.keys()) if isinstance(perplexity_sentiment, dict) else perplexity_sentiment}")
+            if isinstance(perplexity_sentiment, dict):
+                first_cat = next(iter(perplexity_sentiment.keys()), None)
+                print(f"[DEBUG] perplexity_sentiment first_category={first_cat}")
+                if first_cat:
+                    first_subcat = next(iter(perplexity_sentiment[first_cat].keys()), None)
+                    print(f"[DEBUG] perplexity_sentiment first_subcategory={first_subcat}")
+
             # 2. データ検証
             validation_errors = self._validate_input_data(merged_data)
             if validation_errors:
@@ -1029,6 +1023,16 @@ class BiasAnalysisEngine:
             "analysis_limitations": analysis_limitations
         }
 
+    def _iter_real_entities(self, entities_dict):
+        """entitiesキーがあれば再帰的に掘り下げ、実名エンティティ（masked_xxxやentities以外）をyield"""
+        if not isinstance(entities_dict, dict):
+            return
+        for key, value in entities_dict.items():
+            if key == "entities" and isinstance(value, dict):
+                yield from self._iter_real_entities(value)
+            elif isinstance(value, dict) and not key.startswith("masked_") and key != "entities":
+                yield key, value
+
     def _analyze_sentiment_bias(self, sentiment_data: Dict) -> Dict[str, Any]:
         """
         感情スコア分析（多重比較補正対応）
@@ -1036,58 +1040,39 @@ class BiasAnalysisEngine:
         results = {}
 
         for category, subcategories in sentiment_data.items():
+            print(f"[DEBUG] category={category}, subcategories_keys={list(subcategories.keys()) if isinstance(subcategories, dict) else type(subcategories)}")
+            for subcategory, entities in subcategories.items():
+                print(f"[DEBUG]   subcategory={subcategory}, entities_type={type(entities)}, entities_keys={list(entities.keys()) if isinstance(entities, dict) else entities}")
             category_results = {}
 
             for subcategory, entities in subcategories.items():
-                # 追加: entitiesの中身をprint出力
+                # サブカテゴリ直下のmasked_valuesを取得
+                subcat_masked_values = [v for v in entities.get("masked_values", []) if v is not None] if isinstance(entities, dict) else []
+                # デバッグ出力
                 if isinstance(entities, dict):
                     print(f"[DEBUG] category={category}, subcategory={subcategory}, entities_full={json.dumps(entities, ensure_ascii=False)[:1000]}")
-                # デバッグ: entities配下のentity_nameリストを出力
-                if isinstance(entities, dict):
                     print(f"[DEBUG] category={category}, subcategory={subcategory}, entity_names={list(entities.keys())}")
-                    for entity_name, entity_data in entities.items():
-                        masked_values = entity_data.get("masked_values", []) if isinstance(entity_data, dict) else []
-                        unmasked_values = entity_data.get("unmasked_values", []) if isinstance(entity_data, dict) else []
-                        print(f"[DEBUG] entity={entity_name}, masked_values_len={len(masked_values)}, unmasked_values_len={len(unmasked_values)}")
 
-                # entities二重構造を廃止し、サブカテゴリ直下にentitiesとcategory_level_analysisを並列配置
                 entities_result = {}
                 p_values = []
                 entity_names = []
 
-                if not isinstance(entities, dict):
-                    print(f"[DEBUG] entities is not dict: type={type(entities)}, value={entities}")
-
-                # 実名エンティティ＋masked_xxxすべてをバイアス指標計算・出力 → 実名エンティティのみ分析
-                for entity_name, entity_data in entities.items() if isinstance(entities, dict) else []:
-                    # 'entities'キーの場合はその中身もループ
-                    if entity_name == "entities" and isinstance(entity_data, dict):
-                        for real_entity_name, real_entity_data in entity_data.items():
-                            # 実名エンティティのみ分析（masked_xxxやentitiesなど除外）
-                            if real_entity_name.startswith("masked_") or real_entity_name == "entities":
-                                continue
-                            masked_values = real_entity_data.get("masked_values", []) if isinstance(real_entity_data, dict) else []
-                            unmasked_values = real_entity_data.get("unmasked_values", []) if isinstance(real_entity_data, dict) else []
-                            execution_count = len(masked_values)
-                            metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
-                            entities_result[real_entity_name] = metrics
-                            p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
-                            if p_val is not None:
-                                p_values.append(p_val)
-                                entity_names.append(real_entity_name)
-                    else:
-                        # 実名エンティティのみ分析（masked_xxxやentitiesなど除外）
-                        if entity_name.startswith("masked_") or entity_name == "entities":
-                            continue
-                        masked_values = entity_data.get("masked_values", []) if isinstance(entity_data, dict) else []
-                        unmasked_values = entity_data.get("unmasked_values", []) if isinstance(entity_data, dict) else []
-                        execution_count = len(masked_values)
-                        metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
-                        entities_result[entity_name] = metrics
-                        p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
-                        if p_val is not None:
-                            p_values.append(p_val)
-                            entity_names.append(entity_name)
+                # 再帰的に実名エンティティを探索
+                for entity_name, entity_data in self._iter_real_entities(entities):
+                    # None除外済みのunmasked_values
+                    unmasked_values = [v for v in entity_data.get("unmasked_values", []) if v is not None]
+                    # masked_valuesはサブカテゴリ全体のものを使う
+                    masked_values = subcat_masked_values
+                    print(f"[DEBUG] entity={entity_name}, masked_values={masked_values}, unmasked_values={unmasked_values}, masked_values_len={len(masked_values)}, unmasked_values_len={len(unmasked_values)}")
+                    # execution_countはunmasked_values優先
+                    execution_count = len(unmasked_values) if unmasked_values else len(masked_values)
+                    print(f"[DEBUG] entity={entity_name}, execution_count_to_set={execution_count}")
+                    metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
+                    entities_result[entity_name] = metrics
+                    p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
+                    if p_val is not None:
+                        p_values.append(p_val)
+                        entity_names.append(entity_name)
 
                 # 多重比較補正
                 if len(p_values) > 1:
