@@ -1456,10 +1456,11 @@ class BiasAnalysisEngine:
                 "reason": "安定性分析には最低2回の実行が必要",
                 "execution_count": execution_count
             }
-        details = ranking_summary.get('details', {})
+        # 修正: detailsではなくentitiesを参照
+        entities = ranking_summary.get('entities', {})
         rank_variance = {}
         stds = []
-        for entity, entity_data in details.items():
+        for entity, entity_data in entities.items():
             all_ranks = entity_data.get('all_ranks', [])
             if len(all_ranks) > 1:
                 mean_rank = float(np.mean(all_ranks))
@@ -1479,7 +1480,6 @@ class BiasAnalysisEngine:
                 }
                 stds.append(0.0)
         avg_std = float(np.mean(stds)) if stds else 0.0
-        # 3位以内の変動で正規化（標準偏差0なら1.0、3以上なら0.0）
         overall_stability = max(0.0, 1.0 - avg_std / 3.0)
         return {
             "overall_stability": round(overall_stability, 3),
@@ -1497,7 +1497,7 @@ class BiasAnalysisEngine:
         consistency_scoreは全エンティティのrank_consistency（順位標準偏差の逆数）平均。
         """
         import numpy as np
-        details = ranking_summary.get('details', {})
+        entities = ranking_summary.get('entities', {})
         avg_ranking = ranking_summary.get('avg_ranking', [])
         if execution_count < 2:
             return {
@@ -1505,12 +1505,10 @@ class BiasAnalysisEngine:
                 "reason": "品質分析には最低2回の実行が必要",
                 "execution_count": execution_count
             }
-        # completeness: 平均ランキングに含まれるエンティティ割合
-        completeness_score = len(avg_ranking) / len(details) if details else 0.0
-        # 各エンティティのrank_consistency: 標準偏差0なら1.0、3以上なら0.0
+        completeness_score = len(avg_ranking) / len(entities) if entities else 0.0
         entity_quality = {}
         consistencies = []
-        for entity, entity_data in details.items():
+        for entity, entity_data in entities.items():
             all_ranks = entity_data.get('all_ranks', [])
             official_url = entity_data.get('official_url', '')
             if len(all_ranks) > 1:
@@ -1529,7 +1527,7 @@ class BiasAnalysisEngine:
         quality_metrics = {
             "completeness_score": round(completeness_score, 3),
             "consistency_score": round(consistency_score, 3),
-            "entity_coverage": len(details),
+            "entity_coverage": len(entities),
             "ranking_length": len(avg_ranking)
         }
         return {
@@ -1541,7 +1539,7 @@ class BiasAnalysisEngine:
 
     def _calculate_ranking_category_analysis(self, ranking_summary: Dict, execution_count: int) -> Dict[str, Any]:
         """カテゴリレベルのランキング分析"""
-        details = ranking_summary.get('details', {})
+        entities = ranking_summary.get('entities', {})
         avg_ranking = ranking_summary.get('avg_ranking', [])
         if execution_count < 2:
             return {
@@ -1549,7 +1547,6 @@ class BiasAnalysisEngine:
                 "reason": "カテゴリ分析には最低2回の実行が必要",
                 "execution_count": execution_count
             }
-
         # 順位分布分析
         rank_distribution = {}
         for i, entity in enumerate(avg_ranking, 1):
@@ -1557,16 +1554,13 @@ class BiasAnalysisEngine:
                 "final_rank": i,
                 "rank_tier": "上位" if i <= len(avg_ranking)//3 else "中位" if i <= 2*len(avg_ranking)//3 else "下位"
             }
-
-        # 競争分析
-        total_entities = len(details)
+        total_entities = len(entities)
         competition_analysis = {
             "total_entities": total_entities,
             "top_tier_entities": [e for e, d in rank_distribution.items() if d["rank_tier"] == "上位"],
             "competitive_balance": "高" if total_entities >= 5 else "中" if total_entities >= 3 else "低",
             "ranking_spread": "full" if len(avg_ranking) == total_entities else "partial"
         }
-
         return {
             "rank_distribution": rank_distribution,
             "competition_analysis": competition_analysis,
