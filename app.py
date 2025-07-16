@@ -299,29 +299,57 @@ viz_type = st.sidebar.selectbox(
     key="viz_type_selector"
 )
 
-# HybridDataLoaderで日付リスト・データ取得
-loader = HybridDataLoader(storage_mode)
-available_dates = loader.list_available_dates(mode=storage_mode)
-
-if not available_dates:
-    st.sidebar.error("分析データが見つかりません")
-    st.stop()
-
-if viz_type == "単日分析":
-    selected_date = st.sidebar.selectbox(
-        "分析日付を選択",
-        available_dates,
+# --- データ取得元「auto」時のlocal/S3両方候補リスト表示 ---
+if storage_mode == "auto":
+    loader_local = HybridDataLoader("local")
+    loader_s3 = HybridDataLoader("s3")
+    dates_local = set(loader_local.list_available_dates(mode="local"))
+    dates_s3 = set(loader_s3.list_available_dates(mode="s3"))
+    all_dates = sorted(list(dates_local | dates_s3), reverse=True)
+    date_source_options = []
+    for d in all_dates:
+        if d in dates_local:
+            date_source_options.append(f"local: {d}")
+        if d in dates_s3:
+            date_source_options.append(f"S3: {d}")
+    if not date_source_options:
+        st.sidebar.error("分析データが見つかりません")
+        st.stop()
+    selected_date_source = st.sidebar.selectbox(
+        "分析日付と取得元を選択",
+        date_source_options,
         index=0,
-        key="date_selector"
+        key="date_source_selector"
     )
+    # 選択に応じてloaderとdateを決定
+    if selected_date_source.startswith("local: "):
+        loader = loader_local
+        selected_date = selected_date_source.replace("local: ", "")
+    else:
+        loader = loader_s3
+        selected_date = selected_date_source.replace("S3: ", "")
     selected_dates = [selected_date]
-else:  # 時系列分析
-    selected_dates = st.sidebar.multiselect(
-        "分析日付を選択（複数選択可）",
-        available_dates,
-        default=available_dates[:2] if len(available_dates) > 1 else available_dates,
-        key="dates_selector"
-    )
+else:
+    loader = HybridDataLoader(storage_mode)
+    available_dates = loader.list_available_dates(mode=storage_mode)
+    if not available_dates:
+        st.sidebar.error("分析データが見つかりません")
+        st.stop()
+    if viz_type == "単日分析":
+        selected_date = st.sidebar.selectbox(
+            "分析日付を選択",
+            available_dates,
+            index=0,
+            key="date_selector"
+        )
+        selected_dates = [selected_date]
+    else:  # 時系列分析
+        selected_dates = st.sidebar.multiselect(
+            "分析日付を選択（複数選択可）",
+            available_dates,
+            default=available_dates[:2] if len(available_dates) > 1 else available_dates,
+            key="dates_selector"
+        )
 
 # タイトル
 st.title("企業バイアス分析ダッシュボード")
@@ -335,88 +363,31 @@ if viz_type == "単日分析":
         st.sidebar.error(f"分析データの読み込みに失敗しました: {selected_date}")
         st.stop()
 
-    # 可視化タイプ選択
+    # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
     viz_type_detail = st.sidebar.selectbox(
         "詳細可視化タイプを選択",
-        ["感情バイアス分析", "Citations-Google比較", "統合分析"],
+        ["感情バイアス分析", "Citations-Google比較", "統合分析", "おすすめランキング分析結果"],
         key=f"viz_type_detail_selector_{selected_date}"
     )
-
-    # --- 画面上部 ---
-    analysis_type = st.radio("分析タイプを選択", ["感情スコア", "ランキング", "Google検索 vs Citations比較"])
-
-    # おすすめランキングボタン（感情スコア選択時のみ表示）
-    show_ranking = False
-    if analysis_type == "感情スコア":
-        if st.button("⭐️ おすすめランキングを表示", key=f"show_ranking_{selected_date}"):
-            show_ranking = True
-    if show_ranking:
-        st.subheader("⭐️ おすすめランキング分析結果")
-        ranking_data = analysis_data.get("ranking_bias_analysis", {})
-        if ranking_data:
-            rows = []
-            for category, subcats in ranking_data.items():
-                for subcat, details in subcats.items():
-                    summary = details.get("category_summary", {})
-                    stability = summary.get("stability_analysis", {})
-                    row = {
-                        "カテゴリ": category,
-                        "サブカテゴリ": subcat,
-                        "execution_count": summary.get("execution_count"),
-                        "overall_stability": stability.get("overall_stability"),
-                        "avg_rank_std": stability.get("avg_rank_std"),
-                        "stability_interpretation": stability.get("stability_interpretation"),
-                        "quality_available": summary.get("quality_analysis", {}).get("available"),
-                        "category_level_available": summary.get("category_level_analysis", {}).get("available"),
-                    }
-                    rows.append(row)
-            if rows:
-                df_ranking = pd.DataFrame(rows)
-                st.dataframe(df_ranking)
-            else:
-                st.info("ランキング分析データが空です")
-        else:
-            st.info("ranking_bias_analysisデータがありません")
-        st.stop()
 
     # --- メインダッシュボード（統合版） ---
     st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
 
-    # 詳細可視化タイプ分岐
+    # --- 詳細可視化タイプ分岐 ---
     if viz_type_detail == "感情バイアス分析":
-        # 感情バイアス分析のサイドバー設定
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
         categories = list(sentiment_data.keys())
-        category_options = ["全体"] + categories
+        category_options = categories  # 「全体」除去
         selected_category = st.sidebar.selectbox(
             "カテゴリを選択", category_options,
             key=f"sentiment_category_{selected_date}_{viz_type_detail}"
         )
-
-        if selected_category == "全体":
-            selected_subcategory = "全体"
-            # 全体のエンティティを再計算
-            all_entities = {}
-            for cat in categories:
-                for subcat in sentiment_data[cat].keys():
-                    cat_entities = sentiment_data[cat][subcat].get("entities", {})
-                    for entity, data in cat_entities.items():
-                        if entity not in all_entities:
-                            all_entities[entity] = data
-                        else:
-                            if "basic_metrics" in data and "basic_metrics" in all_entities[entity]:
-                                current_bias = all_entities[entity]["basic_metrics"].get("normalized_bias_index", 0)
-                                new_bias = data["basic_metrics"].get("normalized_bias_index", 0)
-                                all_entities[entity]["basic_metrics"]["normalized_bias_index"] = (current_bias + new_bias) / 2
-            entities_data = all_entities
-        else:
-            subcategories = list(sentiment_data[selected_category].keys())
-            selected_subcategory = st.sidebar.selectbox(
-                "サブカテゴリを選択", subcategories,
-                key=f"sentiment_subcategory_{selected_category}_{selected_date}_{viz_type_detail}"
-            )
-            entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
-
+        subcategories = list(sentiment_data[selected_category].keys())
+        selected_subcategory = st.sidebar.selectbox(
+            "サブカテゴリを選択", subcategories,
+            key=f"sentiment_subcategory_{selected_category}_{selected_date}_{viz_type_detail}"
+        )
+        entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
         entities = list(entities_data.keys())
         selected_entities = st.sidebar.multiselect(
             "エンティティを選択（複数選択可）",
@@ -424,8 +395,6 @@ if viz_type == "単日分析":
             default=entities[:10] if len(entities) > 10 else entities,
             key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}_{viz_type_detail}"
         )
-
-        # 感情バイアス分析の表示
         st.subheader(f"🎯 感情バイアス分析 - {selected_category} / {selected_subcategory}")
         if not selected_entities:
             st.warning("エンティティを選択してください")
@@ -490,8 +459,7 @@ if viz_type == "単日分析":
                 categories.remove("error")
 
             if categories:
-                # 全体表示オプションを追加
-                category_options = ["全体"] + categories
+                category_options = categories  # 「全体」除去
                 selected_category = st.sidebar.selectbox(
                     "カテゴリを選択", category_options,
                     key=f"citations_category_{selected_date}_{viz_type_detail}"
@@ -584,6 +552,34 @@ if viz_type == "単日分析":
                 st.json(cross_data, use_container_width=True)
         else:
             st.info("統合分析データがありません")
+
+    elif viz_type_detail == "おすすめランキング分析結果":
+        st.subheader("⭐️ おすすめランキング分析結果")
+        ranking_data = analysis_data.get("ranking_bias_analysis", {})
+        if ranking_data:
+            rows = []
+            for category, subcats in ranking_data.items():
+                for subcat, details in subcats.items():
+                    summary = details.get("category_summary", {})
+                    stability = summary.get("stability_analysis", {})
+                    row = {
+                        "カテゴリ": category,
+                        "サブカテゴリ": subcat,
+                        "execution_count": summary.get("execution_count"),
+                        "overall_stability": stability.get("overall_stability"),
+                        "avg_rank_std": stability.get("avg_rank_std"),
+                        "stability_interpretation": stability.get("stability_interpretation"),
+                        "quality_available": summary.get("quality_analysis", {}).get("available"),
+                        "category_level_available": summary.get("category_level_analysis", {}).get("available"),
+                    }
+                    rows.append(row)
+            if rows:
+                df_ranking = pd.DataFrame(rows)
+                st.dataframe(df_ranking)
+            else:
+                st.info("ランキング分析データが空です")
+        else:
+            st.info("ranking_bias_analysisデータがありません")
 
     # 横スクロールラッパー閉じタグ
     st.markdown("</div>", unsafe_allow_html=True)
