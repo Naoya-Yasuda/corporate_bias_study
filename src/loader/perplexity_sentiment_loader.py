@@ -32,9 +32,10 @@ categories = get_categories()
 prompt_manager = PromptManager()
 
 def get_masked_prompt_ja(subcategory):
-    prompt = prompt_manager.get_sentiment_prompt(subcategory, masked=True)
-    if "日本語で" not in prompt:
-        prompt += "\n必ず日本語で回答してください。"
+    """
+    サブカテゴリについて10点満点で評価する日本語プロンプトを生成
+    """
+    prompt = f"{subcategory}について、10点満点で評価してください。冒頭に点数のみを記載し、その後理由を説明してください。必ず日本語で回答してください。"
     return prompt
 
 def get_unmasked_prompt_ja(subcategory, competitor):
