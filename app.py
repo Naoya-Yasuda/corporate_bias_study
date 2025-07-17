@@ -16,6 +16,7 @@ from src.utils.plot_utils import draw_reliability_badge
 import numpy as np
 from src.analysis.hybrid_data_loader import HybridDataLoader
 import japanize_matplotlib
+from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
@@ -160,46 +161,6 @@ def get_reliability_label(execution_count):
         return "参考"
     else:
         return "参考（実行回数不足）"
-
-def plot_severity_radar(severity_dict, title, reliability_label=None):
-    """重篤度レーダーチャートの動的可視化"""
-    labels = list(severity_dict.keys())
-    values = [severity_dict[k] for k in labels]
-    num_vars = len(labels)
-    if num_vars < 3:
-        # レーダーチャートは3軸以上推奨
-        fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, 'エンティティ数が少なすぎます', ha='center', va='center')
-        return fig
-    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-    values += values[:1]
-    angles += angles[:1]
-    fig, ax = plt.subplots(subplot_kw=dict(polar=True))
-    ax.plot(angles, values, color='red', linewidth=2)
-    ax.fill(angles, values, color='red', alpha=0.25)
-    ax.set_thetagrids(np.degrees(angles[:-1]), labels)
-    ax.set_title(title)
-    if reliability_label:
-        draw_reliability_badge(ax, reliability_label)
-    plt.tight_layout()
-    return fig
-
-def plot_pvalue_heatmap(pvalue_dict, title, reliability_label=None):
-    """p値ヒートマップの動的可視化"""
-    labels = list(pvalue_dict.keys())
-    values = [pvalue_dict[k] for k in labels]
-    fig, ax = plt.subplots(figsize=(max(6, len(labels)), 2))
-    im = ax.imshow([values], cmap='coolwarm', aspect='auto', vmin=0, vmax=1)
-    ax.set_xticks(np.arange(len(labels)))
-    ax.set_xticklabels(labels, rotation=30, ha='right')
-    ax.set_yticks([])
-    ax.set_title(title)
-    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.02)
-    cbar.set_label('p値')
-    if reliability_label:
-        draw_reliability_badge(ax, reliability_label)
-    plt.tight_layout()
-    return fig
 
 def plot_effect_significance_scatter(effect_data, title, reliability_label=None):
     """効果量 vs p値散布図の動的可視化"""
@@ -505,14 +466,14 @@ if viz_type == "単日分析":
         with tabs[1]:
             st.info("各エンティティのバイアス重篤度（影響度）をレーダーチャートで可視化します。値が高いほど影響が大きいことを示します。", icon="ℹ️")
             if severity_dict:
-                fig = plot_severity_radar(severity_dict, title, reliability_label)
+                fig = plot_severity_radar(severity_dict, output_path=None, title=title, reliability_label=reliability_label)
                 st.pyplot(fig, use_container_width=True)
             else:
                 st.info("重篤度データがありません")
         with tabs[2]:
             st.info("各エンティティの統計的有意性（p値）をヒートマップで表示します。色が濃いほど有意性が高いことを示します。", icon="ℹ️")
             if pvalue_dict:
-                fig = plot_pvalue_heatmap(pvalue_dict, title, reliability_label)
+                fig = plot_pvalue_heatmap(pvalue_dict, output_path=None, title=title, reliability_label=reliability_label)
                 st.pyplot(fig, use_container_width=True)
             else:
                 st.info("p値データがありません")

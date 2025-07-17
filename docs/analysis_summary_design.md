@@ -122,3 +122,27 @@ globs: ["**/*"]
 ---
 
 （2025年7月7日設計・追記）
+
+---
+
+## 現状未使用の可視化関数（2025年7月10日現在）
+
+以下はsrc/utils/plot_utils.pyに実装済みだが、現時点でapp.py等から呼び出されていない可視化関数です。今後の仕様変更や機能追加時に利用・整理を検討します。
+
+- plot_delta_ranks
+- plot_market_impact
+- plot_rank_heatmap
+- plot_exposure_market
+- plot_confidence_intervals
+- plot_correlation_matrix
+- plot_market_share_bias_scatter
+- plot_cross_category_severity_ranking
+- plot_bias_pattern_classification
+- plot_bias_inequality_detailed
+- plot_market_power_vs_bias
+- plot_category_stability_analysis
+- plot_multiple_comparison_pvalue_heatmap
+- plot_ranking_stability_vs_effect_size
+- plot_mask_effect_ranking_sankey
+
+※本リストは定期的に見直し、不要な関数は削除・整理予定です。

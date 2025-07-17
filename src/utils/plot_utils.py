@@ -30,6 +30,38 @@ plt.rcParams['axes.unicode_minus'] = False
 if not hasattr(np, 'float'):
     np.float = float
 
+def draw_reliability_badge(ax, label, color_map=None, loc="upper right"):
+    """
+    信頼性レベルバッジを画像右上に描画
+    Parameters:
+    -----------
+    ax : matplotlib.axes.Axes
+        描画対象のAxes
+    label : str
+        信頼性ラベル
+    color_map : dict, optional
+        ラベル→色のマップ
+    loc : str
+        配置位置（upper right, upper left, lower right, lower left）
+    """
+    if color_map is None:
+        color_map = {
+            "高精度": "#0070C0",
+            "標準": "#00B050",
+            "実用": "#FFC000",
+            "基本": "#FF6600",
+            "参考": "#C00000"
+        }
+    color = color_map.get(label, "#888888")
+    bbox_props = dict(boxstyle="round,pad=0.4", fc=color, ec="none", alpha=0.8)
+    pos = {
+        "upper right": (0.98, 0.98),
+        "upper left": (0.02, 0.98),
+        "lower right": (0.98, 0.02),
+        "lower left": (0.02, 0.02)
+    }[loc]
+    ax.text(pos[0], pos[1], label, transform=ax.transAxes, fontsize=8, color="white", ha="right" if "right" in loc else "left", va="top" if "upper" in loc else "bottom", bbox=bbox_props, zorder=10)
+
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
     ΔRankをバーチャートで可視化
@@ -387,11 +419,11 @@ def plot_confidence_intervals(bi_dict, ci_dict, output_path=None, highlight_zero
 
 def plot_severity_radar(severity_dict, output_path=None, title="重篤度レーダーチャート", threshold=7.0, reliability_label=None):
     """
-    各企業の重篤度スコア構成要素をレーダーチャートで可視化
+    各エンティティの重篤度スコアをレーダーチャートで可視化
     Parameters:
     -----------
     severity_dict : dict
-        企業名→{"abs_bi":..., "cliffs_delta":..., "p_value":..., "stability_score":..., "severity_score":...}
+        エンティティ名→重篤度スコア
     output_path : str, optional
         出力ファイルパス
     title : str
@@ -404,31 +436,22 @@ def plot_severity_radar(severity_dict, output_path=None, title="重篤度レー�
     --------
     matplotlib.figure.Figure
     """
-    labels = ["|BI|", "Cliff's Δ", "1-p値", "安定性"]
+    labels = list(severity_dict.keys())
+    values = [severity_dict[k] for k in labels]
     num_vars = len(labels)
-    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+    if num_vars < 3:
+        # レーダーチャートは3軸以上推奨
+        fig, ax = plt.subplots(figsize=(2.8, 1.75))
+        ax.text(0.5, 0.5, 'エンティティ数が少なすぎます', ha='center', va='center')
+        return fig
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    values += values[:1]
     angles += angles[:1]
-    for entity, comp in severity_dict.items():
-        values = [
-            abs(comp.get("abs_bi", 0)),
-            abs(comp.get("cliffs_delta", 0)),
-            1 - comp.get("p_value", 1),
-            comp.get("stability_score", 0)
-        ]
-        values += values[:1]
-        score = comp.get("severity_score", 0)
-        if isinstance(score, dict):
-            score_val = score.get("severity_score", 0)
-        else:
-            score_val = score
-        color = "red" if score_val >= threshold else "blue"
-        ax.plot(angles, values, label=f"{entity} ({score_val:.2f})", color=color, linewidth=2)
-        ax.fill(angles, values, color=color, alpha=0.15)
+    fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(2.8, 1.75))
+    ax.plot(angles, values, color='red', linewidth=2)
+    ax.fill(angles, values, color='red', alpha=0.25)
     ax.set_thetagrids(np.degrees(angles[:-1]), labels)
-    ax.set_title(title, y=1.1)
-    ax.set_ylim(0, 1)
-    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1))
+    # タイトルは描画しない
     if reliability_label:
         draw_reliability_badge(ax, reliability_label)
     plt.tight_layout()
@@ -437,45 +460,14 @@ def plot_severity_radar(severity_dict, output_path=None, title="重篤度レー�
         return output_path
     return fig
 
-def draw_reliability_badge(ax, label, color_map=None, loc="upper right"):
-    """
-    信頼性レベルバッジを画像右上に描画
-    Parameters:
-    -----------
-    ax : matplotlib.axes.Axes
-        描画対象のAxes
-    label : str
-        信頼性ラベル
-    color_map : dict, optional
-        ラベル→色のマップ
-    loc : str
-        配置位置（upper right, upper left, lower right, lower left）
-    """
-    if color_map is None:
-        color_map = {
-            "高精度": "#0070C0",
-            "標準": "#00B050",
-            "実用": "#FFC000",
-            "基本": "#FF6600",
-            "参考": "#C00000"
-        }
-    color = color_map.get(label, "#888888")
-    bbox_props = dict(boxstyle="round,pad=0.4", fc=color, ec="none", alpha=0.8)
-    pos = {
-        "upper right": (0.98, 0.98),
-        "upper left": (0.02, 0.98),
-        "lower right": (0.98, 0.02),
-        "lower left": (0.02, 0.02)
-    }[loc]
-    ax.text(pos[0], pos[1], label, transform=ax.transAxes, fontsize=13, color="white", ha="right" if "right" in loc else "left", va="top" if "upper" in loc else "bottom", bbox=bbox_props, zorder=10)
 
 def plot_pvalue_heatmap(pvalue_dict, output_path=None, title="p値ヒートマップ", reliability_label=None):
     """
-    企業ごとのp値をヒートマップで可視化
+    各エンティティのp値をヒートマップで可視化
     Parameters:
     -----------
     pvalue_dict : dict
-        企業名→p値
+        エンティティ名→p値
     output_path : str, optional
         出力ファイルパス
     title : str
@@ -486,27 +478,19 @@ def plot_pvalue_heatmap(pvalue_dict, output_path=None, title="p値ヒートマ�
     --------
     matplotlib.figure.Figure
     """
-    entities = list(pvalue_dict.keys())
-    pvals = [pvalue_dict[e] for e in entities]
-    data = np.array([pvals])
-    fig, ax = plt.subplots(figsize=(max(6, len(entities)), 2))
-    # カスタムカラーマップ
-    from matplotlib.colors import ListedColormap, BoundaryNorm
-    cmap = ListedColormap(["#bdbdbd", "#ffb3b3", "#ff0000"])
-    bounds = [0, 0.01, 0.05, 1.01]
-    norm = BoundaryNorm(bounds, cmap.N)
-    im = ax.imshow(data, cmap=cmap, norm=norm, aspect="auto")
-    # 値をセルに表示
-    for i, v in enumerate(pvals):
-        ax.text(i, 0, f"{v:.3f}", ha="center", va="center", color="black" if v >= 0.05 else "white", fontsize=12)
-    ax.set_xticks(np.arange(len(entities)))
-    ax.set_xticklabels(entities, rotation=30, ha="right")
-    ax.set_yticks([0])
-    ax.set_yticklabels(["p値"])
+    labels = list(pvalue_dict.keys())
+    values = [pvalue_dict[k] for k in labels]
+    fig, ax = plt.subplots(figsize=(max(6, len(labels)), 2))
+    im = ax.imshow([values], cmap='coolwarm', aspect='auto', vmin=0, vmax=1)
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, rotation=30, ha='right')
+    ax.set_yticks([])
     ax.set_title(title)
-    plt.tight_layout()
+    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.02)
+    cbar.set_label('p値')
     if reliability_label:
         draw_reliability_badge(ax, reliability_label)
+    plt.tight_layout()
     if output_path:
         save_figure(fig, output_path)
         return output_path
