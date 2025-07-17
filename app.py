@@ -279,7 +279,7 @@ if viz_type == "単日分析":
     # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
     viz_type_detail = st.sidebar.selectbox(
         "詳細可視化タイプを選択",
-        ["感情スコア分析", "Citations-Google比較", "統合分析", "おすすめランキング分析結果"],
+        ["感情スコア分析", "おすすめランキング分析結果", "Citations-Google比較", "統合分析"],
         key=f"viz_type_detail_selector_{selected_date}"
     )
 

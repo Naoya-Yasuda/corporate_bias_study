@@ -290,6 +290,17 @@ class BiasAnalysisEngine:
         self.bootstrap_iterations = 10000
         self.confidence_level = 95
 
+        # rank_utils利用可能性チェック
+        try:
+            from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
+            self._rbo = rbo
+            self._compute_tau = compute_tau
+            self._compute_delta_ranks = compute_delta_ranks
+            self.rank_utils_available = True
+        except ImportError as e:
+            logger.warning(f"rank_utilsモジュールが利用できません: {e}")
+            self.rank_utils_available = False
+
         logger.info(f"BiasAnalysisEngine初期化: storage_mode={self.storage_mode}")
         logger.info(f"market_data読み込み状況: {bool(self.market_data)}")
         if self.market_data:
@@ -1375,38 +1386,53 @@ class BiasAnalysisEngine:
                     ranking_summary, execution_count
                 )
 
-                # --- ランキング変動指標の組み込み ---
-                ranking_variation = None
-                masked_ranking = subcategory_data.get('masked_ranking')
-                unmasked_ranking = subcategory_data.get('unmasked_ranking')
-                if masked_ranking and unmasked_ranking:
-                    ranking_variation = self.calculate_ranking_variation(masked_ranking, unmasked_ranking)
+                # --- entities: 必ずcategory_summary["ranking_summary"]["entities"]をコピー ---
+                import numpy as np
+                entities = ranking_summary.get('entities', {})
+                entities = entities.copy() if entities else {}
 
-                # --- Google vs Perplexity・複数回実施ランキング比較の指標追加 ---
-                ranking_comparison = None
-                # 代表的な2つのランキングリストがあれば比較
-                if masked_ranking and unmasked_ranking:
-                    ranking_comparison = self.compare_entity_rankings(masked_ranking, unmasked_ranking, label1="masked", label2="unmasked")
-                # 複数回実施（answer_list）から比較可能な場合も追加（例: 1回目vs2回目など）
-                if answer_list and len(answer_list) >= 2:
-                    try:
-                        ranking1 = answer_list[0].get("ranking", [])
-                        ranking2 = answer_list[1].get("ranking", [])
-                        if ranking1 and ranking2:
-                            ranking_comparison_multi = self.compare_entity_rankings(ranking1, ranking2, label1="run1", label2="run2")
-                            if ranking_comparison:
-                                ranking_comparison["multi_run"] = ranking_comparison_multi
-                            else:
-                                ranking_comparison = {"multi_run": ranking_comparison_multi}
-                    except Exception as e:
-                        ranking_comparison = ranking_comparison or {}
-                        ranking_comparison["multi_run_error"] = str(e)
+                # --- ranking_variation: all_ranksからrank_std/rank_rangeを計算 ---
+                ranking_variation = {}
+                if entities:
+                    for entity, info in entities.items():
+                        all_ranks = info.get('all_ranks', [])
+                        if all_ranks:
+                            std = float(np.std(all_ranks, ddof=0))
+                            rrange = float(np.max(all_ranks) - np.min(all_ranks))
+                        else:
+                            std = 0.0
+                            rrange = 0.0
+                        ranking_variation[entity] = {
+                            "rank_std": std,
+                            "rank_range": rrange
+                        }
+                    if all(v["rank_std"] == 0.0 for v in ranking_variation.values()):
+                        ranking_variation["summary"] = "全エンティティで順位変動なし"
+                else:
+                    ranking_variation = {"summary": "データなし"}
 
-                # --- 多重比較補正の横展開 ---
-                # 例: 各企業のランキング有意性p値を集約
+                # --- ranking_comparison: avg_ranking/all_ranksから全ペアの順位差（mean_diff）を計算 ---
+                ranking_comparison = {}
+                avg_ranking = ranking_summary.get('avg_ranking', [])
+                if entities and avg_ranking:
+                    for i, e1 in enumerate(avg_ranking):
+                        for j, e2 in enumerate(avg_ranking):
+                            if i < j and e1 in entities and e2 in entities:
+                                arr1 = np.array(entities[e1].get('all_ranks', []))
+                                arr2 = np.array(entities[e2].get('all_ranks', []))
+                                if len(arr1) == len(arr2) and len(arr1) > 0:
+                                    mean_diff = float(np.mean(arr1 - arr2))
+                                    ranking_comparison[f"{e1}_vs_{e2}"] = {"mean_diff": mean_diff}
+                    if ranking_comparison and all(v.get("rank_std", 0) == 0.0 for v in ranking_variation.values() if isinstance(v, dict)):
+                        ranking_comparison["summary"] = "全ペアで順位差は一定"
+                    elif not ranking_comparison:
+                        ranking_comparison["summary"] = "比較可能なデータなし"
+                else:
+                    ranking_comparison = {"summary": "データなし"}
+
+                # --- 多重比較補正の横展開（既存ロジック） ---
                 p_values = []
                 entity_names = []
-                entities = subcategory_data.get('entities', {})
                 for entity_name, entity_data in entities.items():
                     p_val = entity_data.get('ranking_significance', {}).get('p_value')
                     if p_val is not None:
@@ -1415,7 +1441,6 @@ class BiasAnalysisEngine:
                 corrected = None
                 if len(p_values) >= 2:
                     corrected = self.apply_multiple_comparison_correction(p_values)
-                    # 各企業に補正後p値・有意判定を反映
                     for i, name in enumerate(entity_names):
                         if name in entities:
                             if 'ranking_significance' not in entities[name]:
