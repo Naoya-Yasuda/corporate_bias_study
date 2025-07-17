@@ -467,7 +467,7 @@ if viz_type == "単日分析":
             st.info("各エンティティのバイアス重篤度（影響度）をレーダーチャートで可視化します。値が高いほど影響が大きいことを示します。", icon="ℹ️")
             if severity_dict:
                 fig = plot_severity_radar(severity_dict, output_path=None, title=title, reliability_label=reliability_label)
-                st.pyplot(fig, use_container_width=True)
+                st.pyplot(fig, use_container_width=False)
             else:
                 st.info("重篤度データがありません")
         with tabs[2]:

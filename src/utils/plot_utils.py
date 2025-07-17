@@ -55,12 +55,14 @@ def draw_reliability_badge(ax, label, color_map=None, loc="upper right"):
     color = color_map.get(label, "#888888")
     bbox_props = dict(boxstyle="round,pad=0.4", fc=color, ec="none", alpha=0.8)
     pos = {
-        "upper right": (0.98, 0.98),
+        "upper right": (1.05, 1.05),
         "upper left": (0.02, 0.98),
         "lower right": (0.98, 0.02),
         "lower left": (0.02, 0.02)
     }[loc]
-    ax.text(pos[0], pos[1], label, transform=ax.transAxes, fontsize=8, color="white", ha="right" if "right" in loc else "left", va="top" if "upper" in loc else "bottom", bbox=bbox_props, zorder=10)
+    ax.text(pos[0], pos[1], label, transform=ax.transAxes, fontsize=8,
+            verticalalignment='top', horizontalalignment='right',
+            bbox=bbox_props, color='white', weight='bold', zorder=1000)
 
 def plot_delta_ranks(delta_ranks, output_path=None):
     """
@@ -447,9 +449,10 @@ def plot_severity_radar(severity_dict, output_path=None, title="重篤度レー�
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
     values += values[:1]
     angles += angles[:1]
-    fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(2.8, 1.75))
+    fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(5.2, 3.2))
     ax.plot(angles, values, color='red', linewidth=2)
     ax.fill(angles, values, color='red', alpha=0.25)
+    fig.suptitle(title, fontsize=8)
     ax.set_thetagrids(np.degrees(angles[:-1]), labels)
     # タイトルは描画しない
     if reliability_label:
