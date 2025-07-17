@@ -1,9 +1,4 @@
-﻿---
-description: Corporate Bias Study Project - Core rules and standards for AI-assisted development
-globs: ["**/*"]
-alwaysApply: true
----
-# Corporate Bias Study Project
+﻿# Corporate Bias Study Project
 
 ## Project Overview
 - **Purpose**: 企業バイアス研究のためのデータ収集・分析プラットフォーム
@@ -56,7 +51,7 @@ alwaysApply: true
 - For loaders and API-calling modules: Use minimal execution (count=1)
 - For significant changes (loaders, API modules): Always test after implementation
 - For minor changes (documentation, small fixes): Testing optional
-- Streamlitアプリの再起動時は常にデフォルトポート（8501）で起動すること。ポート番号を都度変更して再起動しないこと。特別な理由がある場合のみ、明示的にポートを指定する。
+- Streamlitアプリの動作確認時は、まずブラウザのスーパーリロード（Ctrl+Shift+R / Cmd+Shift+R）で画面更新を試すこと。コード変更が反映されない場合や、アプリが停止している場合のみ再起動を行う。再起動時は常にデフォルトポート（8501）で起動すること。ポート番号を都度変更して再起動しないこと。
 
 ### File Management & Code Standards
 - Follow PEP8 (max line length: 100)
@@ -197,6 +192,11 @@ alwaysApply: true
 ## 推奨運用（CI/CD自動テスト）
 - すべての主要な可視化・分析テスト（Phase1～3など）はCI（GitHub Actions等）で自動実行すること
 - Pull Requestやmainブランチへのpush時に必ず自動テストを走らせること
+- テスト失敗時はアラート通知し、原則としてマージ不可とする
+- 新規指標・可視化・分析機能を追加した場合は、必ずCIテストにも組み込むこと
+- CI環境とローカル環境での動作差異（依存・パス・権限・OS等）に注意し、再現性を担保すること
+- 画像・HTML等の生成物もCIで出力・検証し、壊れた可視化や出力漏れを即座に検知できるようにする
+
 - テスト失敗時はアラート通知し、原則としてマージ不可とする
 - 新規指標・可視化・分析機能を追加した場合は、必ずCIテストにも組み込むこと
 - CI環境とローカル環境での動作差異（依存・パス・権限・OS等）に注意し、再現性を担保すること
