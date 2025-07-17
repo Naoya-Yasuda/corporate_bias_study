@@ -2213,11 +2213,17 @@ class BiasAnalysisEngine:
             # 統合済みのcompute_ranking_metricsメソッドを使用
             metrics = self.compute_ranking_metrics(google_domains, citations_domains, max_k=10)
 
+            # ランキング類似度の整合性検証を追加
+            validation_result = self._validate_ranking_metrics_consistency(
+                google_domains, citations_domains, metrics
+            )
+
             return {
                 "rbo_score": round(metrics.get("rbo", 0), 3),
                 "kendall_tau": round(metrics.get("kendall_tau", 0), 3),
                 "overlap_ratio": round(metrics.get("overlap_ratio", 0), 3),
-                "delta_ranks_available": len(metrics.get("delta_ranks", {})) > 0
+                "delta_ranks_available": len(metrics.get("delta_ranks", {})) > 0,
+                "metrics_validation": validation_result
             }
 
         except Exception as e:
@@ -2239,6 +2245,120 @@ class BiasAnalysisEngine:
                 "delta_ranks_available": False,
                 "fallback_calculation": True
             }
+
+    def _validate_ranking_metrics_consistency(self, google_domains: List[str], citations_domains: List[str],
+                                            metrics: Dict) -> Dict[str, Any]:
+        """ランキング類似度指標の整合性を検証し、解釈を提供"""
+
+        kendall_tau = metrics.get("kendall_tau", 0)
+        rbo_score = metrics.get("rbo", 0)
+        overlap_ratio = metrics.get("overlap_ratio", 0)
+
+        # 共通アイテムの分析
+        google_set = set(google_domains[:10])
+        citations_set = set(citations_domains[:10])
+        common_items = google_set & citations_set
+        common_count = len(common_items)
+
+        # 整合性チェック
+        is_consistent = True
+        explanation = []
+
+        # Case 1: 高いkendall_tau + 低いRBO
+        if abs(kendall_tau) > 0.8 and rbo_score < 0.3:
+            explanation.append(
+                f"Kendall τ({kendall_tau:.3f})とRBO({rbo_score:.3f})の差は、"
+                f"共通アイテム({common_count}個)の順位関係は一貫しているが、"
+                f"上位ランキングでの重複が少ないことを示している"
+            )
+
+        # Case 2: 逆のパターン
+        elif abs(kendall_tau) < 0.3 and rbo_score > 0.7:
+            explanation.append(
+                f"RBO({rbo_score:.3f})が高くKendall τ({kendall_tau:.3f})が低いのは、"
+                f"上位では同じアイテムが多いが、順位関係が異なることを示している"
+            )
+
+        # Case 3: 両方とも高い
+        elif abs(kendall_tau) > 0.7 and rbo_score > 0.7:
+            explanation.append("高い一貫性：両ランキングは順位関係も上位重複も類似している")
+
+        # Case 4: 両方とも低い
+        elif abs(kendall_tau) < 0.3 and rbo_score < 0.3:
+            explanation.append("低い一貫性：両ランキングは大きく異なる傾向を示している")
+
+        # 共通アイテム数による解釈の追加
+        if common_count <= 2:
+            explanation.append(f"共通アイテムが{common_count}個と少ないため、順位相関の信頼性は限定的")
+        elif common_count >= 5:
+            explanation.append(f"共通アイテムが{common_count}個あり、順位相関の信頼性は高い")
+
+        # 完全相関の特殊ケース
+        if abs(kendall_tau) == 1.0:
+            if common_count >= 2:
+                explanation.append(
+                    f"Kendall τ=1.0は{common_count}個の共通アイテム全てが"
+                    f"同じ方向（上昇または下降）の順位変動を示している"
+                )
+
+        return {
+            "is_mathematically_consistent": is_consistent,
+            "common_items_count": common_count,
+            "overlap_percentage": round(common_count / max(len(google_set), len(citations_set)) * 100, 1),
+            "interpretation": " | ".join(explanation) if explanation else "標準的な類似度パターン",
+            "kendall_tau_interpretation": self._interpret_kendall_tau(kendall_tau, common_count),
+            "rbo_interpretation": self._interpret_rbo(rbo_score),
+            "overall_similarity_level": self._determine_overall_similarity_level(kendall_tau, rbo_score, overlap_ratio)
+        }
+
+    def _interpret_kendall_tau(self, tau: float, common_count: int) -> str:
+        """Kendall's τの解釈を生成"""
+        if common_count < 2:
+            return "共通アイテム不足により計算不可"
+        elif abs(tau) == 1.0:
+            direction = "完全に一致した方向" if tau > 0 else "完全に逆の方向"
+            return f"完全相関({direction}の順位変動)"
+        elif abs(tau) > 0.8:
+            return "非常に強い順位相関"
+        elif abs(tau) > 0.6:
+            return "強い順位相関"
+        elif abs(tau) > 0.4:
+            return "中程度の順位相関"
+        elif abs(tau) > 0.2:
+            return "弱い順位相関"
+        else:
+            return "順位相関なし"
+
+    def _interpret_rbo(self, rbo: float) -> str:
+        """RBOスコアの解釈を生成"""
+        if rbo > 0.8:
+            return "非常に高い上位重複度"
+        elif rbo > 0.6:
+            return "高い上位重複度"
+        elif rbo > 0.4:
+            return "中程度の上位重複度"
+        elif rbo > 0.2:
+            return "低い上位重複度"
+        else:
+            return "非常に低い上位重複度"
+
+    def _determine_overall_similarity_level(self, kendall_tau: float, rbo: float, overlap_ratio: float) -> str:
+        """総合的な類似度レベルを判定"""
+        # 重み付き平均で総合スコアを計算
+        tau_weight = 0.4  # 順位相関の重み
+        rbo_weight = 0.4  # 上位重複の重み
+        overlap_weight = 0.2  # 全体重複の重み
+
+        overall_score = (abs(kendall_tau) * tau_weight +
+                        rbo * rbo_weight +
+                        overlap_ratio * overlap_weight)
+
+        if overall_score > 0.7:
+            return "high"
+        elif overall_score > 0.4:
+            return "moderate"
+        else:
+            return "low"
 
     def _analyze_official_domain_bias(self, google_subcategory: Dict, citations_subcategory: Dict) -> Dict[str, Any]:
         """公式ドメイン露出の偏向を分析"""
