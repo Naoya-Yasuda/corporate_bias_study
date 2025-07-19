@@ -279,7 +279,7 @@ if viz_type == "単日分析":
     # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
     viz_type_detail = st.sidebar.selectbox(
         "詳細可視化タイプを選択",
-        ["感情スコア分析", "おすすめランキング分析結果", "Citations-Google比較", "統合分析"],
+        ["感情スコア分析", "おすすめランキング分析結果", "Perplexity-Google比較", "統合分析"],
         key=f"viz_type_detail_selector_{selected_date}"
     )
 
@@ -485,8 +485,8 @@ if viz_type == "単日分析":
             else:
                 st.info("効果量・p値データがありません")
 
-    elif viz_type_detail == "Citations-Google比較":
-        # Citations-Google比較のサイドバー設定
+    elif viz_type_detail == "Perplexity-Google比較":
+        # Perplexity-Google比較のサイドバー設定
         citations_data = analysis_data.get("citations_google_comparison", {})
         if citations_data:
             categories = list(citations_data.keys())
@@ -535,8 +535,8 @@ if viz_type == "単日分析":
                     subcat_data = citations_data[selected_category][selected_subcategory]
                     similarity_data = subcat_data.get("ranking_similarity", {})
 
-                # Citations-Google比較の表示
-                st.subheader(f"🔗 Citations-Google比較 - {selected_category} / {selected_subcategory}")
+                # Perplexity-Google比較の表示
+                st.subheader(f"🔗 Perplexity-Google比較 - {selected_category} / {selected_subcategory}")
                 if similarity_data:
                     title = f"{selected_category} - {selected_subcategory}"
                     fig = plot_ranking_similarity(similarity_data, title)
@@ -557,9 +557,9 @@ if viz_type == "単日分析":
                 else:
                     st.info("ランキング類似度データがありません")
             else:
-                st.warning("Citations-Google比較データが見つかりません")
+                st.warning("Perplexity-Google比較データが見つかりません")
         else:
-            st.warning("Citations-Google比較データがありません")
+            st.warning("Perplexity-Google比較データがありません")
 
     elif viz_type_detail == "統合分析":
         # 統合分析の表示
