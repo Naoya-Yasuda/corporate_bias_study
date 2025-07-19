@@ -362,7 +362,7 @@ if viz_type == "単日分析":
         source_data = dashboard_data.get("source_data", {})
         perplexity_sentiment = source_data.get(selected_category, {})
         subcat_data = perplexity_sentiment.get(selected_subcategory, {})
-        with st.expander("詳細データ（JSON）", expanded=False):
+        with st.expander("詳細データ（JSON）", expanded=True):
             st.json(subcat_data, expanded=False)
         # --- 主要指標サマリー表の生成・表示（追加） ---
         summary_rows = []
@@ -651,7 +651,6 @@ if viz_type == "単日分析":
                             "最良順位": min_rank,
                             "最悪順位": max_rank,
                             "順位変動": rank_variation,
-                            "出現回数": len(all_ranks),
                             "公式URL": official_url
                         })
 
@@ -920,217 +919,45 @@ if viz_type == "単日分析":
                 df_summary = pd.DataFrame(summary_data, columns=["指標名", "値", "指標カテゴリ", "指標概要", "分析結果"])
                 st.dataframe(df_summary, use_container_width=True, hide_index=True)
 
-            # 詳細解釈テキスト（ranking_bias_analysis拡張版）
+            # 詳細解釈テキスト（重複部分を削除し、詳細解釈にしかない内容のみ表示）
             st.subheader("📋 詳細解釈")
-
             col1, col2 = st.columns(2)
-
-            # ranking_bias_analysisから分析済みデータを取得（既に取得済みの場合はそのまま使用）
-            if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
-                category_bias_data = ranking_bias_data[selected_category][selected_subcategory]
-                category_summary = category_bias_data.get("category_summary", {})
-                stability_analysis = category_summary.get("stability_analysis", {})
-                quality_analysis = category_summary.get("quality_analysis", {})
-                category_level_analysis = category_summary.get("category_level_analysis", {})
-                ranking_variation = category_bias_data.get("ranking_variation", {})
-                execution_count = category_summary.get("execution_count", 0)
-
-                with col1:
-                    st.markdown("**安定性評価**")
-                    if stability_analysis:
-                        overall_stability = stability_analysis.get("overall_stability", 0)
-                        avg_rank_std = stability_analysis.get("avg_rank_std", 0)
-                        stability_interpretation = stability_analysis.get("stability_interpretation", "未判定")
-
-                        st.markdown(f"- 全体安定性スコア: {overall_stability:.3f}")
-                        st.markdown(f"- 平均順位標準偏差: {avg_rank_std:.3f}")
-                        st.markdown(f"- 判定: {stability_interpretation}")
-
-                        if overall_stability >= 0.9:
-                            st.markdown("- ランキング結果は非常に安定しており、信頼性が高い")
-                        elif overall_stability >= 0.8:
-                            st.markdown("- ランキング結果は安定しており、分析に適用可能")
-                        elif overall_stability >= 0.6:
-                            st.markdown("- ランキング結果は中程度の安定性を示している")
-                        else:
-                            st.markdown("- ランキング結果に変動が見られ、注意が必要")
-                    else:
-                        st.markdown("- 安定性分析データがありません")
-
-                    st.markdown("**信頼性評価**")
-                    reliability_label = get_reliability_label(execution_count)
-                    st.markdown(f"- 実行回数: {execution_count}回")
-                    st.markdown(f"- 信頼性レベル: {reliability_label}")
-                    if execution_count >= 15:
-                        st.markdown("- 十分な実行回数により高い信頼性を確保")
-                    elif execution_count >= 10:
-                        st.markdown("- 適切な実行回数により一定の信頼性を確保")
-                    elif execution_count >= 5:
-                        st.markdown("- 最低限の実行回数による標準的な信頼性")
-                    else:
-                        st.markdown("- 実行回数が少なく、結果は参考程度に留める")
-
-                with col2:
-                    st.markdown("**バイアス影響度**")
-                    if ranking_variation:
-                        # 最大順位変動の計算（ranking_variationから取得）
-                        max_variation = 0
-                        max_variation_entity = "N/A"
-
-                        for entity, variation_data in ranking_variation.items():
-                            if isinstance(variation_data, dict):
-                                rank_range = variation_data.get("rank_range", 0)
-                                if rank_range > max_variation:
-                                    max_variation = rank_range
-                                    max_variation_entity = entity
-
-                        st.markdown(f"- 最大順位変動: {max_variation}位 ({max_variation_entity})")
-
-                        if max_variation == 0:
-                            st.markdown("- 順位変動は皆無、バイアス影響なし")
-                        elif max_variation <= 1:
-                            st.markdown("- 順位変動は小さく、バイアス影響は限定的")
-                        elif max_variation <= 2:
-                            st.markdown("- 中程度の順位変動が見られ、軽微なバイアス影響あり")
-                        else:
-                            st.markdown("- 大きな順位変動があり、バイアス影響に注意が必要")
-                    else:
-                        st.markdown("- バイアス影響度データがありません")
-
-                    st.markdown("**品質評価**")
-                    if quality_analysis:
-                        quality_metrics = quality_analysis.get("quality_metrics", {})
-                        completeness_score = quality_metrics.get("completeness_score", 0)
-                        consistency_score = quality_metrics.get("consistency_score", 0)
-                        overall_quality_score = quality_analysis.get("overall_quality_score", 0)
-                        quality_interpretation = quality_analysis.get("quality_interpretation", "未判定")
-
-                        st.markdown(f"- 完全性スコア: {completeness_score:.3f}")
-                        st.markdown(f"- 一貫性スコア: {consistency_score:.3f}")
-                        st.markdown(f"- 総合品質評価: {overall_quality_score:.3f}")
-                        st.markdown(f"- 品質判定: {quality_interpretation}")
-
-                        if overall_quality_score >= 2.5:
-                            st.markdown("- 非常に高品質なデータで精密分析が可能")
-                        elif overall_quality_score >= 2.0:
-                            st.markdown("- 高品質なデータにより分析適用可能")
-                        elif overall_quality_score >= 1.5:
-                            st.markdown("- 一定品質のデータで限定的な分析が可能")
-                        else:
-                            st.markdown("- データ品質に課題があり、結果解釈に注意が必要")
-                    else:
-                        st.markdown("- 品質評価データがありません")
-
-                    st.markdown("**競争性評価**")
-                    if category_level_analysis:
-                        competition_analysis = category_level_analysis.get("competition_analysis", {})
-                        total_entities = competition_analysis.get("total_entities", 0)
-                        competitive_balance = competition_analysis.get("competitive_balance", "未判定")
-                        ranking_spread = competition_analysis.get("ranking_spread", "未評価")
-
-                        st.markdown(f"- 分析対象エンティティ数: {total_entities}")
-                        st.markdown(f"- 競争バランス評価: {competitive_balance}")
-                        st.markdown(f"- ランキング範囲: {ranking_spread}")
-
-                        if competitive_balance == "高" and ranking_spread == "full":
-                            st.markdown("- 完全な競争環境での包括的分析が可能")
-                        elif competitive_balance == "高":
-                            st.markdown("- 高競争環境により信頼性の高い分析結果")
-                        elif competitive_balance == "中":
-                            st.markdown("- 中程度の競争環境での標準的分析")
-                        else:
-                            st.markdown("- 低競争環境のため分析結果の解釈に注意")
-                    else:
-                        st.markdown("- 競争性評価データがありません")
-            else:
-                # フォールバック：perplexity_rankingsから直接計算
-                ranking_summary = subcat_data.get("ranking_summary", {})
-                entities = ranking_summary.get("entities", {})
+            with col1:
+                st.markdown("**信頼性評価**")
+                # execution_countの取得
                 answer_list = subcat_data.get("answer_list", [])
                 execution_count = len(answer_list)
 
-                with col1:
-                    # 安定性指標の再計算（フォールバック用）
-                    rank_std_values = []
-                    overall_stability_scores = []
-
-                    for entity_name, entity_data in entities.items():
-                        all_ranks = entity_data.get("all_ranks", [])
-                        if all_ranks:
-                            avg_rank = sum(all_ranks) / len(all_ranks)
-                            rank_std = (sum((r - avg_rank) ** 2 for r in all_ranks) / len(all_ranks)) ** 0.5 if len(all_ranks) > 1 else 0
-                            rank_std_values.append(rank_std)
-                            stability_score = 1 / (1 + rank_std) if rank_std > 0 else 1
-                            overall_stability_scores.append(stability_score)
-
-                    avg_rank_std = sum(rank_std_values) / len(rank_std_values) if rank_std_values else 0
-                    overall_stability = sum(overall_stability_scores) / len(overall_stability_scores) if overall_stability_scores else 1.0
-
-                    if overall_stability >= 0.8:
-                        stability_interpretation = "安定"
-                    elif overall_stability >= 0.6:
-                        stability_interpretation = "中程度"
+                if execution_count >= 15:
+                    st.markdown("- 十分な実行回数により高い信頼性を確保")
+                elif execution_count >= 10:
+                    st.markdown("- 適切な実行回数により一定の信頼性を確保")
+                elif execution_count >= 5:
+                    st.markdown("- 最低限の実行回数による標準的な信頼性")
+                else:
+                    st.markdown("- 実行回数が少なく、結果は参考程度に留める")
+            with col2:
+                st.markdown("**バイアス影響度**")
+                if 'ranking_variation' in locals() and ranking_variation:
+                    max_variation = 0
+                    max_variation_entity = "N/A"
+                    for entity, variation_data in ranking_variation.items():
+                        if isinstance(variation_data, dict):
+                            rank_range = variation_data.get("rank_range", 0)
+                            if rank_range > max_variation:
+                                max_variation = rank_range
+                                max_variation_entity = entity
+                    st.markdown(f"- 最大順位変動: {max_variation}位 ({max_variation_entity})")
+                    if max_variation == 0:
+                        st.markdown("- 順位変動は皆無、バイアス影響なし")
+                    elif max_variation <= 1:
+                        st.markdown("- 順位変動は小さく、バイアス影響は限定的")
+                    elif max_variation <= 2:
+                        st.markdown("- 中程度の順位変動が見られ、軽微なバイアス影響あり")
                     else:
-                        stability_interpretation = "不安定"
-
-                    st.markdown("**安定性評価**")
-                    st.markdown(f"- 全体安定性スコア: {overall_stability:.3f}")
-                    st.markdown(f"- 平均順位標準偏差: {avg_rank_std:.3f}")
-                    st.markdown(f"- 判定: {stability_interpretation}")
-                    if overall_stability >= 0.8:
-                        st.markdown("- ランキング結果は非常に安定しており、信頼性が高い")
-                    elif overall_stability >= 0.6:
-                        st.markdown("- ランキング結果は中程度の安定性を示している")
-                    else:
-                        st.markdown("- ランキング結果に変動が見られ、注意が必要")
-
-                    st.markdown("**信頼性評価**")
-                    reliability_label = get_reliability_label(execution_count)
-                    st.markdown(f"- 実行回数: {execution_count}回")
-                    st.markdown(f"- 信頼性レベル: {reliability_label}")
-                    if execution_count >= 15:
-                        st.markdown("- 十分な実行回数により高い信頼性を確保")
-                    elif execution_count >= 10:
-                        st.markdown("- 適切な実行回数により一定の信頼性を確保")
-                    elif execution_count >= 5:
-                        st.markdown("- 最低限の実行回数による標準的な信頼性")
-                    else:
-                        st.markdown("- 実行回数が少なく、結果は参考程度に留める")
-
-                with col2:
-                    st.markdown("**バイアス影響度**")
-                    # ランキング変動の分析（フォールバック用）
-                    rank_variations = []
-                    for entity_name, entity_data in entities.items():
-                        all_ranks = entity_data.get("all_ranks", [])
-                        if all_ranks:
-                            variation = max(all_ranks) - min(all_ranks)
-                            rank_variations.append((entity_name, variation))
-
-                    if rank_variations:
-                        rank_variations.sort(key=lambda x: x[1], reverse=True)
-                        max_variation_entity, max_variation = rank_variations[0]
-
-                        st.markdown(f"- 最大順位変動: {max_variation}位 ({max_variation_entity})")
-                        if max_variation <= 1:
-                            st.markdown("- 順位変動は小さく、バイアス影響は限定的")
-                        elif max_variation <= 2:
-                            st.markdown("- 中程度の順位変動が見られ、軽微なバイアス影響あり")
-                        else:
-                            st.markdown("- 大きな順位変動があり、バイアス影響に注意が必要")
-                    else:
-                        st.markdown("- 順位データが不足しており、影響度の評価困難")
-
-                    st.markdown("**データ品質**")
-                    completeness_rate = len([e for e in entities.values() if e.get("all_ranks")]) / len(entities) if entities else 0
-                    st.markdown(f"- データ完全性: {completeness_rate:.1%}")
-                    st.markdown(f"- 分析対象エンティティ数: {len(entities)}")
-                    if completeness_rate >= 0.9:
-                        st.markdown("- 高品質なデータにより分析適用可能")
-                    elif completeness_rate >= 0.7:
-                        st.markdown("- 一定品質のデータで限定的な分析が可能")
-                    else:
-                        st.markdown("- データ品質に課題があり、結果解釈に注意が必要")
+                        st.markdown("- 大きな順位変動があり、バイアス影響に注意が必要")
+                else:
+                    st.markdown("- バイアス影響度データがありません")
 
         else:
             st.info("perplexity_rankingsデータがありません")

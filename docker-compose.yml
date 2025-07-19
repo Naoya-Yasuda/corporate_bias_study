@@ -11,6 +11,8 @@ services:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
     volumes:
+      # 開発用：ソースコードをマウントしてホットリロード
+      - .:/app
       # 必要に応じてデータディレクトリをマウント
       - ./corporate_bias_datasets:/app/corporate_bias_datasets
       - ./logs:/app/logs
