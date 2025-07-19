@@ -1148,3 +1148,318 @@ def plot_mask_effect_ranking_sankey(sankey_data, output_path, source_key="before
     plt.tight_layout()
     save_figure(fig, output_path)
     return output_path
+
+# =============================================================================
+# おすすめランキング分析用グラフ関数群
+# =============================================================================
+
+def plot_ranking_similarity_for_ranking_analysis(similarity_data):
+    """
+    おすすめランキング分析用のランキング類似度可視化
+
+    Parameters:
+    -----------
+    similarity_data : dict
+        類似度データ（RBO、Kendall Tau、Overlap Ratio）
+
+    Returns:
+    --------
+    matplotlib.figure.Figure or None
+    """
+    try:
+        if not similarity_data:
+            return None
+
+        # 類似度データ抽出
+        metrics = ['rbo_score', 'kendall_tau', 'overlap_ratio']
+        values = [similarity_data.get(metric, 0) for metric in metrics]
+        labels = ['RBO\n(上位重視重複度)', 'Kendall Tau\n(順位相関)', 'Overlap Ratio\n(共通要素率)']
+
+        # グラフ作成
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.bar(labels, values, alpha=0.7, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
+
+        ax.set_title("ランキング類似度分析", fontsize=14, pad=20)
+        ax.set_ylabel("類似度スコア", fontsize=12)
+        ax.set_ylim(0, 1)
+
+        # 値ラベル追加
+        for bar, value in zip(bars, values):
+            if value is not None:
+                ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.02,
+                        f'{value:.3f}', ha='center', va='bottom', fontweight='bold')
+
+        # グリッド追加
+        ax.grid(axis='y', alpha=0.3)
+        plt.xticks(rotation=0, ha='center')
+        plt.tight_layout()
+
+        return fig
+
+    except Exception as e:
+        print(f"plot_ranking_similarity_for_ranking_analysis error: {e}")
+        return None
+
+
+def plot_bias_indices_bar_for_ranking_analysis(ranking_bias_data, selected_category, selected_subcategory, selected_entities=None):
+    """
+    おすすめランキング分析用のバイアス指標棒グラフ
+
+    Parameters:
+    -----------
+    ranking_bias_data : dict
+        分析結果データ
+    selected_category : str
+        選択されたカテゴリ
+    selected_subcategory : str
+        選択されたサブカテゴリ
+    selected_entities : list, optional
+        選択されたエンティティリスト
+
+    Returns:
+    --------
+    matplotlib.figure.Figure or None
+    """
+    try:
+        if not ranking_bias_data or selected_category not in ranking_bias_data:
+            return None
+
+        category_data = ranking_bias_data[selected_category]
+        if selected_subcategory not in category_data:
+            return None
+
+        subcat_data = category_data[selected_subcategory]
+        entity_analysis = subcat_data.get("entity_analysis", {})
+
+        if not entity_analysis:
+            return None
+
+        # バイアス指標データ抽出
+        bias_data = {}
+        for entity_name, entity_data in entity_analysis.items():
+            if selected_entities and entity_name not in selected_entities:
+                continue
+            bias_index = entity_data.get("bias_index", 0)
+            bias_data[entity_name] = bias_index
+
+        if not bias_data:
+            return None
+
+        # グラフ作成
+        entities = list(bias_data.keys())
+        values = list(bias_data.values())
+
+        # エンティティ数に応じてサイズ調整
+        if len(entities) > 10:
+            fig, ax = plt.subplots(figsize=(14, 8))
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+        # 色分け（正のバイアス=赤、負のバイアス=緑）
+        colors = ["#d62728" if v > 0 else "#2ca02c" for v in values]
+        bars = ax.bar(entities, values, color=colors, alpha=0.7)
+
+        # ゼロライン
+        ax.axhline(0, color='black', linestyle='--', alpha=0.5)
+
+        ax.set_ylabel("バイアス指標 (Bias Index)", fontsize=12)
+        ax.set_title(f"エンティティ別バイアス指標｜{selected_category}｜{selected_subcategory}", fontsize=14, pad=20)
+
+        # X軸ラベル回転
+        plt.xticks(rotation=45, ha="right")
+
+        # 値ラベル追加
+        for bar, value in zip(bars, values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2.,
+                   height + (0.01 if height >= 0 else -0.02),
+                   f'{value:.3f}', ha='center',
+                   va='bottom' if height >= 0 else 'top',
+                   fontweight='bold')
+
+        ax.grid(axis='y', alpha=0.3)
+        plt.tight_layout()
+
+        return fig
+
+    except Exception as e:
+        print(f"plot_bias_indices_bar_for_ranking_analysis error: {e}")
+        return None
+
+
+def plot_ranking_variation_heatmap(entities_data, selected_entities=None):
+    """
+    ランキング変動ヒートマップ（実行回数×エンティティ）
+
+    Parameters:
+    -----------
+    entities_data : dict
+        エンティティデータ（perplexity_rankings["ranking_summary"]["entities"]）
+    selected_entities : list, optional
+        選択されたエンティティリスト
+
+    Returns:
+    --------
+    matplotlib.figure.Figure or None
+    """
+    try:
+        if not entities_data:
+            return None
+
+        # エンティティ絞り込み
+        if selected_entities:
+            filtered_entities = {k: v for k, v in entities_data.items() if k in selected_entities}
+        else:
+            filtered_entities = entities_data
+
+        if not filtered_entities:
+            return None
+
+        # マトリックス作成
+        entity_names = list(filtered_entities.keys())
+        max_executions = max(len(entity_data.get("all_ranks", [])) for entity_data in filtered_entities.values())
+
+        if max_executions == 0:
+            return None
+
+        # 順位マトリックス（entity x execution）
+        rank_matrix = np.full((len(entity_names), max_executions), np.nan)
+
+        for i, entity_name in enumerate(entity_names):
+            all_ranks = filtered_entities[entity_name].get("all_ranks", [])
+            for j, rank in enumerate(all_ranks):
+                if j < max_executions:
+                    rank_matrix[i, j] = rank
+
+        # プロット作成
+        fig, ax = plt.subplots(figsize=(max(12, max_executions), max(8, len(entity_names) * 0.5)))
+
+        # ヒートマップ
+        im = ax.imshow(rank_matrix, cmap='RdYlBu_r', aspect='auto', interpolation='nearest')
+
+        # 軸ラベル設定
+        ax.set_xticks(range(max_executions))
+        ax.set_xticklabels([f"実行{i+1}" for i in range(max_executions)])
+        ax.set_yticks(range(len(entity_names)))
+        ax.set_yticklabels(entity_names)
+
+        # 値表示
+        for i in range(len(entity_names)):
+            for j in range(max_executions):
+                if not np.isnan(rank_matrix[i, j]):
+                    text = ax.text(j, i, f'{int(rank_matrix[i, j])}',
+                                 ha="center", va="center", color="black", fontweight='bold')
+
+        # カラーバー
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label('順位', rotation=270, labelpad=15)
+
+        ax.set_title('ランキング変動ヒートマップ\n（実行回数×エンティティ）', fontsize=14, pad=20)
+        ax.set_xlabel('実行回数', fontsize=12)
+        ax.set_ylabel('エンティティ', fontsize=12)
+
+        plt.tight_layout()
+        return fig
+
+    except Exception as e:
+        print(f"plot_ranking_variation_heatmap error: {e}")
+        return None
+
+
+def plot_stability_score_distribution(ranking_bias_data, current_category, current_subcategory):
+    """
+    安定性スコア分布（ヒストグラム + 散布図）
+
+    Parameters:
+    -----------
+    ranking_bias_data : dict
+        全カテゴリの分析データ
+    current_category : str
+        現在のカテゴリ（強調表示用）
+    current_subcategory : str
+        現在のサブカテゴリ（強調表示用）
+
+    Returns:
+    --------
+    matplotlib.figure.Figure or None
+    """
+    try:
+        if not ranking_bias_data:
+            return None
+
+        # 全カテゴリ・サブカテゴリの安定性データを収集
+        stability_scores = []
+        categories_info = []
+
+        for category, category_data in ranking_bias_data.items():
+            for subcategory, subcat_data in category_data.items():
+                category_summary = subcat_data.get("category_summary", {})
+                stability_analysis = category_summary.get("stability_analysis", {})
+
+                overall_stability = stability_analysis.get("overall_stability")
+                avg_rank_std = stability_analysis.get("avg_rank_std")
+
+                if overall_stability is not None and avg_rank_std is not None:
+                    stability_scores.append(overall_stability)
+                    is_current = (category == current_category and subcategory == current_subcategory)
+                    categories_info.append({
+                        'category': category,
+                        'subcategory': subcategory,
+                        'stability': overall_stability,
+                        'std': avg_rank_std,
+                        'is_current': is_current
+                    })
+
+        if not stability_scores:
+            return None
+
+        # プロット作成
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+
+        # 左: 安定性スコア分布ヒストグラム
+        ax1.hist(stability_scores, bins=10, alpha=0.7, color='skyblue', edgecolor='black')
+
+        # 現在のカテゴリの値を強調
+        current_stability = None
+        for info in categories_info:
+            if info['is_current']:
+                current_stability = info['stability']
+                break
+
+        if current_stability is not None:
+            ax1.axvline(current_stability, color='red', linestyle='--', linewidth=2,
+                       label=f'現在カテゴリ: {current_stability:.3f}')
+            ax1.legend()
+
+        ax1.set_title('安定性スコア分布', fontsize=12)
+        ax1.set_xlabel('安定性スコア', fontsize=10)
+        ax1.set_ylabel('頻度', fontsize=10)
+        ax1.grid(True, alpha=0.3)
+
+        # 右: 安定性vs標準偏差の散布図
+        x_vals = [info['stability'] for info in categories_info]
+        y_vals = [info['std'] for info in categories_info]
+        colors = ['red' if info['is_current'] else 'blue' for info in categories_info]
+
+        scatter = ax2.scatter(x_vals, y_vals, c=colors, alpha=0.6, s=50)
+        ax2.set_title('安定性スコア vs 順位標準偏差', fontsize=12)
+        ax2.set_xlabel('安定性スコア', fontsize=10)
+        ax2.set_ylabel('平均順位標準偏差', fontsize=10)
+        ax2.grid(True, alpha=0.3)
+
+        # 現在のカテゴリにラベル付け
+        for info in categories_info:
+            if info['is_current']:
+                ax2.annotate(f"{info['category']}\n{info['subcategory']}",
+                           (info['stability'], info['std']),
+                           xytext=(5, 5), textcoords='offset points',
+                           fontsize=8, ha='left')
+
+        plt.suptitle('安定性スコア分析', fontsize=14)
+        plt.tight_layout()
+
+        return fig
+
+    except Exception as e:
+        print(f"plot_stability_score_distribution error: {e}")
+        return None
