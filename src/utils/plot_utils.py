@@ -1421,8 +1421,7 @@ def plot_stability_score_distribution(ranking_bias_data, current_category, curre
                     stability_scores.append(overall_stability)
                     is_current = (category == current_category and subcategory == current_subcategory)
                     categories_info.append({
-                        'category': category,
-                        'subcategory': subcategory,
+                        'category': f"{category}/{subcategory}",
                         'stability': overall_stability,
                         'std': avg_rank_std,
                         'is_current': is_current
@@ -1432,52 +1431,51 @@ def plot_stability_score_distribution(ranking_bias_data, current_category, curre
             return None
 
         # プロット作成
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        fig = plt.figure(figsize=(15, 6))
+        gs = plt.GridSpec(1, 2, width_ratios=[1, 1.2])
 
         # 左: 安定性スコア分布ヒストグラム
-        ax1.hist(stability_scores, bins=10, alpha=0.7, color='skyblue', edgecolor='black')
+        ax1 = fig.add_subplot(gs[0])
+        bins = np.linspace(min(stability_scores), max(stability_scores), 10)
+        ax1.hist(stability_scores, bins=bins, alpha=0.7, color='skyblue', edgecolor='black')
 
         # 現在のカテゴリの値を強調
-        current_stability = None
-        for info in categories_info:
-            if info['is_current']:
-                current_stability = info['stability']
-                break
-
-        if current_stability is not None:
-            ax1.axvline(current_stability, color='red', linestyle='--', linewidth=2,
-                       label=f'現在カテゴリ: {current_stability:.3f}')
-            ax1.legend()
+        current_info = next((info for info in categories_info if info['is_current']), None)
+        if current_info:
+            ax1.axvline(current_info['stability'], color='red', linestyle='--', linewidth=2,
+                       label=f'現在のカテゴリ: {current_info["stability"]:.3f}')
+            ax1.legend(loc='upper right')
 
         ax1.set_title('安定性スコア分布', fontsize=12)
-        ax1.set_xlabel('安定性スコア', fontsize=10)
-        ax1.set_ylabel('頻度', fontsize=10)
+        ax1.set_xlabel('安定性スコア（1に近いほど安定）', fontsize=10)
+        ax1.set_ylabel('カテゴリ数', fontsize=10)
         ax1.grid(True, alpha=0.3)
 
         # 右: 安定性vs標準偏差の散布図
-        x_vals = [info['stability'] for info in categories_info]
-        y_vals = [info['std'] for info in categories_info]
-        colors = ['red' if info['is_current'] else 'blue' for info in categories_info]
-
-        scatter = ax2.scatter(x_vals, y_vals, c=colors, alpha=0.6, s=50)
-        ax2.set_title('安定性スコア vs 順位標準偏差', fontsize=12)
-        ax2.set_xlabel('安定性スコア', fontsize=10)
-        ax2.set_ylabel('平均順位標準偏差', fontsize=10)
-        ax2.grid(True, alpha=0.3)
-
-        # 現在のカテゴリにラベル付け
+        ax2 = fig.add_subplot(gs[1])
         for info in categories_info:
-            if info['is_current']:
-                ax2.annotate(f"{info['category']}\n{info['subcategory']}",
+            color = 'red' if info['is_current'] else 'blue'
+            alpha = 1.0 if info['is_current'] else 0.6
+            ax2.scatter(info['stability'], info['std'], c=color, alpha=alpha, s=100)
+            if info['is_current'] or info['std'] > np.mean([i['std'] for i in categories_info]):
+                ax2.annotate(info['category'],
                            (info['stability'], info['std']),
                            xytext=(5, 5), textcoords='offset points',
                            fontsize=8, ha='left')
 
-        plt.suptitle('安定性スコア分析', fontsize=14)
-        plt.tight_layout()
+        ax2.set_title('安定性スコア vs 順位標準偏差', fontsize=12)
+        ax2.set_xlabel('安定性スコア（1に近いほど安定）', fontsize=10)
+        ax2.set_ylabel('順位標準偏差（0に近いほど変動が小さい）', fontsize=10)
+        ax2.grid(True, alpha=0.3)
 
+        # 凡例
+        ax2.scatter([], [], c='red', alpha=1.0, s=100, label='現在のカテゴリ')
+        ax2.scatter([], [], c='blue', alpha=0.6, s=100, label='他のカテゴリ')
+        ax2.legend(loc='upper right')
+
+        plt.tight_layout()
         return fig
 
     except Exception as e:
-        print(f"plot_stability_score_distribution error: {e}")
+        print(f"Error in plot_stability_score_distribution: {str(e)}")
         return None

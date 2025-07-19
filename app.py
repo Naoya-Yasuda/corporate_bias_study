@@ -16,7 +16,7 @@ from src.utils.plot_utils import draw_reliability_badge
 import numpy as np
 from src.analysis.hybrid_data_loader import HybridDataLoader
 import japanize_matplotlib
-from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap
+from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap, plot_stability_score_distribution
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
@@ -622,6 +622,38 @@ if viz_type == "単日分析":
                     status = "✅" if value else "❌"
                     st.markdown(f"- {key}: {status}")
 
+            # カテゴリ横断分析タブ
+            tabs = st.tabs(["安定性スコア分布", "重篤度ランキング", "相関マトリクス"])
+
+            with tabs[0]:
+                st.info("全カテゴリの安定性分析結果を2つのグラフで表示します：\n\n"
+                       "【左：安定性スコア分布（ヒストグラム）】\n"
+                       "・X軸：安定性スコア（0-1、1に近いほど安定）\n"
+                       "・Y軸：カテゴリ数（該当スコアを持つカテゴリ数）\n"
+                       "・赤線：現在選択中のカテゴリの安定性スコア\n\n"
+                       "【右：安定性 vs 順位標準偏差（散布図）】\n"
+                       "・X軸：安定性スコア（1に近いほど安定）\n"
+                       "・Y軸：順位標準偏差（0に近いほど順位変動が小さい）\n"
+                       "・赤点：現在選択中のカテゴリ\n"
+                       "・青点：その他のカテゴリ", icon="ℹ️")
+
+                # 全分析データから現在のカテゴリを取得
+                ranking_bias_data = analysis_data.get("ranking_bias_analysis", {})
+                fig = plot_stability_score_distribution(ranking_bias_data, selected_category, selected_subcategory)
+                if fig:
+                    st.pyplot(fig, use_container_width=True)
+                    plt.close(fig)
+                else:
+                    st.info("安定性スコアデータがありません")
+
+            with tabs[1]:
+                st.info("カテゴリ横断の重篤度ランキングを表示します。", icon="ℹ️")
+                # 重篤度ランキングの実装（既存）
+
+            with tabs[2]:
+                st.info("カテゴリ間の相関関係をマトリクスで表示します。", icon="ℹ️")
+                # 相関マトリクスの実装（既存）
+
             # 詳細データ
             with st.expander("詳細データ"):
                 st.json(cross_data, use_container_width=True)
@@ -1013,20 +1045,18 @@ if viz_type == "単日分析":
             from src.utils.plot_utils import (
                 plot_ranking_similarity_for_ranking_analysis,
                 plot_bias_indices_bar_for_ranking_analysis,
-                plot_ranking_variation_heatmap,
-                plot_stability_score_distribution
+                plot_ranking_variation_heatmap
             )
 
             # タブ作成
-            tab1, tab2, tab3, tab4 = st.tabs([
+            tab1, tab2, tab3 = st.tabs([
                 "ランキング類似度分析", "バイアス指標棒グラフ",
-                "ランキング変動ヒートマップ", "安定性スコア分布"
+                "ランキング変動ヒートマップ"
             ])
 
-            # Tab 1: ランキング類似度分析
             with tab1:
                 st.markdown("**ランキング類似度分析**")
-                st.info("Google検索とPerplexityの検索結果の類似度を3つの指標で比較します：\n"
+                st.info("Google検索とPerplexityの検索結果の類似度を3つの指標で比較します：\n\n"
                        "・RBO：上位の検索結果がどれだけ一致しているか（1に近いほど上位の結果が同じ）\n"
                        "・Kendall Tau：順位の並びがどれだけ似ているか（1に近いほど順位の並びが同じ）\n"
                        "・Overlap Ratio：全体の検索結果がどれだけ重複しているか（1に近いほど同じURLが多い）", icon="ℹ️")
@@ -1046,7 +1076,6 @@ if viz_type == "単日分析":
                 else:
                     st.warning("分析データが不足しています")
 
-            # Tab 2: バイアス指標棒グラフ
             with tab2:
                 st.markdown("**バイアス指標棒グラフ**")
                 st.info("各エンティティのバイアス指標を棒グラフで表示します。\n\n"
@@ -1069,40 +1098,24 @@ if viz_type == "単日分析":
                 else:
                     st.warning("分析データが不足しています")
 
-            # Tab 3: ランキング変動ヒートマップ
             with tab3:
                 st.markdown("**ランキング変動ヒートマップ**")
-                st.info("実行回数×エンティティの順位推移をヒートマップで可視化します。色の変化で順位の安定性を確認できます。", icon="ℹ️")
+                st.info("各エンティティの順位変動を実行回数ごとにヒートマップで表示します。\n"
+                       "色が濃いほど順位が低く、薄いほど順位が高いことを示します。", icon="ℹ️")
 
-                try:
-                    fig = plot_ranking_variation_heatmap(entities, selected_entities)
-                    if fig:
-                        st.pyplot(fig, use_container_width=True)
-                        plt.close(fig)
-                    else:
-                        st.info("ヒートマップ用のデータがありません")
-                except Exception as e:
-                    st.error(f"ヒートマップ描画エラー: {str(e)}")
-
-            # Tab 4: 安定性スコア分布
-            with tab4:
-                st.markdown("**安定性スコア分布**")
-                st.info("全カテゴリの安定性スコア分布と現在カテゴリの位置を表示します。左は分布、右は安定性vs標準偏差の関係を示します。", icon="ℹ️")
-
-                if ranking_bias_data:
+                if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
                     try:
-                        # 全分析データから現在のカテゴリを取得
-                        full_ranking_bias_data = analysis_data.get("ranking_bias_analysis", {})
-                        fig = plot_stability_score_distribution(
-                            full_ranking_bias_data, selected_category, selected_subcategory
-                        )
+                        subcat_data = ranking_bias_data[selected_category][selected_subcategory]
+                        entities_data = subcat_data.get("entities", {})
+
+                        fig = plot_ranking_variation_heatmap(entities_data, selected_entities)
                         if fig:
                             st.pyplot(fig, use_container_width=True)
                             plt.close(fig)
                         else:
-                            st.info("安定性スコアデータがありません")
+                            st.info("ヒートマップ用のデータがありません")
                     except Exception as e:
-                        st.error(f"安定性分析エラー: {str(e)}")
+                        st.error(f"ヒートマップ描画エラー: {str(e)}")
                 else:
                     st.warning("分析データが不足しています")
 
