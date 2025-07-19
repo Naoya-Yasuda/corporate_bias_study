@@ -695,7 +695,7 @@ if viz_type == "単日分析":
                         with st.expander(f"回答 {i+1}", expanded=False):
                             st.text(answer_text[:500] + "..." if len(answer_text) > 500 else answer_text)
                 # 詳細JSONデータ
-            with st.expander("**詳細データ（JSON）**", expanded=False):
+            with st.expander("**詳細データ（JSON）**", expanded=True):
                 st.json(subcat_data, expanded=False)
 
             # === 2. 主要指標サマリー表と詳細解釈 ===
