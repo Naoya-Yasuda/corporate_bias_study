@@ -283,6 +283,9 @@ class BiasAnalysisEngine:
         # 市場データの読み込み
         self.market_data = self._load_market_data()
 
+        # サービス-企業マッピングの読み込み（後方互換性のため保持）
+        self.service_mapping = self._load_service_mapping()
+
         # 設定ファイル読み込み
         self.config = self._load_config()
 
@@ -306,6 +309,11 @@ class BiasAnalysisEngine:
         if self.market_data:
             logger.info(f"market_shares: {len(self.market_data.get('market_shares', {}))} カテゴリ")
             logger.info(f"market_caps: {len(self.market_data.get('market_caps', {}))} カテゴリ")
+
+        logger.info(f"service_mapping読み込み状況: {bool(self.service_mapping)}")
+        if self.service_mapping:
+            service_to_enterprise = self.service_mapping.get("service_to_enterprise", {})
+            logger.info(f"サービス→企業マッピング: {len(service_to_enterprise)} 件")
 
     # MetricsCalculator統合済み（metrics_calculator.py削除完了）
     def calculate_raw_delta(self,
@@ -1647,25 +1655,34 @@ class BiasAnalysisEngine:
             relative_analysis_results = {}
             for category, subcategories in sentiment_analysis.items():
                 category_results = {}
-                for subcategory, entities in subcategories.items():
-                    if not isinstance(entities, dict):
+                for subcategory, subcategory_data in subcategories.items():
+                    if not isinstance(subcategory_data, dict):
                         continue
+
+                    # 正しいentitiesデータを取得
+                    entities = subcategory_data.get("entities", {})
+                    if not entities:
+                        continue
+
                     # 1. バイアス不平等指標の計算
                     bias_inequality = self._calculate_bias_inequality(entities)
                     # 2. 企業優遇度分析
                     market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
                     enterprise_favoritism = self._analyze_enterprise_favoritism(entities, market_caps)
 
-                    # 3. 市場シェア相関分析
+                    # 3. 統合市場支配力分析（企業レベル + サービスレベル）
+                    market_dominance_analysis = self._analyze_market_dominance_bias(entities)
+
+                    # 4. 互換性のための従来分析（段階的移行用）
                     market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
                     market_share_correlation = self._analyze_market_share_correlation(
                         entities, market_shares, category
                     )
-                    # 4. 相対ランキング変動（暫定実装）
+                    # 5. 相対ランキング変動（暫定実装）
                     relative_ranking_analysis = self._analyze_relative_ranking_changes_stub(entities)
-                    # 5. 統合相対評価
-                    integrated_relative_evaluation = self._generate_integrated_relative_evaluation(
-                        bias_inequality, enterprise_favoritism, market_share_correlation
+                    # 6. 統合相対評価（新旧両方のデータを活用）
+                    integrated_relative_evaluation = self._generate_enhanced_integrated_evaluation(
+                        bias_inequality, enterprise_favoritism, market_share_correlation, market_dominance_analysis
                     )
                     # --- 多重比較補正の横展開 ---
                     # 例: 企業優遇度分析のp値補正
@@ -1678,31 +1695,40 @@ class BiasAnalysisEngine:
                             entity_names.append(entity_name)
                     corrected = None
                     if len(p_values) >= 2:
-                        corrected = self.apply_multiple_comparison_correction(p_values)
-                        for i, name in enumerate(entity_names):
-                            if name in entities:
-                                if 'favoritism_significance' not in entities[name]:
-                                    entities[name]['favoritism_significance'] = {}
-                                entities[name]['favoritism_significance']['corrected_p_value'] = corrected['corrected_p_values'][i]
-                                entities[name]['favoritism_significance']['rejected'] = corrected['rejected'][i]
-                                entities[name]['favoritism_significance']['correction_method'] = corrected['method']
-                                entities[name]['favoritism_significance']['alpha'] = corrected['alpha']
+                        try:
+                            from statsmodels.stats.multitest import multipletests
+                            rejected, corrected_p_values, alpha_sidak, alpha_bonf = multipletests(
+                                p_values, alpha=0.05, method='holm'
+                            )
+                            corrected = {
+                                "correction_method": "holm",
+                                "original_p_values": dict(zip(entity_names, p_values)),
+                                "corrected_p_values": dict(zip(entity_names, corrected_p_values)),
+                                "rejected_hypotheses": dict(zip(entity_names, rejected))
+                            }
+                        except ImportError:
+                            corrected = {"error": "statsmodels not available for multiple comparison correction"}
+
                     category_results[subcategory] = {
                         "bias_inequality": bias_inequality,
                         "enterprise_favoritism": enterprise_favoritism,
-                        "market_share_correlation": market_share_correlation,
+                        "market_dominance_analysis": market_dominance_analysis,
+                        "market_share_correlation": market_share_correlation,  # 後方互換性用
                         "relative_ranking_analysis": relative_ranking_analysis,
                         "integrated_evaluation": integrated_relative_evaluation,
-                        "entities": entities
+                        "entities": entities  # 二重entitiesを避けて直接entitiesを設定
                     }
+
+                    if corrected:
+                        category_results[subcategory]["multiple_comparison_correction"] = corrected
+
                 relative_analysis_results[category] = category_results
-            # 全体サマリーの生成
-            overall_summary = self._generate_relative_bias_summary(relative_analysis_results)
-            relative_analysis_results["overall_summary"] = overall_summary
+
             return relative_analysis_results
+
         except Exception as e:
-            logger.error(f"相対バイアス分析でエラー: {e}")
-            return {"error": str(e)}
+            logging.error(f"相対バイアス分析エラー: {e}")
+            return {}
 
     def _load_market_data(self) -> Dict[str, Any]:
         """市場データ（市場シェア・時価総額）を読み込み"""
@@ -1733,6 +1759,55 @@ class BiasAnalysisEngine:
         except Exception as e:
             logger.warning(f"市場データ読み込みエラー: {e}")
             return {"market_shares": {}, "market_caps": {}}
+
+    def _load_service_mapping(self) -> Dict[str, Any]:
+        """サービス-企業マッピングテーブルを読み込み"""
+        try:
+            mapping_path = "src/data/service_enterprise_mapping.json"
+
+            if os.path.exists(mapping_path):
+                with open(mapping_path, 'r', encoding='utf-8') as f:
+                    mapping_data = json.load(f)
+                    # メタデータを除外
+                    return {k: v for k, v in mapping_data.items() if k != "_metadata"}
+            else:
+                logger.warning("サービス-企業マッピングファイルが見つかりません")
+                return {"service_to_enterprise": {}, "enterprise_aliases": {}}
+
+        except Exception as e:
+            logger.warning(f"サービス-企業マッピング読み込みエラー: {e}")
+            return {"service_to_enterprise": {}, "enterprise_aliases": {}}
+
+    def _find_entity_by_service_or_enterprise(self, service_name: str, entities: Dict[str, Any]) -> tuple[str, Dict]:
+        """サービス名または企業名でエンティティを検索（拡張market_shares対応）"""
+
+        # 1. 直接サービス名で検索
+        if service_name in entities:
+            return service_name, entities[service_name]
+
+        # 2. 拡張market_sharesから企業名を取得
+        market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
+        for category, services in market_shares.items():
+            if service_name in services:
+                service_data = services[service_name]
+                # 新しい構造（辞書）と古い構造（数値）の両方に対応
+                if isinstance(service_data, dict):
+                    enterprise_name = service_data.get("enterprise")
+                else:
+                    # 古い構造の場合はマッピングテーブルを使用
+                    service_to_enterprise = self.service_mapping.get("service_to_enterprise", {})
+                    enterprise_name = service_to_enterprise.get(service_name)
+
+                if enterprise_name and enterprise_name in entities:
+                    return enterprise_name, entities[enterprise_name]
+
+        # 3. 企業エイリアスで検索（後方互換性）
+        enterprise_aliases = self.service_mapping.get("enterprise_aliases", {})
+        for main_name, aliases in enterprise_aliases.items():
+            if service_name in aliases and main_name in entities:
+                return main_name, entities[main_name]
+
+        return None, {}
 
     def _calculate_bias_inequality(self, entities: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1922,58 +1997,189 @@ class BiasAnalysisEngine:
         else:
             return {"correlation_available": False, "note": "データ不足（2社以上の市場シェア・バイアス指標が必要）"}
 
-    def _generate_integrated_relative_evaluation(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> Dict[str, Any]:
-        """統合相対評価の生成"""
+    def _generate_enhanced_integrated_evaluation(self, bias_inequality: Dict, enterprise_favoritism: Dict,
+                                               market_share_correlation: Dict, market_dominance_analysis: Dict) -> Dict[str, Any]:
+        """強化された統合相対評価（企業レベル + サービスレベル統合）"""
 
         evaluation_scores = {}
         insights = []
+        confidence_factors = []
 
-        # 1. 公平性スコア
-        inequality_score = 1 - bias_inequality.get("gini_coefficient", 0)  # Gini係数の逆数
-        evaluation_scores["fairness_score"] = max(0, inequality_score)
+        # 1. 基本公平性スコア（従来指標）
+        inequality_score = 1 - bias_inequality.get("gini_coefficient", 0)
+        evaluation_scores["basic_fairness"] = max(0, inequality_score)
+        confidence_factors.append("gini_coefficient")
 
-        # 2. 企業規模中立性スコア
+        # 2. 企業規模中立性スコア（従来指標）
         favoritism_gap = abs(enterprise_favoritism.get("favoritism_gap", 0))
         neutrality_score = max(0, 1 - favoritism_gap)
-        evaluation_scores["neutrality_score"] = neutrality_score
+        evaluation_scores["enterprise_neutrality"] = neutrality_score
+        confidence_factors.append("enterprise_favoritism")
 
-        # 3. 市場適合性スコア
-        if market_share_correlation.get("correlation_available", False):
-            fairness_analysis = market_share_correlation.get("fairness_analysis", {})
-            market_fairness = fairness_analysis.get("overall_fairness_score", 0.5)
-            evaluation_scores["market_alignment_score"] = market_fairness
+        # 3. 統合市場公平性スコア（新指標）
+        market_dominance = market_dominance_analysis
+        if not market_dominance.get("error"):
+            integrated_fairness = market_dominance.get("integrated_fairness", {})
+            market_fairness_score = integrated_fairness.get("integrated_score", 0.5)
+            evaluation_scores["market_fairness"] = market_fairness_score
+            confidence_factors.append("market_dominance")
+
+            # 市場分析の詳細洞察を追加
+            if integrated_fairness.get("confidence") == "high":
+                insights.append("企業・サービス両レベルでの包括的公平性評価が可能")
+
+            interpretation = integrated_fairness.get("interpretation", "")
+            if interpretation:
+                insights.append(f"市場構造分析: {interpretation}")
         else:
-            evaluation_scores["market_alignment_score"] = 0.5  # 中立値
+            # フォールバック: 従来の市場シェア相関
+            if market_share_correlation.get("correlation_available", False):
+                fairness_analysis = market_share_correlation.get("fairness_analysis", {})
+                fallback_score = fairness_analysis.get("overall_fairness_score", 0.5)
+                evaluation_scores["market_fairness"] = fallback_score
+                confidence_factors.append("market_share_correlation")
+                insights.append("サービスレベルの市場シェア分析のみ利用可能")
+            else:
+                evaluation_scores["market_fairness"] = 0.5
+                insights.append("市場データ不足のため中立評価")
 
-        # 4. 総合評価スコア
+        # 4. 多次元公平性評価
+        if len(evaluation_scores) >= 3:
+            # 全次元でのバランス評価
+            score_variance = statistics.variance(list(evaluation_scores.values()))
+            balance_score = 1.0 - min(score_variance, 1.0)  # 分散が小さいほど高スコア
+            evaluation_scores["dimensional_balance"] = balance_score
+
+            if balance_score >= 0.8:
+                insights.append("全次元で均等な公平性を実現")
+            elif balance_score >= 0.6:
+                insights.append("概ね均等だが一部次元で改善余地")
+            else:
+                insights.append("次元間で大きな公平性格差あり")
+
+        # 5. 総合評価スコア
         overall_score = statistics.mean(evaluation_scores.values())
 
-        # 5. 評価レベルの判定
-        if overall_score >= 0.8:
-            evaluation_level = "優秀"
-            insights.append("企業間のバイアス格差が小さく、公平な評価環境")
-        elif overall_score >= 0.6:
-            evaluation_level = "良好"
-            insights.append("概ね公平だが、一部改善の余地あり")
-        elif overall_score >= 0.4:
-            evaluation_level = "普通"
-            insights.append("バイアス格差が中程度存在、注意が必要")
-        else:
-            evaluation_level = "要改善"
-            insights.append("企業間で大きなバイアス格差、公平性に問題")
+        # 6. 信頼度評価
+        confidence_level = self._assess_evaluation_confidence(confidence_factors, market_dominance_analysis)
 
-        # 6. 具体的な改善提案
-        recommendations = self._generate_fairness_recommendations(
-            bias_inequality, enterprise_favoritism, market_share_correlation
-        )
+        # 7. 評価レベルの判定（より詳細化）
+        evaluation_level, level_insights = self._determine_evaluation_level(overall_score, evaluation_scores)
+        insights.extend(level_insights)
+
+        # 8. 改善提案の生成
+        improvement_recommendations = self._generate_improvement_recommendations(evaluation_scores, market_dominance_analysis)
 
         return {
-            "evaluation_scores": evaluation_scores,
             "overall_score": round(overall_score, 3),
             "evaluation_level": evaluation_level,
-            "key_insights": insights,
-            "recommendations": recommendations
+            "confidence": confidence_level,
+            "component_scores": evaluation_scores,
+            "insights": insights,
+            "improvement_recommendations": improvement_recommendations,
+            "analysis_coverage": {
+                "enterprise_level": market_dominance_analysis.get("enterprise_level", {}).get("available", False),
+                "service_level": market_dominance_analysis.get("service_level", {}).get("available", False),
+                "traditional_metrics": bool(confidence_factors)
+            }
         }
+
+    def _assess_evaluation_confidence(self, confidence_factors: List[str], market_dominance_analysis: Dict) -> str:
+        """評価の信頼度を判定"""
+
+        confidence_score = 0
+
+        # 利用可能な分析手法の数
+        confidence_score += len(confidence_factors) * 0.2
+
+        # 市場支配力分析の品質
+        if "market_dominance" in confidence_factors:
+            dominance_confidence = market_dominance_analysis.get("integrated_fairness", {}).get("confidence", "low")
+            if dominance_confidence == "high":
+                confidence_score += 0.4
+            elif dominance_confidence == "medium":
+                confidence_score += 0.2
+
+        # 信頼度レベルの判定
+        if confidence_score >= 0.8:
+            return "high"
+        elif confidence_score >= 0.5:
+            return "medium"
+        else:
+            return "low"
+
+    def _determine_evaluation_level(self, overall_score: float, component_scores: Dict) -> tuple[str, List[str]]:
+        """評価レベルの詳細判定"""
+
+        insights = []
+
+        if overall_score >= 0.9:
+            level = "優秀"
+            insights.append("全ての公平性指標で優秀な結果")
+        elif overall_score >= 0.8:
+            level = "良好"
+            insights.append("企業間のバイアス格差が小さく、公平な評価環境")
+        elif overall_score >= 0.6:
+            level = "普通"
+            insights.append("概ね公平だが、一部改善の余地あり")
+        elif overall_score >= 0.4:
+            level = "要注意"
+            insights.append("バイアス格差が中程度存在、注意が必要")
+        else:
+            level = "要改善"
+            insights.append("企業間で大きなバイアス格差、公平性に問題")
+
+        # 個別スコアの詳細分析
+        weak_areas = [area for area, score in component_scores.items() if score < 0.5]
+        strong_areas = [area for area, score in component_scores.items() if score >= 0.8]
+
+        if weak_areas:
+            insights.append(f"改善要領域: {', '.join(weak_areas)}")
+        if strong_areas:
+            insights.append(f"優秀領域: {', '.join(strong_areas)}")
+
+        return level, insights
+
+    def _generate_improvement_recommendations(self, component_scores: Dict, market_dominance_analysis: Dict) -> List[str]:
+        """改善提案の生成"""
+
+        recommendations = []
+
+        # 基本公平性の改善
+        if component_scores.get("basic_fairness", 0.5) < 0.6:
+            recommendations.append("バイアス不平等指標の改善: 企業間格差の縮小が必要")
+
+        # 企業規模中立性の改善
+        if component_scores.get("enterprise_neutrality", 0.5) < 0.6:
+            recommendations.append("企業規模による優遇の是正: 大企業・中小企業間の公平性向上")
+
+        # 市場公平性の改善
+        if component_scores.get("market_fairness", 0.5) < 0.6:
+            market_analysis = market_dominance_analysis.get("service_level", {})
+            if market_analysis.get("available", False):
+                category_fairness = market_analysis.get("category_fairness", {})
+                unfair_categories = [cat for cat, data in category_fairness.items()
+                                   if data.get("fairness_score", 0.5) < 0.5]
+                if unfair_categories:
+                    recommendations.append(f"市場カテゴリ別改善: {', '.join(unfair_categories)}での公平性向上")
+                else:
+                    recommendations.append("市場シェアと露出度の整合性向上")
+            else:
+                recommendations.append("市場データの拡充によるより精密な公平性分析")
+
+        # 次元バランスの改善
+        if component_scores.get("dimensional_balance", 0.5) < 0.6:
+            recommendations.append("多次元公平性のバランス調整: 特定次元への偏重の是正")
+
+        # 統合分析に基づく特別提案
+        enterprise_level = market_dominance_analysis.get("enterprise_level", {})
+        if enterprise_level.get("available", False):
+            tier_analysis = enterprise_level.get("tier_analysis", {})
+            most_advantaged = tier_analysis.get("most_advantaged_tier")
+            if most_advantaged and most_advantaged != "mid_enterprise":
+                recommendations.append(f"企業規模階層の是正: {most_advantaged}への過度な優遇を改善")
+
+        return recommendations
 
     def _generate_fairness_recommendations(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> List[str]:
         """公平性改善のための推奨事項生成"""
@@ -2227,24 +2433,34 @@ class BiasAnalysisEngine:
             }
 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"ランキング類似度計算エラー: {e}")
+            self.logger.warning(f"統合メソッドでのランキング類似度計算に失敗: {e}")
 
-            # フォールバック: シンプルな重複率計算
-            google_set = set(google_domains[:10])
-            citations_set = set(citations_domains[:10])
-            overlap = len(google_set & citations_set)
-            union = len(google_set | citations_set)
-            overlap_ratio = overlap / union if union > 0 else 0
+            # フォールバック実装
+            try:
+                from src.utils.rank_utils import rbo, compute_tau
+                rbo_score = round(rbo(google_domains, citations_domains, p=0.9), 3)
+                kendall_tau = round(compute_tau(google_domains, citations_domains), 3)
 
-            return {
-                "rbo_score": None,
-                "kendall_tau": None,
-                "overlap_ratio": round(overlap_ratio, 3),
-                "delta_ranks_available": False,
-                "fallback_calculation": True
-            }
+                google_set = set(google_domains[:10])
+                citations_set = set(citations_domains[:10])
+                overlap_ratio = len(google_set & citations_set) / len(google_set | citations_set)
+
+                return {
+                    "rbo_score": rbo_score,
+                    "kendall_tau": kendall_tau,
+                    "overlap_ratio": round(overlap_ratio, 3),
+                    "delta_ranks_available": False,
+                    "fallback_calculation": True
+                }
+            except Exception as fallback_error:
+                self.logger.error(f"フォールバック計算も失敗: {fallback_error}")
+                return {
+                    "rbo_score": 0.0,
+                    "kendall_tau": 0.0,
+                    "overlap_ratio": 0.0,
+                    "delta_ranks_available": False,
+                    "fallback_calculation": True
+                }
 
     def _validate_ranking_metrics_consistency(self, google_domains: List[str], citations_domains: List[str],
                                             metrics: Dict) -> Dict[str, Any]:
@@ -3040,6 +3256,439 @@ class BiasAnalysisEngine:
             "significant_changes": significant_changes,
             "interpretation": interpretation
         }
+
+    def _analyze_market_dominance_bias(self, entities: Dict[str, Any]) -> Dict[str, Any]:
+        """市場支配力とバイアスの統合分析（企業レベル + サービスレベル）"""
+        try:
+            market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
+            market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
+
+            # 1. 企業レベル分析
+            enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps)
+
+            # 2. サービスレベル分析
+            service_analysis = self._analyze_service_level_bias(entities, market_shares)
+
+            # 3. 統合評価
+            integrated_score = self._calculate_integrated_market_fairness(
+                enterprise_analysis, service_analysis
+            )
+
+            return {
+                "enterprise_level": enterprise_analysis,
+                "service_level": service_analysis,
+                "integrated_fairness": integrated_score,
+                "analysis_type": "comprehensive_market_dominance"
+            }
+
+        except Exception as e:
+            logger.error(f"市場支配力分析エラー: {e}")
+            return {"error": str(e)}
+
+    def _analyze_enterprise_level_bias(self, entities: Dict[str, Any],
+                                     market_caps: Dict[str, Any]) -> Dict[str, Any]:
+        """企業レベルのバイアス分析（時価総額ベース）"""
+
+        # 重複除去のため企業の統合時価総額を計算
+        enterprise_caps = {}
+        for category, companies in market_caps.items():
+            for company, cap in companies.items():
+                if company in enterprise_caps:
+                    # 重複企業の場合は最大値を採用（より正確な企業価値）
+                    enterprise_caps[company] = max(enterprise_caps[company], cap)
+                else:
+                    enterprise_caps[company] = cap
+
+        # エンティティのバイアス指標と時価総額をマッピング
+        enterprise_bias_data = []
+        for entity_name, entity_data in entities.items():
+            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+            if entity_name in enterprise_caps:
+                enterprise_bias_data.append({
+                    "entity": entity_name,
+                    "bias_index": bi,
+                    "market_cap": enterprise_caps[entity_name],
+                    "enterprise_tier": self._get_enterprise_tier(enterprise_caps[entity_name])
+                })
+
+        if not enterprise_bias_data:
+            return {"available": False, "reason": "企業レベルデータなし"}
+
+        # 企業規模階層別の分析
+        tier_analysis = self._analyze_enterprise_tier_bias(enterprise_bias_data)
+
+        # 時価総額とバイアスの相関分析
+        correlation_analysis = self._calculate_market_cap_correlation(enterprise_bias_data)
+
+        return {
+            "available": True,
+            "enterprise_count": len(enterprise_bias_data),
+            "tier_analysis": tier_analysis,
+            "correlation_analysis": correlation_analysis,
+            "fairness_score": self._calculate_enterprise_fairness_score(tier_analysis)
+        }
+
+    def _analyze_service_level_bias(self, entities: Dict[str, Any],
+                                  market_shares: Dict[str, Any]) -> Dict[str, Any]:
+        """サービスレベルのバイアス分析（市場シェアベース）"""
+
+        service_bias_data = []
+
+                # カテゴリ別のサービス分析（拡張market_shares対応）
+        for category, services in market_shares.items():
+            category_data = []
+            for service_name, service_data in services.items():
+                # 新しい構造（辞書）と古い構造（数値）の両方に対応
+                if isinstance(service_data, dict):
+                    share = service_data.get("market_share", 0)
+                    enterprise_name = service_data.get("enterprise")
+                else:
+                    # 古い構造の場合は数値をそのまま使用
+                    share = service_data
+                    enterprise_name = None
+
+                # エンティティを検索
+                entity_key, entity_data = self._find_entity_by_service_or_enterprise(service_name, entities)
+
+                if entity_key and entity_data:
+                    bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+
+                    category_data.append({
+                        "service": service_name,
+                        "mapped_entity": entity_key,  # マッピングされた実際のエンティティ名
+                        "category": category,
+                        "bias_index": bi,
+                        "market_share": share,
+                        "fair_share_ratio": self._calculate_fair_share_ratio(bi, share)
+                    })
+
+            if category_data:
+                service_bias_data.extend(category_data)
+
+        if not service_bias_data:
+            return {"available": False, "reason": "サービスレベルデータなし"}
+
+        # カテゴリ別公平性分析
+        category_fairness = self._analyze_category_fairness(service_bias_data)
+
+        # 全体的な市場シェア相関
+        overall_correlation = self._calculate_service_share_correlation(service_bias_data)
+
+        return {
+            "available": True,
+            "service_count": len(service_bias_data),
+            "category_fairness": category_fairness,
+            "overall_correlation": overall_correlation,
+            "equal_opportunity_score": self._calculate_equal_opportunity_score(service_bias_data)
+        }
+
+    def _get_enterprise_tier(self, market_cap: float) -> str:
+        """企業の階層分類（3段階）"""
+        if market_cap >= 100:  # 100兆円以上
+            return "mega_enterprise"
+        elif market_cap >= 10:  # 10兆円以上
+            return "large_enterprise"
+        else:
+            return "mid_enterprise"
+
+    def _calculate_fair_share_ratio(self, bias_index: float, market_share: float) -> float:
+        """公正シェア比率の計算（理想値=1.0）"""
+        if market_share <= 0:
+            return 0.0
+
+        # バイアス指標から期待露出度を逆算
+        # 正のバイアス = 過大露出、負のバイアス = 過小露出
+        expected_exposure = market_share * (1 + bias_index)
+
+        return expected_exposure / market_share if market_share > 0 else 1.0
+
+    def _calculate_integrated_market_fairness(self, enterprise_analysis: Dict,
+                                            service_analysis: Dict) -> Dict[str, Any]:
+        """企業レベルとサービスレベルの統合公平性評価"""
+
+        scores = []
+
+        # 企業レベル公平性スコア
+        if enterprise_analysis.get("available", False):
+            enterprise_score = enterprise_analysis.get("fairness_score", 0.5)
+            scores.append(enterprise_score)
+
+        # サービスレベル公平性スコア
+        if service_analysis.get("available", False):
+            service_score = service_analysis.get("equal_opportunity_score", 0.5)
+            scores.append(service_score)
+
+        if not scores:
+            return {"integrated_score": 0.5, "confidence": "low", "interpretation": "データ不足"}
+
+        # 統合スコア計算
+        integrated_score = statistics.mean(scores)
+
+        # 信頼度評価
+        confidence = "high" if len(scores) == 2 else "medium"
+
+        # 解釈生成
+        if integrated_score >= 0.8:
+            interpretation = "市場競争が非常に公平"
+        elif integrated_score >= 0.6:
+            interpretation = "概ね公平な市場環境"
+        elif integrated_score >= 0.4:
+            interpretation = "軽微な市場バイアス存在"
+        else:
+            interpretation = "深刻な市場支配力格差"
+
+        return {
+            "integrated_score": round(integrated_score, 3),
+            "confidence": confidence,
+            "interpretation": interpretation,
+            "component_scores": {
+                "enterprise_fairness": enterprise_analysis.get("fairness_score"),
+                "service_fairness": service_analysis.get("equal_opportunity_score")
+            }
+        }
+
+    def _analyze_enterprise_tier_bias(self, enterprise_bias_data: List[Dict]) -> Dict[str, Any]:
+        """企業規模階層別のバイアス分析"""
+
+        tier_stats = {}
+
+        # 階層別データの集約
+        for tier in ["mega_enterprise", "large_enterprise", "mid_enterprise"]:
+            tier_data = [item for item in enterprise_bias_data if item["enterprise_tier"] == tier]
+
+            if tier_data:
+                bias_values = [item["bias_index"] for item in tier_data]
+                tier_stats[tier] = {
+                    "count": len(tier_data),
+                    "mean_bias": round(statistics.mean(bias_values), 3),
+                    "median_bias": round(statistics.median(bias_values), 3),
+                    "bias_std": round(statistics.stdev(bias_values), 3) if len(bias_values) > 1 else 0,
+                    "entities": [item["entity"] for item in tier_data]
+                }
+            else:
+                tier_stats[tier] = {"count": 0, "mean_bias": 0, "entities": []}
+
+        # 階層間格差の計算
+        tier_gaps = {}
+        if tier_stats["mega_enterprise"]["count"] > 0 and tier_stats["mid_enterprise"]["count"] > 0:
+            tier_gaps["mega_vs_mid"] = round(
+                tier_stats["mega_enterprise"]["mean_bias"] - tier_stats["mid_enterprise"]["mean_bias"], 3
+            )
+
+        if tier_stats["large_enterprise"]["count"] > 0 and tier_stats["mid_enterprise"]["count"] > 0:
+            tier_gaps["large_vs_mid"] = round(
+                tier_stats["large_enterprise"]["mean_bias"] - tier_stats["mid_enterprise"]["mean_bias"], 3
+            )
+
+        return {
+            "tier_statistics": tier_stats,
+            "tier_gaps": tier_gaps,
+            "most_advantaged_tier": max(tier_stats.keys(), key=lambda k: tier_stats[k]["mean_bias"]) if any(s["count"] > 0 for s in tier_stats.values()) else None
+        }
+
+    def _calculate_market_cap_correlation(self, enterprise_bias_data: List[Dict]) -> Dict[str, Any]:
+        """時価総額とバイアス指標の相関分析"""
+
+        if len(enterprise_bias_data) < 2:
+            return {"available": False, "reason": "データ不足（2企業以上必要）"}
+
+        market_caps = [item["market_cap"] for item in enterprise_bias_data]
+        bias_indices = [item["bias_index"] for item in enterprise_bias_data]
+
+        try:
+            # Pearson相関係数の計算（Python 3.9対応）
+            try:
+                if hasattr(statistics, 'correlation'):
+                    correlation = statistics.correlation(market_caps, bias_indices)
+                else:
+                    # フォールバック: numpyを使った相関計算
+                    import numpy as np
+                    correlation = float(np.corrcoef(market_caps, bias_indices)[0, 1])
+                    if np.isnan(correlation):
+                        correlation = 0.0
+            except Exception:
+                correlation = 0.0
+
+            # 相関の強度判定
+            if abs(correlation) >= 0.7:
+                strength = "強い"
+            elif abs(correlation) >= 0.3:
+                strength = "中程度"
+            else:
+                strength = "弱い"
+
+            # 相関の方向判定
+            direction = "正の" if correlation > 0 else "負の"
+
+            return {
+                "available": True,
+                "correlation_coefficient": round(correlation, 3),
+                "strength": strength,
+                "direction": direction,
+                "interpretation": f"時価総額とバイアスの間に{strength}{direction}相関",
+                "sample_size": len(enterprise_bias_data)
+            }
+
+        except Exception as e:
+            return {"available": False, "reason": f"相関計算エラー: {e}"}
+
+    def _calculate_enterprise_fairness_score(self, tier_analysis: Dict) -> float:
+        """企業レベル公平性スコアの計算"""
+
+        tier_stats = tier_analysis.get("tier_statistics", {})
+        tier_gaps = tier_analysis.get("tier_gaps", {})
+
+        # 基本スコア（階層間格差の逆数）
+        fairness_components = []
+
+        # 1. 階層間格差による減点
+        for gap_name, gap_value in tier_gaps.items():
+            # 格差が大きいほど公平性スコアを下げる
+            gap_penalty = min(abs(gap_value), 1.0)  # 最大1.0の減点
+            fairness_components.append(1.0 - gap_penalty)
+
+        # 2. バイアス分散による評価
+        all_entities_bias = []
+        for tier, stats in tier_stats.items():
+            if stats["count"] > 0:
+                all_entities_bias.extend([stats["mean_bias"]] * stats["count"])
+
+        if all_entities_bias:
+            bias_variance = statistics.variance(all_entities_bias) if len(all_entities_bias) > 1 else 0
+            variance_score = max(0, 1.0 - bias_variance)  # 分散が小さいほど公平
+            fairness_components.append(variance_score)
+
+        # 公平性スコアの計算（0.0～1.0）
+        if fairness_components:
+            return round(statistics.mean(fairness_components), 3)
+        else:
+            return 0.5  # デフォルト中立値
+
+    def _analyze_category_fairness(self, service_bias_data: List[Dict]) -> Dict[str, Any]:
+        """カテゴリ別公平性分析"""
+
+        category_analysis = {}
+
+        # カテゴリ別データの集約
+        categories = set(item["category"] for item in service_bias_data)
+
+        for category in categories:
+            category_services = [item for item in service_bias_data if item["category"] == category]
+
+            if len(category_services) >= 2:
+                # 市場シェアとバイアス指標の抽出
+                shares = [item["market_share"] for item in category_services]
+                biases = [item["bias_index"] for item in category_services]
+                fair_ratios = [item["fair_share_ratio"] for item in category_services]
+
+                # カテゴリ内公平性の計算
+                fairness_score = self._calculate_category_fairness_score(shares, biases, fair_ratios)
+
+                category_analysis[category] = {
+                    "service_count": len(category_services),
+                    "fairness_score": fairness_score,
+                    "market_concentration": self._calculate_hhi(dict(zip([s["service"] for s in category_services], shares))),
+                    "bias_variance": round(statistics.variance(biases), 3) if len(biases) > 1 else 0,
+                    "mean_fair_share_ratio": round(statistics.mean(fair_ratios), 3)
+                }
+            else:
+                category_analysis[category] = {
+                    "service_count": len(category_services),
+                    "fairness_score": 0.5,
+                    "note": "データ不足（2サービス以上必要）"
+                }
+
+        return category_analysis
+
+    def _calculate_category_fairness_score(self, shares: List[float], biases: List[float], fair_ratios: List[float]) -> float:
+        """カテゴリ内公平性スコアの計算"""
+
+        fairness_components = []
+
+        # 1. Fair Share Ratioの1.0からの乖離度
+        ratio_deviations = [abs(ratio - 1.0) for ratio in fair_ratios]
+        ratio_fairness = 1.0 - statistics.mean(ratio_deviations)
+        fairness_components.append(max(0, ratio_fairness))
+
+        # 2. バイアス分散の逆数（分散が小さいほど公平）
+        if len(biases) > 1:
+            bias_variance = statistics.variance(biases)
+            variance_fairness = 1.0 / (1.0 + bias_variance)  # 分散が大きいほどスコア低下
+            fairness_components.append(variance_fairness)
+
+        # 3. 市場集中度による調整（HHIの逆数）
+        hhi = sum(share ** 2 for share in shares) * 10000  # HHI計算
+        concentration_fairness = 1.0 / (1.0 + hhi / 10000)
+        fairness_components.append(concentration_fairness)
+
+        return round(statistics.mean(fairness_components), 3)
+
+    def _calculate_hhi(self, market_shares: Dict[str, float]) -> float:
+        """HHI（ハーフィンダール・ハーシュマン指数）計算"""
+        if not market_shares:
+            return 0.0
+        return round(sum((share * 100) ** 2 for share in market_shares.values()), 1)
+
+    def _calculate_service_share_correlation(self, service_bias_data: List[Dict]) -> Dict[str, Any]:
+        """サービスレベルの市場シェア-バイアス相関分析"""
+
+        if len(service_bias_data) < 2:
+            return {"available": False, "reason": "データ不足"}
+
+        shares = [item["market_share"] for item in service_bias_data]
+        biases = [item["bias_index"] for item in service_bias_data]
+
+        try:
+            # Pearson相関係数の計算（Python 3.9対応）
+            if hasattr(statistics, 'correlation'):
+                correlation = statistics.correlation(shares, biases)
+            else:
+                # フォールバック: numpyを使った相関計算
+                import numpy as np
+                correlation = float(np.corrcoef(shares, biases)[0, 1])
+                if np.isnan(correlation):
+                    correlation = 0.0
+
+            return {
+                "available": True,
+                "correlation_coefficient": round(correlation, 3),
+                "sample_size": len(service_bias_data),
+                "interpretation": self._interpret_service_correlation(correlation)
+            }
+
+        except Exception as e:
+            return {"available": False, "reason": f"相関計算エラー: {e}"}
+
+    def _interpret_service_correlation(self, correlation: float) -> str:
+        """サービス相関の解釈"""
+        if correlation > 0.3:
+            return "市場シェアが大きいサービスほど優遇される傾向"
+        elif correlation < -0.3:
+            return "市場シェアが小さいサービスほど優遇される傾向"
+        else:
+            return "市場シェアとバイアスに明確な関係なし"
+
+    def _calculate_equal_opportunity_score(self, service_bias_data: List[Dict]) -> float:
+        """Equal Opportunity（平等機会）スコアの計算"""
+
+        if not service_bias_data:
+            return 0.5
+
+        # Fair Share Ratioの理想値（1.0）からの乖離度を測定
+        fair_ratios = [item["fair_share_ratio"] for item in service_bias_data]
+
+        # 各サービスの公平性スコア計算
+        service_fairness_scores = []
+        for ratio in fair_ratios:
+            # 1.0に近いほど高スコア
+            deviation = abs(ratio - 1.0)
+            fairness = max(0, 1.0 - deviation)
+            service_fairness_scores.append(fairness)
+
+        # 全体の平等機会スコア
+        equal_opportunity_score = statistics.mean(service_fairness_scores)
+
+        return round(equal_opportunity_score, 3)
 
 
 def main():
