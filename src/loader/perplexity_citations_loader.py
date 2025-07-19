@@ -309,6 +309,7 @@ def collect_citation_rankings(categories):
                     if citation_data:
                         entities_results[service]["official_results"] = citation_data
                         entities_results[service]["official_answer"] = answer
+                        entities_results[service]["official_prompt"] = query
                     print("  APIレート制限を考慮して待機中...")
                     time.sleep(3)
 
@@ -340,6 +341,7 @@ def collect_citation_rankings(categories):
                     if citation_data:
                         entities_results[service]["reputation_results"] = citation_data
                         entities_results[service]["reputation_answer"] = answer
+                        entities_results[service]["reputation_prompt"] = query
                     print("  APIレート制限を考慮して待機中...")
                     time.sleep(3)
 
