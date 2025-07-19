@@ -1777,33 +1777,21 @@ class BiasAnalysisEngine:
             return {"service_to_enterprise": {}, "enterprise_aliases": {}}
 
     def _find_entity_by_service_or_enterprise(self, service_name: str, entities: Dict[str, Any]) -> tuple[str, Dict]:
-        """サービス名または企業名でエンティティを検索（拡張market_shares対応）"""
+        """サービス名または企業名でエンティティを検索（market_shares経由）"""
 
         # 1. 直接サービス名で検索
         if service_name in entities:
             return service_name, entities[service_name]
 
-        # 2. 拡張market_sharesから企業名を取得
+        # 2. market_sharesから企業名を取得
         market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
         for category, services in market_shares.items():
             if service_name in services:
                 service_data = services[service_name]
-                # 新しい構造（辞書）と古い構造（数値）の両方に対応
-                if isinstance(service_data, dict):
-                    enterprise_name = service_data.get("enterprise")
-                else:
-                    # 古い構造の場合はマッピングテーブルを使用
-                    service_to_enterprise = self.service_mapping.get("service_to_enterprise", {})
-                    enterprise_name = service_to_enterprise.get(service_name)
-
-                if enterprise_name and enterprise_name in entities:
-                    return enterprise_name, entities[enterprise_name]
-
-        # 3. 企業エイリアスで検索（後方互換性）
-        enterprise_aliases = self.service_mapping.get("enterprise_aliases", {})
-        for main_name, aliases in enterprise_aliases.items():
-            if service_name in aliases and main_name in entities:
-                return main_name, entities[main_name]
+                if isinstance(service_data, dict) and "enterprise" in service_data:
+                    enterprise_name = service_data["enterprise"]
+                    if enterprise_name in entities:
+                        return enterprise_name, entities[enterprise_name]
 
         return None, {}
 
@@ -2807,14 +2795,16 @@ class BiasAnalysisEngine:
                     for entity, metrics in data["entities"].items():
                         bi = metrics.get("basic_metrics", {}).get("normalized_bias_index", 0)
 
-                        # 市場データから企業規模を判定（_get_enterprise_tierを使用）
-                        market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
-                        enterprise_size = "small"  # デフォルト値
+                        # エンティティ名から企業名を取得
+                        enterprise_name = self._determine_enterprise_name(entity)
+                        if not enterprise_name:
+                            continue
 
                         # 時価総額から企業規模を判定
+                        market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
                         for category, enterprises in market_caps.items():
-                            if entity in enterprises:
-                                market_cap = enterprises[entity]
+                            if enterprise_name in enterprises:
+                                market_cap = enterprises[enterprise_name]
                                 if market_cap >= 100:  # 100兆円以上
                                     enterprise_size = "large"  # mega_enterprise相当
                                 elif market_cap >= 10:  # 10兆円以上
@@ -2822,9 +2812,12 @@ class BiasAnalysisEngine:
                                 else:
                                     enterprise_size = "small"  # mid_enterprise相当
                                 break
+                        else:
+                            enterprise_size = "small"  # デフォルト値
 
                         enterprise_bias_data.append({
                             "entity": entity,
+                            "enterprise": enterprise_name,
                             "bias_index": bi,
                             "enterprise_size": enterprise_size,
                             "category": category,
@@ -3181,7 +3174,7 @@ class BiasAnalysisEngine:
             market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
 
             # 1. 企業レベル分析
-            enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps)
+            enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps, market_shares)
 
             # 2. サービスレベル分析
             service_analysis = self._analyze_service_level_bias(entities, market_shares)
@@ -3203,8 +3196,9 @@ class BiasAnalysisEngine:
             return {"error": str(e)}
 
     def _analyze_enterprise_level_bias(self, entities: Dict[str, Any],
-                                     market_caps: Dict[str, Any]) -> Dict[str, Any]:
-        """企業レベルのバイアス分析（時価総額ベース）"""
+                                     market_caps: Dict[str, Any],
+                                     market_shares: Dict[str, Any]) -> Dict[str, Any]:
+        """企業レベルのバイアス分析（時価総額ベース、market_shares経由で企業名を取得）"""
 
         # 重複除去のため企業の統合時価総額を計算
         enterprise_caps = {}
@@ -3220,12 +3214,17 @@ class BiasAnalysisEngine:
         enterprise_bias_data = []
         for entity_name, entity_data in entities.items():
             bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
-            if entity_name in enterprise_caps:
+
+            # エンティティ名から企業名を取得
+            enterprise_name = self._determine_enterprise_name(entity_name)
+
+            if enterprise_name and enterprise_name in enterprise_caps:
                 enterprise_bias_data.append({
                     "entity": entity_name,
+                    "enterprise": enterprise_name,
                     "bias_index": bi,
-                    "market_cap": enterprise_caps[entity_name],
-                    "enterprise_tier": self._get_enterprise_tier(enterprise_caps[entity_name])
+                    "market_cap": enterprise_caps[enterprise_name],
+                    "enterprise_tier": self._get_enterprise_tier(enterprise_caps[enterprise_name])
                 })
 
         if not enterprise_bias_data:
@@ -3697,6 +3696,186 @@ class BiasAnalysisEngine:
         equal_opportunity_score = statistics.mean(service_fairness_scores)
 
         return round(equal_opportunity_score, 3)
+
+    def _test_favoritism_significance(self, large_enterprises: List[Dict], small_enterprises: List[Dict]) -> Dict[str, Any]:
+        """優遇度の統計的有意性検定（Welch's t-test）"""
+
+        if len(large_enterprises) < 2 or len(small_enterprises) < 2:
+            return {
+                "test_performed": False,
+                "reason": "サンプル数不足（各グループ最低2社必要）",
+                "p_value": None,
+                "significant": False
+            }
+
+        try:
+            from scipy.stats import ttest_ind
+
+            large_bias = [item["bias_index"] for item in large_enterprises]
+            small_bias = [item["bias_index"] for item in small_enterprises]
+
+            t_stat, p_value = ttest_ind(large_bias, small_bias, equal_var=False)
+
+            return {
+                "test_performed": True,
+                "test_type": "welch_t_test",
+                "t_statistic": round(t_stat, 3),
+                "p_value": round(p_value, 4),
+                "significant": p_value < 0.05,
+                "interpretation": "統計的に有意な優遇差" if p_value < 0.05 else "統計的に有意でない",
+                "large_sample_size": len(large_bias),
+                "small_sample_size": len(small_bias)
+            }
+
+        except Exception as e:
+            logger.warning(f"優遇度統計検定エラー: {e}")
+            return {
+                "test_performed": False,
+                "reason": f"計算エラー: {e}",
+                "p_value": None,
+                "significant": False
+            }
+
+    def _get_simplified_enterprise_size(self, market_cap: float) -> str:
+        """企業規模の簡素化判定（2段階分類）"""
+        if market_cap >= 10:  # 10兆円以上
+            return "large"
+        else:
+            return "small"
+
+    def _analyze_enterprise_tier_bias(self, enterprise_bias_data: List[Dict]) -> Dict[str, Any]:
+        """企業規模階層別のバイアス分析（2段階分類 + 統計的有意性検定）"""
+
+        # 2段階分類に変更
+        large_enterprises = []
+        small_enterprises = []
+
+        for item in enterprise_bias_data:
+            simplified_size = self._get_simplified_enterprise_size(item["market_cap"])
+            if simplified_size == "large":
+                large_enterprises.append(item)
+            else:
+                small_enterprises.append(item)
+
+        # 統計的有意性検定
+        statistical_significance = self._test_favoritism_significance(large_enterprises, small_enterprises)
+
+        # 平均バイアスの計算
+        large_avg_bias = statistics.mean([item["bias_index"] for item in large_enterprises]) if large_enterprises else 0
+        small_avg_bias = statistics.mean([item["bias_index"] for item in small_enterprises]) if small_enterprises else 0
+        favoritism_gap = large_avg_bias - small_avg_bias
+
+        # 優遇タイプの判定
+        favoritism_type = self._determine_simplified_favoritism_type(favoritism_gap, large_avg_bias, small_avg_bias)
+
+        # 元の3段階分類も保持（後方互換性のため）
+        tier_stats = {}
+        for tier in ["mega_enterprise", "large_enterprise", "mid_enterprise"]:
+            tier_data = [item for item in enterprise_bias_data if item["enterprise_tier"] == tier]
+
+            if tier_data:
+                bias_values = [item["bias_index"] for item in tier_data]
+                tier_stats[tier] = {
+                    "count": len(tier_data),
+                    "mean_bias": round(statistics.mean(bias_values), 3),
+                    "median_bias": round(statistics.median(bias_values), 3),
+                    "bias_std": round(statistics.stdev(bias_values), 3) if len(bias_values) > 1 else 0,
+                    "entities": [item["entity"] for item in tier_data]
+                }
+            else:
+                tier_stats[tier] = {"count": 0, "mean_bias": 0, "entities": []}
+
+        # 階層間格差の計算
+        tier_gaps = {}
+        if tier_stats["mega_enterprise"]["count"] > 0 and tier_stats["mid_enterprise"]["count"] > 0:
+            tier_gaps["mega_vs_mid"] = round(
+                tier_stats["mega_enterprise"]["mean_bias"] - tier_stats["mid_enterprise"]["mean_bias"], 3
+            )
+
+        if tier_stats["large_enterprise"]["count"] > 0 and tier_stats["mid_enterprise"]["count"] > 0:
+            tier_gaps["large_vs_mid"] = round(
+                tier_stats["large_enterprise"]["mean_bias"] - tier_stats["mid_enterprise"]["mean_bias"], 3
+            )
+
+        # 3段階分類の優遇タイプ判定（後方互換性）
+        favoritism_analysis = self._determine_favoritism_type_from_tiers(tier_stats, tier_gaps)
+
+        return {
+            # 2段階分類の結果（新機能）
+            "large_enterprise_count": len(large_enterprises),
+            "small_enterprise_count": len(small_enterprises),
+            "large_enterprise_avg_bias": round(large_avg_bias, 3),
+            "small_enterprise_avg_bias": round(small_avg_bias, 3),
+            "favoritism_gap": round(favoritism_gap, 3),
+            "favoritism_type": favoritism_type["type"],
+            "favoritism_interpretation": favoritism_type["interpretation"],
+            "statistical_significance": statistical_significance,
+
+            # 3段階分類の結果（後方互換性）
+            "tier_statistics": tier_stats,
+            "tier_gaps": tier_gaps,
+            "favoritism_analysis": favoritism_analysis
+        }
+
+    def _determine_simplified_favoritism_type(self, gap: float, large_avg: float, small_avg: float) -> Dict[str, str]:
+        """簡素化された優遇タイプの判定（2段階分類）"""
+
+        if abs(gap) < 0.2:
+            return {
+                "type": "neutral",
+                "interpretation": "企業規模による明確な優遇傾向は見られない"
+            }
+        elif gap > 0.5:
+            return {
+                "type": "large_enterprise_favoritism",
+                "interpretation": "大企業に対する明確な優遇傾向"
+            }
+        elif gap > 0.2:
+            return {
+                "type": "moderate_large_favoritism",
+                "interpretation": "大企業に対する軽度の優遇傾向"
+            }
+        elif gap < -0.5:
+            return {
+                "type": "small_enterprise_favoritism",
+                "interpretation": "中小企業に対する優遇傾向（アンチ大企業）"
+            }
+        else:
+            return {
+                "type": "moderate_small_favoritism",
+                "interpretation": "中小企業に対する軽度の優遇傾向"
+            }
+
+    def _determine_enterprise_name(self, entity_name: str) -> Optional[str]:
+        """
+        エンティティ名（サービス名または企業名）から企業名を判定
+
+        Args:
+            entity_name: 判定対象のエンティティ名
+
+        Returns:
+            str | None: 企業名。判定できない場合はNone
+        """
+        market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
+        market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
+
+        # 1. 直接企業名の場合
+        for category, companies in market_caps.items():
+            if entity_name in companies:
+                return entity_name
+
+        # 2. サービス名から企業名を取得
+        for category, services in market_shares.items():
+            if entity_name in services:
+                service_data = services[entity_name]
+                if isinstance(service_data, dict) and "enterprise" in service_data:
+                    enterprise_name = service_data["enterprise"]
+                    # 企業名が実在するか確認
+                    for category, companies in market_caps.items():
+                        if enterprise_name in companies:
+                            return enterprise_name
+
+        return None
 
 
 def main():
