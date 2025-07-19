@@ -286,19 +286,30 @@ if viz_type == "単日分析":
     # --- メインダッシュボード（統合版） ---
     st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
 
+        # --- 統一カテゴリリスト作成 ---
+    # 一つのデータソースからカテゴリを抽出（全分析タイプで共通）
+    sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
+    all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
+    all_categories.sort()
+
+    # 統一されたカテゴリ選択（全分析タイプで共通）
+    selected_category = st.sidebar.selectbox(
+        "カテゴリを選択",
+        all_categories,
+        key=f"sentiment_category_{selected_date}"
+    )
+
     # --- 詳細可視化タイプ分岐 ---
     if viz_type_detail == "感情スコア分析":
-        sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
-        categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
-        category_options = categories
-        selected_category = st.sidebar.selectbox(
-            "カテゴリを選択", category_options,
-            key=f"sentiment_category_{selected_date}_{viz_type_detail}"
-        )
+        # 選択されたカテゴリが感情スコア分析で利用可能かチェック
+        if selected_category not in sentiment_data:
+            st.warning(f"選択されたカテゴリ '{selected_category}' は感情スコア分析では利用できません。")
+            st.stop()
+
         subcategories = list(sentiment_data[selected_category].keys())
         selected_subcategory = st.sidebar.selectbox(
             "サブカテゴリを選択", subcategories,
-            key=f"sentiment_subcategory_{selected_category}_{selected_date}_{viz_type_detail}"
+            key=f"sentiment_subcategory_{selected_category}_{selected_date}"
         )
         entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
         entities = list(entities_data.keys())
@@ -306,7 +317,7 @@ if viz_type == "単日分析":
             "エンティティを選択（複数選択可）",
             entities,
             default=entities[:10] if len(entities) > 10 else entities,
-            key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}_{viz_type_detail}"
+            key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}"
         )
         # --- 表形式表示（常に上部に表示） ---
         sentiment_flat = dashboard_data.get("perplexity_sentiment_flat", [])
@@ -489,23 +500,18 @@ if viz_type == "単日分析":
         # Perplexity-Google比較のサイドバー設定
         citations_data = analysis_data.get("citations_google_comparison", {})
         if citations_data:
-            categories = list(citations_data.keys())
-            if "error" in categories:
-                categories.remove("error")
+            # 選択されたカテゴリがPerplexity-Google比較で利用可能かチェック
+            if selected_category not in citations_data:
+                st.warning(f"選択されたカテゴリ '{selected_category}' はPerplexity-Google比較では利用できません。")
+                st.stop()
 
-            if categories:
-                category_options = categories  # 「全体」除去
-                selected_category = st.sidebar.selectbox(
-                    "カテゴリを選択", category_options,
-                    key=f"citations_category_{selected_date}_{viz_type_detail}"
-                )
-
-                if selected_category == "全体":
-                    # 全体表示の場合、サブカテゴリは「全体」のみ
-                    selected_subcategory = "全体"
-                    # 全体データを集約
-                    all_similarity_data = {}
-                    for cat in categories:
+            if selected_category == "全体":
+                # 全体表示の場合、サブカテゴリは「全体」のみ
+                selected_subcategory = "全体"
+                # 全体データを集約
+                all_similarity_data = {}
+                for cat in citations_data.keys():
+                    if cat != "error":
                         for subcat in citations_data[cat].keys():
                             subcat_data = citations_data[cat][subcat]
                             if "ranking_similarity" in subcat_data:
@@ -516,50 +522,83 @@ if viz_type == "単日分析":
                                     if similarity.get(metric) is not None:
                                         all_similarity_data[metric].append(similarity[metric])
 
-                    # 平均値を計算
-                    avg_similarity_data = {}
-                    for metric, values in all_similarity_data.items():
-                        if values:
-                            avg_similarity_data[metric] = sum(values) / len(values)
-                        else:
-                            avg_similarity_data[metric] = 0
+                # 平均値を計算
+                avg_similarity_data = {}
+                for metric, values in all_similarity_data.items():
+                    if values:
+                        avg_similarity_data[metric] = sum(values) / len(values)
+                    else:
+                        avg_similarity_data[metric] = 0
 
-                    similarity_data = avg_similarity_data
-                else:
-                    # 特定カテゴリ選択の場合
-                    subcategories = list(citations_data[selected_category].keys())
-                    selected_subcategory = st.sidebar.selectbox(
-                        "サブカテゴリを選択", subcategories,
-                        key=f"citations_subcategory_{selected_category}_{selected_date}_{viz_type_detail}"
-                    )
-                    subcat_data = citations_data[selected_category][selected_subcategory]
-                    similarity_data = subcat_data.get("ranking_similarity", {})
-
-                # Perplexity-Google比較の表示
-                st.subheader(f"🔗 Perplexity-Google比較 - {selected_category} / {selected_subcategory}")
-                if similarity_data:
-                    title = f"{selected_category} - {selected_subcategory}"
-                    fig = plot_ranking_similarity(similarity_data, title)
-                    st.pyplot(fig, use_container_width=True)
-
-                    # 詳細情報
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown("**📊 類似度指標詳細**")
-                        for metric, value in similarity_data.items():
-                            if value is not None:
-                                st.markdown(f"- **{metric}**: {value:.3f}")
-                    with col2:
-                        st.markdown("**📋 指標説明**")
-                        st.markdown("- **RBO**: 上位重視重複度（0-1）")
-                        st.markdown("- **Kendall Tau**: 順位相関係数（-1〜1）")
-                        st.markdown("- **Overlap Ratio**: 共通要素率（0-1）")
-                else:
-                    st.info("ランキング類似度データがありません")
+                similarity_data = avg_similarity_data
             else:
-                st.warning("Perplexity-Google比較データが見つかりません")
+                # 特定カテゴリ選択の場合
+                subcategories = list(citations_data[selected_category].keys())
+                selected_subcategory = st.sidebar.selectbox(
+                    "サブカテゴリを選択", subcategories,
+                    key=f"sentiment_subcategory_{selected_category}_{selected_date}"
+                )
+                subcat_data = citations_data[selected_category][selected_subcategory]
+                similarity_data = subcat_data.get("ranking_similarity", {})
+
+            # エンティティ選択機能を追加
+            # Google検索とPerplexity Citationsの両方からエンティティを取得
+            google_entities = []
+            citations_entities = []
+
+            if selected_category != "全体":
+                # Google検索データからエンティティを取得
+                source_data = dashboard_data.get("source_data", {})
+                google_search_data = source_data.get("google_search", {})
+                if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
+                    google_subcat_data = google_search_data[selected_category][selected_subcategory]
+                    if "entities" in google_subcat_data:
+                        google_entities = list(google_subcat_data["entities"].keys())
+
+                # Perplexity Citationsデータからエンティティを取得
+                perplexity_citations_data = source_data.get("perplexity_citations", {})
+                if selected_category in perplexity_citations_data and selected_subcategory in perplexity_citations_data[selected_category]:
+                    citations_subcat_data = perplexity_citations_data[selected_category][selected_subcategory]
+                    if "entities" in citations_subcat_data:
+                        citations_entities = list(citations_subcat_data["entities"].keys())
+
+            # 全エンティティを統合（重複除去）
+            all_entities = list(set(google_entities + citations_entities))
+            all_entities.sort()
+
+            if all_entities:
+                selected_entities = st.sidebar.multiselect(
+                    "エンティティを選択（複数選択可）",
+                    all_entities,
+                    default=all_entities[:10] if len(all_entities) > 10 else all_entities,
+                    key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}"
+                )
+            else:
+                selected_entities = []
+
+            # Perplexity-Google比較の表示
+            st.subheader(f"🔗 Perplexity-Google比較 - {selected_category} / {selected_subcategory}")
+            if similarity_data:
+                title = f"{selected_category} - {selected_subcategory}"
+                fig = plot_ranking_similarity(similarity_data, title)
+                st.pyplot(fig, use_container_width=True)
+
+                # 詳細情報
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**📊 類似度指標詳細**")
+                    for metric, value in similarity_data.items():
+                        if value is not None:
+                            st.markdown(f"- **{metric}**: {value:.3f}")
+                with col2:
+                    st.markdown("**📋 指標説明**")
+                    st.markdown("- **RBO**: 上位重視重複度（0-1）")
+                    st.markdown("- **Kendall Tau**: 順位相関係数（-1〜1）")
+                    st.markdown("- **Overlap Ratio**: 共通要素率（0-1）")
+            else:
+                st.info("ランキング類似度データがありません")
         else:
-            st.warning("Perplexity-Google比較データがありません")
+            st.warning("Perplexity-Google比較データが見つかりません")
 
     elif viz_type_detail == "統合分析":
         # 統合分析の表示
@@ -594,28 +633,39 @@ if viz_type == "単日分析":
         perplexity_rankings = source_data.get("perplexity_rankings", {})
 
         if perplexity_rankings:
-            categories = [c for c in perplexity_rankings.keys() if c not in ("全体", "all", "ALL", "All")]
-            category_options = categories
-            selected_category = st.sidebar.selectbox(
-                "カテゴリを選択", category_options,
-                key=f"ranking_category_{selected_date}_{viz_type_detail}"
-            )
+            # 選択されたカテゴリがおすすめランキング分析結果で利用可能かチェック
+            if selected_category not in perplexity_rankings:
+                st.warning(f"選択されたカテゴリ '{selected_category}' はおすすめランキング分析結果では利用できません。")
+                st.stop()
 
             subcategories = list(perplexity_rankings[selected_category].keys())
             selected_subcategory = st.sidebar.selectbox(
                 "サブカテゴリを選択", subcategories,
-                key=f"ranking_subcategory_{selected_category}_{selected_date}_{viz_type_detail}"
+                key=f"sentiment_subcategory_{selected_category}_{selected_date}"
             )
 
-            # 選択されたカテゴリ・サブカテゴリのデータ取得
+            # エンティティ選択機能を追加
+            # ランキングデータからエンティティを取得
             subcat_data = perplexity_rankings[selected_category][selected_subcategory]
+            ranking_summary = subcat_data.get("ranking_summary", {})
+            entities = ranking_summary.get("entities", {})
+            all_entities = list(entities.keys())
+            all_entities.sort()
+
+            if all_entities:
+                selected_entities = st.sidebar.multiselect(
+                    "エンティティを選択（複数選択可）",
+                    all_entities,
+                    default=all_entities[:10] if len(all_entities) > 10 else all_entities,
+                    key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}"
+                )
+            else:
+                selected_entities = []
 
             st.subheader(f"おすすめランキング分析結果｜{selected_category}｜{selected_subcategory}")
 
             # === 1. マスクありプロンプトとデータ内容表示 ===
-            ranking_summary = subcat_data.get("ranking_summary", {})
             answer_list = subcat_data.get("answer_list", [])
-            entities = ranking_summary.get("entities", {})
             avg_ranking = ranking_summary.get("avg_ranking", [])
 
             # プロンプト情報表示
@@ -627,7 +677,8 @@ if viz_type == "単日分析":
             if entities and avg_ranking:
                 table_rows = []
                 for i, entity_name in enumerate(avg_ranking):
-                    if entity_name in entities:
+                    # 選択されたエンティティのみを表示
+                    if entity_name in entities and (not selected_entities or entity_name in selected_entities):
                         entity_data = entities[entity_name]
                         avg_rank = entity_data.get("avg_rank", "未ランク")
                         all_ranks = entity_data.get("all_ranks", [])
@@ -673,13 +724,15 @@ if viz_type == "単日分析":
                     max_rank_variation = 0
 
                     for entity_name, entity_data in entities.items():
-                        all_ranks = entity_data.get("all_ranks", [])
-                        if all_ranks:
-                            avg_rank = sum(all_ranks) / len(all_ranks)
-                            rank_std = (sum((r - avg_rank) ** 2 for r in all_ranks) / len(all_ranks)) ** 0.5
-                            rank_std_values.append(rank_std)
-                            rank_variation = max(all_ranks) - min(all_ranks)
-                            max_rank_variation = max(max_rank_variation, rank_variation)
+                        # 選択されたエンティティのみを対象とする
+                        if not selected_entities or entity_name in selected_entities:
+                            all_ranks = entity_data.get("all_ranks", [])
+                            if all_ranks:
+                                avg_rank = sum(all_ranks) / len(all_ranks)
+                                rank_std = (sum((r - avg_rank) ** 2 for r in all_ranks) / len(all_ranks)) ** 0.5
+                                rank_std_values.append(rank_std)
+                                rank_variation = max(all_ranks) - min(all_ranks)
+                                max_rank_variation = max(max_rank_variation, rank_variation)
 
                     avg_rank_std = sum(rank_std_values) / len(rank_std_values) if rank_std_values else 0
 
