@@ -550,7 +550,7 @@ if viz_type == "単日分析":
             if selected_category != "全体":
                 # Google検索データからエンティティを取得
                 source_data = dashboard_data.get("source_data", {})
-                google_search_data = source_data.get("google_search", {})
+                google_search_data = source_data.get("google_data", {})
                 if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
                     google_subcat_data = google_search_data[selected_category][selected_subcategory]
                     if "entities" in google_subcat_data:
@@ -579,6 +579,171 @@ if viz_type == "単日分析":
 
             # Perplexity-Google比較の表示
             st.subheader(f"🔗 Perplexity-Google比較 - {selected_category} / {selected_subcategory}")
+
+            # === 1. プロンプト情報表示 ===
+            source_data = dashboard_data.get("source_data", {})
+
+            # Google検索プロンプト表示
+            google_search_data = source_data.get("google_data", {})
+            if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
+                google_subcat_data = google_search_data[selected_category][selected_subcategory]
+                # Google検索にはクエリ情報がないため、検索対象エンティティを表示
+                with st.expander("Google検索対象", expanded=False):
+                    if "entities" in google_subcat_data:
+                        entity_names = list(google_subcat_data["entities"].keys())
+                        st.markdown(f"**検索対象エンティティ**: {', '.join(entity_names)}")
+
+            # Perplexity Citationsプロンプト表示
+            perplexity_citations_data = source_data.get("perplexity_citations", {})
+            if selected_category in perplexity_citations_data and selected_subcategory in perplexity_citations_data[selected_category]:
+                citations_subcat_data = perplexity_citations_data[selected_category][selected_subcategory]
+                # Perplexity Citationsにはプロンプト情報がないため、検索対象エンティティを表示
+                with st.expander("Perplexity Citations対象", expanded=False):
+                    if "entities" in citations_subcat_data:
+                        entity_names = list(citations_subcat_data["entities"].keys())
+                        st.markdown(f"**検索対象エンティティ**: {', '.join(entity_names)}")
+
+            # === 2. Google検索データテーブル表示 ===
+            st.markdown("**Google検索データテーブル**:")
+            if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
+                google_subcat_data = google_search_data[selected_category][selected_subcategory]
+                if "entities" in google_subcat_data:
+                    google_entities_data = google_subcat_data["entities"]
+
+                    # 選択されたエンティティのみを表示
+                    filtered_google_entities = {k: v for k, v in google_entities_data.items()
+                                             if not selected_entities or k in selected_entities}
+
+                    if filtered_google_entities:
+                        google_table_rows = []
+                        for entity_name, entity_data in filtered_google_entities.items():
+                            # official_results と reputation_results の統計
+                            official_count = len(entity_data.get("official_results", []))
+                            reputation_count = len(entity_data.get("reputation_results", []))
+                            total_results = official_count + reputation_count
+
+                            # 感情分析結果の統計
+                            positive_count = 0
+                            negative_count = 0
+                            neutral_count = 0
+                            unknown_count = 0
+
+                            for result in entity_data.get("reputation_results", []):
+                                sentiment = result.get("sentiment", "unknown")
+                                if sentiment == "positive":
+                                    positive_count += 1
+                                elif sentiment == "negative":
+                                    negative_count += 1
+                                elif sentiment == "neutral":
+                                    neutral_count += 1
+                                else:
+                                    unknown_count += 1
+
+                            # 主要ドメイン（上位3つ）
+                            all_domains = []
+                            for result in entity_data.get("official_results", []) + entity_data.get("reputation_results", []):
+                                domain = result.get("domain")
+                                if domain:
+                                    all_domains.append(domain)
+
+                            top_domains = list(set(all_domains))[:3]
+                            top_domains_str = ", ".join(top_domains) if top_domains else "なし"
+
+                            google_table_rows.append({
+                                "エンティティ": entity_name,
+                                "公式結果数": official_count,
+                                "評判結果数": reputation_count,
+                                "総結果数": total_results,
+                                "ポジティブ": positive_count,
+                                "ネガティブ": negative_count,
+                                "中立": neutral_count,
+                                "不明": unknown_count,
+                                "主要ドメイン": top_domains_str
+                            })
+
+                        if google_table_rows:
+                            df_google = pd.DataFrame(google_table_rows)
+                            st.dataframe(df_google, use_container_width=True)
+                        else:
+                            st.info("表示可能なGoogle検索データがありません")
+                    else:
+                        st.info("Google検索データがありません")
+                else:
+                    st.info("Google検索エンティティデータがありません")
+            else:
+                st.info("Google検索データがありません")
+
+            # === 3. Perplexity Citationsデータテーブル表示 ===
+            st.markdown("**Perplexity Citationsデータテーブル**:")
+            if selected_category in perplexity_citations_data and selected_subcategory in perplexity_citations_data[selected_category]:
+                citations_subcat_data = perplexity_citations_data[selected_category][selected_subcategory]
+                if "entities" in citations_subcat_data:
+                    citations_entities_data = citations_subcat_data["entities"]
+
+                    # 選択されたエンティティのみを表示
+                    filtered_citations_entities = {k: v for k, v in citations_entities_data.items()
+                                                 if not selected_entities or k in selected_entities}
+
+                    if filtered_citations_entities:
+                        citations_table_rows = []
+                        for entity_name, entity_data in filtered_citations_entities.items():
+                            # official_results と reputation_results の統計
+                            official_count = len(entity_data.get("official_results", []))
+                            reputation_count = len(entity_data.get("reputation_results", []))
+                            total_results = official_count + reputation_count
+
+                            # 感情分析結果の統計
+                            positive_count = 0
+                            negative_count = 0
+                            neutral_count = 0
+                            unknown_count = 0
+
+                            for result in entity_data.get("reputation_results", []):
+                                sentiment = result.get("sentiment", "unknown")
+                                if sentiment == "positive":
+                                    positive_count += 1
+                                elif sentiment == "negative":
+                                    negative_count += 1
+                                elif sentiment == "neutral":
+                                    neutral_count += 1
+                                else:
+                                    unknown_count += 1
+
+                            # 主要ドメイン（上位3つ）
+                            all_domains = []
+                            for result in entity_data.get("official_results", []) + entity_data.get("reputation_results", []):
+                                domain = result.get("domain")
+                                if domain:
+                                    all_domains.append(domain)
+
+                            top_domains = list(set(all_domains))[:3]
+                            top_domains_str = ", ".join(top_domains) if top_domains else "なし"
+
+                            citations_table_rows.append({
+                                "エンティティ": entity_name,
+                                "公式結果数": official_count,
+                                "評判結果数": reputation_count,
+                                "総結果数": total_results,
+                                "ポジティブ": positive_count,
+                                "ネガティブ": negative_count,
+                                "中立": neutral_count,
+                                "不明": unknown_count,
+                                "主要ドメイン": top_domains_str
+                            })
+
+                        if citations_table_rows:
+                            df_citations = pd.DataFrame(citations_table_rows)
+                            st.dataframe(df_citations, use_container_width=True)
+                        else:
+                            st.info("表示可能なPerplexity Citationsデータがありません")
+                    else:
+                        st.info("Perplexity Citationsデータがありません")
+                else:
+                    st.info("Perplexity Citationsエンティティデータがありません")
+            else:
+                st.info("Perplexity Citationsデータがありません")
+
+            # === 4. 比較分析結果表示 ===
             if similarity_data:
                 title = f"{selected_category} - {selected_subcategory}"
                 fig = plot_ranking_similarity(similarity_data, title)
@@ -596,6 +761,14 @@ if viz_type == "単日分析":
                     st.markdown("- **RBO**: 上位重視重複度（0-1）")
                     st.markdown("- **Kendall Tau**: 順位相関係数（-1〜1）")
                     st.markdown("- **Overlap Ratio**: 共通要素率（0-1）")
+
+                # 詳細データ表示
+                with st.expander("詳細データ（JSON）", expanded=False):
+                    if selected_category in citations_data and selected_subcategory in citations_data[selected_category]:
+                        subcat_comparison_data = citations_data[selected_category][selected_subcategory]
+                        st.json(subcat_comparison_data, expanded=False)
+                    else:
+                        st.info("詳細データがありません")
             else:
                 st.info("ランキング類似度データがありません")
         else:
