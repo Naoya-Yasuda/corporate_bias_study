@@ -181,9 +181,6 @@ def plot_effect_significance_scatter(effect_data, title, reliability_label=None)
 
 # コマンドライン引数でstorage-modeを受け取る
 if not hasattr(st, 'session_state') or 'storage_mode' not in st.session_state:
-    # parser = argparse.ArgumentParser() # 削除
-    # parser.add_argument('--storage-mode', type=str, default='auto', choices=['auto', 'local', 's3'], help='データ取得元') # 削除
-    # args, _ = parser.parse_known_args() # 削除
     st.session_state['storage_mode'] = 'auto' # デフォルト値を設定
 
 # サイドバーでデータ取得元を選択（コマンドライン引数があればそれを優先）
@@ -209,7 +206,7 @@ st.sidebar.header("📊 データ選択")
 viz_type = st.sidebar.selectbox(
     "可視化タイプを選択",
     ["単日分析", "時系列分析"],
-    key="viz_type_selector"
+    key="analysis_type_selector"
 )
 
 # --- データ取得元「auto」時のlocal/S3両方候補リスト表示 ---
@@ -277,17 +274,18 @@ if viz_type == "単日分析":
         st.stop()
 
     # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
+    viz_type_options = ["感情スコア分析", "おすすめランキング分析結果", "Perplexity-Google比較", "統合分析"]
     viz_type_detail = st.sidebar.selectbox(
         "詳細可視化タイプを選択",
-        ["感情スコア分析", "おすすめランキング分析結果", "Perplexity-Google比較", "統合分析"],
-        key=f"viz_type_detail_selector_{selected_date}"
+        viz_type_options,
+        key="viz_type_selector",
+        index=0  # デフォルトで最初の項目を選択
     )
 
     # --- メインダッシュボード（統合版） ---
     st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
 
-        # --- 統一カテゴリリスト作成 ---
-    # 一つのデータソースからカテゴリを抽出（全分析タイプで共通）
+    # --- 統一カテゴリリスト作成 ---
     sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
     all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
     all_categories.sort()
@@ -296,7 +294,20 @@ if viz_type == "単日分析":
     selected_category = st.sidebar.selectbox(
         "カテゴリを選択",
         all_categories,
-        key=f"sentiment_category_{selected_date}"
+        key="category_selector",
+        index=0  # デフォルトで最初の項目を選択
+    )
+
+    # --- 統一サブカテゴリリスト作成 ---
+    all_subcategories = list(sentiment_data[selected_category].keys())
+    all_subcategories.sort()
+
+    # 統一されたサブカテゴリ選択（全分析タイプで共通）
+    selected_subcategory = st.sidebar.selectbox(
+        "サブカテゴリを選択",
+        all_subcategories,
+        key="subcategory_selector",
+        index=0  # デフォルトで最初の項目を選択
     )
 
     # --- 詳細可視化タイプ分岐 ---
@@ -306,18 +317,13 @@ if viz_type == "単日分析":
             st.warning(f"選択されたカテゴリ '{selected_category}' は感情スコア分析では利用できません。")
             st.stop()
 
-        subcategories = list(sentiment_data[selected_category].keys())
-        selected_subcategory = st.sidebar.selectbox(
-            "サブカテゴリを選択", subcategories,
-            key=f"sentiment_subcategory_{selected_category}_{selected_date}"
-        )
         entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
         entities = list(entities_data.keys())
         selected_entities = st.sidebar.multiselect(
             "エンティティを選択（複数選択可）",
             entities,
-            default=entities[:10] if len(entities) > 10 else entities,
-            key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}"
+            key="entities_selector",
+            default=entities[:10] if len(entities) > 10 else entities  # デフォルトで最初の10項目（または全て）を選択
         )
         # --- 表形式表示（常に上部に表示） ---
         sentiment_flat = dashboard_data.get("perplexity_sentiment_flat", [])
@@ -533,11 +539,6 @@ if viz_type == "単日分析":
                 similarity_data = avg_similarity_data
             else:
                 # 特定カテゴリ選択の場合
-                subcategories = list(citations_data[selected_category].keys())
-                selected_subcategory = st.sidebar.selectbox(
-                    "サブカテゴリを選択", subcategories,
-                    key=f"sentiment_subcategory_{selected_category}_{selected_date}"
-                )
                 subcat_data = citations_data[selected_category][selected_subcategory]
                 similarity_data = subcat_data.get("ranking_similarity", {})
 
@@ -571,7 +572,7 @@ if viz_type == "単日分析":
                     "エンティティを選択（複数選択可）",
                     all_entities,
                     default=all_entities[:10] if len(all_entities) > 10 else all_entities,
-                    key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}"
+                    key="sentiment_entities"
                 )
             else:
                 selected_entities = []
@@ -638,12 +639,6 @@ if viz_type == "単日分析":
                 st.warning(f"選択されたカテゴリ '{selected_category}' はおすすめランキング分析結果では利用できません。")
                 st.stop()
 
-            subcategories = list(perplexity_rankings[selected_category].keys())
-            selected_subcategory = st.sidebar.selectbox(
-                "サブカテゴリを選択", subcategories,
-                key=f"sentiment_subcategory_{selected_category}_{selected_date}"
-            )
-
             # エンティティ選択機能を追加
             # ランキングデータからエンティティを取得
             subcat_data = perplexity_rankings[selected_category][selected_subcategory]
@@ -657,7 +652,7 @@ if viz_type == "単日分析":
                     "エンティティを選択（複数選択可）",
                     all_entities,
                     default=all_entities[:10] if len(all_entities) > 10 else all_entities,
-                    key=f"sentiment_entities_{selected_category}_{selected_subcategory}_{selected_date}"
+                    key="sentiment_entities"
                 )
             else:
                 selected_entities = []
