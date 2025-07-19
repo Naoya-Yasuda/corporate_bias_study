@@ -1229,61 +1229,79 @@ def plot_bias_indices_bar_for_ranking_analysis(ranking_bias_data, selected_categ
             return None
 
         subcat_data = category_data[selected_subcategory]
-        entity_analysis = subcat_data.get("entity_analysis", {})
+        ranking_comparison = subcat_data.get("ranking_comparison", {})
 
-        if not entity_analysis:
+        if not ranking_comparison:
             return None
 
-        # バイアス指標データ抽出
+        # エンティティごとのバイアス指標を計算
         bias_data = {}
-        for entity_name, entity_data in entity_analysis.items():
-            if selected_entities and entity_name not in selected_entities:
+        for pair, data in ranking_comparison.items():
+            if pair == "summary":
                 continue
-            bias_index = entity_data.get("bias_index", 0)
-            bias_data[entity_name] = bias_index
+            entities = pair.split("_vs_")
+            mean_diff = data.get("mean_diff", 0)
 
-        if not bias_data:
+            # 最初のエンティティ（基準）のバイアス指標を更新
+            if entities[0] not in bias_data:
+                bias_data[entities[0]] = []
+            bias_data[entities[0]].append(-mean_diff)  # 負の値を反転
+
+            # 2番目のエンティティのバイアス指標を更新
+            if entities[1] not in bias_data:
+                bias_data[entities[1]] = []
+            bias_data[entities[1]].append(mean_diff)
+
+        # 各エンティティの平均バイアス指標を計算
+        avg_bias_data = {}
+        for entity, diffs in bias_data.items():
+            if selected_entities and entity not in selected_entities:
+                continue
+            avg_bias_data[entity] = sum(diffs) / len(diffs)
+
+        if not avg_bias_data:
             return None
 
         # グラフ作成
-        entities = list(bias_data.keys())
-        values = list(bias_data.values())
+        fig, ax = plt.subplots(figsize=(10, 6))
+        entities = list(avg_bias_data.keys())
+        values = list(avg_bias_data.values())
 
-        # エンティティ数に応じてサイズ調整
-        if len(entities) > 10:
-            fig, ax = plt.subplots(figsize=(14, 8))
-        else:
-            fig, ax = plt.subplots(figsize=(10, 6))
+        # バイアス値でソート
+        sorted_indices = np.argsort(values)[::-1]
+        entities = [entities[i] for i in sorted_indices]
+        values = [values[i] for i in sorted_indices]
 
-        # 色分け（正のバイアス=赤、負のバイアス=緑）
-        colors = ["#d62728" if v > 0 else "#2ca02c" for v in values]
-        bars = ax.bar(entities, values, color=colors, alpha=0.7)
+        # バーの色を設定（正のバイアス=赤、負のバイアス=緑）
+        colors = ['#ff7f7f' if v > 0 else '#7fbf7f' for v in values]
+        bars = ax.bar(entities, values, alpha=0.7, color=colors)
 
-        # ゼロライン
-        ax.axhline(0, color='black', linestyle='--', alpha=0.5)
+        # グラフ装飾
+        ax.set_title(f"エンティティ別バイアス指標\n（{selected_category} - {selected_subcategory}）", fontsize=14, pad=20)
+        ax.set_xlabel("エンティティ", fontsize=12)
+        ax.set_ylabel("バイアス指標（平均順位差）", fontsize=12)
 
-        ax.set_ylabel("バイアス指標 (Bias Index)", fontsize=12)
-        ax.set_title(f"エンティティ別バイアス指標｜{selected_category}｜{selected_subcategory}", fontsize=14, pad=20)
+        # x軸ラベルを45度回転
+        plt.xticks(rotation=45, ha='right')
 
-        # X軸ラベル回転
-        plt.xticks(rotation=45, ha="right")
+        # グリッド線を追加
+        ax.grid(True, axis='y', alpha=0.3)
 
-        # 値ラベル追加
+        # ゼロラインを追加
+        ax.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+
+        # バーの上に値を表示
         for bar, value in zip(bars, values):
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2.,
-                   height + (0.01 if height >= 0 else -0.02),
-                   f'{value:.3f}', ha='center',
-                   va='bottom' if height >= 0 else 'top',
-                   fontweight='bold')
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{value:.2f}',
+                   ha='center', va='bottom' if height > 0 else 'top')
 
-        ax.grid(axis='y', alpha=0.3)
         plt.tight_layout()
-
         return fig
 
     except Exception as e:
-        print(f"plot_bias_indices_bar_for_ranking_analysis error: {e}")
+        print(f"Error in plot_bias_indices_bar_for_ranking_analysis: {str(e)}")
         return None
 
 

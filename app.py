@@ -1049,13 +1049,16 @@ if viz_type == "単日分析":
             # Tab 2: バイアス指標棒グラフ
             with tab2:
                 st.markdown("**バイアス指標棒グラフ**")
-                st.info("各エンティティのバイアス指標を棒グラフで表示します。正の値（赤）はバイアスあり、負の値（緑）はバイアスなしを示します。", icon="ℹ️")
+                st.info("各エンティティのバイアス指標を棒グラフで表示します。\n\n"
+                       "バイアス指標は、各エンティティと他のエンティティとの順位差の平均値として計算されます。\n"
+                       "例：AWSが他のエンティティより平均2.5位上位にいる場合、バイアス指標は+2.5となります。\n\n"
+                       "・正の値（赤）：他のエンティティより平均的に上位に位置する傾向\n"
+                       "・負の値（緑）：他のエンティティより平均的に下位に位置する傾向\n"
+                       "・値の大きさ：順位差の大きさを示す（絶対値が大きいほど、他のエンティティとの順位差が大きい）", icon="ℹ️")
 
                 if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
                     try:
-                        fig = plot_bias_indices_bar_for_ranking_analysis(
-                            ranking_bias_data, selected_category, selected_subcategory, selected_entities
-                        )
+                        fig = plot_bias_indices_bar_for_ranking_analysis(ranking_bias_data, selected_category, selected_subcategory, selected_entities)
                         if fig:
                             st.pyplot(fig, use_container_width=True)
                             plt.close(fig)
