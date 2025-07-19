@@ -171,7 +171,9 @@ def process_categories_with_search(categories, max_categories=None):
                 time.sleep(2)
                 entities[service] = {
                     "official_results": official_results,
-                    "reputation_results": reputation_results
+                    "reputation_results": reputation_results,
+                    "official_query": query,
+                    "reputation_query": query_rep
                 }
             # 結果を格納
             results[category][subcategory] = {

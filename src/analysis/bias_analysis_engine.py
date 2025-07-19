@@ -1000,13 +1000,16 @@ class BiasAnalysisEngine:
             first_category = next(iter(sentiment_bias_analysis.values()))
             if first_category:
                 first_subcategory = next(iter(first_category.values()))
-                if first_subcategory and 'category_summary' in first_subcategory:
-                    execution_count = first_subcategory['category_summary']['execution_count']
-                    analysis_metadata['execution_count'] = execution_count
+                if first_subcategory and 'entities' in first_subcategory:
+                    # 最初のエンティティのexecution_countから取得
+                    first_entity = next(iter(first_subcategory['entities'].values()))
+                    if first_entity and 'basic_metrics' in first_entity:
+                        execution_count = first_entity['basic_metrics'].get('execution_count', 0)
+                        analysis_metadata['execution_count'] = execution_count
 
-                    reliability_level, confidence_level = self.reliability_checker.get_reliability_level(execution_count)
-                    analysis_metadata['reliability_level'] = reliability_level
-                    analysis_metadata['confidence_level'] = confidence_level
+                        reliability_level, confidence_level = self.reliability_checker.get_reliability_level(execution_count)
+                        analysis_metadata['reliability_level'] = reliability_level
+                        analysis_metadata['confidence_level'] = confidence_level
 
         # ランキングバイアス分析（多重比較補正横展開）
         ranking_bias_analysis = self._analyze_ranking_bias(data.get('perplexity_rankings', {}))

@@ -32,7 +32,9 @@ class DataValidator:
             "official_results.*.rank": ["required", "positive_integer"],
             "official_results.*.domain": ["required", "non_empty_string"],
             "reputation_results.*.rank": ["required", "positive_integer"],
-            "reputation_results.*.domain": ["required", "non_empty_string"]
+            "reputation_results.*.domain": ["required", "non_empty_string"],
+            "entities.*.official_query": "optional",
+            "entities.*.reputation_query": "optional"
         },
 
         "perplexity_sentiment": {
@@ -56,7 +58,9 @@ class DataValidator:
             "entities.*.official_results": "required",
             "entities.*.reputation_results": "required",
             "official_results.*.url": ["required", "valid_url"],
-            "reputation_results.*.url": ["required", "valid_url"]
+            "reputation_results.*.url": ["required", "valid_url"],
+            "entities.*.official_prompt": "optional",
+            "entities.*.reputation_prompt": "optional"
         }
     }
 

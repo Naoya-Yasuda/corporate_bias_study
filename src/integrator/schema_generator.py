@@ -57,6 +57,8 @@ class SchemaGenerator:
             # Perplexity引用データ
             "official_answer": "企業公式情報に関するAI回答",
             "reputation_answer": "企業評判に関するAI回答",
+            "official_prompt": "企業公式情報取得用プロンプト",
+            "reputation_prompt": "企業評判情報取得用プロンプト",
             "is_official": "公式サイトかどうかのフラグ",
 
             # メタデータ
@@ -197,6 +199,14 @@ class SchemaGenerator:
                             "type": "array",
                             "description": self.field_descriptions.get("reputation_results", "企業評判に関する検索結果"),
                             "items": self._generate_search_result_schema()
+                        },
+                        "official_query": {
+                            "type": "string",
+                            "description": self.field_descriptions.get("official_query", "企業公式情報取得用検索クエリ")
+                        },
+                        "reputation_query": {
+                            "type": "string",
+                            "description": self.field_descriptions.get("reputation_query", "企業評判情報取得用検索クエリ")
                         }
                     },
                     "required": ["official_results", "reputation_results"]
@@ -423,6 +433,14 @@ class SchemaGenerator:
                                                     "type": "array",
                                                     "description": self.field_descriptions.get("reputation_results", "企業評判に関する引用"),
                                                     "items": self._generate_citation_result_schema()
+                                                },
+                                                "official_prompt": {
+                                                    "type": "string",
+                                                    "description": self.field_descriptions.get("official_prompt", "企業公式情報取得用プロンプト")
+                                                },
+                                                "reputation_prompt": {
+                                                    "type": "string",
+                                                    "description": self.field_descriptions.get("reputation_prompt", "企業評判情報取得用プロンプト")
                                                 }
                                             },
                                             "required": ["official_results", "reputation_results"]
