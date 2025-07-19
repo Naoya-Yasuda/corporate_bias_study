@@ -1666,9 +1666,8 @@ class BiasAnalysisEngine:
 
                     # 1. バイアス不平等指標の計算
                     bias_inequality = self._calculate_bias_inequality(entities)
-                    # 2. 企業優遇度分析
+                    # 2. 企業優遇度分析（market_dominance_analysisに統合済み）
                     market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
-                    enterprise_favoritism = self._analyze_enterprise_favoritism(entities, market_caps)
 
                     # 3. 統合市場支配力分析（企業レベル + サービスレベル）
                     market_dominance_analysis = self._analyze_market_dominance_bias(entities)
@@ -1680,9 +1679,9 @@ class BiasAnalysisEngine:
                     )
                     # 5. 相対ランキング変動（暫定実装）
                     relative_ranking_analysis = self._analyze_relative_ranking_changes_stub(entities)
-                    # 6. 統合相対評価（新旧両方のデータを活用）
+                    # 6. 統合相対評価（market_dominance_analysisに統合済み）
                     integrated_relative_evaluation = self._generate_enhanced_integrated_evaluation(
-                        bias_inequality, enterprise_favoritism, market_share_correlation, market_dominance_analysis
+                        bias_inequality, market_share_correlation, market_dominance_analysis
                     )
                     # --- 多重比較補正の横展開 ---
                     # 例: 企業優遇度分析のp値補正
@@ -1711,7 +1710,6 @@ class BiasAnalysisEngine:
 
                     category_results[subcategory] = {
                         "bias_inequality": bias_inequality,
-                        "enterprise_favoritism": enterprise_favoritism,
                         "market_dominance_analysis": market_dominance_analysis,
                         "market_share_correlation": market_share_correlation,  # 後方互換性用
                         "relative_ranking_analysis": relative_ranking_analysis,
@@ -1821,139 +1819,13 @@ class BiasAnalysisEngine:
         # MetricsCalculatorの新メソッドで一括計算
         return self.calculate_bias_inequality(bias_indices)
 
-    def _analyze_enterprise_favoritism(self, entities: Dict[str, Any], market_caps: Dict[str, Any]) -> Dict[str, Any]:
-        """企業優遇度分析（企業規模による優遇パターン検出）"""
 
-        # 企業規模とバイアスの関係を分析
-        enterprise_bias_data = []
 
-        for entity_name, entity_data in entities.items():
-            bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
 
-            # 時価総額データから企業規模を取得
-            enterprise_size = self._get_enterprise_size(entity_name, market_caps)
 
-            enterprise_bias_data.append({
-                "entity": entity_name,
-                "bias_index": bi,
-                "enterprise_size": enterprise_size
-            })
 
-        if not enterprise_bias_data:
-            return {"error": "企業データなし"}
 
-        # 大企業 vs 中小企業の分類
-        large_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "large"]
-        small_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "small"]
 
-        # 平均バイアスの計算
-        large_avg_bias = statistics.mean([item["bias_index"] for item in large_enterprises]) if large_enterprises else 0
-        small_avg_bias = statistics.mean([item["bias_index"] for item in small_enterprises]) if small_enterprises else 0
-
-        favoritism_gap = large_avg_bias - small_avg_bias
-
-        # 優遇タイプの判定
-        favoritism_type = self._determine_favoritism_type(favoritism_gap, large_avg_bias, small_avg_bias)
-
-        return {
-            "large_enterprise_count": len(large_enterprises),
-            "small_enterprise_count": len(small_enterprises),
-            "large_enterprise_avg_bias": round(large_avg_bias, 3),
-            "small_enterprise_avg_bias": round(small_avg_bias, 3),
-            "favoritism_gap": round(favoritism_gap, 3),
-            "favoritism_type": favoritism_type["type"],
-            "favoritism_interpretation": favoritism_type["interpretation"],
-            "statistical_significance": self._test_favoritism_significance(large_enterprises, small_enterprises)
-        }
-
-    def _get_enterprise_size(self, entity_name: str, market_caps: Dict[str, Any]) -> str:
-        """企業規模の判定"""
-
-        # 市場時価総額データから企業規模を判定
-        for category, enterprises in market_caps.items():
-            if entity_name in enterprises:
-                market_cap = enterprises[entity_name]
-
-                # 時価総額による分類（兆円単位）
-                if market_cap >= 50:  # 50兆円以上
-                    return "large"
-                elif market_cap >= 10:  # 10兆円以上
-                    return "medium"
-                else:
-                    return "small"
-
-        # データがない場合は企業名から推定
-        large_indicators = ["Google", "Microsoft", "Amazon", "Apple", "Meta", "Tesla", "Toyota"]
-        if any(indicator in entity_name for indicator in large_indicators):
-            return "large"
-        else:
-            return "small"
-
-    def _determine_favoritism_type(self, gap: float, large_avg: float, small_avg: float) -> Dict[str, str]:
-        """優遇タイプの判定"""
-
-        if abs(gap) < 0.2:
-            return {
-                "type": "neutral",
-                "interpretation": "企業規模による明確な優遇傾向は見られない"
-            }
-        elif gap > 0.5:
-            return {
-                "type": "large_enterprise_favoritism",
-                "interpretation": "大企業に対する明確な優遇傾向"
-            }
-        elif gap > 0.2:
-            return {
-                "type": "moderate_large_favoritism",
-                "interpretation": "大企業に対する軽度の優遇傾向"
-            }
-        elif gap < -0.5:
-            return {
-                "type": "small_enterprise_favoritism",
-                "interpretation": "中小企業に対する優遇傾向（アンチ大企業）"
-            }
-        else:
-            return {
-                "type": "moderate_small_favoritism",
-                "interpretation": "中小企業に対する軽度の優遇傾向"
-            }
-
-    def _test_favoritism_significance(self, large_enterprises: List[Dict], small_enterprises: List[Dict]) -> Dict[str, Any]:
-        """優遇度の統計的有意性検定"""
-
-        if len(large_enterprises) < 2 or len(small_enterprises) < 2:
-            return {
-                "test_performed": False,
-                "reason": "サンプル数不足（各グループ最低2社必要）",
-                "p_value": None,
-                "significant": False
-            }
-
-        try:
-            from scipy.stats import ttest_ind
-
-            large_bias = [item["bias_index"] for item in large_enterprises]
-            small_bias = [item["bias_index"] for item in small_enterprises]
-
-            t_stat, p_value = ttest_ind(large_bias, small_bias, equal_var=False)
-
-            return {
-                "test_performed": True,
-                "test_type": "welch_t_test",
-                "t_statistic": round(t_stat, 3),
-                "p_value": round(p_value, 4),
-                "significant": p_value < 0.05,
-                "interpretation": "統計的に有意な優遇差" if p_value < 0.05 else "統計的に有意でない"
-            }
-
-        except Exception as e:
-            logger.warning(f"優遇度統計検定エラー: {e}")
-            return {
-                "test_performed": False,
-                "reason": f"計算エラー: {e}",
-                "p_value": None,
-                "significant": False
-            }
 
     def _analyze_market_share_correlation(self, entities: Dict[str, Any], market_shares: Dict[str, Any], category: str) -> Dict[str, Any]:
         """市場シェアとバイアスの相関分析（多重比較補正横展開）"""
@@ -1997,7 +1869,7 @@ class BiasAnalysisEngine:
         else:
             return {"correlation_available": False, "note": "データ不足（2社以上の市場シェア・バイアス指標が必要）"}
 
-    def _generate_enhanced_integrated_evaluation(self, bias_inequality: Dict, enterprise_favoritism: Dict,
+    def _generate_enhanced_integrated_evaluation(self, bias_inequality: Dict,
                                                market_share_correlation: Dict, market_dominance_analysis: Dict) -> Dict[str, Any]:
         """強化された統合相対評価（企業レベル + サービスレベル統合）"""
 
@@ -2010,11 +1882,23 @@ class BiasAnalysisEngine:
         evaluation_scores["basic_fairness"] = max(0, inequality_score)
         confidence_factors.append("gini_coefficient")
 
-        # 2. 企業規模中立性スコア（従来指標）
-        favoritism_gap = abs(enterprise_favoritism.get("favoritism_gap", 0))
-        neutrality_score = max(0, 1 - favoritism_gap)
-        evaluation_scores["enterprise_neutrality"] = neutrality_score
-        confidence_factors.append("enterprise_favoritism")
+        # 2. 企業規模中立性スコア（market_dominance_analysisから取得）
+        enterprise_level = market_dominance_analysis.get("enterprise_level", {})
+        if enterprise_level.get("available", False):
+            tier_analysis = enterprise_level.get("tier_analysis", {})
+            tier_gaps = tier_analysis.get("tier_gaps", {})
+
+            # 最大の階層間格差を計算
+            max_gap = 0
+            for gap_name, gap_value in tier_gaps.items():
+                max_gap = max(max_gap, abs(gap_value))
+
+            neutrality_score = max(0, 1 - max_gap)
+            evaluation_scores["enterprise_neutrality"] = neutrality_score
+            confidence_factors.append("market_dominance_analysis")
+        else:
+            evaluation_scores["enterprise_neutrality"] = 0.5
+            confidence_factors.append("market_dominance_analysis")
 
         # 3. 統合市場公平性スコア（新指標）
         market_dominance = market_dominance_analysis
@@ -2175,13 +2059,20 @@ class BiasAnalysisEngine:
         enterprise_level = market_dominance_analysis.get("enterprise_level", {})
         if enterprise_level.get("available", False):
             tier_analysis = enterprise_level.get("tier_analysis", {})
-            most_advantaged = tier_analysis.get("most_advantaged_tier")
-            if most_advantaged and most_advantaged != "mid_enterprise":
-                recommendations.append(f"企業規模階層の是正: {most_advantaged}への過度な優遇を改善")
+            favoritism_analysis = tier_analysis.get("favoritism_analysis", {})
+            if favoritism_analysis.get("type") in ["large_enterprise_favoritism", "moderate_large_favoritism"]:
+                most_advantaged = favoritism_analysis.get("most_advantaged_tier")
+                tier_name_map = {
+                    "mega_enterprise": "超大企業",
+                    "large_enterprise": "大企業",
+                    "mid_enterprise": "中企業"
+                }
+                tier_name = tier_name_map.get(most_advantaged, most_advantaged)
+                recommendations.append(f"企業規模階層の是正: {tier_name}への過度な優遇を改善")
 
         return recommendations
 
-    def _generate_fairness_recommendations(self, bias_inequality: Dict, enterprise_favoritism: Dict, market_share_correlation: Dict) -> List[str]:
+    def _generate_fairness_recommendations(self, bias_inequality: Dict, market_share_correlation: Dict, market_dominance_analysis: Dict) -> List[str]:
         """公平性改善のための推奨事項生成"""
 
         recommendations = []
@@ -2191,12 +2082,21 @@ class BiasAnalysisEngine:
         if gini > 0.4:
             recommendations.append("企業間バイアス格差の是正：評価基準の統一化が必要")
 
-        # 企業規模優遇に基づく推奨
-        favoritism_type = enterprise_favoritism.get("favoritism_type", "")
-        if "large_enterprise_favoritism" in favoritism_type:
-            recommendations.append("大企業優遇の是正：中小企業への公平な露出機会の確保")
-        elif "small_enterprise_favoritism" in favoritism_type:
-            recommendations.append("中小企業優遇の是正：市場実態に即した評価バランスの調整")
+        # 企業規模優遇に基づく推奨（market_dominance_analysisから取得）
+        enterprise_level = market_dominance_analysis.get("enterprise_level", {})
+        if enterprise_level.get("available", False):
+            tier_analysis = enterprise_level.get("tier_analysis", {})
+            favoritism_analysis = tier_analysis.get("favoritism_analysis", {})
+            favoritism_type = favoritism_analysis.get("type", "")
+
+            if "large_enterprise_favoritism" in favoritism_type:
+                recommendations.append("大企業優遇の是正：中小企業への公平な露出機会の確保")
+            elif "small_enterprise_favoritism" in favoritism_type:
+                recommendations.append("中小企業優遇の是正：市場実態に即した評価バランスの調整")
+            elif "moderate_large_favoritism" in favoritism_type:
+                recommendations.append("大企業軽度優遇の是正：評価バランスの微調整")
+            elif "moderate_small_favoritism" in favoritism_type:
+                recommendations.append("中小企業軽度優遇の是正：評価バランスの微調整")
 
         # 市場シェア適合性に基づく推奨
         if market_share_correlation.get("correlation_available", False):
@@ -2214,7 +2114,7 @@ class BiasAnalysisEngine:
 
         # カテゴリ横断での統計情報収集
         all_gini_coefficients = []
-        all_favoritism_gaps = []
+        all_tier_gaps = []
         all_fairness_scores = []
 
         for category, subcategories in relative_analysis_results.items():
@@ -2223,14 +2123,19 @@ class BiasAnalysisEngine:
 
             for subcategory, data in subcategories.items():
                 bias_inequality = data.get("bias_inequality", {})
-                enterprise_favoritism = data.get("enterprise_favoritism", {})
+                market_dominance_analysis = data.get("market_dominance_analysis", {})
                 market_share_correlation = data.get("market_share_correlation", {})
 
                 if "gini_coefficient" in bias_inequality:
                     all_gini_coefficients.append(bias_inequality["gini_coefficient"])
 
-                if "favoritism_gap" in enterprise_favoritism:
-                    all_favoritism_gaps.append(abs(enterprise_favoritism["favoritism_gap"]))
+                # market_dominance_analysisから階層間格差を取得
+                enterprise_level = market_dominance_analysis.get("enterprise_level", {})
+                if enterprise_level.get("available", False):
+                    tier_analysis = enterprise_level.get("tier_analysis", {})
+                    tier_gaps = tier_analysis.get("tier_gaps", {})
+                    for gap_name, gap_value in tier_gaps.items():
+                        all_tier_gaps.append(abs(gap_value))
 
                 if market_share_correlation.get("correlation_available", False):
                     fairness_analysis = market_share_correlation.get("fairness_analysis", {})
@@ -2241,15 +2146,15 @@ class BiasAnalysisEngine:
         summary_stats = {
             "categories_analyzed": len([k for k in relative_analysis_results.keys() if k != "overall_summary"]),
             "average_gini_coefficient": round(statistics.mean(all_gini_coefficients), 3) if all_gini_coefficients else 0,
-            "average_favoritism_gap": round(statistics.mean(all_favoritism_gaps), 3) if all_favoritism_gaps else 0,
+            "average_tier_gap": round(statistics.mean(all_tier_gaps), 3) if all_tier_gaps else 0,
             "average_market_fairness": round(statistics.mean(all_fairness_scores), 3) if all_fairness_scores else 0.5
         }
 
         # 全体的な評価レベル
-        if summary_stats["average_gini_coefficient"] < 0.3 and summary_stats["average_favoritism_gap"] < 0.3:
+        if summary_stats["average_gini_coefficient"] < 0.3 and summary_stats["average_tier_gap"] < 0.3:
             overall_assessment = "公平"
             system_health = "健全"
-        elif summary_stats["average_gini_coefficient"] > 0.5 or summary_stats["average_favoritism_gap"] > 0.5:
+        elif summary_stats["average_gini_coefficient"] > 0.5 or summary_stats["average_tier_gap"] > 0.5:
             overall_assessment = "不公平"
             system_health = "要改善"
         else:
@@ -2260,7 +2165,7 @@ class BiasAnalysisEngine:
         key_issues = []
         if summary_stats["average_gini_coefficient"] > 0.4:
             key_issues.append("企業間バイアス格差の拡大")
-        if summary_stats["average_favoritism_gap"] > 0.4:
+        if summary_stats["average_tier_gap"] > 0.4:
             key_issues.append("企業規模による優遇の偏り")
         if summary_stats["average_market_fairness"] < 0.6:
             key_issues.append("市場実態との乖離")
@@ -2275,7 +2180,7 @@ class BiasAnalysisEngine:
             "key_issues": key_issues,
             "data_coverage": {
                 "inequality_analysis_available": len(all_gini_coefficients) > 0,
-                "favoritism_analysis_available": len(all_favoritism_gaps) > 0,
+                "tier_analysis_available": len(all_tier_gaps) > 0,
                 "market_correlation_available": len(all_fairness_scores) > 0
             }
         }
@@ -2902,9 +2807,21 @@ class BiasAnalysisEngine:
                     for entity, metrics in data["entities"].items():
                         bi = metrics.get("basic_metrics", {}).get("normalized_bias_index", 0)
 
-                        # 市場データから企業規模を判定
+                        # 市場データから企業規模を判定（_get_enterprise_tierを使用）
                         market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
-                        enterprise_size = self._get_enterprise_size(entity, market_caps)
+                        enterprise_size = "small"  # デフォルト値
+
+                        # 時価総額から企業規模を判定
+                        for category, enterprises in market_caps.items():
+                            if entity in enterprises:
+                                market_cap = enterprises[entity]
+                                if market_cap >= 100:  # 100兆円以上
+                                    enterprise_size = "large"  # mega_enterprise相当
+                                elif market_cap >= 10:  # 10兆円以上
+                                    enterprise_size = "large"  # large_enterprise相当
+                                else:
+                                    enterprise_size = "small"  # mid_enterprise相当
+                                break
 
                         enterprise_bias_data.append({
                             "entity": entity,
@@ -3480,11 +3397,102 @@ class BiasAnalysisEngine:
                 tier_stats["large_enterprise"]["mean_bias"] - tier_stats["mid_enterprise"]["mean_bias"], 3
             )
 
+        # 優遇タイプの判定
+        favoritism_analysis = self._determine_favoritism_type_from_tiers(tier_stats, tier_gaps)
+
         return {
             "tier_statistics": tier_stats,
             "tier_gaps": tier_gaps,
-            "most_advantaged_tier": max(tier_stats.keys(), key=lambda k: tier_stats[k]["mean_bias"]) if any(s["count"] > 0 for s in tier_stats.values()) else None
+            "favoritism_analysis": favoritism_analysis
         }
+
+    def _determine_favoritism_type_from_tiers(self, tier_stats: Dict, tier_gaps: Dict) -> Dict[str, Any]:
+        """階層別統計から優遇タイプを判定（3段階分類対応）"""
+
+        # 各階層の平均バイアスを取得
+        tier_biases = {}
+        for tier, stats in tier_stats.items():
+            if stats["count"] > 0:
+                tier_biases[tier] = stats["mean_bias"]
+
+        if not tier_biases:
+            return {
+                "type": "insufficient_data",
+                "interpretation": "データ不足のため優遇傾向を判定できません"
+            }
+
+        # 最大バイアスを持つ階層を特定
+        most_advantaged_tier = max(tier_biases.keys(), key=lambda k: tier_biases[k])
+        max_bias = tier_biases[most_advantaged_tier]
+
+        # 他の階層との格差を計算
+        other_biases = [bias for tier, bias in tier_biases.items() if tier != most_advantaged_tier]
+        if other_biases:
+            avg_other_bias = statistics.mean(other_biases)
+            bias_gap = max_bias - avg_other_bias
+        else:
+            bias_gap = 0
+
+        # 優遇タイプの判定
+        if abs(bias_gap) < 0.2:
+            return {
+                "type": "neutral",
+                "interpretation": "企業規模による明確な優遇傾向は見られない",
+                "most_advantaged_tier": most_advantaged_tier,
+                "bias_gap": round(bias_gap, 3)
+            }
+        elif bias_gap > 0.5:
+            tier_name_map = {
+                "mega_enterprise": "超大企業",
+                "large_enterprise": "大企業",
+                "mid_enterprise": "中企業"
+            }
+            tier_name = tier_name_map.get(most_advantaged_tier, most_advantaged_tier)
+            return {
+                "type": "large_enterprise_favoritism",
+                "interpretation": f"{tier_name}に対する明確な優遇傾向",
+                "most_advantaged_tier": most_advantaged_tier,
+                "bias_gap": round(bias_gap, 3)
+            }
+        elif bias_gap > 0.2:
+            tier_name_map = {
+                "mega_enterprise": "超大企業",
+                "large_enterprise": "大企業",
+                "mid_enterprise": "中企業"
+            }
+            tier_name = tier_name_map.get(most_advantaged_tier, most_advantaged_tier)
+            return {
+                "type": "moderate_large_favoritism",
+                "interpretation": f"{tier_name}に対する軽度の優遇傾向",
+                "most_advantaged_tier": most_advantaged_tier,
+                "bias_gap": round(bias_gap, 3)
+            }
+        elif bias_gap < -0.5:
+            tier_name_map = {
+                "mega_enterprise": "超大企業",
+                "large_enterprise": "大企業",
+                "mid_enterprise": "中企業"
+            }
+            tier_name = tier_name_map.get(most_advantaged_tier, most_advantaged_tier)
+            return {
+                "type": "small_enterprise_favoritism",
+                "interpretation": f"{tier_name}に対する優遇傾向（アンチ大企業）",
+                "most_advantaged_tier": most_advantaged_tier,
+                "bias_gap": round(bias_gap, 3)
+            }
+        else:
+            tier_name_map = {
+                "mega_enterprise": "超大企業",
+                "large_enterprise": "大企業",
+                "mid_enterprise": "中企業"
+            }
+            tier_name = tier_name_map.get(most_advantaged_tier, most_advantaged_tier)
+            return {
+                "type": "moderate_small_favoritism",
+                "interpretation": f"{tier_name}に対する軽度の優遇傾向",
+                "most_advantaged_tier": most_advantaged_tier,
+                "bias_gap": round(bias_gap, 3)
+            }
 
     def _calculate_market_cap_correlation(self, enterprise_bias_data: List[Dict]) -> Dict[str, Any]:
         """時価総額とバイアス指標の相関分析"""
