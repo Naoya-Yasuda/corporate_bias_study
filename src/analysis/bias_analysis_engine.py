@@ -1054,44 +1054,55 @@ class BiasAnalysisEngine:
 
     def _analyze_sentiment_bias(self, sentiment_data: Dict) -> Dict[str, Any]:
         """
-        感情スコア分析（多重比較補正対応）
+        統合データセット専用の感情スコア分析
         """
         results = {}
 
         for category, subcategories in sentiment_data.items():
-            print(f"[DEBUG] category={category}, subcategories_keys={list(subcategories.keys()) if isinstance(subcategories, dict) else type(subcategories)}")
-            for subcategory, entities in subcategories.items():
-                print(f"[DEBUG]   subcategory={subcategory}, entities_type={type(entities)}, entities_keys={list(entities.keys()) if isinstance(entities, dict) else entities}")
             category_results = {}
 
-            for subcategory, entities in subcategories.items():
-                # サブカテゴリ直下のmasked_valuesを取得
-                subcat_masked_values = [v for v in entities.get("masked_values", []) if v is not None] if isinstance(entities, dict) else []
-                # デバッグ出力
-                if isinstance(entities, dict):
-                    print(f"[DEBUG] category={category}, subcategory={subcategory}, entities_full={json.dumps(entities, ensure_ascii=False)[:1000]}")
-                    print(f"[DEBUG] category={category}, subcategory={subcategory}, entity_names={list(entities.keys())}")
+            for subcategory, data in subcategories.items():
+                # 統合データセットの共通masked_valuesを取得
+                masked_values = [v for v in data.get("masked_values", []) if v is not None]
 
                 entities_result = {}
                 p_values = []
                 entity_names = []
 
-                # 再帰的に実名エンティティを探索
-                for entity_name, entity_data in self._iter_real_entities(entities):
-                    # None除外済みのunmasked_values
-                    unmasked_values = [v for v in entity_data.get("unmasked_values", []) if v is not None]
-                    # masked_valuesはサブカテゴリ全体のものを使う
-                    masked_values = subcat_masked_values
-                    print(f"[DEBUG] entity={entity_name}, masked_values={masked_values}, unmasked_values={unmasked_values}, masked_values_len={len(masked_values)}, unmasked_values_len={len(unmasked_values)}")
-                    # execution_countはunmasked_values優先
-                    execution_count = len(unmasked_values) if unmasked_values else len(masked_values)
-                    print(f"[DEBUG] entity={entity_name}, execution_count_to_set={execution_count}")
-                    metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
-                    entities_result[entity_name] = metrics
-                    p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
-                    if p_val is not None:
-                        p_values.append(p_val)
-                        entity_names.append(entity_name)
+                # 統合データセット構造：エンティティがentitiesキー内に配置
+                entities_data = data.get("entities", {})
+
+                if not entities_data:
+                    logger.warning(f"サブカテゴリ {subcategory} にentitiesデータが見つかりません")
+                    continue
+
+                entity_keys = list(entities_data.keys())
+
+                logger.info(f"統合データセット処理: category={category}, subcategory={subcategory}")
+                logger.info(f"検出されたエンティティ: {entity_keys}")
+                logger.info(f"masked_values数: {len(masked_values)}")
+
+                for entity_name in entity_keys:
+                    entity_data = entities_data[entity_name]
+
+                    # エンティティデータにunmasked_valuesが存在することを確認
+                    if isinstance(entity_data, dict) and "unmasked_values" in entity_data:
+                        unmasked_values = [v for v in entity_data.get("unmasked_values", []) if v is not None]
+                        execution_count = len(unmasked_values) if unmasked_values else len(masked_values)
+
+                        logger.info(f"エンティティ処理: {entity_name}, execution_count={execution_count}, unmasked_values数={len(unmasked_values)}")
+
+                        # バイアス指標を計算
+                        metrics = self._calculate_entity_bias_metrics(masked_values, unmasked_values, execution_count)
+                        entities_result[entity_name] = metrics
+
+                        # 統計的有意性検定用のp値を収集
+                        p_val = metrics.get("statistical_significance", {}).get("sign_test_p_value")
+                        if p_val is not None:
+                            p_values.append(p_val)
+                            entity_names.append(entity_name)
+                    else:
+                        logger.warning(f"エンティティ {entity_name} にunmasked_valuesが見つかりません: {type(entity_data)}")
 
                 # 多重比較補正
                 if len(p_values) > 1:
@@ -1105,7 +1116,6 @@ class BiasAnalysisEngine:
                 # カテゴリレベル分析
                 category_level_analysis = self._calculate_category_level_analysis(entities_result)
 
-                # サブカテゴリ直下にentitiesとcategory_level_analysisを並列配置
                 category_results[subcategory] = {
                     "entities": entities_result,
                     "category_level_analysis": category_level_analysis
@@ -1357,7 +1367,7 @@ class BiasAnalysisEngine:
         }
 
     def _analyze_ranking_bias(self, ranking_data: Dict) -> Dict[str, Any]:
-        """ランキングバイアス分析（多重比較補正横展開）"""
+        """統合データセット専用のランキングバイアス分析"""
 
         if not ranking_data:
             return {
@@ -1370,14 +1380,25 @@ class BiasAnalysisEngine:
         for category, subcategories in ranking_data.items():
             category_results = {}
 
-            for subcategory, subcategory_data in subcategories.items():
-                # データ構造の確認
-                if not isinstance(subcategory_data, dict):
-                    continue
+            for subcategory, data in subcategories.items():
+                # 統合データセット構造：ranking_summaryが直接配置
+                ranking_summary = data.get('ranking_summary', {})
 
-                ranking_summary = subcategory_data.get('ranking_summary', {})
-                answer_list = subcategory_data.get('answer_list', [])
-                execution_count = len(answer_list)
+                # 実行回数は entities の all_ranks から取得
+                entities = ranking_summary.get('entities', {})
+                if entities:
+                    # 最初のエンティティのall_ranksの長さから実行回数を取得
+                    first_entity = next(iter(entities.values()))
+                    execution_count = len(first_entity.get('all_ranks', []))
+                else:
+                    execution_count = 0
+
+                logger.info(f"統合ランキングデータ処理: category={category}, subcategory={subcategory}")
+                logger.info(f"検出されたエンティティ数: {len(entities)}")
+                logger.info(f"実行回数: {execution_count}")
+
+                # answer_listは統合データセットでは利用不可のため空として処理
+                answer_list = []
 
                 # ランキング安定性分析
                 stability_analysis = self._calculate_ranking_stability(
@@ -2572,214 +2593,333 @@ class BiasAnalysisEngine:
         }
 
     def _generate_cross_analysis_insights(self, sentiment_analysis: Dict, ranking_analysis: Dict, citations_comparison: Dict) -> Dict[str, Any]:
-        """感情バイアス・ランキングバイアス・Perplexity-Google比較の統合インサイト生成"""
-
-        # 一貫したリーダー・ラガードの特定
-        consistent_leaders = []
-        consistent_laggards = []
-
-        # 感情スコア分析から上位/下位企業を抽出
-        sentiment_leaders = set()
-        sentiment_laggards = set()
-
-        for category, subcategories in sentiment_analysis.items():
-            for subcategory, data in subcategories.items():
-                if "entities" in data:
-                    for entity, metrics in data["entities"].items():
-                        bi = metrics.get("basic_metrics", {}).get("normalized_bias_index", 0)
-                        if bi > 0.5:  # 強いポジティブバイアス
-                            sentiment_leaders.add(entity)
-                        elif bi < -0.5:  # 強いネガティブバイアス
-                            sentiment_laggards.add(entity)
-
-        # ランキング分析からの情報抽出
-        ranking_leaders = set()
-        ranking_laggards = set()
-
-        for category, subcategories in ranking_analysis.items():
-            if category == "warning":
-                continue
-            for subcategory, data in subcategories.items():
-                # ranking_summaryから上位・下位企業を抽出
-                ranking_summary = data.get("ranking_summary", {})
-                avg_ranking = ranking_summary.get("avg_ranking", [])
-
-                if avg_ranking and len(avg_ranking) >= 3:
-                    # 上位1/3をリーダー、下位1/3をラガードと判定
-                    top_third = len(avg_ranking) // 3
-                    bottom_third = len(avg_ranking) - top_third
-
-                    ranking_leaders.update(avg_ranking[:top_third])
-                    ranking_laggards.update(avg_ranking[bottom_third:])
-
-        # 一貫性の確認（両方の分析で同じ判定を受けた企業のみ）
-        consistent_leaders = list(sentiment_leaders & ranking_leaders)
-        consistent_laggards = list(sentiment_laggards & ranking_laggards)
-
-        # 十分な企業数がない場合は感情分析結果で補完
-        if len(consistent_leaders) < 2:
-            consistent_leaders.extend(list(sentiment_leaders)[:3])
-            consistent_leaders = list(set(consistent_leaders))  # 重複除去
-        if len(consistent_laggards) < 2:
-            consistent_laggards.extend(list(sentiment_laggards)[:3])
-            consistent_laggards = list(set(consistent_laggards))  # 重複除去
-
-        # Google-Citations間の整合性評価（改善版）
-        google_citations_alignment = self._assess_google_citations_alignment(citations_comparison)
-
-        # 全体的なバイアスパターンの判定（精密化版）
-        overall_bias_pattern = self._determine_overall_bias_pattern(sentiment_analysis)
-
-        # 感情-ランキング相関の計算
-        sentiment_ranking_correlation = self._calculate_sentiment_ranking_correlation(sentiment_analysis, ranking_analysis)
-
-        # クロスプラットフォーム一貫性の計算
-        overall_correlation = self._get_overall_correlation_from_results(sentiment_ranking_correlation)
-        cross_platform_consistency = "high" if google_citations_alignment == "high" and overall_correlation > 0.7 else "moderate"
-
-        return {
-            "sentiment_ranking_correlation": sentiment_ranking_correlation,
-            "consistent_leaders": consistent_leaders,
-            "consistent_laggards": consistent_laggards,
-            "google_citations_alignment": google_citations_alignment,
-            "overall_bias_pattern": overall_bias_pattern,
-            "cross_platform_consistency": cross_platform_consistency,
+        """
+        感情分析、ランキング分析、引用比較の横断的な洞察を生成（改善版）
+        """
+        insights = {
+            "sentiment_ranking_correlation": {},
+            "consistent_leaders": [],
+            "consistent_laggards": [],
+            "google_citations_alignment": "unknown",
+            "overall_bias_pattern": {},
+            "cross_platform_consistency": {},
             "analysis_coverage": {
                 "sentiment_analysis_available": bool(sentiment_analysis),
                 "ranking_analysis_available": bool(ranking_analysis),
-                "citations_comparison_available": bool(citations_comparison and "error" not in citations_comparison)
+                "citations_comparison_available": bool(citations_comparison)
             }
         }
 
-    def _calculate_sentiment_ranking_correlation(self, sentiment_analysis: Dict, ranking_analysis: Dict) -> Dict[str, any]:
-        """
-        感情バイアス指標（normalized_bias_index）とランキング指標（mean_rank等）の相関を計算。
-        ピアソン・スピアマン相関、解釈ラベル等を返す。
-        """
-        import numpy as np
-        from scipy.stats import pearsonr, spearmanr
-        results = {}
-        for category in sentiment_analysis:
-            if category not in ranking_analysis:
-                continue
-            for subcategory in sentiment_analysis[category]:
-                if subcategory not in ranking_analysis[category]:
+        # 1. 感情分析とランキングの相関を計算（改善）
+        if sentiment_analysis and ranking_analysis:
+            for category in sentiment_analysis:
+                if category not in ranking_analysis:
                     continue
-                sent_entities = sentiment_analysis[category][subcategory].get("entities", {})
-                rank_entities = ranking_analysis[category][subcategory].get("entities", {})
-                # 共通エンティティのみ
-                common = set(sent_entities.keys()) & set(rank_entities.keys())
-                bias_list = []
-                mean_rank_list = []
-                for e in common:
-                    bias = sent_entities[e].get("basic_metrics", {}).get("normalized_bias_index")
-                    mean_rank = rank_entities[e].get("mean_rank")
-                    if bias is not None and mean_rank is not None:
-                        bias_list.append(bias)
-                        mean_rank_list.append(mean_rank)
-                if len(bias_list) >= 2:
-                    pearson_corr, _ = pearsonr(bias_list, mean_rank_list)
-                    spearman_corr, _ = spearmanr(bias_list, mean_rank_list)
-                    # 解釈
-                    if pearson_corr < -0.7:
-                        interpretation = "感情バイアスとランキング順位には強い負の相関（高評価ほど上位）"
-                        direction = "高評価ほど上位"
-                    elif pearson_corr > 0.7:
-                        interpretation = "感情バイアスとランキング順位には強い正の相関（高評価ほど下位）"
-                        direction = "高評価ほど下位"
-                    elif abs(pearson_corr) > 0.4:
-                        interpretation = "感情バイアスとランキング順位には中程度の相関"
-                        direction = "中程度の相関"
-                    else:
-                        interpretation = "感情バイアスとランキング順位に明確な相関なし"
-                        direction = "無相関"
-                    results.setdefault(category, {})[subcategory] = {
-                        "pearson_correlation": round(float(pearson_corr), 3),
-                        "spearman_correlation": round(float(spearman_corr), 3),
-                        "n_entities": len(bias_list),
-                        "correlation_direction": direction,
-                        "interpretation": interpretation
+
+                insights["sentiment_ranking_correlation"][category] = {}
+
+                for subcategory in sentiment_analysis[category]:
+                    if subcategory not in ranking_analysis[category]:
+                        continue
+
+                    sent_entities = sentiment_analysis[category][subcategory].get("entities", {})
+                    rank_entities = ranking_analysis[category][subcategory].get("category_summary", {}).get("ranking_summary", {}).get("entities", {})
+
+                    common_entities = set(sent_entities.keys()) & set(rank_entities.keys())
+                    if len(common_entities) < 2:
+                        continue
+
+                    bias_values = []
+                    rank_values = []
+
+                    for entity in common_entities:
+                        bias = sent_entities[entity].get("bias_index")
+                        rank = rank_entities[entity].get("avg_rank")
+
+                        if bias is not None and rank is not None:
+                            bias_values.append(bias)
+                            rank_values.append(rank)
+
+                    if len(bias_values) >= 2:
+                        pearson_corr, p_value = pearsonr(bias_values, rank_values)
+                        spearman_corr, _ = spearmanr(bias_values, rank_values)
+
+                        insights["sentiment_ranking_correlation"][category][subcategory] = {
+                            "correlation": round(float(pearson_corr), 3),
+                            "p_value": round(float(p_value), 3),
+                            "spearman": round(float(spearman_corr), 3),
+                            "n_entities": len(bias_values),
+                            "interpretation": self._interpret_correlation(pearson_corr, p_value)
+                        }
+
+        # 2. 一貫したリーダーとラガードを特定（改善）
+        if sentiment_analysis and ranking_analysis:
+            leaders = set()
+            laggards = set()
+
+            for category in sentiment_analysis:
+                if category not in ranking_analysis:
+                    continue
+
+                for subcategory in sentiment_analysis[category]:
+                    if subcategory not in ranking_analysis[category]:
+                        continue
+
+                    sent_entities = sentiment_analysis[category][subcategory].get("entities", {})
+                    rank_entities = ranking_analysis[category][subcategory].get("category_summary", {}).get("ranking_summary", {}).get("entities", {})
+
+                    for entity in sent_entities:
+                        if entity not in rank_entities:
+                            continue
+
+                        sent_data = sent_entities[entity]
+                        rank_data = rank_entities[entity]
+
+                        # 統計的有意性を考慮
+                        if not sent_data.get("statistical_significance", {}).get("rejected", False):
+                            continue
+
+                        bias_index = sent_data.get("bias_index", 0)
+                        avg_rank = rank_data.get("avg_rank", 0)
+                        stability_score = sent_data.get("stability_metrics", {}).get("stability_score", 0)
+                        total_entities = len(rank_entities)
+
+                        # より厳密な基準でリーダー/ラガードを判定
+                        if (bias_index > 0.5 and
+                            avg_rank <= total_entities * 0.2 and
+                            stability_score >= 0.8):
+                            leaders.add(entity)
+                        elif (bias_index < -0.5 and
+                              avg_rank >= total_entities * 0.8 and
+                              stability_score >= 0.8):
+                            laggards.add(entity)
+
+            insights["consistent_leaders"] = list(leaders)
+            insights["consistent_laggards"] = list(laggards)
+
+        # 3. Google検索と引用の一致度を評価（改善）
+        if citations_comparison:
+            alignment_scores = []
+
+            for category in citations_comparison:
+                for subcategory in citations_comparison[category]:
+                    data = citations_comparison[category][subcategory]
+
+                    if "ranking_similarity" in data:
+                        metrics = data["ranking_similarity"]
+                        kendall_tau = metrics.get("kendall_tau", 0)
+                        rbo_score = metrics.get("rbo_score", 0)
+                        overlap_ratio = metrics.get("overlap_ratio", 0)
+
+                        # メトリクスの重み付けを改善
+                        if metrics.get("metrics_validation", {}).get("is_mathematically_consistent", False):
+                            score = (
+                                0.4 * abs(kendall_tau) +    # 順位相関
+                                0.4 * rbo_score +           # 上位重視の類似度
+                                0.2 * overlap_ratio         # カバレッジ
+                            )
+                            alignment_scores.append(score)
+
+            if alignment_scores:
+                avg_score = sum(alignment_scores) / len(alignment_scores)
+                insights["google_citations_alignment"] = self._determine_overall_similarity_level(
+                    kendall_tau=kendall_tau,
+                    rbo=rbo_score,
+                    overlap_ratio=overlap_ratio
+                )
+
+        # 4. 全体的なバイアスパターンを特定（改善）
+        if sentiment_analysis:
+            insights["overall_bias_pattern"] = self._determine_overall_bias_pattern(sentiment_analysis)
+
+        # 5. プラットフォーム間の一貫性を評価（改善）
+        if all([sentiment_analysis, ranking_analysis, citations_comparison]):
+            insights["cross_platform_consistency"] = self._evaluate_cross_platform_consistency(
+                sentiment_analysis,
+                ranking_analysis,
+                citations_comparison
+            )
+
+        return insights
+
+    def _interpret_correlation(self, correlation: float, p_value: float) -> str:
+        """相関係数の解釈を生成"""
+        abs_corr = abs(correlation)
+        if p_value < 0.05:
+            strength = "強い" if abs_corr > 0.7 else "中程度の" if abs_corr > 0.4 else "弱い"
+            direction = "正の" if correlation > 0 else "負の"
+            return f"統計的に有意な{strength}{direction}相関（p < 0.05）"
+        elif p_value < 0.10:  # 有意傾向の判定を追加
+            strength = "強い" if abs_corr > 0.7 else "中程度の" if abs_corr > 0.4 else "弱い"
+            direction = "正の" if correlation > 0 else "負の"
+            return f"有意傾向のある{strength}{direction}相関（p < 0.10）"
+        else:
+            return "統計的に有意な相関なし"
+
+    def _evaluate_cross_platform_consistency(self, sentiment_analysis: Dict, ranking_analysis: Dict, citations_comparison: Dict) -> Dict[str, Any]:
+        """プラットフォーム間の一貫性を評価"""
+        result = {
+            "overall_score": 0.0,
+            "by_category": {},
+            "interpretation": "",
+            "confidence": "low"
+        }
+        consistency_scores = []
+
+        # 感情分析とランキングの一貫性
+        if sentiment_analysis and ranking_analysis:
+            for category in sentiment_analysis:
+                if category not in ranking_analysis:
+                    continue
+
+                result["by_category"][category] = {}
+                category_scores = []
+
+                for subcategory in sentiment_analysis[category]:
+                    if subcategory not in ranking_analysis[category]:
+                        continue
+
+                    sent_entities = sentiment_analysis[category][subcategory].get("entities", {})
+                    rank_entities = ranking_analysis[category][subcategory].get("category_summary", {}).get("ranking_summary", {}).get("entities", {})
+
+                    common_entities = set(sent_entities.keys()) & set(rank_entities.keys())
+                    if len(common_entities) < 2:
+                        continue
+
+                    bias_values = []
+                    rank_values = []
+
+                    for entity in common_entities:
+                        bias = sent_entities[entity].get("bias_index")
+                        rank = rank_entities[entity].get("avg_rank")
+
+                        if bias is not None and rank is not None:
+                            bias_values.append(bias)
+                            rank_values.append(rank)
+
+                    if len(bias_values) >= 2:
+                        pearson_corr, p_value = pearsonr(bias_values, rank_values)
+                        spearman_corr, _ = spearmanr(bias_values, rank_values)
+
+                        # 解釈
+                        subcategory_score = {
+                            "consistency_score": 0.0,
+                            "reliability": "low",
+                            "components": {
+                                "sentiment_ranking_correlation": abs(pearson_corr),
+                                "google_citations_alignment": 0.0
+                            }
+                        }
+
+                        if pearson_corr > 0.7:
+                            subcategory_score["consistency_score"] = 1.0
+                            subcategory_score["reliability"] = "high"
+                        elif pearson_corr > 0.4:
+                            subcategory_score["consistency_score"] = 0.5
+                            subcategory_score["reliability"] = "medium"
+
+                        category_scores.append(subcategory_score)
+
+                if category_scores:
+                    # カテゴリ全体のスコア計算
+                    avg_score = sum(s["consistency_score"] for s in category_scores) / len(category_scores)
+                    reliability = self._aggregate_reliability([s["reliability"] for s in category_scores])
+
+                    result["by_category"][category] = {
+                        "score": avg_score,
+                        "reliability": reliability,
+                        "subcategory_scores": category_scores
                     }
-        return results
 
-    def _assess_google_citations_alignment(self, citations_comparison: Dict) -> str:
-        """
-        Google-Citations間の整合性を多角的に評価
-        重複率、相関係数、感情分布一致度等を総合的に判定
-        """
-        if not citations_comparison or "error" in citations_comparison:
-            return "unknown"
+                    consistency_scores.append(avg_score)
 
-        alignment_metrics = {
-            "overlap_ratios": [],
-            "rbo_scores": [],
-            "kendall_taus": [],
-            "sentiment_correlations": [],
-            "official_bias_deltas": []
+        # Google検索と引用の一貫性
+        if citations_comparison:
+            for category in citations_comparison:
+                if category not in result["by_category"]:
+                    result["by_category"][category] = {}
+
+                for subcategory, data in citations_comparison[category].items():
+                    if "ranking_similarity" in data:
+                        metrics = data["ranking_similarity"]
+                        if metrics.get("metrics_validation", {}).get("is_mathematically_consistent", False):
+                            kendall_tau = metrics.get("kendall_tau", 0)
+                            rbo_score = metrics.get("rbo_score", 0)
+                            overlap_ratio = metrics.get("overlap_ratio", 0)
+
+                            alignment_score = (
+                                0.4 * abs(kendall_tau) +
+                                0.4 * rbo_score +
+                                0.2 * overlap_ratio
+                            )
+
+                            if category in result["by_category"] and "subcategory_scores" in result["by_category"][category]:
+                                for score in result["by_category"][category]["subcategory_scores"]:
+                                    score["components"]["google_citations_alignment"] = alignment_score
+                                    score["consistency_score"] = (score["consistency_score"] + alignment_score) / 2
+
+                            consistency_scores.append(alignment_score)
+
+        # 全体の評価
+        if consistency_scores:
+            result["overall_score"] = sum(consistency_scores) / len(consistency_scores)
+            result["confidence"] = self._determine_consistency_confidence(result["by_category"])
+            result["interpretation"] = self._interpret_consistency_score(
+                result["overall_score"],
+                result["confidence"]
+            )
+
+        return result
+
+    def _aggregate_reliability(self, reliabilities: List[str]) -> str:
+        """信頼性レベルを集約"""
+        if not reliabilities:
+            return "low"
+
+        reliability_scores = {
+            "high": 3,
+            "medium": 2,
+            "low": 1
         }
 
-        # 各カテゴリ・サブカテゴリから指標を収集
-        for category, subcategories in citations_comparison.items():
-            if category == "error":
-                continue
-            for subcategory, data in subcategories.items():
-                if isinstance(data, dict):
-                    # ランキング類似度指標
-                    ranking_similarity = data.get("ranking_similarity", {})
-                    if ranking_similarity:
-                        overlap_ratio = ranking_similarity.get("overlap_ratio")
-                        rbo_score = ranking_similarity.get("rbo_score")
-                        kendall_tau = ranking_similarity.get("kendall_tau")
+        avg_score = sum(reliability_scores[r] for r in reliabilities) / len(reliabilities)
 
-                        if overlap_ratio is not None:
-                            alignment_metrics["overlap_ratios"].append(overlap_ratio)
-                        if rbo_score is not None:
-                            alignment_metrics["rbo_scores"].append(rbo_score)
-                        if kendall_tau is not None:
-                            alignment_metrics["kendall_taus"].append(abs(kendall_tau))  # 絶対値で相関の強さを評価
-
-                    # 感情分布一致度
-                    sentiment_comparison = data.get("sentiment_comparison", {})
-                    if sentiment_comparison:
-                        sentiment_corr = sentiment_comparison.get("sentiment_correlation")
-                        if sentiment_corr is not None:
-                            alignment_metrics["sentiment_correlations"].append(sentiment_corr)
-
-                    # 公式ドメインバイアス差
-                    official_analysis = data.get("official_domain_analysis", {})
-                    if official_analysis:
-                        bias_delta = official_analysis.get("official_bias_delta")
-                        if bias_delta is not None:
-                            alignment_metrics["official_bias_deltas"].append(abs(bias_delta))  # 絶対値で差を評価
-
-        # 各指標の平均を計算
-        import numpy as np
-        scores = []
-
-        if alignment_metrics["overlap_ratios"]:
-            scores.append(np.mean(alignment_metrics["overlap_ratios"]))
-        if alignment_metrics["rbo_scores"]:
-            scores.append(np.mean(alignment_metrics["rbo_scores"]))
-        if alignment_metrics["kendall_taus"]:
-            scores.append(np.mean(alignment_metrics["kendall_taus"]))
-        if alignment_metrics["sentiment_correlations"]:
-            scores.append(np.mean(alignment_metrics["sentiment_correlations"]))
-        if alignment_metrics["official_bias_deltas"]:
-            # バイアス差は小さいほど良いので逆転
-            scores.append(1.0 - np.mean(alignment_metrics["official_bias_deltas"]))
-
-        if not scores:
-            return "unknown"
-
-        # 総合スコアによる判定
-        overall_score = np.mean(scores)
-
-        if overall_score >= 0.7:
+        if avg_score > 2.5:
             return "high"
-        elif overall_score >= 0.4:
-            return "moderate"
+        elif avg_score > 1.5:
+            return "medium"
         else:
             return "low"
+
+    def _determine_consistency_confidence(self, by_category: Dict) -> str:
+        """一貫性評価の信頼度を判定"""
+        reliability_scores = []
+
+        for category_data in by_category.values():
+            if isinstance(category_data, dict) and "reliability" in category_data:
+                reliability_scores.append(category_data["reliability"])
+
+        if not reliability_scores:
+            return "low"
+
+        return self._aggregate_reliability(reliability_scores)
+
+    def _interpret_consistency_score(self, score: float, confidence: str) -> str:
+        """一貫性スコアを解釈"""
+        if score > 0.7:
+            level = "強い"
+        elif score > 0.4:
+            level = "中程度の"
+        else:
+            level = "弱い"
+
+        confidence_text = {
+            "high": "高い信頼性で",
+            "medium": "中程度の信頼性で",
+            "low": "限定的な信頼性で"
+        }
+
+        return f"{confidence_text[confidence]}{level}一貫性が確認されました"
 
     def _determine_overall_bias_pattern(self, sentiment_analysis: Dict) -> str:
         """
