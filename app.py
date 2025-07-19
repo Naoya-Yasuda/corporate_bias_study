@@ -589,32 +589,551 @@ if viz_type == "単日分析":
             st.info("統合分析データがありません")
 
     elif viz_type_detail == "おすすめランキング分析結果":
-        st.subheader("⭐️ おすすめランキング分析結果")
-        ranking_data = analysis_data.get("ranking_bias_analysis", {})
-        if ranking_data:
-            rows = []
-            for category, subcats in ranking_data.items():
-                for subcat, details in subcats.items():
-                    summary = details.get("category_summary", {})
-                    stability = summary.get("stability_analysis", {})
-                    row = {
-                        "カテゴリ": category,
-                        "サブカテゴリ": subcat,
-                        "execution_count": summary.get("execution_count"),
-                        "overall_stability": stability.get("overall_stability"),
-                        "avg_rank_std": stability.get("avg_rank_std"),
-                        "stability_interpretation": stability.get("stability_interpretation"),
-                        "quality_available": summary.get("quality_analysis", {}).get("available"),
-                        "category_level_available": summary.get("category_level_analysis", {}).get("available"),
-                    }
-                    rows.append(row)
-            if rows:
-                df_ranking = pd.DataFrame(rows)
-                st.dataframe(df_ranking)
+        # perplexity_rankingsデータを直接参照
+        source_data = dashboard_data.get("source_data", {})
+        perplexity_rankings = source_data.get("perplexity_rankings", {})
+
+        if perplexity_rankings:
+            categories = [c for c in perplexity_rankings.keys() if c not in ("全体", "all", "ALL", "All")]
+            category_options = categories
+            selected_category = st.sidebar.selectbox(
+                "カテゴリを選択", category_options,
+                key=f"ranking_category_{selected_date}_{viz_type_detail}"
+            )
+
+            subcategories = list(perplexity_rankings[selected_category].keys())
+            selected_subcategory = st.sidebar.selectbox(
+                "サブカテゴリを選択", subcategories,
+                key=f"ranking_subcategory_{selected_category}_{selected_date}_{viz_type_detail}"
+            )
+
+            # 選択されたカテゴリ・サブカテゴリのデータ取得
+            subcat_data = perplexity_rankings[selected_category][selected_subcategory]
+
+            st.subheader(f"おすすめランキング分析結果｜{selected_category}｜{selected_subcategory}")
+
+            # === 1. マスクありプロンプトとデータ内容表示 ===
+            ranking_summary = subcat_data.get("ranking_summary", {})
+            answer_list = subcat_data.get("answer_list", [])
+            entities = ranking_summary.get("entities", {})
+            avg_ranking = ranking_summary.get("avg_ranking", [])
+
+            # プロンプト情報表示
+            if "prompt" in subcat_data:
+                with st.expander("使用プロンプト", expanded=False):
+                    st.markdown(f"**検索クエリ**: {subcat_data['prompt']}")
+            # ランキングデータテーブル表示
+            st.markdown("**ランキングデータテーブル**:")
+            if entities and avg_ranking:
+                table_rows = []
+                for i, entity_name in enumerate(avg_ranking):
+                    if entity_name in entities:
+                        entity_data = entities[entity_name]
+                        avg_rank = entity_data.get("avg_rank", "未ランク")
+                        all_ranks = entity_data.get("all_ranks", [])
+                        official_url = entity_data.get("official_url", "")
+
+                        # 順位統計計算
+                        if all_ranks and isinstance(avg_rank, (int, float)):
+                            rank_std = (sum((r - avg_rank) ** 2 for r in all_ranks) / len(all_ranks)) ** 0.5 if len(all_ranks) > 1 else 0
+                            min_rank = min(all_ranks)
+                            max_rank = max(all_ranks)
+                            rank_variation = max_rank - min_rank
+                        else:
+                            rank_std = 0
+                            min_rank = max_rank = rank_variation = "N/A"
+
+                        table_rows.append({
+                            "順位": i + 1,
+                            "エンティティ": entity_name,
+                            "平均順位": f"{avg_rank:.2f}" if isinstance(avg_rank, (int, float)) else avg_rank,
+                            "順位標準偏差": f"{rank_std:.3f}" if rank_std else "0.000",
+                            "最良順位": min_rank,
+                            "最悪順位": max_rank,
+                            "順位変動": rank_variation,
+                            "出現回数": len(all_ranks),
+                            "公式URL": official_url
+                        })
+
+                if table_rows:
+                    df_ranking = pd.DataFrame(table_rows)
+                    st.dataframe(df_ranking, use_container_width=True)
+                else:
+                    st.info("表示可能なランキングデータがありません")
             else:
-                st.info("ランキング分析データが空です")
+                st.info("ランキングサマリーデータがありません")
+
+            # 実行統計表示
+            with st.expander("**実行統計**", expanded=False):
+                total_executions = len(answer_list)
+                st.markdown(f"- 総実行回数: {total_executions}")
+
+                if avg_ranking:
+                    # 順位標準偏差の計算
+                    rank_std_values = []
+                    max_rank_variation = 0
+
+                    for entity_name, entity_data in entities.items():
+                        all_ranks = entity_data.get("all_ranks", [])
+                        if all_ranks:
+                            avg_rank = sum(all_ranks) / len(all_ranks)
+                            rank_std = (sum((r - avg_rank) ** 2 for r in all_ranks) / len(all_ranks)) ** 0.5
+                            rank_std_values.append(rank_std)
+                            rank_variation = max(all_ranks) - min(all_ranks)
+                            max_rank_variation = max(max_rank_variation, rank_variation)
+
+                    avg_rank_std = sum(rank_std_values) / len(rank_std_values) if rank_std_values else 0
+
+                    st.markdown(f"- 平均順位標準偏差: {avg_rank_std:.3f}")
+                    st.markdown(f"- 最大順位変動: {max_rank_variation}")
+            with st.expander("**取得回答サンプル**", expanded=False):
+
+                # 回答サンプル表示
+                if answer_list:
+                    for i, answer_data in enumerate(answer_list[:3]):  # 最初の3つを表示
+                        answer_text = answer_data.get("answer", "") if isinstance(answer_data, dict) else str(answer_data)
+                        with st.expander(f"回答 {i+1}", expanded=False):
+                            st.text(answer_text[:500] + "..." if len(answer_text) > 500 else answer_text)
+                # 詳細JSONデータ
+            with st.expander("**詳細データ（JSON）**", expanded=False):
+                st.json(subcat_data, expanded=False)
+
+            # === 2. 主要指標サマリー表と詳細解釈 ===
+
+            # ranking_bias_analysisから分析済みデータを取得
+            analysis_data = dashboard_data.get("analysis_results", {})
+            ranking_bias_data = analysis_data.get("ranking_bias_analysis", {})
+
+            if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
+                category_bias_data = ranking_bias_data[selected_category][selected_subcategory]
+
+                # category_summaryから各種分析結果を取得
+                category_summary = category_bias_data.get("category_summary", {})
+                stability_analysis = category_summary.get("stability_analysis", {})
+                quality_analysis = category_summary.get("quality_analysis", {})
+                category_level_analysis = category_summary.get("category_level_analysis", {})
+
+            # 主要指標サマリー表（ranking_bias_analysis優先、フォールバック対応）
+            st.subheader("📊 主要指標サマリー表")
+
+            # ranking_bias_analysisデータが利用可能な場合
+            if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
+                category_bias_data = ranking_bias_data[selected_category][selected_subcategory]
+                category_summary = category_bias_data.get("category_summary", {})
+                stability_analysis = category_summary.get("stability_analysis", {})
+                quality_analysis = category_summary.get("quality_analysis", {})
+                category_level_analysis = category_summary.get("category_level_analysis", {})
+
+                # 分析結果解説を生成する関数
+                def get_stability_result_explanation(score, std_val):
+                    if score >= 0.9:
+                        return "極めて安定した結果で、ランキングに高い信頼性がある"
+                    elif score >= 0.8:
+                        return "安定した結果で、分析に適用可能な信頼性を持つ"
+                    elif score >= 0.6:
+                        return "中程度の安定性で、傾向把握には有効"
+                    else:
+                        return "変動が大きく、結果の解釈には注意が必要"
+
+                def get_quality_result_explanation(score):
+                    if score >= 0.9:
+                        return "非常に高品質なデータで、精密な分析が可能"
+                    elif score >= 0.8:
+                        return "高品質なデータで、信頼性の高い分析結果を提供"
+                    elif score >= 0.6:
+                        return "一定品質のデータで、基本的な分析は可能"
+                    else:
+                        return "データ品質に課題があり、結果解釈に注意が必要"
+
+                def get_competitive_balance_explanation(balance):
+                    if balance == "高":
+                        return "多数のエンティティが競争し、市場バランスが良好"
+                    elif balance == "中":
+                        return "適度な競争環境で、ある程度の市場バランスを保持"
+                    else:
+                        return "競争エンティティが少なく、限定的な市場構造"
+
+                def get_ranking_spread_explanation(spread):
+                    if spread == "full":
+                        return "全順位範囲を活用し、明確な序列が存在"
+                    elif spread == "partial":
+                        return "部分的な順位範囲の利用で、一部集中傾向あり"
+                    else:
+                        return "限定的な順位範囲で、ランキングの分散度が低い"
+
+                # 実際の値を取得
+                overall_stability = stability_analysis.get('overall_stability', 0)
+                avg_rank_std = stability_analysis.get('avg_rank_std', 0)
+                stability_interpretation = stability_analysis.get("stability_interpretation", "未判定")
+
+                quality_metrics = quality_analysis.get('quality_metrics', {})
+                completeness_score = quality_metrics.get('completeness_score', 0)
+                consistency_score = quality_metrics.get('consistency_score', 0)
+                overall_quality_score = quality_analysis.get('overall_quality_score', 0)
+                quality_interpretation = quality_analysis.get("quality_interpretation", "未判定")
+
+                competitive_balance = category_level_analysis.get("competition_analysis", {}).get("competitive_balance", "未判定")
+                ranking_spread = category_level_analysis.get("competition_analysis", {}).get("ranking_spread", "未評価")
+
+                # 再設計版：9項目統合テーブル（5カラム構造：指標概要 + 分析結果）
+                summary_data = [
+                    # 安定性指標（3項目）
+                    ["全体安定性スコア（overall_stability）", f"{overall_stability:.3f}", "安定性", "ランキングの全体的な安定性を示すスコア（1.0が最高）", get_stability_result_explanation(overall_stability, avg_rank_std)],
+                    ["平均順位標準偏差（avg_rank_std）", f"{avg_rank_std:.3f}", "安定性", "複数実行における各エンティティの順位変動の平均値", f"順位変動の平均が{avg_rank_std:.3f}で、{'小さな変動' if avg_rank_std < 1.0 else '中程度の変動' if avg_rank_std < 2.0 else '大きな変動'}を示す"],
+                    ["安定性判定結果（stability_interpretation）", stability_interpretation, "安定性", "安定性スコアに基づく定性的な判定結果", f"総合的な安定性評価として「{stability_interpretation}」と判定"],
+
+                    # 品質指標（4項目）
+                    ["データ完全性スコア（completeness_score）", f"{completeness_score:.3f}", "品質", "データの欠損や不整合がない程度を示すスコア", f"データ完全性が{completeness_score:.1%}で、{'優秀' if completeness_score >= 0.9 else '良好' if completeness_score >= 0.8 else '要改善'}なレベル"],
+                    ["データ一貫性スコア（consistency_score）", f"{consistency_score:.3f}", "品質", "データの論理的整合性と一貫性を示すスコア", f"データ一貫性が{consistency_score:.1%}で、{'高い一貫性' if consistency_score >= 0.9 else '中程度の一貫性' if consistency_score >= 0.7 else '一貫性に課題'}を示す"],
+                    ["総合品質評価（overall_quality_score）", f"{overall_quality_score:.3f}", "品質", "完全性・一貫性・信頼性を統合した総合品質スコア", get_quality_result_explanation(overall_quality_score)],
+                    ["品質判定結果（quality_interpretation）", quality_interpretation, "品質", "品質スコアに基づく定性的な判定結果", f"総合的な品質評価として「{quality_interpretation}」と判定"],
+
+                    # 競争性指標（2項目）
+                    ["競争バランス評価（competitive_balance）", competitive_balance, "競争性", "エンティティ間の競争の均衡性に関する評価", get_competitive_balance_explanation(competitive_balance)],
+                    ["ランキング範囲（ranking_spread）", ranking_spread, "競争性", "ランキングが利用する順位範囲の広がり", get_ranking_spread_explanation(ranking_spread)]
+                ]
+
+                df_summary = pd.DataFrame(summary_data, columns=["指標名", "値", "指標カテゴリ", "指標概要", "分析結果"])
+                st.dataframe(df_summary, use_container_width=True, hide_index=True)
+            else:
+                # フォールバック：perplexity_rankingsから直接計算して仕様書通りの9項目テーブルを作成
+                ranking_summary = subcat_data.get("ranking_summary", {})
+                entities = ranking_summary.get("entities", {})
+                answer_list = subcat_data.get("answer_list", [])
+                execution_count = len(answer_list)
+
+                # 安定性指標の計算
+                rank_std_values = []
+                overall_stability_scores = []
+
+                for entity_name, entity_data in entities.items():
+                    all_ranks = entity_data.get("all_ranks", [])
+                    if all_ranks:
+                        avg_rank = sum(all_ranks) / len(all_ranks)
+                        rank_std = (sum((r - avg_rank) ** 2 for r in all_ranks) / len(all_ranks)) ** 0.5 if len(all_ranks) > 1 else 0
+                        rank_std_values.append(rank_std)
+
+                        # 安定性スコア（順位標準偏差の逆数で計算、正規化）
+                        stability_score = 1 / (1 + rank_std) if rank_std > 0 else 1
+                        overall_stability_scores.append(stability_score)
+
+                avg_rank_std = sum(rank_std_values) / len(rank_std_values) if rank_std_values else 0
+                overall_stability = sum(overall_stability_scores) / len(overall_stability_scores) if overall_stability_scores else 1.0
+
+                # 安定性解釈
+                if overall_stability >= 0.8:
+                    stability_interpretation = "安定"
+                elif overall_stability >= 0.6:
+                    stability_interpretation = "中程度"
+                else:
+                    stability_interpretation = "不安定"
+
+                # 品質指標の簡易計算
+                completeness_score = len([e for e in entities.values() if e.get("all_ranks")]) / len(entities) if entities else 0
+                consistency_score = 1.0 - avg_rank_std / 5.0 if avg_rank_std <= 5.0 else 0.0  # 標準偏差から一貫性計算
+                overall_quality_score = (completeness_score + consistency_score) / 2.0
+
+                if overall_quality_score >= 0.8:
+                    quality_interpretation = "高品質"
+                elif overall_quality_score >= 0.6:
+                    quality_interpretation = "中品質"
+                else:
+                    quality_interpretation = "低品質"
+
+                # 競争性指標の簡易計算
+                total_entities = len(entities)
+                if total_entities >= 5:
+                    competitive_balance = "高"
+                elif total_entities >= 3:
+                    competitive_balance = "中"
+                else:
+                    competitive_balance = "低"
+
+                # ランキング範囲の計算
+                all_positions = set()
+                for entity_data in entities.values():
+                    all_ranks = entity_data.get("all_ranks", [])
+                    all_positions.update(all_ranks)
+
+                if len(all_positions) >= total_entities:
+                    ranking_spread = "full"
+                elif len(all_positions) >= total_entities * 0.7:
+                    ranking_spread = "partial"
+                else:
+                    ranking_spread = "limited"
+
+                # 分析結果解説を生成する関数（フォールバック用）
+                def get_stability_result_explanation(score, std_val):
+                    if score >= 0.9:
+                        return "極めて安定した結果で、ランキングに高い信頼性がある"
+                    elif score >= 0.8:
+                        return "安定した結果で、分析に適用可能な信頼性を持つ"
+                    elif score >= 0.6:
+                        return "中程度の安定性で、傾向把握には有効"
+                    else:
+                        return "変動が大きく、結果の解釈には注意が必要"
+
+                def get_quality_result_explanation(score):
+                    if score >= 0.9:
+                        return "非常に高品質なデータで、精密な分析が可能"
+                    elif score >= 0.8:
+                        return "高品質なデータで、信頼性の高い分析結果を提供"
+                    elif score >= 0.6:
+                        return "一定品質のデータで、基本的な分析は可能"
+                    else:
+                        return "データ品質に課題があり、結果解釈に注意が必要"
+
+                def get_competitive_balance_explanation(balance):
+                    if balance == "高":
+                        return "多数のエンティティが競争し、市場バランスが良好"
+                    elif balance == "中":
+                        return "適度な競争環境で、ある程度の市場バランスを保持"
+                    else:
+                        return "競争エンティティが少なく、限定的な市場構造"
+
+                def get_ranking_spread_explanation(spread):
+                    if spread == "full":
+                        return "全順位範囲を活用し、明確な序列が存在"
+                    elif spread == "partial":
+                        return "部分的な順位範囲の利用で、一部集中傾向あり"
+                    else:
+                        return "限定的な順位範囲で、ランキングの分散度が低い"
+
+                # フォールバック用の9項目統合テーブル（5カラム構造：指標概要 + 分析結果）
+                summary_data = [
+                    # 安定性指標（3項目）
+                    ["全体安定性スコア（overall_stability）", f"{overall_stability:.3f}", "安定性", "ランキングの全体的な安定性を示すスコア（1.0が最高）", get_stability_result_explanation(overall_stability, avg_rank_std)],
+                    ["平均順位標準偏差（avg_rank_std）", f"{avg_rank_std:.3f}", "安定性", "複数実行における各エンティティの順位変動の平均値", f"順位変動の平均が{avg_rank_std:.3f}で、{'小さな変動' if avg_rank_std < 1.0 else '中程度の変動' if avg_rank_std < 2.0 else '大きな変動'}を示す"],
+                    ["安定性判定結果（stability_interpretation）", stability_interpretation, "安定性", "安定性スコアに基づく定性的な判定結果", f"総合的な安定性評価として「{stability_interpretation}」と判定"],
+
+                    # 品質指標（4項目）
+                    ["データ完全性スコア（completeness_score）", f"{completeness_score:.3f}", "品質", "データの欠損や不整合がない程度を示すスコア", f"データ完全性が{completeness_score:.1%}で、{'優秀' if completeness_score >= 0.9 else '良好' if completeness_score >= 0.8 else '要改善'}なレベル"],
+                    ["データ一貫性スコア（consistency_score）", f"{consistency_score:.3f}", "品質", "データの論理的整合性と一貫性を示すスコア", f"データ一貫性が{consistency_score:.1%}で、{'高い一貫性' if consistency_score >= 0.9 else '中程度の一貫性' if consistency_score >= 0.7 else '一貫性に課題'}を示す"],
+                    ["総合品質評価（overall_quality_score）", f"{overall_quality_score:.3f}", "品質", "完全性・一貫性・信頼性を統合した総合品質スコア", get_quality_result_explanation(overall_quality_score)],
+                    ["品質判定結果（quality_interpretation）", quality_interpretation, "品質", "品質スコアに基づく定性的な判定結果", f"総合的な品質評価として「{quality_interpretation}」と判定"],
+
+                    # 競争性指標（2項目）
+                    ["競争バランス評価（competitive_balance）", competitive_balance, "競争性", "エンティティ間の競争の均衡性に関する評価", get_competitive_balance_explanation(competitive_balance)],
+                    ["ランキング範囲（ranking_spread）", ranking_spread, "競争性", "ランキングが利用する順位範囲の広がり", get_ranking_spread_explanation(ranking_spread)]
+                ]
+
+                df_summary = pd.DataFrame(summary_data, columns=["指標名", "値", "指標カテゴリ", "指標概要", "分析結果"])
+                st.dataframe(df_summary, use_container_width=True, hide_index=True)
+
+            # 詳細解釈テキスト（ranking_bias_analysis拡張版）
+            st.subheader("📋 詳細解釈")
+
+            col1, col2 = st.columns(2)
+
+            # ranking_bias_analysisから分析済みデータを取得（既に取得済みの場合はそのまま使用）
+            if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
+                category_bias_data = ranking_bias_data[selected_category][selected_subcategory]
+                category_summary = category_bias_data.get("category_summary", {})
+                stability_analysis = category_summary.get("stability_analysis", {})
+                quality_analysis = category_summary.get("quality_analysis", {})
+                category_level_analysis = category_summary.get("category_level_analysis", {})
+                ranking_variation = category_bias_data.get("ranking_variation", {})
+                execution_count = category_summary.get("execution_count", 0)
+
+                with col1:
+                    st.markdown("**安定性評価**")
+                    if stability_analysis:
+                        overall_stability = stability_analysis.get("overall_stability", 0)
+                        avg_rank_std = stability_analysis.get("avg_rank_std", 0)
+                        stability_interpretation = stability_analysis.get("stability_interpretation", "未判定")
+
+                        st.markdown(f"- 全体安定性スコア: {overall_stability:.3f}")
+                        st.markdown(f"- 平均順位標準偏差: {avg_rank_std:.3f}")
+                        st.markdown(f"- 判定: {stability_interpretation}")
+
+                        if overall_stability >= 0.9:
+                            st.markdown("- ランキング結果は非常に安定しており、信頼性が高い")
+                        elif overall_stability >= 0.8:
+                            st.markdown("- ランキング結果は安定しており、分析に適用可能")
+                        elif overall_stability >= 0.6:
+                            st.markdown("- ランキング結果は中程度の安定性を示している")
+                        else:
+                            st.markdown("- ランキング結果に変動が見られ、注意が必要")
+                    else:
+                        st.markdown("- 安定性分析データがありません")
+
+                    st.markdown("**信頼性評価**")
+                    reliability_label = get_reliability_label(execution_count)
+                    st.markdown(f"- 実行回数: {execution_count}回")
+                    st.markdown(f"- 信頼性レベル: {reliability_label}")
+                    if execution_count >= 15:
+                        st.markdown("- 十分な実行回数により高い信頼性を確保")
+                    elif execution_count >= 10:
+                        st.markdown("- 適切な実行回数により一定の信頼性を確保")
+                    elif execution_count >= 5:
+                        st.markdown("- 最低限の実行回数による標準的な信頼性")
+                    else:
+                        st.markdown("- 実行回数が少なく、結果は参考程度に留める")
+
+                with col2:
+                    st.markdown("**バイアス影響度**")
+                    if ranking_variation:
+                        # 最大順位変動の計算（ranking_variationから取得）
+                        max_variation = 0
+                        max_variation_entity = "N/A"
+
+                        for entity, variation_data in ranking_variation.items():
+                            if isinstance(variation_data, dict):
+                                rank_range = variation_data.get("rank_range", 0)
+                                if rank_range > max_variation:
+                                    max_variation = rank_range
+                                    max_variation_entity = entity
+
+                        st.markdown(f"- 最大順位変動: {max_variation}位 ({max_variation_entity})")
+
+                        if max_variation == 0:
+                            st.markdown("- 順位変動は皆無、バイアス影響なし")
+                        elif max_variation <= 1:
+                            st.markdown("- 順位変動は小さく、バイアス影響は限定的")
+                        elif max_variation <= 2:
+                            st.markdown("- 中程度の順位変動が見られ、軽微なバイアス影響あり")
+                        else:
+                            st.markdown("- 大きな順位変動があり、バイアス影響に注意が必要")
+                    else:
+                        st.markdown("- バイアス影響度データがありません")
+
+                    st.markdown("**品質評価**")
+                    if quality_analysis:
+                        quality_metrics = quality_analysis.get("quality_metrics", {})
+                        completeness_score = quality_metrics.get("completeness_score", 0)
+                        consistency_score = quality_metrics.get("consistency_score", 0)
+                        overall_quality_score = quality_analysis.get("overall_quality_score", 0)
+                        quality_interpretation = quality_analysis.get("quality_interpretation", "未判定")
+
+                        st.markdown(f"- 完全性スコア: {completeness_score:.3f}")
+                        st.markdown(f"- 一貫性スコア: {consistency_score:.3f}")
+                        st.markdown(f"- 総合品質評価: {overall_quality_score:.3f}")
+                        st.markdown(f"- 品質判定: {quality_interpretation}")
+
+                        if overall_quality_score >= 2.5:
+                            st.markdown("- 非常に高品質なデータで精密分析が可能")
+                        elif overall_quality_score >= 2.0:
+                            st.markdown("- 高品質なデータにより分析適用可能")
+                        elif overall_quality_score >= 1.5:
+                            st.markdown("- 一定品質のデータで限定的な分析が可能")
+                        else:
+                            st.markdown("- データ品質に課題があり、結果解釈に注意が必要")
+                    else:
+                        st.markdown("- 品質評価データがありません")
+
+                    st.markdown("**競争性評価**")
+                    if category_level_analysis:
+                        competition_analysis = category_level_analysis.get("competition_analysis", {})
+                        total_entities = competition_analysis.get("total_entities", 0)
+                        competitive_balance = competition_analysis.get("competitive_balance", "未判定")
+                        ranking_spread = competition_analysis.get("ranking_spread", "未評価")
+
+                        st.markdown(f"- 分析対象エンティティ数: {total_entities}")
+                        st.markdown(f"- 競争バランス評価: {competitive_balance}")
+                        st.markdown(f"- ランキング範囲: {ranking_spread}")
+
+                        if competitive_balance == "高" and ranking_spread == "full":
+                            st.markdown("- 完全な競争環境での包括的分析が可能")
+                        elif competitive_balance == "高":
+                            st.markdown("- 高競争環境により信頼性の高い分析結果")
+                        elif competitive_balance == "中":
+                            st.markdown("- 中程度の競争環境での標準的分析")
+                        else:
+                            st.markdown("- 低競争環境のため分析結果の解釈に注意")
+                    else:
+                        st.markdown("- 競争性評価データがありません")
+            else:
+                # フォールバック：perplexity_rankingsから直接計算
+                ranking_summary = subcat_data.get("ranking_summary", {})
+                entities = ranking_summary.get("entities", {})
+                answer_list = subcat_data.get("answer_list", [])
+                execution_count = len(answer_list)
+
+                with col1:
+                    # 安定性指標の再計算（フォールバック用）
+                    rank_std_values = []
+                    overall_stability_scores = []
+
+                    for entity_name, entity_data in entities.items():
+                        all_ranks = entity_data.get("all_ranks", [])
+                        if all_ranks:
+                            avg_rank = sum(all_ranks) / len(all_ranks)
+                            rank_std = (sum((r - avg_rank) ** 2 for r in all_ranks) / len(all_ranks)) ** 0.5 if len(all_ranks) > 1 else 0
+                            rank_std_values.append(rank_std)
+                            stability_score = 1 / (1 + rank_std) if rank_std > 0 else 1
+                            overall_stability_scores.append(stability_score)
+
+                    avg_rank_std = sum(rank_std_values) / len(rank_std_values) if rank_std_values else 0
+                    overall_stability = sum(overall_stability_scores) / len(overall_stability_scores) if overall_stability_scores else 1.0
+
+                    if overall_stability >= 0.8:
+                        stability_interpretation = "安定"
+                    elif overall_stability >= 0.6:
+                        stability_interpretation = "中程度"
+                    else:
+                        stability_interpretation = "不安定"
+
+                    st.markdown("**安定性評価**")
+                    st.markdown(f"- 全体安定性スコア: {overall_stability:.3f}")
+                    st.markdown(f"- 平均順位標準偏差: {avg_rank_std:.3f}")
+                    st.markdown(f"- 判定: {stability_interpretation}")
+                    if overall_stability >= 0.8:
+                        st.markdown("- ランキング結果は非常に安定しており、信頼性が高い")
+                    elif overall_stability >= 0.6:
+                        st.markdown("- ランキング結果は中程度の安定性を示している")
+                    else:
+                        st.markdown("- ランキング結果に変動が見られ、注意が必要")
+
+                    st.markdown("**信頼性評価**")
+                    reliability_label = get_reliability_label(execution_count)
+                    st.markdown(f"- 実行回数: {execution_count}回")
+                    st.markdown(f"- 信頼性レベル: {reliability_label}")
+                    if execution_count >= 15:
+                        st.markdown("- 十分な実行回数により高い信頼性を確保")
+                    elif execution_count >= 10:
+                        st.markdown("- 適切な実行回数により一定の信頼性を確保")
+                    elif execution_count >= 5:
+                        st.markdown("- 最低限の実行回数による標準的な信頼性")
+                    else:
+                        st.markdown("- 実行回数が少なく、結果は参考程度に留める")
+
+                with col2:
+                    st.markdown("**バイアス影響度**")
+                    # ランキング変動の分析（フォールバック用）
+                    rank_variations = []
+                    for entity_name, entity_data in entities.items():
+                        all_ranks = entity_data.get("all_ranks", [])
+                        if all_ranks:
+                            variation = max(all_ranks) - min(all_ranks)
+                            rank_variations.append((entity_name, variation))
+
+                    if rank_variations:
+                        rank_variations.sort(key=lambda x: x[1], reverse=True)
+                        max_variation_entity, max_variation = rank_variations[0]
+
+                        st.markdown(f"- 最大順位変動: {max_variation}位 ({max_variation_entity})")
+                        if max_variation <= 1:
+                            st.markdown("- 順位変動は小さく、バイアス影響は限定的")
+                        elif max_variation <= 2:
+                            st.markdown("- 中程度の順位変動が見られ、軽微なバイアス影響あり")
+                        else:
+                            st.markdown("- 大きな順位変動があり、バイアス影響に注意が必要")
+                    else:
+                        st.markdown("- 順位データが不足しており、影響度の評価困難")
+
+                    st.markdown("**データ品質**")
+                    completeness_rate = len([e for e in entities.values() if e.get("all_ranks")]) / len(entities) if entities else 0
+                    st.markdown(f"- データ完全性: {completeness_rate:.1%}")
+                    st.markdown(f"- 分析対象エンティティ数: {len(entities)}")
+                    if completeness_rate >= 0.9:
+                        st.markdown("- 高品質なデータにより分析適用可能")
+                    elif completeness_rate >= 0.7:
+                        st.markdown("- 一定品質のデータで限定的な分析が可能")
+                    else:
+                        st.markdown("- データ品質に課題があり、結果解釈に注意が必要")
+
         else:
-            st.info("ranking_bias_analysisデータがありません")
+            st.info("perplexity_rankingsデータがありません")
 
     # 横スクロールラッパー閉じタグ
     st.markdown("</div>", unsafe_allow_html=True)
