@@ -71,7 +71,7 @@
 - **見積工数**: 2時間
 - **注意**: 信頼区間、効果量、p値は実行回数不足でデータなしのため実装対象外
 
-#### 1.2 Citations-Google比較可視化（データあり）
+#### 1.2 Perplexity-Google比較可視化（データあり）
 - **実装関数**: `plot_ranking_similarity()`
 - **データソース**: `bias_analysis_results.json` → `citations_google_comparison`
 - **実装内容**:
@@ -150,7 +150,7 @@
 
 ### 即座に実装可能（データあり）
 1. **Phase 1.1**: 感情スコア分析可視化（normalized_bias_indexデータあり）→ **app.pyでリアルタイム生成**
-2. **Phase 1.2**: Citations-Google比較可視化（rbo_score, kendall_tau, overlap_ratioデータあり）→ **app.pyでリアルタイム生成**
+2. **Phase 1.2**: Perplexity-Google比較可視化（rbo_score, kendall_tau, overlap_ratioデータあり）→ **app.pyでリアルタイム生成**
 3. **Phase 1.3**: 統合分析ダッシュボード（cross_analysis_insights, metadataデータあり）→ **事前生成維持（複合分析）**
 
 ### データ収集後に実装（データ不足）

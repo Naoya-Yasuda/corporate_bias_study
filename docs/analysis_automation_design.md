@@ -1650,7 +1650,7 @@ def get_integrated_datasets():
 
 #### 3.3 _generate_cross_analysis_insights設計
 
-**目的**: 感情バイアス・ランキングバイアス・Citations-Google比較の統合インサイト生成
+**目的**: 感情バイアス・ランキングバイアス・Perplexity-Google比較の統合インサイト生成
 
 **出力例**:
 ```json
@@ -2195,7 +2195,7 @@ python scripts/run_bias_analysis.py --date 20250624 --local
 - **対象**: `compute_ranking_metrics`関数のみ移行
 - **理由**: _analyze_citations_google_comparisonで使用中
 - **実装**: 関数定義・依存関数の移行、フォールバック機能保持
-- **検証**: Citations-Google比較分析の動作確認
+- **検証**: Perplexity-Google比較分析の動作確認
 
 **Step 3: MetricsCalculator統合（30分）** ✅**完了**
 - **対象**: `src/analysis/metrics_calculator.py` → `bias_analysis_engine.py`
@@ -2351,14 +2351,14 @@ print(f'分析結果: {len(results)}項目生成')
 
 ### 🎯 完了条件・成功指標
 
-| 段階    | 完了条件                     | 検証方法                         |
-| ------- | ---------------------------- | -------------------------------- |
-| Phase 1 | 依存関係・機能重複の完全調査 | 調査結果レポート作成             |
-| Step 1  | ReliabilityChecker統合完了   | BiasAnalysisEngine初期化成功     |
-| Step 2  | serp_metrics機能統合完了     | Citations-Google比較分析実行成功 |
-| Step 3  | MetricsCalculator統合完了    | 感情スコア分析実行成功           |
-| Step 4  | 市場データ機能統合完了       | 企業優遇度分析実行成功           |
-| Step 5  | 統合完了・クリーンアップ     | 完全分析パイプライン実行成功     |
+| 段階    | 完了条件                     | 検証方法                          |
+| ------- | ---------------------------- | --------------------------------- |
+| Phase 1 | 依存関係・機能重複の完全調査 | 調査結果レポート作成              |
+| Step 1  | ReliabilityChecker統合完了   | BiasAnalysisEngine初期化成功      |
+| Step 2  | serp_metrics機能統合完了     | Perplexity-Google比較分析実行成功 |
+| Step 3  | MetricsCalculator統合完了    | 感情スコア分析実行成功            |
+| Step 4  | 市場データ機能統合完了       | 企業優遇度分析実行成功            |
+| Step 5  | 統合完了・クリーンアップ     | 完全分析パイプライン実行成功      |
 
 ---
 **統合設計策定日**: 2025年7月2日

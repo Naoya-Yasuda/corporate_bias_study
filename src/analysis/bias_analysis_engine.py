@@ -2679,7 +2679,7 @@ class BiasAnalysisEngine:
         }
 
     def _generate_cross_analysis_insights(self, sentiment_analysis: Dict, ranking_analysis: Dict, citations_comparison: Dict) -> Dict[str, Any]:
-        """感情バイアス・ランキングバイアス・Citations-Google比較の統合インサイト生成"""
+        """感情バイアス・ランキングバイアス・Perplexity-Google比較の統合インサイト生成"""
 
         # 一貫したリーダー・ラガードの特定
         consistent_leaders = []
