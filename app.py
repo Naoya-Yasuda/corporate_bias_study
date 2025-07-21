@@ -599,7 +599,7 @@ if viz_type == "単日分析":
                         st.markdown(f"- **評判情報**: `{reputation_prompt}`")
 
             # === 2. Google検索データテーブル表示 ===
-            st.markdown("**Google検索データテーブル**:**※※APIの仕様で引用URL（結果数）は各10件固定**")
+            st.markdown("**Google検索データテーブル**:**※APIの仕様で引用URL（結果数）は各10件固定**")
             if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
                 google_subcat_data = google_search_data[selected_category][selected_subcategory]
                 if "entities" in google_subcat_data:
@@ -612,11 +612,6 @@ if viz_type == "単日分析":
                     if filtered_google_entities:
                         google_table_rows = []
                         for entity_name, entity_data in filtered_google_entities.items():
-                            # official_results と reputation_results の統計
-                            official_count = len(entity_data.get("official_results", []))
-                            reputation_count = len(entity_data.get("reputation_results", []))
-                            total_results = official_count + reputation_count
-
                             # 感情分析結果の統計
                             positive_count = 0
                             negative_count = 0
@@ -634,11 +629,9 @@ if viz_type == "単日分析":
                                 else:
                                     unknown_count += 1
 
-                            # 公式/非公式の統計
+                            # 公式/非公式の統計（公式結果のみ）
                             official_official_count = 0
                             official_unofficial_count = 0
-                            reputation_official_count = 0
-                            reputation_unofficial_count = 0
 
                             # official_resultsの公式/非公式カウント
                             for result in entity_data.get("official_results", []):
@@ -646,13 +639,6 @@ if viz_type == "単日分析":
                                     official_official_count += 1
                                 else:
                                     official_unofficial_count += 1
-
-                            # reputation_resultsの公式/非公式カウント
-                            for result in entity_data.get("reputation_results", []):
-                                if result.get("is_official") == "official":
-                                    reputation_official_count += 1
-                                else:
-                                    reputation_unofficial_count += 1
 
                             # 主要ドメイン（上位3つ）
                             all_domains = []
@@ -666,17 +652,12 @@ if viz_type == "単日分析":
 
                             google_table_rows.append({
                                 "エンティティ": entity_name,
-                                "公式結果数": official_count,
-                                "評判結果数": reputation_count,
-                                "総結果数": total_results,
-                                "公式結果(公式)": official_official_count,
-                                "公式結果(非公式)": official_unofficial_count,
-                                "評判結果(公式)": reputation_official_count,
-                                "評判結果(非公式)": reputation_unofficial_count,
+                                "公式": official_official_count,
+                                "非公式": official_unofficial_count,
                                 "ポジティブ": positive_count,
                                 "ネガティブ": negative_count,
                                 "中立": neutral_count,
-                                "不明": unknown_count,
+                                "感情不明": unknown_count,
                                 "主要ドメイン": top_domains_str
                             })
 
@@ -706,11 +687,6 @@ if viz_type == "単日分析":
                     if filtered_citations_entities:
                         citations_table_rows = []
                         for entity_name, entity_data in filtered_citations_entities.items():
-                            # official_results と reputation_results の統計
-                            official_count = len(entity_data.get("official_results", []))
-                            reputation_count = len(entity_data.get("reputation_results", []))
-                            total_results = official_count + reputation_count
-
                             # 感情分析結果の統計
                             positive_count = 0
                             negative_count = 0
@@ -728,11 +704,9 @@ if viz_type == "単日分析":
                                 else:
                                     unknown_count += 1
 
-                            # 公式/非公式の統計
+                            # 公式/非公式の統計（公式結果のみ）
                             official_official_count = 0
                             official_unofficial_count = 0
-                            reputation_official_count = 0
-                            reputation_unofficial_count = 0
 
                             # official_resultsの公式/非公式カウント
                             for result in entity_data.get("official_results", []):
@@ -740,13 +714,6 @@ if viz_type == "単日分析":
                                     official_official_count += 1
                                 else:
                                     official_unofficial_count += 1
-
-                            # reputation_resultsの公式/非公式カウント
-                            for result in entity_data.get("reputation_results", []):
-                                if result.get("is_official") == "official":
-                                    reputation_official_count += 1
-                                else:
-                                    reputation_unofficial_count += 1
 
                             # 主要ドメイン（上位3つ）
                             all_domains = []
@@ -760,17 +727,12 @@ if viz_type == "単日分析":
 
                             citations_table_rows.append({
                                 "エンティティ": entity_name,
-                                "公式結果数": official_count,
-                                "評判結果数": reputation_count,
-                                "総結果数": total_results,
-                                "公式結果(公式)": official_official_count,
-                                "公式結果(非公式)": official_unofficial_count,
-                                "評判結果(公式)": reputation_official_count,
-                                "評判結果(非公式)": reputation_unofficial_count,
+                                "公式": official_official_count,
+                                "非公式": official_unofficial_count,
                                 "ポジティブ": positive_count,
                                 "ネガティブ": negative_count,
                                 "中立": neutral_count,
-                                "不明": unknown_count,
+                                "感情不明": unknown_count,
                                 "主要ドメイン": top_domains_str
                             })
 
