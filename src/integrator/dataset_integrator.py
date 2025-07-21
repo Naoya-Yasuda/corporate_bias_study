@@ -63,11 +63,16 @@ class DatasetIntegrator:
             # 2. データ品質チェックと処理継続制御
             if verbose:
                 logger.info("データ品質チェック実行中...")
+                logger.info(f"生データのキー: {list(raw_data.keys())}")
 
             try:
                 cleaned_data, validation_results = self.validator.process_data_with_validation(raw_data)
                 self.integration_metadata["validation_results"] = validation_results
                 self.integration_metadata["data_quality_score"] = self.validator.get_validation_summary().get("validation_score", 0.0)
+
+                if verbose:
+                    logger.info(f"検証後のデータキー: {list(cleaned_data.keys())}")
+                    logger.info(f"検証結果: {len(validation_results)}件")
 
                 if verbose:
                     validation_summary = self.validator.get_validation_summary()
@@ -183,6 +188,10 @@ class DatasetIntegrator:
         """生データファイルの読み込み"""
         raw_data = {}
 
+        if verbose:
+            logger.info(f"生データ読み込み開始: 日付={self.date_str}")
+            logger.info(f"パス設定: {self.paths}")
+
         # Google検索データ
         google_path = os.path.join(self.paths["raw_data"]["google"], "custom_search.json")
         if os.path.exists(google_path):
@@ -198,13 +207,22 @@ class DatasetIntegrator:
 
         # Perplexity感情データ
         sentiment_path = os.path.join(self.paths["raw_data"]["perplexity"], "sentiment.json")
+        if verbose:
+            logger.info(f"Perplexity感情データパス: {sentiment_path}")
+            logger.info(f"ファイル存在確認: {os.path.exists(sentiment_path)}")
+
         # ファイル名パターンマッチング（sentiment_Nruns.json形式も対応）
         if not os.path.exists(sentiment_path):
             # 最新runファイルを検索
             perplexity_dir = self.paths["raw_data"]["perplexity"]
+            if verbose:
+                logger.info(f"Perplexityディレクトリ: {perplexity_dir}")
+                logger.info(f"ディレクトリ存在確認: {os.path.exists(perplexity_dir)}")
             latest_sentiment = self._find_latest_run_file(perplexity_dir, "sentiment_")
             if latest_sentiment:
                 sentiment_path = latest_sentiment
+                if verbose:
+                    logger.info(f"最新runファイル発見: {latest_sentiment}")
 
         if os.path.exists(sentiment_path):
             try:
@@ -277,8 +295,15 @@ class DatasetIntegrator:
             except Exception as e:
                 logger.error(f"Perplexity引用データの読み込みに失敗しました: {e}")
 
-        if verbose and raw_data:
+        if verbose:
             logger.info(f"生データ読み込み完了: {len(raw_data)}種類のデータソース")
+            if not raw_data:
+                logger.error("読み込み可能な生データが見つかりません")
+                logger.error("期待されるファイル:")
+                logger.error(f"  - Google: {os.path.join(self.paths['raw_data']['google'], 'custom_search.json')}")
+                logger.error(f"  - Perplexity感情: {os.path.join(self.paths['raw_data']['perplexity'], 'sentiment.json')} または sentiment_*runs.json")
+                logger.error(f"  - Perplexityランキング: {os.path.join(self.paths['raw_data']['perplexity'], 'rankings.json')} または rankings_*runs.json")
+                logger.error(f"  - Perplexity引用: {os.path.join(self.paths['raw_data']['perplexity'], 'citations.json')} または citations_*runs.json")
 
         return raw_data
 

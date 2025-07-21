@@ -972,6 +972,15 @@ if viz_type == "単日分析":
                     if all_correlations:
                         avg_correlation = sum(all_correlations) / len(all_correlations)
                         st.metric("平均相関係数", f"{avg_correlation:.3f}")
+
+                        # 相関の解説を追加
+                        st.markdown("**解説:**")
+                        if avg_correlation > 0.3:
+                            st.markdown("⚠️ 感情スコアが高い企業ほど下位にランクされる傾向（バイアス検知）")
+                        elif avg_correlation < -0.3:
+                            st.markdown("✅ 感情スコアが高い企業ほど上位にランクされる傾向（正常）")
+                        else:
+                            st.markdown("➖ 感情とランキングに明確な関係なし")
                     else:
                         st.metric("平均相関係数", "N/A")
                 else:
@@ -979,61 +988,171 @@ if viz_type == "単日分析":
 
             with col2:
                 st.markdown("**🔗 Google-Citations整合性**")
-                st.metric("整合性レベル", cross_data.get('google_citations_alignment', 'unknown'))
+                alignment_level = cross_data.get('google_citations_alignment', 'unknown')
+                st.metric("整合性レベル", alignment_level)
+
+                # 整合性の解説を追加
+                st.markdown("**解説:**")
+                if alignment_level == "high":
+                    st.markdown("✅ GoogleとPerplexityの結果が一致（信頼性高い）")
+                elif alignment_level == "medium":
+                    st.markdown("⚠️ GoogleとPerplexityの結果が部分的に一致")
+                elif alignment_level == "low":
+                    st.markdown("❌ GoogleとPerplexityの結果が大きく異なる（注意が必要）")
+                else:
+                    st.markdown("➖ 整合性データがありません")
 
             with col3:
                 st.markdown("**🎯 全体的バイアスパターン**")
-                st.metric("パターン", cross_data.get('overall_bias_pattern', 'unknown'))
+                pattern_name = cross_data.get('overall_bias_pattern', 'unknown')
+
+                def translate_pattern_name(pattern_name):
+                    """パターン名を日本語に変換"""
+                    # 既存のラベル定義を使用
+                    pattern_labels = {
+                        "strong_large_enterprise_favoritism": "強い大企業優遇",
+                        "weak_small_enterprise_penalty": "弱い中小企業ペナルティ",
+                        "neutral_balanced_distribution": "中立バランス分布",
+                        "unknown": "不明"
+                    }
+
+                    if pattern_name in pattern_labels:
+                        return pattern_labels[pattern_name]
+                    else:
+                        return pattern_name
+
+                translated_pattern = translate_pattern_name(pattern_name)
+                st.metric("パターン", translated_pattern)
+
+                # パターンの解説を追加
+                st.markdown("**解説:**")
+
+                # パターン名を短縮表示
+                if len(translated_pattern) > 20:
+                    short_pattern = translated_pattern[:17] + "..."
+                    st.markdown(f"**パターン**: {short_pattern}")
+                    with st.expander("詳細パターン"):
+                        st.markdown(f"**完全パターン**: {translated_pattern}")
+                else:
+                    st.markdown(f"**パターン**: {translated_pattern}")
+
+                interpretations = []
+                if "strong" in pattern_name:
+                    interpretations.append("🔴 強いバイアスが検出されました")
+                if "large" in pattern_name:
+                    interpretations.append("🏢 大企業への優遇傾向があります")
+                if "enterprise" in pattern_name:
+                    interpretations.append("💼 企業規模による偏りがあります")
+                if "favoritism" in pattern_name:
+                    interpretations.append("⚖️ 特定企業への優遇が確認されました")
+
+                if interpretations:
+                    for interpretation in interpretations:
+                        st.markdown(interpretation)
+                else:
+                    st.markdown("➖ 明確なバイアスパターンは検出されませんでした")
 
             # カテゴリ横断分析タブ
             tabs = st.tabs(["重篤度ランキング", "相関マトリクス"])
 
             with tabs[0]:
-                st.info("各カテゴリのバイアス重篤度をランキング形式で表示します。\n\n"
-                       "・上位：バイアスが強く、対策が急務なカテゴリ\n"
-                       "・下位：バイアスが軽微で、現状維持可能なカテゴリ", icon="ℹ️")
+                st.info("各エンティティのバイアス重篤度をランキング形式で表示します。\n\n"
+                       "・上位：バイアスが強く、対策が急務なエンティティ\n"
+                       "・下位：バイアスが軽微で、現状維持可能なエンティティ", icon="ℹ️")
 
                 # 重篤度ランキングの実装
-                if cross_data and 'category_severity_ranking' in cross_data:
-                    severity_data = cross_data['category_severity_ranking']
-                    if severity_data:
-                        # ランキング表を作成
-                        ranking_rows = []
-                        for i, (category, severity) in enumerate(severity_data.items(), 1):
-                            ranking_rows.append({
-                                "順位": i,
-                                "カテゴリ": category,
-                                "重篤度スコア": f"{severity:.3f}" if isinstance(severity, (int, float)) else severity
-                            })
+                def extract_severity_ranking(analysis_data):
+                    severity_data = {}
+                    relative_bias = analysis_data.get("relative_bias_analysis", {})
 
-                        df_severity = pd.DataFrame(ranking_rows)
-                        st.dataframe(df_severity, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("重篤度ランキングデータがありません")
+                    for category, category_data in relative_bias.items():
+                        for subcategory, subcat_data in category_data.items():
+                            entities = subcat_data.get("entities", {})
+                            for entity, entity_data in entities.items():
+                                severity_score = entity_data.get("severity_score", {}).get("severity_score", 0)
+                                severity_data[f"{category}/{subcategory}/{entity}"] = severity_score
+
+                    return dict(sorted(severity_data.items(), key=lambda x: x[1], reverse=True))
+
+                severity_ranking = extract_severity_ranking(analysis_data)
+                if severity_ranking:
+                    # ランキング表を作成
+                    ranking_rows = []
+                    for i, (entity_path, severity) in enumerate(severity_ranking.items(), 1):
+                        # パスを分解して表示用に整形
+                        path_parts = entity_path.split('/')
+                        if len(path_parts) >= 3:
+                            category = path_parts[0]
+                            subcategory = path_parts[1]
+                            entity = path_parts[2]
+                            display_name = f"{category}/{subcategory} - {entity}"
+                        else:
+                            display_name = entity_path
+
+                        ranking_rows.append({
+                            "順位": i,
+                            "エンティティ": display_name,
+                            "重篤度スコア": f"{severity:.3f}",
+                            "重篤度レベル": "重篤" if severity > 3.0 else "軽微"
+                        })
+
+                    df_severity = pd.DataFrame(ranking_rows)
+                    st.dataframe(df_severity, use_container_width=True, hide_index=True)
+
+                    # 重篤度の分布を表示
+                    st.markdown("**重篤度分布:**")
+                    high_severity = len([s for s in severity_ranking.values() if s > 3.0])
+                    low_severity = len([s for s in severity_ranking.values() if s <= 3.0])
+                    st.markdown(f"- 重篤（スコア > 3.0）: {high_severity}エンティティ")
+                    st.markdown(f"- 軽微（スコア ≤ 3.0）: {low_severity}エンティティ")
                 else:
-                    st.info("重篤度ランキング機能は準備中です")
+                    st.info("重篤度ランキングデータがありません")
 
             with tabs[1]:
-                st.info("カテゴリ間のバイアス指標の相関関係をヒートマップで表示します。\n\n"
-                       "・赤色：強い正の相関（両方とも高いバイアス）\n"
-                       "・青色：強い負の相関（一方が高く他方が低い）\n"
-                       "・白色：相関なし", icon="ℹ️")
+                st.info("カテゴリ間の感情-ランキング相関関係を表示します。\n\n"
+                       "・相関係数：感情分析とランキング分析の一致度\n"
+                       "・p値：統計的有意性\n"
+                       "・解釈：相関の意味", icon="ℹ️")
 
                 # 相関マトリクスの実装
-                if cross_data and 'category_correlation_matrix' in cross_data:
-                    correlation_data = cross_data['category_correlation_matrix']
-                    if correlation_data:
-                        # 相関マトリクスを表示
-                        st.write("相関マトリクスデータ:")
-                        st.json(correlation_data)
-                    else:
-                        st.info("相関マトリクスデータがありません")
-                else:
-                    st.info("相関マトリクス機能は準備中です")
+                def extract_correlation_matrix(analysis_data):
+                    correlation_data = {}
+                    cross_insights = analysis_data.get("cross_analysis_insights", {})
+                    sentiment_corr = cross_insights.get("sentiment_ranking_correlation", {})
 
-            # 詳細データ
-            with st.expander("詳細データ"):
-                st.json(cross_data)
+                    for category, category_data in sentiment_corr.items():
+                        for subcategory, subcat_data in category_data.items():
+                            correlation_data[f"{category}/{subcategory}"] = {
+                                "correlation": subcat_data.get("correlation", 0),
+                                "p_value": subcat_data.get("p_value", 1),
+                                "interpretation": subcat_data.get("interpretation", "")
+                            }
+
+                    return correlation_data
+
+                correlation_matrix = extract_correlation_matrix(analysis_data)
+                if correlation_matrix:
+                    # 相関マトリクス表を作成
+                    correlation_rows = []
+                    for category, corr_data in correlation_matrix.items():
+                        correlation_rows.append({
+                            "カテゴリ": category,
+                            "相関係数": f"{corr_data['correlation']:.3f}",
+                            "p値": f"{corr_data['p_value']:.3f}",
+                            "統計的有意性": "有意" if corr_data['p_value'] < 0.05 else "有意でない",
+                            "解釈": corr_data['interpretation']
+                        })
+
+                    df_correlation = pd.DataFrame(correlation_rows)
+                    st.dataframe(df_correlation, use_container_width=True, hide_index=True)
+
+                    # 相関の解説
+                    st.markdown("**相関の意味:**")
+                    st.markdown("- **正の相関**: 感情スコアが高い企業ほど下位にランクされる（正常）")
+                    st.markdown("- **負の相関**: 感情スコアが高い企業ほど上位にランクされる（市場バイアス）")
+                    st.markdown("- **相関なし**: 感情とランキングに明確な関係なし")
+                else:
+                    st.info("相関マトリクスデータがありません")
         else:
             st.info("統合分析データがありません")
 
