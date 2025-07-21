@@ -40,7 +40,7 @@ def setup_logging(verbose: bool = False):
         logging.getLogger('src').setLevel(logging.DEBUG)
 
 
-def run_bias_analysis(date: str, storage_mode: str = None, verbose: bool = False) -> bool:
+def run_bias_analysis(date: str, storage_mode: str = None, verbose: bool = False, runs: int = None) -> bool:
     """統合バイアス分析を実行
 
     Parameters:
@@ -75,7 +75,7 @@ def run_bias_analysis(date: str, storage_mode: str = None, verbose: bool = False
 
         # 統合データセットの分析を実行
         logger.info(f"🚀 統合バイアス分析開始: {date}")
-        results = engine.analyze_integrated_dataset(date)
+        results = engine.analyze_integrated_dataset(date, runs=runs)
 
         # 分析結果の概要をログ出力
         metadata = results.get('metadata', {})
@@ -194,6 +194,13 @@ def main():
         help='結果サマリーを表示'
     )
 
+    parser.add_argument(
+        '--runs',
+        type=int,
+        default=None,
+        help='Perplexity API実行回数（該当するruns付きファイルを優先的に探索）'
+    )
+
     args = parser.parse_args()
 
     # ログ設定
@@ -203,7 +210,8 @@ def main():
     success = run_bias_analysis(
         date=args.date,
         storage_mode=args.storage_mode,
-        verbose=args.verbose
+        verbose=args.verbose,
+        runs=args.runs
     )
 
     # 終了コード設定

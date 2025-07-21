@@ -58,18 +58,23 @@ class HybridDataLoader:
 
         logger.info(f"HybridDataLoader初期化: mode={storage_mode}")
 
-    def load_integrated_data(self, date_or_path: str) -> Dict[str, Any]:
-        """統合データセットを読み込み"""
+    def load_integrated_data(self, date_or_path: str, runs: int = None) -> Dict[str, Any]:
+        """統合データセットを読み込み（runs指定時はcorporate_bias_dataset_{runs}runs.jsonを優先）"""
+        filename = None
+        if runs is not None:
+            filename = f"corporate_bias_dataset_{runs}runs.json"
+        else:
+            filename = "corporate_bias_dataset.json"
         if self.storage_mode == "local":
-            return self._load_from_local(date_or_path)
+            return self._load_from_local(date_or_path, filename=filename)
         elif self.storage_mode == "s3":
-            return load_json_from_s3_integrated(date_or_path, filename="corporate_bias_dataset.json")
+            return load_json_from_s3_integrated(date_or_path, filename=filename)
         else:  # auto mode
             try:
-                return self._load_from_local(date_or_path)
+                return self._load_from_local(date_or_path, filename=filename)
             except (FileNotFoundError, IOError) as e:
                 logger.warning(f"ローカル読み込み失敗、S3を試行: {e}")
-                return load_json_from_s3_integrated(date_or_path, filename="corporate_bias_dataset.json")
+                return load_json_from_s3_integrated(date_or_path, filename=filename)
 
     def load_sentiment_data(self, date_or_path: str) -> Dict[str, Any]:
         """Perplexity感情データを読み込み
@@ -96,8 +101,8 @@ class HybridDataLoader:
                 logger.warning(f"ローカル感情データ読み込み失敗、S3を試行: {e}")
                 return self._load_sentiment_from_s3(date_or_path)
 
-    def _load_from_local(self, date_or_path: str) -> Dict[str, Any]:
-        """ローカルintegratedディレクトリから読み込み"""
+    def _load_from_local(self, date_or_path: str, filename: str = "corporate_bias_dataset.json") -> Dict[str, Any]:
+        """ローカルintegratedディレクトリから読み込み（ファイル名指定対応）"""
 
         # パス構築
         if len(date_or_path) == 8 and date_or_path.isdigit():
@@ -111,7 +116,7 @@ class HybridDataLoader:
             raise FileNotFoundError(f"統合データディレクトリが見つかりません: {target_dir}")
 
         # corporate_bias_dataset.json を読み込み
-        dataset_file = target_dir / "corporate_bias_dataset.json"
+        dataset_file = target_dir / filename
         if not dataset_file.exists():
             raise FileNotFoundError(f"統合データファイルが見つかりません: {dataset_file}")
 

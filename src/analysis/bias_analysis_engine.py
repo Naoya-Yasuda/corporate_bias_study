@@ -873,7 +873,8 @@ class BiasAnalysisEngine:
 
     def analyze_integrated_dataset(self,
                                  date_or_path: str,
-                                 output_mode: str = "auto") -> Dict[str, Any]:
+                                 output_mode: str = "auto",
+                                 runs: int = None) -> Dict[str, Any]:
         """統合データセットを分析して全バイアス指標を計算・保存
 
         Parameters:
@@ -892,7 +893,7 @@ class BiasAnalysisEngine:
 
         try:
             # 1. 入力データ読み込み
-            integrated_data = self.data_loader.load_integrated_data(date_or_path)
+            integrated_data = self.data_loader.load_integrated_data(date_or_path, runs=runs)
             if integrated_data is None:
                 raise ValueError(f"統合データ（corporate_bias_dataset.json）が見つかりません: {date_or_path}")
             # sentiment_data = self.data_loader.load_sentiment_data(date_or_path)  # 不要

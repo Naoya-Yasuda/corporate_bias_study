@@ -184,10 +184,10 @@ class DatasetIntegrator:
 
         return os.path.join(directory, latest_file) if latest_file else None
 
-    def _load_raw_data(self, verbose: bool = True) -> Dict[str, Any]:
-        """生データファイルの読み込み（S3優先・ローカルフォールバック）"""
+    def _load_raw_data(self, verbose: bool = True, runs: int = None) -> Dict[str, Any]:
         from src.utils.storage_utils import load_json
         from src.utils.storage_config import get_s3_key
+        import glob
         raw_data = {}
 
         # Google検索データ
@@ -199,70 +199,121 @@ class DatasetIntegrator:
             self.integration_metadata["input_files"].append(google_local)
             if verbose:
                 logger.info(f"Google検索データを読み込みました: {google_local} または S3:{google_s3}")
+        else:
+            if verbose:
+                if os.path.exists(google_local):
+                    logger.error(f"Googleデータがローカルに存在するが読み込み失敗: {google_local}")
+                else:
+                    logger.warning(f"Googleデータがローカルに存在しませんが、S3も含め取得できません: {google_local} / S3:{google_s3}")
 
         # Perplexity感情データ
         sentiment_local = os.path.join(self.paths["raw_data"]["perplexity"], "sentiment.json")
+        sentiment_data = None
+        found_local = os.path.exists(sentiment_local)
+        found_s3 = False
         sentiment_s3 = get_s3_key("sentiment.json", self.date_str, "raw_data/perplexity")
-        sentiment_data = load_json(sentiment_local, sentiment_s3)
+        # 1. ローカルsentiment.json
+        if found_local:
+            sentiment_data = load_json(sentiment_local, None)
+        # 2. ローカルsentiment_{runs}runs.json
+        if not sentiment_data and runs is not None:
+            sentiment_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"sentiment_{runs}runs.json")
+            if os.path.exists(sentiment_local_runs):
+                sentiment_data = load_json(sentiment_local_runs, None)
+        # 3. S3 sentiment_{runs}runs.json
+        if not sentiment_data and runs is not None:
+            sentiment_s3_runs = get_s3_key(f"sentiment_{runs}runs.json", self.date_str, "raw_data/perplexity")
+            sentiment_data = load_json(None, sentiment_s3_runs)
+            if sentiment_data:
+                found_s3 = True
+        # 4. S3 sentiment.json
         if not sentiment_data:
-            import glob
-            local_dir = self.paths["raw_data"]["perplexity"]
-            local_candidates = sorted(glob.glob(os.path.join(local_dir, "sentiment_*runs.json")), reverse=True)
-            for cand in local_candidates:
-                sentiment_data = load_json(cand, get_s3_key(os.path.basename(cand), self.date_str, "raw_data/perplexity"))
-                if sentiment_data:
-                    break
+            sentiment_data = load_json(None, sentiment_s3)
+            if sentiment_data:
+                found_s3 = True
         if sentiment_data:
             raw_data["perplexity_sentiment"] = sentiment_data
             self.integration_metadata["input_files"].append(sentiment_local)
             if verbose:
                 logger.info(f"Perplexity感情データを読み込みました: {sentiment_local} または S3:{sentiment_s3}")
+        else:
+            if verbose:
+                if found_local:
+                    logger.error(f"Perplexity感情データがローカルに存在するが読み込み失敗: {sentiment_local}")
+                elif found_s3:
+                    logger.warning(f"Perplexity感情データがローカルに存在しませんが、S3から取得しました")
+                else:
+                    logger.warning(f"Perplexity感情データがローカル・S3ともに取得できません: {sentiment_local} / S3:{sentiment_s3}")
 
         # Perplexityランキングデータ
         rankings_local = os.path.join(self.paths["raw_data"]["perplexity"], "rankings.json")
+        rankings_data = None
+        found_local = os.path.exists(rankings_local)
+        found_s3 = False
         rankings_s3 = get_s3_key("rankings.json", self.date_str, "raw_data/perplexity")
-        rankings_data = load_json(rankings_local, rankings_s3)
+        if found_local:
+            rankings_data = load_json(rankings_local, None)
+        if not rankings_data and runs is not None:
+            rankings_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"rankings_{runs}runs.json")
+            if os.path.exists(rankings_local_runs):
+                rankings_data = load_json(rankings_local_runs, None)
+        if not rankings_data and runs is not None:
+            rankings_s3_runs = get_s3_key(f"rankings_{runs}runs.json", self.date_str, "raw_data/perplexity")
+            rankings_data = load_json(None, rankings_s3_runs)
+            if rankings_data:
+                found_s3 = True
         if not rankings_data:
-            import glob
-            local_dir = self.paths["raw_data"]["perplexity"]
-            local_candidates = sorted(glob.glob(os.path.join(local_dir, "rankings_*runs.json")), reverse=True)
-            for cand in local_candidates:
-                rankings_data = load_json(cand, get_s3_key(os.path.basename(cand), self.date_str, "raw_data/perplexity"))
-                if rankings_data:
-                    break
+            rankings_data = load_json(None, rankings_s3)
+            if rankings_data:
+                found_s3 = True
         if rankings_data:
             raw_data["perplexity_rankings"] = rankings_data
             self.integration_metadata["input_files"].append(rankings_local)
             if verbose:
                 logger.info(f"Perplexityランキングデータを読み込みました: {rankings_local} または S3:{rankings_s3}")
+        else:
+            if verbose:
+                if found_local:
+                    logger.error(f"Perplexityランキングデータがローカルに存在するが読み込み失敗: {rankings_local}")
+                elif found_s3:
+                    logger.warning(f"Perplexityランキングデータがローカルに存在しませんが、S3から取得しました")
+                else:
+                    logger.warning(f"Perplexityランキングデータがローカル・S3ともに取得できません: {rankings_local} / S3:{rankings_s3}")
 
         # Perplexity引用データ
         citations_local = os.path.join(self.paths["raw_data"]["perplexity"], "citations.json")
+        citations_data = None
+        found_local = os.path.exists(citations_local)
+        found_s3 = False
         citations_s3 = get_s3_key("citations.json", self.date_str, "raw_data/perplexity")
-        citations_data = load_json(citations_local, citations_s3)
+        if found_local:
+            citations_data = load_json(citations_local, None)
+        if not citations_data and runs is not None:
+            citations_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"citations_{runs}runs.json")
+            if os.path.exists(citations_local_runs):
+                citations_data = load_json(citations_local_runs, None)
+        if not citations_data and runs is not None:
+            citations_s3_runs = get_s3_key(f"citations_{runs}runs.json", self.date_str, "raw_data/perplexity")
+            citations_data = load_json(None, citations_s3_runs)
+            if citations_data:
+                found_s3 = True
         if not citations_data:
-            import glob
-            local_dir = self.paths["raw_data"]["perplexity"]
-            local_candidates = sorted(glob.glob(os.path.join(local_dir, "citations_*runs.json")), reverse=True)
-            for cand in local_candidates:
-                citations_data = load_json(cand, get_s3_key(os.path.basename(cand), self.date_str, "raw_data/perplexity"))
-                if citations_data:
-                    break
+            citations_data = load_json(None, citations_s3)
+            if citations_data:
+                found_s3 = True
         if citations_data:
             raw_data["perplexity_citations"] = citations_data
             self.integration_metadata["input_files"].append(citations_local)
             if verbose:
                 logger.info(f"Perplexity引用データを読み込みました: {citations_local} または S3:{citations_s3}")
-
-        if verbose:
-            logger.info(f"生データ読み込み完了: {len(raw_data)}種類のデータソース")
-            if not raw_data:
-                logger.error("読み込み可能な生データが見つかりません")
-                logger.error("期待されるファイル:")
-                logger.error(f"  - Google: {google_local} または S3:{google_s3}")
-                logger.error(f"  - Perplexity感情: {sentiment_local} または sentiment_*runs.json または S3:{sentiment_s3}")
-                logger.error(f"  - Perplexityランキング: {rankings_local} または rankings_*runs.json または S3:{rankings_s3}")
-                logger.error(f"  - Perplexity引用: {citations_local} または citations_*runs.json または S3:{citations_s3}")
+        else:
+            if verbose:
+                if found_local:
+                    logger.error(f"Perplexity引用データがローカルに存在するが読み込み失敗: {citations_local}")
+                elif found_s3:
+                    logger.warning(f"Perplexity引用データがローカルに存在しませんが、S3から取得しました")
+                else:
+                    logger.warning(f"Perplexity引用データがローカル・S3ともに取得できません: {citations_local} / S3:{citations_s3}")
 
         return raw_data
 

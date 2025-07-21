@@ -101,6 +101,13 @@ def main():
         help='データ品質チェックのみ実行（統合データセットは作成しない）'
     )
 
+    parser.add_argument(
+        '--runs',
+        type=int,
+        default=None,
+        help='Perplexity API実行回数（該当するruns付きファイルを優先的に探索）'
+    )
+
     args = parser.parse_args()
 
     # ログ設定
@@ -119,10 +126,11 @@ def main():
         # 出力ディレクトリはintegrator生成後にintegrator.integrated_dirで表示
         logger.info(f"強制再作成: {args.force_recreate}")
         logger.info(f"検証のみ: {args.validate_only}")
+        logger.info(f"runs: {args.runs}")
 
         # 入力ファイルの存在確認
         integrator = DatasetIntegrator(args.date)
-        raw_data = integrator._load_raw_data(verbose=True)
+        raw_data = integrator._load_raw_data(verbose=True, runs=args.runs)
 
         if raw_data:
             logger.info(f"読み込み可能なデータソース: {list(raw_data.keys())}")
@@ -141,7 +149,7 @@ def main():
         integrator = DatasetIntegrator(args.date)
 
         # 1. 生データの読み込み
-        raw_data = integrator._load_raw_data(verbose=args.verbose)
+        raw_data = integrator._load_raw_data(verbose=args.verbose, runs=args.runs)
         if not raw_data:
             logger.error("読み込み可能な生データが見つかりません")
             sys.exit(1)

@@ -190,7 +190,7 @@ jobs:
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_dataset_integration == 'true' }}
         run: |
           echo "開始: データセット統合処理 ($(date))" | tee -a logs/execution.log
-          if python -m src.integrator.create_integrated_dataset --date ${{ env.TODAY_DATE }} --verbose | tee -a logs/dataset_integration.log; then
+          if python -m src.integrator.create_integrated_dataset --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --verbose | tee -a logs/dataset_integration.log; then
             echo "完了: データセット統合処理 ($(date))" | tee -a logs/execution.log
           else
             echo "エラー: データセット統合処理に失敗しました ($(date))" | tee -a logs/execution.log
@@ -213,7 +213,7 @@ jobs:
           echo "Installed packages:" | tee -a logs/bias_analysis.log
           pip list | grep -E "(statsmodels|numpy|scipy)" | tee -a logs/bias_analysis.log
           echo "=== 統合バイアス分析実行 ===" | tee -a logs/bias_analysis.log
-          python scripts/run_bias_analysis.py --date ${{ env.TODAY_DATE }} --verbose 2>&1 | tee -a logs/bias_analysis.log
+          python scripts/run_bias_analysis.py --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --verbose 2>&1 | tee -a logs/bias_analysis.log
 
         continue-on-error: true
 

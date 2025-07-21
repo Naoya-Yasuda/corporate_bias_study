@@ -958,9 +958,22 @@ if viz_type == "単日分析":
         # 新タブ構成
         main_tabs = st.tabs(["サブカテゴリ分析", "全体統合分析"])
 
+        # 重篤度スコアの説明文を変数にまとめて使い回す
+        severity_info_text = """
+**重篤度スコアの計算式**
+`severity = abs_bi × |cliffs_delta| × (1 - p値) × 安定性スコア`（最大10で丸める）
+- **abs_bi**: バイアス指標（normalized_bias_index等）
+- **cliffs_delta**: 効果量（Cliff's delta等）
+- **p値**: 統計的有意性（小さいほど重み大）
+- **安定性スコア**: ばらつきが小さいほど重み大
+
+これにより「大きく・有意で・安定したバイアスのみが高スコア」となります。
+"""
+
         # --- サブカテゴリ分析タブ ---
         with main_tabs[0]:
             st.markdown(f"### サブカテゴリ分析: {selected_category} / {selected_subcategory}")
+            st.info(severity_info_text)
             # サブカテゴリ単位のデータ抽出
             sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
             subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
@@ -988,19 +1001,50 @@ if viz_type == "単日分析":
             sentiment_corr = cross_insights.get("sentiment_ranking_correlation", {})
             subcat_corr = sentiment_corr.get(selected_category, {}).get(selected_subcategory, {})
             if subcat_corr:
-                st.metric("相関係数", f"{subcat_corr.get('correlation', 0):.3f}")
-                st.markdown(f"p値: {subcat_corr.get('p_value', 'N/A')}")
-                st.markdown(f"解釈: {subcat_corr.get('interpretation', '')}")
+                corr = subcat_corr.get('correlation', 0)
+                pval = subcat_corr.get('p_value', None)
+                st.metric("相関係数", f"{corr:.3f}")
+                st.markdown(f"p値: {pval}")
+                # 解釈
+                if pval is not None:
+                    if pval < 0.05:
+                        sig_text = "統計的に有意 (p < 0.05)"
+                    else:
+                        sig_text = "統計的に有意でない (p >= 0.05)"
+                else:
+                    sig_text = "p値データなし"
+                if corr > 0.3:
+                    corr_text = "正の相関：感情スコアが高いほどランキングが上位（正常）"
+                elif corr < -0.3:
+                    corr_text = "負の相関：感情スコアが高いほどランキングが下位（バイアス有）"
+                else:
+                    corr_text = "相関なし：明確な関係なし"
+                st.markdown(f"解釈: {corr_text} / {sig_text}")
             else:
                 st.info("サブカテゴリ内の相関データがありません")
 
             # サブカテゴリバイアスパターン
             st.markdown("#### バイアスパターン・解説（サブカテゴリ内）")
-            # 必要に応じて追加
+            cat_analysis = subcat_data.get("category_level_analysis", {})
+            bias_dist = cat_analysis.get("bias_distribution", {})
+            if bias_dist:
+                st.markdown(f"- 正のバイアス数: {bias_dist.get('positive_bias_count', 'N/A')}")
+                st.markdown(f"- 負のバイアス数: {bias_dist.get('negative_bias_count', 'N/A')}")
+                st.markdown(f"- ニュートラル数: {bias_dist.get('neutral_count', 'N/A')}")
+                st.markdown(f"- バイアス範囲: {bias_dist.get('bias_range', 'N/A')}")
+            else:
+                st.info("バイアス分布データがありません")
+            # 解釈（もしあれば）
+            if 'interpretation' in cat_analysis:
+                st.markdown(f"解釈: {cat_analysis['interpretation']}")
+            else:
+                st.info("サブカテゴリ単位の解釈データがありません")
 
         # --- 全体統合分析タブ ---
         with main_tabs[1]:
             st.markdown("### 全体統合分析")
+            st.info(severity_info_text)
+
             # 全体重篤度ランキング
             st.markdown("#### 全体重篤度ランキング")
             def extract_severity_ranking(analysis_data):
@@ -1038,15 +1082,35 @@ if viz_type == "単日分析":
 
             # 全体感情-ランキング相関
             st.markdown("#### 全体感情-ランキング相関")
+            cross_insights = analysis_data.get("cross_analysis_insights", {})
             sentiment_corr_data = cross_insights.get('sentiment_ranking_correlation', {})
             all_correlations = []
+            all_pvals = []
             for category_data in sentiment_corr_data.values():
                 for subcategory_data in category_data.values():
                     if 'correlation' in subcategory_data:
                         all_correlations.append(subcategory_data['correlation'])
+                    if 'p_value' in subcategory_data:
+                        all_pvals.append(subcategory_data['p_value'])
             if all_correlations:
                 avg_correlation = sum(all_correlations) / len(all_correlations)
                 st.metric("平均相関係数", f"{avg_correlation:.3f}")
+                if all_pvals:
+                    avg_pval = sum(all_pvals) / len(all_pvals)
+                    st.markdown(f"平均p値: {avg_pval:.3f}")
+                    if avg_pval < 0.05:
+                        sig_text = "統計的に有意 (p < 0.05)"
+                    else:
+                        sig_text = "統計的に有意でない (p >= 0.05)"
+                else:
+                    sig_text = "p値データなし"
+                if avg_correlation > 0.3:
+                    corr_text = "正の相関：感情スコアが高いほどランキングが上位（正常）"
+                elif avg_correlation < -0.3:
+                    corr_text = "負の相関：感情スコアが高いほどランキングが下位（バイアス有）"
+                else:
+                    corr_text = "相関なし：明確な関係なし"
+                st.markdown(f"解釈: {corr_text} / {sig_text}")
             else:
                 st.metric("平均相関係数", "N/A")
 
