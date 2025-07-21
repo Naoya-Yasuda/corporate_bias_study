@@ -368,7 +368,7 @@ if viz_type == "単日分析":
         subcat_data = perplexity_sentiment.get(selected_category, {}).get(selected_subcategory, {})
         masked_prompt = subcat_data.get("masked_prompt")
         if masked_prompt:
-            with st.expander("プロンプト", expanded=True):
+            with st.expander("プロンプト", expanded=False):
                 st.markdown(masked_prompt)
         if table_rows:
             df_sentiment = pd.DataFrame(table_rows)
@@ -488,7 +488,7 @@ if viz_type == "単日分析":
             else:
                 st.info("重篤度データがありません")
         with tabs[2]:
-            st.info("各エンティティの統計的有意性（p値）をヒートマップで表示します。色が濃いほど有意性が高いことを示します。", icon="ℹ️")
+            st.info("各エンティティの統計的有意性（p値）をヒートマップで表示します。色が濃いほど有意性(結果が偶然でない可能性)が高いことを示します。", icon="ℹ️")
             if pvalue_dict:
                 fig = plot_pvalue_heatmap(pvalue_dict, output_path=None, title=title, reliability_label=reliability_label)
                 st.pyplot(fig, use_container_width=True)
@@ -1046,7 +1046,7 @@ if viz_type == "単日分析":
 
             # プロンプト情報表示
             if "prompt" in subcat_data:
-                with st.expander("使用プロンプト", expanded=False):
+                with st.expander("プロンプト", expanded=False):
                     st.markdown(f"**検索クエリ**: {subcat_data['prompt']}")
             # ランキングデータテーブル表示
             st.markdown("**ランキングデータテーブル**:")
