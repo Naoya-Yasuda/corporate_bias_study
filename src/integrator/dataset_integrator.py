@@ -248,7 +248,7 @@ class DatasetIntegrator:
             raw_data["perplexity_sentiment"] = sentiment_data
             self.integration_metadata["input_files"].append(sentiment_local)
             if verbose:
-                logger.info(f"Perplexity感情データを読み込みました: {sentiment_local} または S3:{sentiment_s3}")
+                logger.info(f"Perplexity感情データを読み込みました: {sentiment_local} または S3:{sentiment_s3_runs} or {sentiment_s3}")
         else:
             if verbose:
                 if found_local:
@@ -295,7 +295,8 @@ class DatasetIntegrator:
             raw_data["perplexity_rankings"] = rankings_data
             self.integration_metadata["input_files"].append(rankings_local)
             if verbose:
-                logger.info(f"Perplexityランキングデータを読み込みました: {rankings_local} または S3:{rankings_s3}")
+                logger.info(f"Perplexityランキングデータを読み込みました: {rankings_local} または S3:{rankings_s3_runs} or
+                            {rankings_s3}")
         else:
             if verbose:
                 if found_local:
@@ -336,7 +337,7 @@ class DatasetIntegrator:
             raw_data["perplexity_citations"] = citations_data
             self.integration_metadata["input_files"].append(citations_local)
             if verbose:
-                logger.info(f"Perplexity引用データを読み込みました: {citations_local} または S3:{citations_s3}")
+                logger.info(f"Perplexity引用データを読み込みました: {citations_local} または S3:{citations_s3_runs} or {citations_s3}")
         else:
             if verbose:
                 if found_local:
