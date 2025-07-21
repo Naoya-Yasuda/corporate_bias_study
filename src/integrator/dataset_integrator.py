@@ -301,6 +301,7 @@ class DatasetIntegrator:
         citations_s3 = get_s3_key("citations.json", self.date_str, "raw_data/perplexity")
         logger.debug(f"DEBUG: citations_local={citations_local} exists={found_local}")
         logger.debug(f"DEBUG: citations_s3={citations_s3}")
+        logger.debug(f"DEBUG: runs={runs} (type={type(runs)})")
         # ローカルはcitations.jsonのみ
         if found_local:
             citations_data = load_json(citations_local, None)
