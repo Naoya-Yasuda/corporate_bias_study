@@ -72,7 +72,7 @@ def ensure_dir(dir_path):
     os.makedirs(dir_path, exist_ok=True)
 
 
-def load_json(file_path, s3_path=None):
+def load_json(file_path=None, s3_key=None):
     """
     JSONファイルを読み込む（ローカルまたはS3対応）
 
@@ -89,6 +89,8 @@ def load_json(file_path, s3_path=None):
     dict | None
         読み込んだデータ、失敗した場合はNone
     """
+    if not file_path and not s3_key:
+        raise ValueError("file_pathかs3_keyのいずれかを指定してください")
     if file_path.startswith('s3://'):
         # S3パスの場合
         m = re.match(r's3://([^/]+)/(.+)', file_path)
@@ -118,10 +120,10 @@ def load_json(file_path, s3_path=None):
             print(f"ファイルが存在しません: {file_path}")
 
         # S3から読み込み（ローカルが失敗した場合）
-        if s3_path and is_s3_enabled():
+        if s3_key and is_s3_enabled():
             try:
                 s3_client = get_s3_client()
-                response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_path)
+                response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
                 return json.loads(response['Body'].read().decode('utf-8'))
             except Exception as e:
                 print(f"S3ファイル読み込みエラー: {e}")

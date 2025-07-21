@@ -223,9 +223,10 @@ class DatasetIntegrator:
         # 3. S3 sentiment_{runs}runs.json
         if not sentiment_data and runs is not None:
             sentiment_s3_runs = get_s3_key(f"sentiment_{runs}runs.json", self.date_str, "raw_data/perplexity")
-            sentiment_data = load_json(None, sentiment_s3_runs)
-            if sentiment_data:
-                found_s3 = True
+            if sentiment_s3_runs:  # Noneでなければ
+                sentiment_data = load_json(None, sentiment_s3_runs)
+                if sentiment_data:
+                    found_s3 = True
         # 4. S3 sentiment.json
         if not sentiment_data:
             sentiment_data = load_json(None, sentiment_s3)
