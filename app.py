@@ -599,7 +599,7 @@ if viz_type == "単日分析":
                         st.markdown(f"- **評判情報**: `{reputation_prompt}`")
 
             # === 2. Google検索データテーブル表示 ===
-            st.markdown("**Google検索データテーブル**:")
+            st.markdown("**Google検索データテーブル**:**※※APIの仕様で引用URL（結果数）は各10件固定**")
             if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
                 google_subcat_data = google_search_data[selected_category][selected_subcategory]
                 if "entities" in google_subcat_data:
@@ -912,9 +912,7 @@ if viz_type == "単日分析":
                 with tab3:
                     st.markdown("**感情分析比較**")
                     st.info("Google検索とPerplexityの検索結果における感情分析結果の分布を比較します。\n\n"
-                           "・ポジティブ：肯定的な感情を持つ結果の比率\n"
-                           "・ネガティブ：否定的な感情を持つ結果の比率\n"
-                           "・中立：中立的な感情を持つ結果の比率\n"
+
                            "・不明：感情分析ができない結果の比率", icon="ℹ️")
 
                     # 感情分析比較データの取得と表示
@@ -926,34 +924,53 @@ if viz_type == "単日分析":
                             fig = plot_sentiment_comparison(sentiment_data, title)
                             st.pyplot(fig, use_container_width=True)
 
-                            # 詳細情報
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown("**📊 感情分布詳細**")
-                                google_dist = sentiment_data.get("google_sentiment_distribution", {})
-                                citations_dist = sentiment_data.get("citations_sentiment_distribution", {})
+                            # グラフ解説
+                            st.markdown("**📊 グラフ解説**")
 
-                                st.markdown("**Google検索**:")
-                                for sentiment, ratio in google_dist.items():
-                                    st.markdown(f"- {sentiment}: {ratio:.3f}")
+                            google_dist = sentiment_data.get("google_sentiment_distribution", {})
+                            citations_dist = sentiment_data.get("citations_sentiment_distribution", {})
+                            sentiment_correlation = sentiment_data.get("sentiment_correlation", 0)
 
-                                st.markdown("**Perplexity Citations**:")
-                                for sentiment, ratio in citations_dist.items():
-                                    st.markdown(f"- {sentiment}: {ratio:.3f}")
+                            # 主要感情の比較
+                            google_positive = google_dist.get("positive", 0)
+                            google_negative = google_dist.get("negative", 0)
+                            citations_positive = citations_dist.get("positive", 0)
+                            citations_negative = citations_dist.get("negative", 0)
 
-                            with col2:
-                                st.markdown("**📋 感情相関**")
-                                sentiment_correlation = sentiment_data.get("sentiment_correlation", 0)
-                                st.markdown(f"- **感情相関**: {sentiment_correlation:.3f}")
+                            # 感情傾向の解釈
+                            if sentiment_correlation > 0.7:
+                                correlation_interpretation = "非常に類似"
+                            elif sentiment_correlation > 0.5:
+                                correlation_interpretation = "類似"
+                            elif sentiment_correlation > 0.3:
+                                correlation_interpretation = "やや類似"
+                            else:
+                                correlation_interpretation = "異なる"
 
-                                if sentiment_correlation > 0.7:
-                                    st.markdown("- 両者の感情傾向は非常に類似")
-                                elif sentiment_correlation > 0.5:
-                                    st.markdown("- 両者の感情傾向は類似")
-                                elif sentiment_correlation > 0.3:
-                                    st.markdown("- 両者の感情傾向はやや類似")
+                            # ポジティブ感情の比較
+                            positive_diff = google_positive - citations_positive
+                            if abs(positive_diff) > 0.1:
+                                if positive_diff > 0:
+                                    positive_interpretation = f"Google検索（{google_positive:.1%}）がPerplexity（{citations_positive:.1%}）よりポジティブな結果を多く表示"
                                 else:
-                                    st.markdown("- 両者の感情傾向は異なる")
+                                    positive_interpretation = f"Perplexity（{citations_positive:.1%}）がGoogle検索（{google_positive:.1%}）よりポジティブな結果を多く表示"
+                            else:
+                                positive_interpretation = f"両者のポジティブ感情比率は均衡（Google: {google_positive:.1%}, Perplexity: {citations_positive:.1%}）"
+
+                            st.markdown(f"**感情相関**: {sentiment_correlation:.3f}（{correlation_interpretation}）")
+                            st.markdown(f"**ポジティブ感情比較**: {positive_interpretation}")
+
+                            # ネガティブ感情の比較
+                            negative_diff = google_negative - citations_negative
+                            if abs(negative_diff) > 0.1:
+                                if negative_diff > 0:
+                                    negative_interpretation = f"Google検索（{google_negative:.1%}）がPerplexity（{citations_negative:.1%}）よりネガティブな結果を多く表示"
+                                else:
+                                    negative_interpretation = f"Perplexity（{citations_negative:.1%}）がGoogle検索（{google_negative:.1%}）よりネガティブな結果を多く表示"
+                            else:
+                                negative_interpretation = f"両者のネガティブ感情比率は均衡（Google: {google_negative:.1%}, Perplexity: {citations_negative:.1%}）"
+
+                            st.markdown(f"**ネガティブ感情比較**: {negative_interpretation}")
                         else:
                             st.info("感情分析比較データがありません")
                     else:
