@@ -192,8 +192,18 @@ class DatasetIntegrator:
 
         # Google検索データ
         google_local = os.path.join(self.paths["raw_data"]["google"], "custom_search.json")
+        google_data = None
+        found_local = os.path.exists(google_local)
+        found_s3 = False
         google_s3 = get_s3_key("custom_search.json", self.date_str, "raw_data/google")
-        google_data = load_json(google_local, google_s3)
+        # ローカルはcustom_search.jsonのみ
+        if found_local:
+            google_data = load_json(google_local, None)
+        # S3 fallback: custom_search.json
+        if not google_data:
+            google_data = load_json(None, google_s3)
+            if google_data:
+                found_s3 = True
         if google_data:
             raw_data["google_data"] = google_data
             self.integration_metadata["input_files"].append(google_local)
@@ -201,10 +211,12 @@ class DatasetIntegrator:
                 logger.info(f"Google検索データを読み込みました: {google_local} または S3:{google_s3}")
         else:
             if verbose:
-                if os.path.exists(google_local):
+                if found_local:
                     logger.error(f"Googleデータがローカルに存在するが読み込み失敗: {google_local}")
+                elif found_s3:
+                    logger.warning(f"Googleデータがローカルに存在しませんが、S3から取得しました")
                 else:
-                    logger.warning(f"Googleデータがローカルに存在しませんが、S3も含め取得できません: {google_local} / S3:{google_s3}")
+                    logger.warning(f"Googleデータがローカル・S3ともに取得できません: {google_local} / S3:{google_s3}")
 
         # Perplexity感情データ
         sentiment_local = os.path.join(self.paths["raw_data"]["perplexity"], "sentiment.json")
