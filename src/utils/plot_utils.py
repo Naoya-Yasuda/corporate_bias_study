@@ -1430,48 +1430,41 @@ def plot_stability_score_distribution(ranking_bias_data, current_category, curre
         if not stability_scores:
             return None
 
-        # プロット作成
-        fig = plt.figure(figsize=(15, 6))
-        gs = plt.GridSpec(1, 2, width_ratios=[1, 1.2])
+                # プロット作成
+        fig = plt.figure(figsize=(12, 8))
 
-        # 左: 安定性スコア分布ヒストグラム
-        ax1 = fig.add_subplot(gs[0])
-        bins = np.linspace(min(stability_scores), max(stability_scores), 10)
-        ax1.hist(stability_scores, bins=bins, alpha=0.7, color='skyblue', edgecolor='black')
+        # 安定性スコア分布散布図
+        ax = fig.add_subplot(111)
 
-        # 現在のカテゴリの値を強調
-        current_info = next((info for info in categories_info if info['is_current']), None)
+        # 現在のカテゴリとその他のカテゴリを分けて描画
+        current_info = [info for info in categories_info if info['is_current']]
+        other_info = [info for info in categories_info if not info['is_current']]
+
+        # その他のカテゴリの散布図（青色）
+        if other_info:
+            other_stabilities = [info['stability'] for info in other_info]
+            other_stds = [info['std'] for info in other_info]
+            ax.scatter(other_stabilities, other_stds, c='blue', alpha=0.6, s=100, label='その他のカテゴリ')
+
+        # 現在のカテゴリの散布図（赤色）
         if current_info:
-            ax1.axvline(current_info['stability'], color='red', linestyle='--', linewidth=2,
-                       label=f'現在のカテゴリ: {current_info["stability"]:.3f}')
-            ax1.legend(loc='upper right')
+            current_stabilities = [info['stability'] for info in current_info]
+            current_stds = [info['std'] for info in current_info]
+            ax.scatter(current_stabilities, current_stds, c='red', alpha=1.0, s=150, label='現在のカテゴリ')
 
-        ax1.set_title('安定性スコア分布', fontsize=12)
-        ax1.set_xlabel('安定性スコア（1に近いほど安定）', fontsize=10)
-        ax1.set_ylabel('カテゴリ数', fontsize=10)
-        ax1.grid(True, alpha=0.3)
-
-        # 右: 安定性vs標準偏差の散布図
-        ax2 = fig.add_subplot(gs[1])
+        # カテゴリ名のラベルを追加
         for info in categories_info:
-            color = 'red' if info['is_current'] else 'blue'
-            alpha = 1.0 if info['is_current'] else 0.6
-            ax2.scatter(info['stability'], info['std'], c=color, alpha=alpha, s=100)
             if info['is_current'] or info['std'] > np.mean([i['std'] for i in categories_info]):
-                ax2.annotate(info['category'],
+                ax.annotate(info['category'],
                            (info['stability'], info['std']),
                            xytext=(5, 5), textcoords='offset points',
-                           fontsize=8, ha='left')
+                           fontsize=10, ha='left')
 
-        ax2.set_title('安定性スコア vs 順位標準偏差', fontsize=12)
-        ax2.set_xlabel('安定性スコア（1に近いほど安定）', fontsize=10)
-        ax2.set_ylabel('順位標準偏差（0に近いほど変動が小さい）', fontsize=10)
-        ax2.grid(True, alpha=0.3)
-
-        # 凡例
-        ax2.scatter([], [], c='red', alpha=1.0, s=100, label='現在のカテゴリ')
-        ax2.scatter([], [], c='blue', alpha=0.6, s=100, label='他のカテゴリ')
-        ax2.legend(loc='upper right')
+        ax.set_title('安定性スコア分布', fontsize=14)
+        ax.set_xlabel('安定性スコア（1に近いほど安定）', fontsize=12)
+        ax.set_ylabel('順位標準偏差（0に近いほど変動が小さい）', fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='upper right')
 
         plt.tight_layout()
         return fig

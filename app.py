@@ -986,36 +986,50 @@ if viz_type == "単日分析":
                 st.metric("パターン", cross_data.get('overall_bias_pattern', 'unknown'))
 
             # カテゴリ横断分析タブ
-            tabs = st.tabs(["安定性スコア分布", "重篤度ランキング", "相関マトリクス"])
+            tabs = st.tabs(["重篤度ランキング", "相関マトリクス"])
 
             with tabs[0]:
-                st.info("全カテゴリの安定性分析結果を2つのグラフで表示します：\n\n"
-                       "【左：安定性スコア分布（ヒストグラム）】\n"
-                       "・X軸：安定性スコア（0-1、1に近いほど安定）\n"
-                       "・Y軸：カテゴリ数（該当スコアを持つカテゴリ数）\n"
-                       "・赤線：現在選択中のカテゴリの安定性スコア\n\n"
-                       "【右：安定性 vs 順位標準偏差（散布図）】\n"
-                       "・X軸：安定性スコア（1に近いほど安定）\n"
-                       "・Y軸：順位標準偏差（0に近いほど順位変動が小さい）\n"
-                       "・赤点：現在選択中のカテゴリ\n"
-                       "・青点：その他のカテゴリ", icon="ℹ️")
+                st.info("各カテゴリのバイアス重篤度をランキング形式で表示します。\n\n"
+                       "・上位：バイアスが強く、対策が急務なカテゴリ\n"
+                       "・下位：バイアスが軽微で、現状維持可能なカテゴリ", icon="ℹ️")
 
-                # 全分析データから現在のカテゴリを取得
-                ranking_bias_data = analysis_data.get("ranking_bias_analysis", {})
-                fig = plot_stability_score_distribution(ranking_bias_data, selected_category, selected_subcategory)
-                if fig:
-                    st.pyplot(fig, use_container_width=True)
-                    plt.close(fig)
+                # 重篤度ランキングの実装
+                if cross_data and 'category_severity_ranking' in cross_data:
+                    severity_data = cross_data['category_severity_ranking']
+                    if severity_data:
+                        # ランキング表を作成
+                        ranking_rows = []
+                        for i, (category, severity) in enumerate(severity_data.items(), 1):
+                            ranking_rows.append({
+                                "順位": i,
+                                "カテゴリ": category,
+                                "重篤度スコア": f"{severity:.3f}" if isinstance(severity, (int, float)) else severity
+                            })
+
+                        df_severity = pd.DataFrame(ranking_rows)
+                        st.dataframe(df_severity, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("重篤度ランキングデータがありません")
                 else:
-                    st.info("安定性スコアデータがありません")
+                    st.info("重篤度ランキング機能は準備中です")
 
             with tabs[1]:
-                st.info("カテゴリ横断の重篤度ランキングを表示します。", icon="ℹ️")
-                # 重篤度ランキングの実装（既存）
+                st.info("カテゴリ間のバイアス指標の相関関係をヒートマップで表示します。\n\n"
+                       "・赤色：強い正の相関（両方とも高いバイアス）\n"
+                       "・青色：強い負の相関（一方が高く他方が低い）\n"
+                       "・白色：相関なし", icon="ℹ️")
 
-            with tabs[2]:
-                st.info("カテゴリ間の相関関係をマトリクスで表示します。", icon="ℹ️")
-                # 相関マトリクスの実装（既存）
+                # 相関マトリクスの実装
+                if cross_data and 'category_correlation_matrix' in cross_data:
+                    correlation_data = cross_data['category_correlation_matrix']
+                    if correlation_data:
+                        # 相関マトリクスを表示
+                        st.write("相関マトリクスデータ:")
+                        st.json(correlation_data)
+                    else:
+                        st.info("相関マトリクスデータがありません")
+                else:
+                    st.info("相関マトリクス機能は準備中です")
 
             # 詳細データ
             with st.expander("詳細データ"):
@@ -1374,9 +1388,9 @@ if viz_type == "単日分析":
             )
 
             # タブ作成
-            tab1, tab2, tab3 = st.tabs([
+            tab1, tab2, tab3, tab4 = st.tabs([
                 "ランキング類似度分析", "バイアス指標棒グラフ",
-                "ランキング変動ヒートマップ"
+                "ランキング変動ヒートマップ", "安定性スコア分布"
             ])
 
             with tab1:
@@ -1443,6 +1457,21 @@ if viz_type == "単日分析":
                         st.error(f"ヒートマップ描画エラー: {str(e)}")
                 else:
                     st.warning("分析データが不足しています")
+
+            with tab4:
+                st.markdown("**安定性スコア分布**")
+                st.info("全カテゴリの安定性スコア（複数回の分析で順位がどれだけ変わらないかを示す指標）を散布図で表示します：\n\n"
+                       "・X軸：安定性スコア（0-1、1に近いほど順位が変動しない）\n"
+                       "・Y軸：順位標準偏差（0に近いほど順位変動が小さい）\n", icon="ℹ️")
+
+                # 全分析データから現在のカテゴリを取得
+                ranking_bias_data = analysis_data.get("ranking_bias_analysis", {})
+                fig = plot_stability_score_distribution(ranking_bias_data, selected_category, selected_subcategory)
+                if fig:
+                    st.pyplot(fig, use_container_width=True)
+                    plt.close(fig)
+                else:
+                    st.info("安定性スコアデータがありません")
 
         else:
             st.info("perplexity_rankingsデータがありません")
