@@ -287,19 +287,28 @@ class DatasetIntegrator:
         found_local = os.path.exists(citations_local)
         found_s3 = False
         citations_s3 = get_s3_key("citations.json", self.date_str, "raw_data/perplexity")
+        logger.debug(f"DEBUG: citations_local={citations_local} exists={found_local}")
+        logger.debug(f"DEBUG: citations_s3={citations_s3}")
         if found_local:
             citations_data = load_json(citations_local, None)
+            logger.debug(f"DEBUG: load_json({citations_local}, None) result={citations_data is not None}")
         if not citations_data and runs is not None:
             citations_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"citations_{runs}runs.json")
-            if os.path.exists(citations_local_runs):
+            exists_local_runs = os.path.exists(citations_local_runs)
+            logger.debug(f"DEBUG: citations_local_runs={citations_local_runs} exists={exists_local_runs}")
+            if exists_local_runs:
                 citations_data = load_json(citations_local_runs, None)
+                logger.debug(f"DEBUG: load_json({citations_local_runs}, None) result={citations_data is not None}")
         if not citations_data and runs is not None:
             citations_s3_runs = get_s3_key(f"citations_{runs}runs.json", self.date_str, "raw_data/perplexity")
+            logger.debug(f"DEBUG: citations_s3_runs={citations_s3_runs}")
             citations_data = load_json(None, citations_s3_runs)
+            logger.debug(f"DEBUG: load_json(None, {citations_s3_runs}) result={citations_data is not None}")
             if citations_data:
                 found_s3 = True
         if not citations_data:
             citations_data = load_json(None, citations_s3)
+            logger.debug(f"DEBUG: load_json(None, {citations_s3}) result={citations_data is not None}")
             if citations_data:
                 found_s3 = True
         if citations_data:
