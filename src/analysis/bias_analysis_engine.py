@@ -1000,16 +1000,13 @@ class BiasAnalysisEngine:
             first_category = next(iter(sentiment_bias_analysis.values()))
             if first_category:
                 first_subcategory = next(iter(first_category.values()))
-                if first_subcategory and 'entities' in first_subcategory:
-                    # 最初のエンティティのexecution_countから取得
-                    first_entity = next(iter(first_subcategory['entities'].values()))
-                    if first_entity and 'basic_metrics' in first_entity:
-                        execution_count = first_entity['basic_metrics'].get('execution_count', 0)
-                        analysis_metadata['execution_count'] = execution_count
+                if first_subcategory and 'category_summary' in first_subcategory:
+                    execution_count = first_subcategory['category_summary']['execution_count']
+                    analysis_metadata['execution_count'] = execution_count
 
-                        reliability_level, confidence_level = self.reliability_checker.get_reliability_level(execution_count)
-                        analysis_metadata['reliability_level'] = reliability_level
-                        analysis_metadata['confidence_level'] = confidence_level
+                    reliability_level, confidence_level = self.reliability_checker.get_reliability_level(execution_count)
+                    analysis_metadata['reliability_level'] = reliability_level
+                    analysis_metadata['confidence_level'] = confidence_level
 
         # ランキングバイアス分析（多重比較補正横展開）
         ranking_bias_analysis = self._analyze_ranking_bias(data.get('perplexity_rankings', {}))
@@ -2503,20 +2500,36 @@ class BiasAnalysisEngine:
         # Google検索データの公式ドメイン率
         if "entities" in google_subcategory:
             for entity_name, entity_data in google_subcategory["entities"].items():
+                # official_results から抽出
                 if "official_results" in entity_data:
-                    google_official_count += len(entity_data["official_results"])
-                    google_total_count += len(entity_data["official_results"])
+                    for result in entity_data["official_results"]:
+                        google_total_count += 1
+                        if result.get("is_official") == "official":
+                            google_official_count += 1
+
+                # reputation_results から抽出
                 if "reputation_results" in entity_data:
-                    google_total_count += len(entity_data["reputation_results"])
+                    for result in entity_data["reputation_results"]:
+                        google_total_count += 1
+                        if result.get("is_official") == "official":
+                            google_official_count += 1
 
         # Perplexity引用データの公式ドメイン率
         if "entities" in citations_subcategory:
             for entity_name, entity_data in citations_subcategory["entities"].items():
+                # official_results から抽出
                 if "official_results" in entity_data:
-                    citations_official_count += len(entity_data["official_results"])
-                    citations_total_count += len(entity_data["official_results"])
+                    for result in entity_data["official_results"]:
+                        citations_total_count += 1
+                        if result.get("is_official") == True:  # Perplexityはboolean
+                            citations_official_count += 1
+
+                # reputation_results から抽出
                 if "reputation_results" in entity_data:
-                    citations_total_count += len(entity_data["reputation_results"])
+                    for result in entity_data["reputation_results"]:
+                        citations_total_count += 1
+                        if result.get("is_official") == True:  # Perplexityはboolean
+                            citations_official_count += 1
 
         # 公式ドメイン率の計算
         google_official_ratio = google_official_count / google_total_count if google_total_count > 0 else 0

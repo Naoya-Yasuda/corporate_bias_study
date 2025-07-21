@@ -26,10 +26,24 @@ def extract_score(text):
     if not text:
         return None
 
-    # 主な抽出パターンを試す
+    # 主な抽出パターンを試す（設定ファイルのパターン）
     match = re.search(SCORE_PATTERN, text, re.IGNORECASE)
     if match:
         score = float(match.group(2))
+        if 1 <= score <= 10:
+            return score
+
+    # 「N点」形式の回答（太字含む）
+    point_pattern = re.search(r'\*\*?(\d+(?:\.\d+)?)点\*\*?', text)
+    if point_pattern:
+        score = float(point_pattern.group(1))
+        if 1 <= score <= 10:
+            return score
+
+    # 「N点」形式の回答（太字なし）
+    point_pattern2 = re.search(r'(\d+(?:\.\d+)?)点', text)
+    if point_pattern2:
+        score = float(point_pattern2.group(1))
         if 1 <= score <= 10:
             return score
 

@@ -474,7 +474,7 @@ if viz_type == "単日分析":
         reliability_label = get_reliability_label(min_exec_count)
         title = f"{selected_category} - {selected_subcategory}"
         with tabs[0]:
-            st.info("各エンティティのNormalized Bias Index（バイアス指標）を棒グラフで表示します。値が大きいほどバイアスが強いことを示します。", icon="ℹ️")
+            st.info("各企業のバイアス指標を棒グラフで表示します。この指標は「企業名を知った時の評価」と「企業名を隠した時の評価」の差を表します。\n\n• 正の値（赤）：企業名を知ると評価が上がる（好意的なバイアス）\n• 負の値（緑）：企業名を知ると評価が下がる（否定的なバイアス）\n• 値の絶対値が大きいほど、企業名による影響が強いことを示します", icon="ℹ️")
             if bias_indices:
                 fig = plot_bias_indices_bar(bias_indices, title, reliability_label)
                 st.pyplot(fig, use_container_width=True)
@@ -764,29 +764,133 @@ if viz_type == "単日分析":
                     else:
                         st.info("Perplexity Citations詳細データがありません")
 
-            # === 4. 比較分析結果表示 ===
+            # === 4. 比較分析結果表示（タブ形式） ===
             if similarity_data:
                 title = f"{selected_category} - {selected_subcategory}"
-                fig = plot_ranking_similarity(similarity_data, title)
-                st.pyplot(fig, use_container_width=True)
 
-                # 詳細情報
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**📊 類似度指標詳細**")
-                    for metric, value in similarity_data.items():
-                        if value is not None:
-                            if isinstance(value, (int, float)):
-                                st.markdown(f"- **{metric}**: {value:.3f}")
-                            else:
-                                st.markdown(f"- **{metric}**: {value}")
-                with col2:
-                    st.markdown("**📋 指標説明**")
-                    st.markdown("- **RBO**: 上位重視重複度（0-1）")
-                    st.markdown("- **Kendall Tau**: 順位相関係数（-1〜1）")
-                    st.markdown("- **Overlap Ratio**: 共通要素率（0-1）")
+                # タブ作成
+                tab1, tab2, tab3 = st.tabs([
+                    "ランキング類似度分析", "公式ドメイン比較", "感情分析比較"
+                ])
 
-                # 詳細分析データ表示
+                with tab1:
+                    st.markdown("**ランキング類似度分析**")
+                    st.info("Google検索とPerplexityの検索結果の類似度を3つの指標で比較します：\n\n"
+                           "・RBO：上位の検索結果がどれだけ一致しているか（1に近いほど上位の結果が同じ）\n"
+                           "・Kendall Tau：順位の並びがどれだけ似ているか（1に近いほど順位の並びが同じ）\n"
+                           "・Overlap Ratio：全体の検索結果がどれだけ重複しているか（1に近いほど同じURLが多い）", icon="ℹ️")
+
+                    fig = plot_ranking_similarity(similarity_data, title)
+                    st.pyplot(fig, use_container_width=True)
+
+                    # 詳細情報
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**📊 類似度指標詳細**")
+                        for metric, value in similarity_data.items():
+                            if value is not None:
+                                if isinstance(value, (int, float)):
+                                    st.markdown(f"- **{metric}**: {value:.3f}")
+                                else:
+                                    st.markdown(f"- **{metric}**: {value}")
+                    with col2:
+                        st.markdown("**📋 指標説明**")
+                        st.markdown("- **RBO**: 上位重視重複度（0-1）")
+                        st.markdown("- **Kendall Tau**: 順位相関係数（-1〜1）")
+                        st.markdown("- **Overlap Ratio**: 共通要素率（0-1）")
+
+                with tab2:
+                    st.markdown("**公式ドメイン比較**")
+                    st.info("Google検索とPerplexityの検索結果における公式ドメインの露出比率を比較します。\n\n"
+                           "・Google公式ドメイン率：Google検索結果中の公式サイト比率\n"
+                           "・Perplexity公式ドメイン率：Perplexity引用中の公式サイト比率\n"
+                           "・バイアスデルタ：両者の差分（正の値はGoogleが公式サイトを多く表示）", icon="ℹ️")
+
+                    # 公式ドメイン比較データの取得と表示
+                    if selected_category in citations_data and selected_subcategory in citations_data[selected_category]:
+                        subcat_comparison_data = citations_data[selected_category][selected_subcategory]
+                        official_data = subcat_comparison_data.get("official_domain_analysis", {})
+
+                        if official_data:
+                            fig = plot_official_domain_comparison(official_data, title)
+                            st.pyplot(fig, use_container_width=True)
+
+                            # 詳細情報
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("**📊 公式ドメイン率詳細**")
+                                google_ratio = official_data.get("google_official_ratio", 0)
+                                citations_ratio = official_data.get("citations_official_ratio", 0)
+                                bias_delta = official_data.get("official_bias_delta", 0)
+
+                                st.markdown(f"- **Google公式ドメイン率**: {google_ratio:.3f}")
+                                st.markdown(f"- **Perplexity公式ドメイン率**: {citations_ratio:.3f}")
+                                st.markdown(f"- **バイアスデルタ**: {bias_delta:.3f}")
+
+                            with col2:
+                                st.markdown("**📋 解釈**")
+                                if bias_delta > 0.1:
+                                    st.markdown("- Googleが公式サイトを多く表示")
+                                elif bias_delta < -0.1:
+                                    st.markdown("- Perplexityが公式サイトを多く表示")
+                                else:
+                                    st.markdown("- 両者の公式サイト表示は均衡")
+                        else:
+                            st.info("公式ドメイン比較データがありません")
+                    else:
+                        st.info("公式ドメイン比較データがありません")
+
+                with tab3:
+                    st.markdown("**感情分析比較**")
+                    st.info("Google検索とPerplexityの検索結果における感情分析結果の分布を比較します。\n\n"
+                           "・ポジティブ：肯定的な感情を持つ結果の比率\n"
+                           "・ネガティブ：否定的な感情を持つ結果の比率\n"
+                           "・中立：中立的な感情を持つ結果の比率\n"
+                           "・不明：感情分析ができない結果の比率", icon="ℹ️")
+
+                    # 感情分析比較データの取得と表示
+                    if selected_category in citations_data and selected_subcategory in citations_data[selected_category]:
+                        subcat_comparison_data = citations_data[selected_category][selected_subcategory]
+                        sentiment_data = subcat_comparison_data.get("sentiment_comparison", {})
+
+                        if sentiment_data:
+                            fig = plot_sentiment_comparison(sentiment_data, title)
+                            st.pyplot(fig, use_container_width=True)
+
+                            # 詳細情報
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("**📊 感情分布詳細**")
+                                google_dist = sentiment_data.get("google_sentiment_distribution", {})
+                                citations_dist = sentiment_data.get("citations_sentiment_distribution", {})
+
+                                st.markdown("**Google検索**:")
+                                for sentiment, ratio in google_dist.items():
+                                    st.markdown(f"- {sentiment}: {ratio:.3f}")
+
+                                st.markdown("**Perplexity Citations**:")
+                                for sentiment, ratio in citations_dist.items():
+                                    st.markdown(f"- {sentiment}: {ratio:.3f}")
+
+                            with col2:
+                                st.markdown("**📋 感情相関**")
+                                sentiment_correlation = sentiment_data.get("sentiment_correlation", 0)
+                                st.markdown(f"- **感情相関**: {sentiment_correlation:.3f}")
+
+                                if sentiment_correlation > 0.7:
+                                    st.markdown("- 両者の感情傾向は非常に類似")
+                                elif sentiment_correlation > 0.5:
+                                    st.markdown("- 両者の感情傾向は類似")
+                                elif sentiment_correlation > 0.3:
+                                    st.markdown("- 両者の感情傾向はやや類似")
+                                else:
+                                    st.markdown("- 両者の感情傾向は異なる")
+                        else:
+                            st.info("感情分析比較データがありません")
+                    else:
+                        st.info("感情分析比較データがありません")
+
+                # 詳細分析データ表示（全タブ共通）
                 with st.expander("詳細分析データ（JSON）", expanded=True):
                     if selected_category in citations_data and selected_subcategory in citations_data[selected_category]:
                         subcat_comparison_data = citations_data[selected_category][selected_subcategory]
