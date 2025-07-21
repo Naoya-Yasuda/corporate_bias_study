@@ -956,20 +956,19 @@ if viz_type == "単日分析":
         cross_data = analysis_data.get("cross_analysis_insights", {})
 
         if cross_data:
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
 
             with col1:
-                st.markdown("**📈 主要指標**")
-                st.metric("感情-ランキング相関", f"{cross_data.get('sentiment_ranking_correlation', 0):.3f}")
-                st.metric("Google-Citations整合性", cross_data.get('google_citations_alignment', 'unknown'))
-                st.metric("全体的バイアスパターン", cross_data.get('overall_bias_pattern', 'unknown'))
+                st.markdown("**📈 感情-ランキング相関**")
+                st.metric("相関係数", f"{cross_data.get('sentiment_ranking_correlation', 0):.3f}")
 
             with col2:
-                st.markdown("**📋 分析カバレッジ**")
-                coverage = cross_data.get('analysis_coverage', {})
-                for key, value in coverage.items():
-                    status = "✅" if value else "❌"
-                    st.markdown(f"- {key}: {status}")
+                st.markdown("**🔗 Google-Citations整合性**")
+                st.metric("整合性レベル", cross_data.get('google_citations_alignment', 'unknown'))
+
+            with col3:
+                st.markdown("**🎯 全体的バイアスパターン**")
+                st.metric("パターン", cross_data.get('overall_bias_pattern', 'unknown'))
 
             # カテゴリ横断分析タブ
             tabs = st.tabs(["安定性スコア分布", "重篤度ランキング", "相関マトリクス"])
