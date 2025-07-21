@@ -252,19 +252,31 @@ class DatasetIntegrator:
         found_local = os.path.exists(rankings_local)
         found_s3 = False
         rankings_s3 = get_s3_key("rankings.json", self.date_str, "raw_data/perplexity")
+        logger.debug(f"DEBUG: rankings_local={rankings_local} exists={found_local}")
+        logger.debug(f"DEBUG: rankings_s3={rankings_s3}")
+        # ローカル: rankings.json → rankings_{runs}runs.json
         if found_local:
             rankings_data = load_json(rankings_local, None)
+            logger.debug(f"DEBUG: load_json({rankings_local}, None) result={rankings_data is not None}")
         if not rankings_data and runs is not None:
             rankings_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"rankings_{runs}runs.json")
-            if os.path.exists(rankings_local_runs):
+            exists_local_runs = os.path.exists(rankings_local_runs)
+            logger.debug(f"DEBUG: rankings_local_runs={rankings_local_runs} exists={exists_local_runs}")
+            if exists_local_runs:
                 rankings_data = load_json(rankings_local_runs, None)
+                logger.debug(f"DEBUG: load_json({rankings_local_runs}, None) result={rankings_data is not None}")
+        # S3: runs付き優先
         if not rankings_data and runs is not None:
             rankings_s3_runs = get_s3_key(f"rankings_{runs}runs.json", self.date_str, "raw_data/perplexity")
+            logger.debug(f"DEBUG: rankings_s3_runs={rankings_s3_runs}")
             rankings_data = load_json(None, rankings_s3_runs)
+            logger.debug(f"DEBUG: load_json(None, {rankings_s3_runs}) result={rankings_data is not None}")
             if rankings_data:
                 found_s3 = True
+        # S3 fallback: rankings.json
         if not rankings_data:
             rankings_data = load_json(None, rankings_s3)
+            logger.debug(f"DEBUG: load_json(None, {rankings_s3}) result={rankings_data is not None}")
             if rankings_data:
                 found_s3 = True
         if rankings_data:
@@ -289,16 +301,11 @@ class DatasetIntegrator:
         citations_s3 = get_s3_key("citations.json", self.date_str, "raw_data/perplexity")
         logger.debug(f"DEBUG: citations_local={citations_local} exists={found_local}")
         logger.debug(f"DEBUG: citations_s3={citations_s3}")
+        # ローカルはcitations.jsonのみ
         if found_local:
             citations_data = load_json(citations_local, None)
             logger.debug(f"DEBUG: load_json({citations_local}, None) result={citations_data is not None}")
-        if not citations_data and runs is not None:
-            citations_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"citations_{runs}runs.json")
-            exists_local_runs = os.path.exists(citations_local_runs)
-            logger.debug(f"DEBUG: citations_local_runs={citations_local_runs} exists={exists_local_runs}")
-            if exists_local_runs:
-                citations_data = load_json(citations_local_runs, None)
-                logger.debug(f"DEBUG: load_json({citations_local_runs}, None) result={citations_data is not None}")
+        # S3はruns指定時にcitations_{runs}runs.jsonを優先
         if not citations_data and runs is not None:
             citations_s3_runs = get_s3_key(f"citations_{runs}runs.json", self.date_str, "raw_data/perplexity")
             logger.debug(f"DEBUG: citations_s3_runs={citations_s3_runs}")
@@ -306,6 +313,7 @@ class DatasetIntegrator:
             logger.debug(f"DEBUG: load_json(None, {citations_s3_runs}) result={citations_data is not None}")
             if citations_data:
                 found_s3 = True
+        # S3 fallback: citations.json
         if not citations_data:
             citations_data = load_json(None, citations_s3)
             logger.debug(f"DEBUG: load_json(None, {citations_s3}) result={citations_data is not None}")
