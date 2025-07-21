@@ -587,7 +587,7 @@ if viz_type == "単日分析":
             perplexity_citations_data = source_data.get("perplexity_citations", {})
             if selected_category in perplexity_citations_data and selected_subcategory in perplexity_citations_data[selected_category]:
                 citations_subcat_data = perplexity_citations_data[selected_category][selected_subcategory]
-                with st.expander("🤖 Perplexity Citationsプロンプト情報", expanded=True):
+                with st.expander("🤖 Perplexity-Google検索プロンプト情報", expanded=False):
                     if "entities" in citations_subcat_data:
                         # 最初のエンティティからプロンプト情報を取得
                         first_entity_data = next(iter(citations_subcat_data["entities"].values()), {})
@@ -738,6 +738,32 @@ if viz_type == "単日分析":
             else:
                 st.info("Perplexity Citationsデータがありません")
 
+                        # === 3.5. 詳細データ表示 ===
+            with st.expander("詳細データ（JSON）", expanded=True):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**Google検索詳細データ**")
+                    if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
+                        google_subcat_data = google_search_data[selected_category][selected_subcategory]
+                        if "entities" in google_subcat_data:
+                            st.json(google_subcat_data["entities"], expanded=False)
+                        else:
+                            st.info("Google検索エンティティデータがありません")
+                    else:
+                        st.info("Google検索詳細データがありません")
+
+                with col2:
+                    st.markdown("**Perplexity Citations詳細データ**")
+                    if selected_category in perplexity_citations_data and selected_subcategory in perplexity_citations_data[selected_category]:
+                        citations_subcat_data = perplexity_citations_data[selected_category][selected_subcategory]
+                        if "entities" in citations_subcat_data:
+                            st.json(citations_subcat_data["entities"], expanded=False)
+                        else:
+                            st.info("Perplexity Citationsエンティティデータがありません")
+                    else:
+                        st.info("Perplexity Citations詳細データがありません")
+
             # === 4. 比較分析結果表示 ===
             if similarity_data:
                 title = f"{selected_category} - {selected_subcategory}"
@@ -760,13 +786,13 @@ if viz_type == "単日分析":
                     st.markdown("- **Kendall Tau**: 順位相関係数（-1〜1）")
                     st.markdown("- **Overlap Ratio**: 共通要素率（0-1）")
 
-                # 詳細データ表示
-                with st.expander("詳細データ（JSON）", expanded=False):
+                # 詳細分析データ表示
+                with st.expander("詳細分析データ（JSON）", expanded=True):
                     if selected_category in citations_data and selected_subcategory in citations_data[selected_category]:
                         subcat_comparison_data = citations_data[selected_category][selected_subcategory]
                         st.json(subcat_comparison_data, expanded=False)
                     else:
-                        st.info("詳細データがありません")
+                        st.info("詳細分析データがありません")
             else:
                 st.info("ランキング類似度データがありません")
         else:
