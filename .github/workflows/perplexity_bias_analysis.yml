@@ -79,16 +79,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # キャッシュをクリアしてからインストール
-          pip cache purge
-          pip install --no-cache-dir -r requirements-github-actions.txt
+          pip install -r requirements-github-actions.txt
           # CloudWatch連携用のAWS SDKをインストール
-          pip install --no-cache-dir boto3 watchtower
-          # 重要な依存関係の確認
-          python -c "import statsmodels; print(f'statsmodels version: {statsmodels.__version__}')"
-          python -c "from statsmodels.stats.multitest import multipletests; print('multipletests import successful')"
-          # statsmodelsが確実にインストールされているか再確認
-          pip show statsmodels
+          pip install boto3 watchtower
       - name: Add src to PYTHONPATH
         run: |
           echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
@@ -212,6 +205,14 @@ jobs:
         if: ${{ github.event_name == 'schedule' || github.event.inputs.run_bias_analysis == 'true' }}
         run: |
           echo "開始: 統合バイアス分析 ($(date))" | tee -a logs/execution.log
+          # デバッグ情報を追加
+          echo "=== デバッグ情報 ===" | tee -a logs/bias_analysis.log
+          echo "Python path: $(which python)" | tee -a logs/bias_analysis.log
+          echo "Python version: $(python --version)" | tee -a logs/bias_analysis.log
+          echo "PYTHONPATH: $PYTHONPATH" | tee -a logs/bias_analysis.log
+          echo "Installed packages:" | tee -a logs/bias_analysis.log
+          pip list | grep -E "(statsmodels|numpy|scipy)" | tee -a logs/bias_analysis.log
+          echo "=== 統合バイアス分析実行 ===" | tee -a logs/bias_analysis.log
           python scripts/run_bias_analysis.py --date ${{ env.TODAY_DATE }} --verbose 2>&1 | tee -a logs/bias_analysis.log
 
         continue-on-error: true
