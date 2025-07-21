@@ -960,7 +960,22 @@ if viz_type == "単日分析":
 
             with col1:
                 st.markdown("**📈 感情-ランキング相関**")
-                st.metric("相関係数", f"{cross_data.get('sentiment_ranking_correlation', 0):.3f}")
+                # 全カテゴリの相関係数の平均値を計算
+                sentiment_corr_data = cross_data.get('sentiment_ranking_correlation', {})
+                if sentiment_corr_data:
+                    all_correlations = []
+                    for category_data in sentiment_corr_data.values():
+                        for subcategory_data in category_data.values():
+                            if 'correlation' in subcategory_data:
+                                all_correlations.append(subcategory_data['correlation'])
+
+                    if all_correlations:
+                        avg_correlation = sum(all_correlations) / len(all_correlations)
+                        st.metric("平均相関係数", f"{avg_correlation:.3f}")
+                    else:
+                        st.metric("平均相関係数", "N/A")
+                else:
+                    st.metric("平均相関係数", "N/A")
 
             with col2:
                 st.markdown("**🔗 Google-Citations整合性**")
@@ -1004,7 +1019,7 @@ if viz_type == "単日分析":
 
             # 詳細データ
             with st.expander("詳細データ"):
-                st.json(cross_data, use_container_width=True)
+                st.json(cross_data)
         else:
             st.info("統合分析データがありません")
 
