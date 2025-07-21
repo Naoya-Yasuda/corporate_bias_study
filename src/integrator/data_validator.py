@@ -66,7 +66,7 @@ class DataValidator:
 
     # 値制約定義
     VALUE_CONSTRAINTS = {
-        "sentiment_score": {"min": 1.0, "max": 5.0},
+        "sentiment_score": {"min": 1.0, "max": 10.0},  # 10点満点に対応
         "rank": {"min": 1, "max": 100},
         "bias_index": {"min": -10.0, "max": 10.0},
         "url_pattern": r"^https?://[^\s/$.?#].[^\s]*$",
@@ -95,11 +95,11 @@ class DataValidator:
             "REQ_S002": "必須フィールド 'unmasked_values' が存在しません - {path}",
             "VAL_S001": "masked_valuesはリストである必要があります: 実際の型={actual} - {path}",
             "VAL_S002": "masked_values[{index}]は数値である必要があります: 実際の値={actual} - {path}",
-            "VAL_S003": "masked_values[{index}]は1.0-5.0の範囲である必要があります: 実際の値={actual} - {path}",
+            "VAL_S003": "masked_values[{index}]は1.0-10.0の範囲である必要があります: 実際の値={actual} - {path}",
             "VAL_S004": "unmasked_valuesは辞書である必要があります: 実際の型={actual} - {path}",
             "VAL_S005": "企業スコアはリストである必要があります: 実際の型={actual} - {path}",
             "VAL_S006": "スコア[{index}]は数値である必要があります: 実際の値={actual} - {path}",
-            "VAL_S007": "スコア[{index}]は1.0-5.0の範囲である必要があります: 実際の値={actual} - {path}",
+            "VAL_S007": "スコア[{index}]は1.0-10.0の範囲である必要があります: 実際の値={actual} - {path}",
             "REQ_R001": "必須フィールド '{field}' が存在しません - {path}",
             "FMT_001": "不正な形式です: {field}={actual}, 期待形式={pattern} - {path}",
             "REQ_G005": "感情分析結果 'sentiment' が存在しません - {path}",
@@ -218,7 +218,7 @@ class DataValidator:
                         if not isinstance(value, (int, float)):
                             errors.append(self._create_error("VAL_S002", "ERROR",
                                                            index=i, actual=value, path=subdata_path))
-                        elif not (1.0 <= value <= 5.0):
+                        elif not (1.0 <= value <= 10.0):  # 10点満点に対応
                             errors.append(self._create_error("VAL_S003", "ERROR",
                                                            index=i, actual=value, path=subdata_path))
 
@@ -242,7 +242,7 @@ class DataValidator:
                                     errors.append(self._create_error("VAL_S006", "ERROR",
                                                                    index=i, actual=score,
                                                                    path=f"{entity_path}.unmasked_values"))
-                                elif not (1.0 <= score <= 5.0):
+                                elif not (1.0 <= score <= 10.0):  # 10点満点に対応
                                     errors.append(self._create_error("VAL_S007", "ERROR",
                                                                    index=i, actual=score,
                                                                    path=f"{entity_path}.unmasked_values"))
