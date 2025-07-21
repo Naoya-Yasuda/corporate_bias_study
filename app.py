@@ -880,26 +880,30 @@ if viz_type == "単日分析":
                             fig = plot_official_domain_comparison(official_data, title)
                             st.pyplot(fig, use_container_width=True)
 
-                            # 詳細情報
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown("**📊 公式ドメイン率詳細**")
-                                google_ratio = official_data.get("google_official_ratio", 0)
-                                citations_ratio = official_data.get("citations_official_ratio", 0)
-                                bias_delta = official_data.get("official_bias_delta", 0)
+                            # グラフ解説
+                            st.markdown("**📊 グラフ解説**")
 
-                                st.markdown(f"- **Google公式ドメイン率**: {google_ratio:.3f}")
-                                st.markdown(f"- **Perplexity公式ドメイン率**: {citations_ratio:.3f}")
-                                st.markdown(f"- **バイアスデルタ**: {bias_delta:.3f}")
+                            google_ratio = official_data.get("google_official_ratio", 0)
+                            citations_ratio = official_data.get("citations_official_ratio", 0)
+                            bias_delta = official_data.get("official_bias_delta", 0)
 
-                            with col2:
-                                st.markdown("**📋 解釈**")
-                                if bias_delta > 0.1:
-                                    st.markdown("- Googleが公式サイトを多く表示")
-                                elif bias_delta < -0.1:
-                                    st.markdown("- Perplexityが公式サイトを多く表示")
-                                else:
-                                    st.markdown("- 両者の公式サイト表示は均衡")
+                            # 解釈の生成
+                            if bias_delta > 0.1:
+                                interpretation = f"Google検索（{google_ratio:.1%}）がPerplexity（{citations_ratio:.1%}）より公式サイトを多く表示しており、Google側に公式サイト露出のバイアスがあります"
+                            elif bias_delta < -0.1:
+                                interpretation = f"Perplexity（{citations_ratio:.1%}）がGoogle検索（{google_ratio:.1%}）より公式サイトを多く表示しており、Perplexity側に公式サイト露出のバイアスがあります"
+                            else:
+                                interpretation = f"Google検索（{google_ratio:.1%}）とPerplexity（{citations_ratio:.1%}）の公式サイト表示は均衡しており、大きなバイアスは見られません"
+
+                            st.markdown(f"**解釈**: {interpretation}")
+
+                            # バイアスデルタの詳細説明
+                            if abs(bias_delta) > 0.2:
+                                st.markdown(f"**バイアス強度**: 強い（差分: {bias_delta:.1%}）")
+                            elif abs(bias_delta) > 0.1:
+                                st.markdown(f"**バイアス強度**: 中程度（差分: {bias_delta:.1%}）")
+                            else:
+                                st.markdown(f"**バイアス強度**: 弱い（差分: {bias_delta:.1%}）")
                         else:
                             st.info("公式ドメイン比較データがありません")
                     else:
