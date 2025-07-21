@@ -59,12 +59,8 @@ class HybridDataLoader:
         logger.info(f"HybridDataLoader初期化: mode={storage_mode}")
 
     def load_integrated_data(self, date_or_path: str, runs: int = None) -> Dict[str, Any]:
-        """統合データセットを読み込み（runs指定時はcorporate_bias_dataset_{runs}runs.jsonを優先）"""
-        filename = None
-        if runs is not None:
-            filename = f"corporate_bias_dataset_{runs}runs.json"
-        else:
-            filename = "corporate_bias_dataset.json"
+        """統合データセットを読み込み（integrated配下は常にcorporate_bias_dataset.json）"""
+        filename = "corporate_bias_dataset.json"
         if self.storage_mode == "local":
             return self._load_from_local(date_or_path, filename=filename)
         elif self.storage_mode == "s3":

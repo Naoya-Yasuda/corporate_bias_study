@@ -41,23 +41,9 @@ def setup_logging(verbose: bool = False):
 
 
 def run_bias_analysis(date: str, storage_mode: str = None, verbose: bool = False, runs: int = None) -> bool:
-    """統合バイアス分析を実行
-
-    Parameters:
-    -----------
-    date : str
-        分析対象日付 (YYYYMMDD)
-    storage_mode : str, optional
-        ストレージモード ('local', 's3', 'auto')
-    verbose : bool
-        詳細ログ出力
-
-    Returns:
-    --------
-    bool
-        実行成功: True, 失敗: False
     """
-
+    統合バイアス分析を実行
+    """
     try:
         # 環境変数からストレージモードを取得（引数優先）
         if storage_mode is None:
@@ -75,6 +61,7 @@ def run_bias_analysis(date: str, storage_mode: str = None, verbose: bool = False
 
         # 統合データセットの分析を実行
         logger.info(f"🚀 統合バイアス分析開始: {date}")
+        # runsはrawデータ探索用。integratedデータは常にcorporate_bias_dataset.json
         results = engine.analyze_integrated_dataset(date, runs=runs)
 
         # 分析結果の概要をログ出力

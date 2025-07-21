@@ -268,7 +268,6 @@ else:
         for date in all_dates:
             data_local = loader_local.get_integrated_dashboard_data(date) if date in dates_local else None
             data_s3 = loader_s3.get_integrated_dashboard_data(date) if date in dates_s3 else None
-            # execution_countとanalysis_dateを取得
             def get_meta(d):
                 if d and "analysis_results" in d and "metadata" in d["analysis_results"]:
                     meta = d["analysis_results"]["metadata"]
@@ -276,35 +275,53 @@ else:
                 return 0, ""
             exec_local, date_local = get_meta(data_local)
             exec_s3, date_s3 = get_meta(data_s3)
-            # 比較
             if exec_local > exec_s3:
                 best_data_by_date[date] = (data_local, "local")
             elif exec_s3 > exec_local:
                 best_data_by_date[date] = (data_s3, "s3")
-            else:  # 実行回数が同じ場合はanalysis_dateが新しい方
+            else:
                 if date_local >= date_s3:
                     best_data_by_date[date] = (data_local, "local")
                 else:
                     best_data_by_date[date] = (data_s3, "s3")
-        # --- UIで日付選択 ---
         available_dates = sorted(best_data_by_date.keys())
-        selected_dates = st.sidebar.multiselect(
-            "分析日付を選択（複数選択可）",
-            available_dates,
-            default=available_dates[-2:] if len(available_dates) > 1 else available_dates,
-            key="dates_selector"
+        # --- 表示期間プリセットUI ---
+        period_options = {
+            "1ヶ月": 4,
+            "3ヶ月": 12,
+            "半年": 24,
+            "1年": 52,
+            "全期間": None
+        }
+        selected_period = st.sidebar.selectbox(
+            "表示期間を選択",
+            list(period_options.keys()),
+            index=2,  # デフォルト「半年」
+            key="ts_period_selector"
         )
-        # --- カテゴリ・サブカテゴリ選択 ---
+        period_n = period_options[selected_period]
+        # 新しい順に並べて期間分だけ抽出
+        sorted_dates = sorted(available_dates, reverse=True)
+        if period_n is not None:
+            selected_dates = sorted(sorted_dates[:period_n], reverse=False)
+        else:
+            selected_dates = sorted(available_dates)
         if not selected_dates:
-            st.sidebar.error("分析日付を選択してください")
+            st.info("利用可能なデータがありません")
             st.stop()
-        # 代表日付（最新）からカテゴリリストを取得
+        # --- カテゴリ・サブカテゴリ選択 ---
         latest_date = max(selected_dates)
         dashboard_data = best_data_by_date[latest_date][0]
+        if not dashboard_data or "analysis_results" not in dashboard_data:
+            st.info("該当データがありません")
+            st.stop()
         analysis_data = dashboard_data["analysis_results"]
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
         all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
         all_categories.sort()
+        if not all_categories:
+            st.info("カテゴリデータがありません")
+            st.stop()
         selected_category = st.sidebar.selectbox(
             "カテゴリを選択",
             all_categories,
@@ -313,6 +330,9 @@ else:
         )
         all_subcategories = list(sentiment_data[selected_category].keys())
         all_subcategories.sort()
+        if not all_subcategories:
+            st.info("サブカテゴリデータがありません")
+            st.stop()
         selected_subcategory = st.sidebar.selectbox(
             "サブカテゴリを選択",
             all_subcategories,
@@ -322,12 +342,18 @@ else:
         # --- エンティティリスト ---
         entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
         entities = list(entities_data.keys())
+        if not entities:
+            st.info("エンティティデータがありません")
+            st.stop()
         selected_entities = st.sidebar.multiselect(
             "エンティティを選択（複数選択可）",
             entities,
             default=entities[:10] if len(entities) > 10 else entities,
             key="ts_entities_selector"
         )
+        if not selected_entities:
+            st.info("エンティティを選択してください")
+            st.stop()
         # --- BI値の時系列推移データ作成 ---
         bi_timeseries = {entity: [] for entity in selected_entities}
         date_labels = []

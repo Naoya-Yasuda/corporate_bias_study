@@ -893,7 +893,7 @@ class BiasAnalysisEngine:
 
         try:
             # 1. 入力データ読み込み
-            integrated_data = self.data_loader.load_integrated_data(date_or_path, runs=runs)
+            integrated_data = self.data_loader.load_integrated_data(date_or_path)
             if integrated_data is None:
                 raise ValueError(f"統合データ（corporate_bias_dataset.json）が見つかりません: {date_or_path}")
             # sentiment_data = self.data_loader.load_sentiment_data(date_or_path)  # 不要
