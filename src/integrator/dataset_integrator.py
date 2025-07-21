@@ -186,7 +186,8 @@ class DatasetIntegrator:
 
     def _load_raw_data(self, verbose: bool = True) -> Dict[str, Any]:
         """生データファイルの読み込み（S3優先・ローカルフォールバック）"""
-        from src.utils.storage_utils import load_json, get_s3_key
+        from src.utils.storage_utils import load_json
+        from src.utils.storage_config import get_s3_key
         raw_data = {}
 
         # Google検索データ
