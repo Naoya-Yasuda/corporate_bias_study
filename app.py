@@ -364,8 +364,8 @@ if viz_type == "単日分析":
             })
         st.subheader(f"感情スコア表｜{selected_category}｜{selected_subcategory}")
         source_data = dashboard_data.get("source_data", {})
-        perplexity_sentiment = source_data.get(selected_category, {})
-        subcat_data = perplexity_sentiment.get(selected_subcategory, {})
+        perplexity_sentiment = source_data.get("perplexity_sentiment", {})
+        subcat_data = perplexity_sentiment.get(selected_category, {}).get(selected_subcategory, {})
         masked_prompt = subcat_data.get("masked_prompt")
         if masked_prompt:
             with st.expander("プロンプト", expanded=True):
@@ -375,10 +375,10 @@ if viz_type == "単日分析":
             st.dataframe(df_sentiment)
         else:
             st.info("perplexity_sentiment属性を持つ感情スコアデータがありません")
-        # --- JSONデータを折りたたみで表示 ---
+                # --- JSONデータを折りたたみで表示 ---
         source_data = dashboard_data.get("source_data", {})
-        perplexity_sentiment = source_data.get(selected_category, {})
-        subcat_data = perplexity_sentiment.get(selected_subcategory, {})
+        perplexity_sentiment = source_data.get("perplexity_sentiment", {})
+        subcat_data = perplexity_sentiment.get(selected_category, {}).get(selected_subcategory, {})
         with st.expander("詳細データ（JSON）", expanded=True):
             st.json(subcat_data, expanded=False)
         # --- 主要指標サマリー表の生成・表示（追加） ---
@@ -580,28 +580,23 @@ if viz_type == "単日分析":
             # Perplexity-Google比較の表示
             st.subheader(f"🔗 Perplexity-Google比較 - {selected_category} / {selected_subcategory}")
 
-            # === 1. プロンプト情報表示 ===
+                        # === 1. Perplexity Citationsプロンプト情報表示 ===
             source_data = dashboard_data.get("source_data", {})
-
-            # Google検索プロンプト表示
-            google_search_data = source_data.get("google_data", {})
-            if selected_category in google_search_data and selected_subcategory in google_search_data[selected_category]:
-                google_subcat_data = google_search_data[selected_category][selected_subcategory]
-                # Google検索にはクエリ情報がないため、検索対象エンティティを表示
-                with st.expander("Google検索対象", expanded=False):
-                    if "entities" in google_subcat_data:
-                        entity_names = list(google_subcat_data["entities"].keys())
-                        st.markdown(f"**検索対象エンティティ**: {', '.join(entity_names)}")
 
             # Perplexity Citationsプロンプト表示
             perplexity_citations_data = source_data.get("perplexity_citations", {})
             if selected_category in perplexity_citations_data and selected_subcategory in perplexity_citations_data[selected_category]:
                 citations_subcat_data = perplexity_citations_data[selected_category][selected_subcategory]
-                # Perplexity Citationsにはプロンプト情報がないため、検索対象エンティティを表示
-                with st.expander("Perplexity Citations対象", expanded=False):
+                with st.expander("🤖 Perplexity Citationsプロンプト情報", expanded=True):
                     if "entities" in citations_subcat_data:
-                        entity_names = list(citations_subcat_data["entities"].keys())
-                        st.markdown(f"**検索対象エンティティ**: {', '.join(entity_names)}")
+                        # 最初のエンティティからプロンプト情報を取得
+                        first_entity_data = next(iter(citations_subcat_data["entities"].values()), {})
+                        official_prompt = first_entity_data.get("official_prompt", "未設定")
+                        reputation_prompt = first_entity_data.get("reputation_prompt", "未設定")
+
+                        st.markdown("**📝 使用されたプロンプト**:")
+                        st.markdown(f"- **公式情報**: `{official_prompt}`")
+                        st.markdown(f"- **評判情報**: `{reputation_prompt}`")
 
             # === 2. Google検索データテーブル表示 ===
             st.markdown("**Google検索データテーブル**:")
@@ -755,7 +750,10 @@ if viz_type == "単日分析":
                     st.markdown("**📊 類似度指標詳細**")
                     for metric, value in similarity_data.items():
                         if value is not None:
-                            st.markdown(f"- **{metric}**: {value:.3f}")
+                            if isinstance(value, (int, float)):
+                                st.markdown(f"- **{metric}**: {value:.3f}")
+                            else:
+                                st.markdown(f"- **{metric}**: {value}")
                 with col2:
                     st.markdown("**📋 指標説明**")
                     st.markdown("- **RBO**: 上位重視重複度（0-1）")
