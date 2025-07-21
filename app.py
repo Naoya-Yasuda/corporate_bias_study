@@ -255,132 +255,125 @@ else:
             key="date_selector"
         )
         selected_dates = [selected_date]
-    else:  # 時系列分析
-        # --- ローカル・S3両方の候補日付を取得 ---
-        loader_local = HybridDataLoader("local")
-        loader_s3 = HybridDataLoader("s3")
-        dates_local = set(loader_local.list_available_dates(mode="local"))
-        dates_s3 = set(loader_s3.list_available_dates(mode="s3"))
-        all_dates = sorted(list(dates_local | dates_s3))
+if viz_type == "時系列分析":
+    loader_local = HybridDataLoader("local")
+    loader_s3 = HybridDataLoader("s3")
+    dates_local = set(loader_local.list_available_dates(mode="local"))
+    dates_s3 = set(loader_s3.list_available_dates(mode="s3"))
+    all_dates = sorted(list(dates_local | dates_s3))
 
-        # --- 各日付ごとに実行回数・日付を比較し、最適なデータを選択 ---
-        best_data_by_date = {}
-        for date in all_dates:
-            data_local = loader_local.get_integrated_dashboard_data(date) if date in dates_local else None
-            data_s3 = loader_s3.get_integrated_dashboard_data(date) if date in dates_s3 else None
-            def get_meta(d):
-                if d and "analysis_results" in d and "metadata" in d["analysis_results"]:
-                    meta = d["analysis_results"]["metadata"]
-                    return meta.get("execution_count", 0), meta.get("analysis_date", "")
-                return 0, ""
-            exec_local, date_local = get_meta(data_local)
-            exec_s3, date_s3 = get_meta(data_s3)
-            if exec_local > exec_s3:
-                best_data_by_date[date] = (data_local, "local")
-            elif exec_s3 > exec_local:
-                best_data_by_date[date] = (data_s3, "s3")
-            else:
-                if date_local >= date_s3:
-                    best_data_by_date[date] = (data_local, "local")
-                else:
-                    best_data_by_date[date] = (data_s3, "s3")
-        available_dates = sorted(best_data_by_date.keys())
-        # --- 表示期間プリセットUI ---
-        period_options = {
-            "1ヶ月": 4,
-            "3ヶ月": 12,
-            "半年": 24,
-            "1年": 52,
-            "全期間": None
-        }
-        selected_period = st.sidebar.selectbox(
-            "表示期間を選択",
-            list(period_options.keys()),
-            index=2,  # デフォルト「半年」
-            key="ts_period_selector"
-        )
-        period_n = period_options[selected_period]
-        # 新しい順に並べて期間分だけ抽出
-        sorted_dates = sorted(available_dates, reverse=True)
-        if period_n is not None:
-            selected_dates = sorted(sorted_dates[:period_n], reverse=False)
+    best_data_by_date = {}
+    for date in all_dates:
+        data_local = loader_local.get_integrated_dashboard_data(date) if date in dates_local else None
+        data_s3 = loader_s3.get_integrated_dashboard_data(date) if date in dates_s3 else None
+        def get_meta(d):
+            if d and "analysis_results" in d and "metadata" in d["analysis_results"]:
+                meta = d["analysis_results"]["metadata"]
+                return meta.get("execution_count", 0), meta.get("analysis_date", "")
+            return 0, ""
+        exec_local, date_local = get_meta(data_local)
+        exec_s3, date_s3 = get_meta(data_s3)
+        if exec_local > exec_s3:
+            best_data_by_date[date] = (data_local, "local")
+        elif exec_s3 > exec_local:
+            best_data_by_date[date] = (data_s3, "s3")
         else:
-            selected_dates = sorted(available_dates)
-        if not selected_dates:
-            st.info("利用可能なデータがありません")
-            st.stop()
-        # --- カテゴリ・サブカテゴリ選択 ---
-        latest_date = max(selected_dates)
-        dashboard_data = best_data_by_date[latest_date][0]
-        if not dashboard_data or "analysis_results" not in dashboard_data:
-            st.info("該当データがありません")
-            st.stop()
+            if date_local >= date_s3:
+                best_data_by_date[date] = (data_local, "local")
+            else:
+                best_data_by_date[date] = (data_s3, "s3")
+    available_dates = sorted(best_data_by_date.keys())
+    period_options = {
+        "1ヶ月": 4,
+        "3ヶ月": 12,
+        "半年": 24,
+        "1年": 52,
+        "全期間": None
+    }
+    selected_period = st.sidebar.selectbox(
+        "表示期間を選択",
+        list(period_options.keys()),
+        index=2,
+        key="ts_period_selector"
+    )
+    period_n = period_options[selected_period]
+    sorted_dates = sorted(available_dates, reverse=True)
+    if period_n is not None:
+        selected_dates = sorted(sorted_dates[:period_n], reverse=False)
+    else:
+        selected_dates = sorted(available_dates)
+    if not selected_dates:
+        st.info("利用可能なデータがありません")
+        st.stop()
+    latest_date = max(selected_dates)
+    dashboard_data = best_data_by_date[latest_date][0]
+    if not dashboard_data or "analysis_results" not in dashboard_data:
+        st.info("該当データがありません")
+        st.stop()
+    analysis_data = dashboard_data["analysis_results"]
+    sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
+    all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
+    all_categories.sort()
+    if not all_categories:
+        st.info("カテゴリデータがありません")
+        st.stop()
+    selected_category = st.sidebar.selectbox(
+        "カテゴリを選択",
+        all_categories,
+        key="ts_category_selector",
+        index=0
+    )
+    all_subcategories = list(sentiment_data[selected_category].keys())
+    all_subcategories.sort()
+    if not all_subcategories:
+        st.info("サブカテゴリデータがありません")
+        st.stop()
+    selected_subcategory = st.sidebar.selectbox(
+        "サブカテゴリを選択",
+        all_subcategories,
+        key="ts_subcategory_selector",
+        index=0
+    )
+    entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
+    entities = list(entities_data.keys())
+    if not entities:
+        st.info("エンティティデータがありません")
+        st.stop()
+    selected_entities = st.sidebar.multiselect(
+        "エンティティを選択（複数選択可）",
+        entities,
+        default=entities[:10] if len(entities) > 10 else entities,
+        key="ts_entities_selector"
+    )
+    if not selected_entities:
+        st.info("エンティティを選択してください")
+        st.stop()
+    bi_timeseries = {entity: [] for entity in selected_entities}
+    date_labels = []
+    for date in selected_dates:
+        dashboard_data = best_data_by_date[date][0]
         analysis_data = dashboard_data["analysis_results"]
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
-        all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
-        all_categories.sort()
-        if not all_categories:
-            st.info("カテゴリデータがありません")
-            st.stop()
-        selected_category = st.sidebar.selectbox(
-            "カテゴリを選択",
-            all_categories,
-            key="ts_category_selector",
-            index=0
-        )
-        all_subcategories = list(sentiment_data[selected_category].keys())
-        all_subcategories.sort()
-        if not all_subcategories:
-            st.info("サブカテゴリデータがありません")
-            st.stop()
-        selected_subcategory = st.sidebar.selectbox(
-            "サブカテゴリを選択",
-            all_subcategories,
-            key="ts_subcategory_selector",
-            index=0
-        )
-        # --- エンティティリスト ---
-        entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
-        entities = list(entities_data.keys())
-        if not entities:
-            st.info("エンティティデータがありません")
-            st.stop()
-        selected_entities = st.sidebar.multiselect(
-            "エンティティを選択（複数選択可）",
-            entities,
-            default=entities[:10] if len(entities) > 10 else entities,
-            key="ts_entities_selector"
-        )
-        if not selected_entities:
-            st.info("エンティティを選択してください")
-            st.stop()
-        # --- BI値の時系列推移データ作成 ---
-        bi_timeseries = {entity: [] for entity in selected_entities}
-        date_labels = []
-        for date in selected_dates:
-            dashboard_data = best_data_by_date[date][0]
-            analysis_data = dashboard_data["analysis_results"]
-            sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
-            subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
-            entities_data = subcat_data.get("entities", {})
-            date_labels.append(date)
-            for entity in selected_entities:
-                bi = None
-                if entity in entities_data:
-                    bi = entities_data[entity].get("basic_metrics", {}).get("normalized_bias_index")
-                bi_timeseries[entity].append(bi)
-        # --- BI値時系列推移グラフ描画 ---
-        import matplotlib.pyplot as plt
-        st.subheader(f"BI値（バイアス指標）時系列推移｜{selected_category}｜{selected_subcategory}")
-        fig, ax = plt.subplots(figsize=(8, 5))
-        for entity, values in bi_timeseries.items():
-            ax.plot(date_labels, values, marker="o", label=entity)
-        ax.set_xlabel("日付")
-        ax.set_ylabel("BI値（normalized_bias_index）")
-        ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        st.pyplot(fig, use_container_width=True)
+        subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
+        entities_data = subcat_data.get("entities", {})
+        date_labels.append(date)
+        for entity in selected_entities:
+            bi = None
+            if entity in entities_data:
+                bi = entities_data[entity].get("basic_metrics", {}).get("normalized_bias_index")
+            bi_timeseries[entity].append(bi)
+    import matplotlib.pyplot as plt
+    st.subheader(f"BI値（バイアス指標）時系列推移｜{selected_category}｜{selected_subcategory}")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for entity, values in bi_timeseries.items():
+        ax.plot(date_labels, values, marker="o", label=entity)
+    ax.set_xlabel("日付")
+    ax.set_ylabel("BI値（normalized_bias_index）")
+    ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    st.pyplot(fig, use_container_width=True)
+
 
 # タイトル
 st.title("企業バイアス分析ダッシュボード")

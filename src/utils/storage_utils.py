@@ -77,7 +77,6 @@ def load_json(file_path=None, s3_key=None):
         raise ValueError("file_pathかs3_keyのいずれかを指定してください")
     if file_path:
         if file_path.startswith('s3://'):
-            # S3パスの場合
             s3_key = file_path[len('s3://'):]
             if is_s3_enabled():
                 try:
@@ -85,13 +84,12 @@ def load_json(file_path=None, s3_key=None):
                     response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
                     return json.loads(response['Body'].read().decode('utf-8'))
                 except Exception as e:
-                    print(f"S3ファイル読み込みエラー: {e} ファイルが存在しません: {file_path}")
+                    print(f"S3ファイル読み込みエラー: {e} ファイルが存在しません: s3://{S3_BUCKET_NAME}/{s3_key}")
                     return None
             else:
-                print(f"S3未対応環境です: {file_path}")
+                print(f"S3未対応環境です: s3://{S3_BUCKET_NAME}/{s3_key}")
                 return None
         else:
-            # ローカルファイルの場合
             if not os.path.exists(file_path):
                 print(f"ローカルファイルが存在しません: {file_path}")
                 return None
@@ -104,10 +102,10 @@ def load_json(file_path=None, s3_key=None):
                 response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
                 return json.loads(response['Body'].read().decode('utf-8'))
             except Exception as e:
-                print(f"S3ファイル読み込みエラー: {e} ファイルが存在しません: {s3_key}")
+                print(f"S3ファイル読み込みエラー: {e} ファイルが存在しません: s3://{S3_BUCKET_NAME}/{s3_key}")
                 return None
         else:
-            print(f"S3未対応環境です: {s3_key}")
+            print(f"S3未対応環境です: s3://{S3_BUCKET_NAME}/{s3_key}")
             return None
 
 
@@ -151,7 +149,7 @@ def get_latest_file(date_str, data_type, file_type):
         content = response['Body'].read().decode('utf-8')
         return s3_key, content
     except Exception as e:
-        print(f"S3取得エラー: {e}")
+        print(f"S3取得エラー: {e} s3://{S3_BUCKET_NAME}/{s3_key}")
         return None, None
 
 def save_text_data(text, local_path, s3_path=None):
@@ -195,7 +193,7 @@ def save_text_data(text, local_path, s3_path=None):
             )
             result["s3"] = True
         except Exception as e:
-            print(f"S3保存エラー: {e}")
+            print(f"S3保存エラー: {e} s3://{S3_BUCKET_NAME}/{s3_path}")
 
     return result
 
@@ -242,7 +240,7 @@ def save_binary_data(data, local_path, s3_path=None, content_type=None):
             )
             result["s3"] = True
         except Exception as e:
-            print(f"S3保存エラー: {e}")
+            print(f"S3保存エラー: {e} s3://{S3_BUCKET_NAME}/{s3_path}")
 
     return result
 
@@ -323,7 +321,7 @@ def save_figure(fig, local_path, s3_path=None, dpi=100, bbox_inches="tight", sto
             print(f"図をS3に保存しました: s3://{S3_BUCKET_NAME}/{s3_path}")
             result["s3"] = True
         except Exception as e:
-            print(f"図のS3保存エラー: {e}")
+            print(f"図のS3保存エラー: {e} s3://{S3_BUCKET_NAME}/{s3_path}")
 
     return result
 
@@ -408,7 +406,7 @@ def list_s3_files(prefix):
             for obj in page.get('Contents', []):
                 files.append(obj['Key'])
     except Exception as e:
-        print(f"S3ファイル一覧取得エラー: {e}")
+        print(f"S3ファイル一覧取得エラー: {e} バケット: {S3_BUCKET_NAME} プレフィックス: {prefix}")
     return files
 
 def save_results(data, local_path, s3_key=None, verbose=False):
@@ -440,7 +438,7 @@ def save_results(data, local_path, s3_key=None, verbose=False):
             if verbose:
                 print(f"S3に保存しました: s3://{S3_BUCKET_NAME}/{s3_key}")
         except Exception as e:
-            print(f"S3保存エラー: {e}")
+            print(f"S3保存エラー: {e} s3://{S3_BUCKET_NAME}/{s3_key}")
     else:
         if verbose:
             print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
