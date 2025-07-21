@@ -17,6 +17,7 @@ import time
 import argparse
 import sys
 import logging
+import re
 from dotenv import load_dotenv
 from tqdm import tqdm
 
@@ -37,7 +38,59 @@ PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 # プロンプトマネージャーのインスタンスを作成
 prompt_manager = PromptManager()
 
-def analyze_sentiments(texts: list[str]) -> list[str]:
+def normalize_sentiment_response(response_text):
+    """API応答を正規化して感情値のリストを返す"""
+    if not response_text:
+        return []
+
+    # 改行で分割
+    lines = response_text.strip().split('\n')
+    sentiments = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # カンマ区切り形式を処理（番号付きも含む）
+        if ',' in line:
+            parts = line.split(',')
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+                # 番号付き形式 (例: "1. positive", "2. positive") を処理
+                if re.match(r'^\d+\.\s*', part):
+                    # 番号とドットを除去
+                    sentiment = re.sub(r'^\d+\.\s*', '', part).strip()
+                    sentiments.append(sentiment)
+                else:
+                    # 通常の感情値
+                    sentiments.append(part)
+        # 番号付き形式 (例: "1. positive") を処理（カンマなし）
+        elif re.match(r'^\d+\.\s*', line):
+            # 番号とドットを除去
+            sentiment = re.sub(r'^\d+\.\s*', '', line).strip()
+            sentiments.append(sentiment)
+        else:
+            # 単一の感情値
+            sentiments.append(line)
+
+    return sentiments
+
+def extract_sentiment(sentiment_text):
+    """感情値テキストからpositive/negative/unknownを抽出"""
+    sentiment_text = sentiment_text.strip().lower()
+
+    # より柔軟なマッチング
+    if any(word in sentiment_text for word in ["positive", "pos", "good", "ポジティブ", "良い"]):
+        return "positive"
+    elif any(word in sentiment_text for word in ["negative", "neg", "bad", "ネガティブ", "悪い"]):
+        return "negative"
+    else:
+        return "unknown"
+
+def analyze_sentiments(texts: list[str], verbose: bool = False) -> list[str]:
     """PerplexityAPIクラスを使用して複数のテキストの感情分析を実行（loaderと同じ方式）"""
     if not PERPLEXITY_API_KEY:
         raise ValueError("PERPLEXITY_API_KEY が設定されていません。.env ファイルを確認してください。")
@@ -48,30 +101,48 @@ def analyze_sentiments(texts: list[str]) -> list[str]:
 
     try:
         response_text, _ = api.call_perplexity_api(prompt, model=model)
+
+        # DEBUG: API応答の生データを出力
+        if verbose:
+            print(f"    [DEBUG] API応答: '{response_text}'")
+
         if response_text:
-            sentiments = response_text.strip().lower().split(",")
+            # 応答形式を正規化
+            raw_sentiments = normalize_sentiment_response(response_text)
+
+            # DEBUG: 正規化後の感情値を出力
+            if verbose:
+                print(f"    [DEBUG] 正規化後の感情値: {raw_sentiments}")
+
             result = []
-            for sentiment in sentiments:
-                sentiment = sentiment.strip()
-                if sentiment == "positive":
-                    result.append("positive")
-                elif sentiment == "negative":
-                    result.append("negative")
-                else:
-                    result.append("unknown")
+            for sentiment in raw_sentiments:
+                extracted_sentiment = extract_sentiment(sentiment)
+                if verbose and extracted_sentiment == "unknown":
+                    print(f"    [DEBUG] 認識できない感情値: '{sentiment}' -> 'unknown'に設定")
+                result.append(extracted_sentiment)
+
+            # 不足分を補完
+            while len(result) < len(texts):
+                if verbose:
+                    print(f"    [DEBUG] 不足分を補完: texts数={len(texts)}, result数={len(result)}")
+                result.append("unknown")
+
             return result
-        return ["unknown"] * len(texts)
+        else:
+            if verbose:
+                print(f"    [DEBUG] API応答が空のため、すべて'unknown'に設定")
+            return ["unknown"] * len(texts)
     except Exception as e:
         print(f"Perplexity API リクエストエラー: {e}")
         return ["unknown"] * len(texts)
 
-def process_google_search_results(data):
+def process_google_search_results(data, args):
     """Google検索結果ファイルを処理（entities構造に対応）"""
     # 元のデータをそのまま使用
     results = data
 
     for category, subcategories in data.items():
-        for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}"):
+        for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}", disable=not args.verbose):
             # entities構造: 各サービスのreputation_resultsを処理
             entities = content.get("entities", {})
 
@@ -101,15 +172,18 @@ def process_google_search_results(data):
 
                 # --- ログ出力をperplexityと完全に揃える ---
                 if valid_results:
-                    print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
+                    if args.verbose:
+                        print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
 
                     # 5件ずつバッチ処理
                     for i in range(0, len(valid_results), 5):
                         batch = valid_results[i:i+5]
                         texts = [f"{result['title']} {result['snippet']}" for result in batch]
-                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, texts数={len(texts)}, texts={texts}")
-                        sentiments = analyze_sentiments(texts)
-                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, sentiments数={len(sentiments)}, sentiments={sentiments}")
+                        if args.verbose:
+                            print(f"    [DEBUG] entity={entity_name}, batch={i//5}, texts数={len(texts)}, texts={texts}")
+                        sentiments = analyze_sentiments(texts, verbose=args.verbose)
+                        if args.verbose:
+                            print(f"    [DEBUG] entity={entity_name}, batch={i//5}, sentiments数={len(sentiments)}, sentiments={sentiments}")
 
                         for result, sentiment in zip(batch, sentiments):
                             result["sentiment"] = sentiment
@@ -117,20 +191,22 @@ def process_google_search_results(data):
                         time.sleep(1)  # API制限対策
 
                 if invalid_results:
-                    print(f"  {entity_name}: {len(invalid_results)}件のエントリーをsentiment='unknown'に設定（titleやsnippetが不足）")
+                    if args.verbose:
+                        print(f"  {entity_name}: {len(invalid_results)}件のエントリーをsentiment='unknown'に設定（titleやsnippetが不足）")
 
                 if not valid_results and not invalid_results:
-                    print(f"  {entity_name}: 感情分析対象のデータがありません")
+                    if args.verbose:
+                        print(f"  {entity_name}: 感情分析対象のデータがありません")
 
     return results
 
-def process_perplexity_results(data):
+def process_perplexity_results(data, args):
     """Perplexityの結果ファイルを処理（新しいentities構造に対応）"""
     # 元のデータをそのまま使用
     results = data
 
     for category, subcategories in data.items():
-        for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}"):
+        for subcategory, content in tqdm(subcategories.items(), desc=f"処理中: {category}", disable=not args.verbose):
             # 新しい構造: entities内の各サービスのreputation_resultsを処理
             entities = content.get("entities", {})
 
@@ -160,15 +236,18 @@ def process_perplexity_results(data):
                     result["sentiment"] = "unknown"
 
                 if valid_results:
-                    print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
+                    if args.verbose:
+                        print(f"  {entity_name}: {len(valid_results)}件の評判データを感情分析対象として処理")
 
                     # 5件ずつバッチ処理
                     for i in range(0, len(valid_results), 5):
                         batch = valid_results[i:i+5]
                         texts = [f"{result['title']} {result['snippet']}" for result in batch]
-                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, texts数={len(texts)}, texts={texts}")
-                        sentiments = analyze_sentiments(texts)
-                        print(f"    [DEBUG] entity={entity_name}, batch={i//5}, sentiments数={len(sentiments)}, sentiments={sentiments}")
+                        if args.verbose:
+                            print(f"    [DEBUG] entity={entity_name}, batch={i//5}, texts数={len(texts)}, texts={texts}")
+                        sentiments = analyze_sentiments(texts, verbose=args.verbose)
+                        if args.verbose:
+                            print(f"    [DEBUG] entity={entity_name}, batch={i//5}, sentiments数={len(sentiments)}, sentiments={sentiments}")
 
                         for result, sentiment in zip(batch, sentiments):
                             result["sentiment"] = sentiment
@@ -176,10 +255,12 @@ def process_perplexity_results(data):
                         time.sleep(1)  # API制限対策
 
                 if invalid_results:
-                    print(f"  {entity_name}: {len(invalid_results)}件のエントリーをsentiment='unknown'に設定（titleやsnippetが不足）")
+                    if args.verbose:
+                        print(f"  {entity_name}: {len(invalid_results)}件のエントリーをsentiment='unknown'に設定（titleやsnippetが不足）")
 
                 if not valid_results and not invalid_results:
-                    print(f"  {entity_name}: 感情分析対象のデータがありません")
+                    if args.verbose:
+                        print(f"  {entity_name}: 感情分析対象のデータがありません")
 
     return results
 
@@ -225,11 +306,11 @@ def process_results_file(file_path, date_str, args):
     if args.data_type == "raw_data/google":
         if args.verbose:
             logging.info("Google検索データを処理しています...")
-        return process_google_search_results(data)
+        return process_google_search_results(data, args)
     elif args.data_type == "raw_data/perplexity":
         if args.verbose:
             logging.info("Perplexityデータを処理しています...")
-        return process_perplexity_results(data)
+        return process_perplexity_results(data, args)
     else:
         if args.verbose:
             logging.info(f"未対応のデータタイプです: {args.data_type}")
@@ -254,6 +335,12 @@ def main():
 
     # 日付を取得（指定がなければ今日の日付）
     date_str = args.date or datetime.datetime.now().strftime("%Y%m%d")
+
+    # 処理開始メッセージは常に表示
+    print(f"=== 感情分析開始 ===")
+    print(f"分析日付: {date_str}, データタイプ: {args.data_type}")
+    if args.runs:
+        print(f"実行回数: {args.runs}")
 
     if args.verbose:
         logging.info(f"=== 感情分析開始 ===")
@@ -331,9 +418,11 @@ def main():
 
     try:
         save_results(result, local_path, s3_key, verbose=args.verbose)
+        print(f"=== 感情分析完了 ===")
         if args.verbose:
             logging.info(f"=== 感情分析完了 ===")
     except Exception as e:
+        print(f"結果保存エラー: {e}")
         logging.error(f"結果保存エラー: {e}")
 
 if __name__ == "__main__":
