@@ -189,10 +189,6 @@ class DatasetIntegrator:
         from src.utils.storage_utils import load_json, get_s3_key
         raw_data = {}
 
-        if verbose:
-            logger.info(f"生データ読み込み開始: 日付={self.date_str}")
-            logger.info(f"パス設定: {self.paths}")
-
         # Google検索データ
         google_local = os.path.join(self.paths["raw_data"]["google"], "custom_search.json")
         google_s3 = get_s3_key("custom_search.json", self.date_str, "raw_data/google")
@@ -208,7 +204,6 @@ class DatasetIntegrator:
         sentiment_s3 = get_s3_key("sentiment.json", self.date_str, "raw_data/perplexity")
         sentiment_data = load_json(sentiment_local, sentiment_s3)
         if not sentiment_data:
-            # sentiment_*runs.jsonも探索
             import glob
             local_dir = self.paths["raw_data"]["perplexity"]
             local_candidates = sorted(glob.glob(os.path.join(local_dir, "sentiment_*runs.json")), reverse=True)
