@@ -2507,12 +2507,11 @@ class BiasAnalysisEngine:
                         if result.get("is_official") == "official":
                             google_official_count += 1
 
-                # reputation_results から抽出
+                # reputation_results から抽出（is_official判定なし）
                 if "reputation_results" in entity_data:
                     for result in entity_data["reputation_results"]:
                         google_total_count += 1
-                        if result.get("is_official") == "official":
-                            google_official_count += 1
+                        # 評判結果ではis_official判定を行わない
 
         # Perplexity引用データの公式ドメイン率
         if "entities" in citations_subcategory:
@@ -2524,12 +2523,11 @@ class BiasAnalysisEngine:
                         if result.get("is_official") == "official":  # Perplexityは文字列型
                             citations_official_count += 1
 
-                # reputation_results から抽出
+                # reputation_results から抽出（is_official判定なし）
                 if "reputation_results" in entity_data:
                     for result in entity_data["reputation_results"]:
                         citations_total_count += 1
-                        if result.get("is_official") == "official":  # Perplexityは文字列型
-                            citations_official_count += 1
+                        # 評判結果ではis_official判定を行わない
 
         # 公式ドメイン率の計算
         google_official_ratio = google_official_count / google_total_count if google_total_count > 0 else 0

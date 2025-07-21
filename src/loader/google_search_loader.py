@@ -117,7 +117,7 @@ def get_google_search_results(query, num_results=10):
         print(f"❌ Google Custom Search API エラー: {e}")
         return {"organic_results": []}
 
-def process_search_results(data, service_name=None, services_dict=None):
+def process_search_results(data, service_name=None, services_dict=None, include_is_official=True):
     """Google Custom Search API の結果から必要な情報を抽出して整形"""
     if not data or "organic_results" not in data:
         return []
@@ -129,20 +129,22 @@ def process_search_results(data, service_name=None, services_dict=None):
         snippet = result.get("snippet", "")
         domain = extract_domain(link)
 
-        # is_officialフィールドを追加
-        is_official = "n/a"
-        if service_name and services_dict:
-            from ..utils.text_utils import is_official_domain
-            is_official = is_official_domain(domain, service_name, services_dict)
-
         result_dict = {
             "rank": i + 1,
             "title": title,
             "link": link,
             "domain": domain,
-            "snippet": snippet,
-            "is_official": is_official
+            "snippet": snippet
         }
+
+        # is_officialフィールドを追加（評判結果では追加しない）
+        if include_is_official:
+            is_official = "n/a"
+            if service_name and services_dict:
+                from ..utils.text_utils import is_official_domain
+                is_official = is_official_domain(domain, service_name, services_dict)
+            result_dict["is_official"] = is_official
+
         results.append(result_dict)
     return results
 
@@ -175,7 +177,7 @@ def process_categories_with_search(categories, max_categories=None):
                 # 評判情報用の検索
                 query_rep = f"{service} 評判 口コミ"
                 search_data_rep = get_google_search_results(query_rep, num_results=10)
-                reputation_results = process_search_results(search_data_rep, service_name=service, services_dict=services) if search_data_rep else []
+                reputation_results = process_search_results(search_data_rep, service_name=None, services_dict=None, include_is_official=False) if search_data_rep else []
                 time.sleep(2)
                 entities[service] = {
                     "official_results": official_results,
