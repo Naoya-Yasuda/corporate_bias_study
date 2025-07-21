@@ -1220,7 +1220,7 @@ if viz_type == "単日分析":
                     ["ランキング範囲（ranking_spread）", ranking_spread, "競争性", "ランキングが利用する順位範囲の広がり", get_ranking_spread_explanation(ranking_spread)]
                 ]
 
-                df_summary = pd.DataFrame(summary_data, columns=["指標名", "値", "指標カテゴリ", "指標概要", "分析結果"])
+                df_summary = pd.DataFrame(summary_data, columns=["指標名", "値", "指標カテゴリ", "分析結果", "指標概要"])
                 st.dataframe(df_summary, use_container_width=True, hide_index=True)
             else:
                 # フォールバック：perplexity_rankingsから直接計算して仕様書通りの9項目テーブルを作成
@@ -1347,45 +1347,7 @@ if viz_type == "単日分析":
                 df_summary = pd.DataFrame(summary_data, columns=["指標名", "値", "指標カテゴリ", "指標概要", "分析結果"])
                 st.dataframe(df_summary, use_container_width=True, hide_index=True)
 
-            # 詳細解釈テキスト（重複部分を削除し、詳細解釈にしかない内容のみ表示）
-            st.subheader("📋 詳細解釈")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**信頼性評価**")
-                # execution_countの取得
-                answer_list = subcat_data.get("answer_list", [])
-                execution_count = len(answer_list)
 
-                if execution_count >= 15:
-                    st.markdown("- 十分な実行回数により高い信頼性を確保")
-                elif execution_count >= 10:
-                    st.markdown("- 適切な実行回数により一定の信頼性を確保")
-                elif execution_count >= 5:
-                    st.markdown("- 最低限の実行回数による標準的な信頼性")
-                else:
-                    st.markdown("- 実行回数が少なく、結果は参考程度に留める")
-            with col2:
-                st.markdown("**バイアス影響度**")
-                if 'ranking_variation' in locals() and ranking_variation:
-                    max_variation = 0
-                    max_variation_entity = "N/A"
-                    for entity, variation_data in ranking_variation.items():
-                        if isinstance(variation_data, dict):
-                            rank_range = variation_data.get("rank_range", 0)
-                            if rank_range > max_variation:
-                                max_variation = rank_range
-                                max_variation_entity = entity
-                    st.markdown(f"- 最大順位変動: {max_variation}位 ({max_variation_entity})")
-                    if max_variation == 0:
-                        st.markdown("- 順位変動は皆無、バイアス影響なし")
-                    elif max_variation <= 1:
-                        st.markdown("- 順位変動は小さく、バイアス影響は限定的")
-                    elif max_variation <= 2:
-                        st.markdown("- 中程度の順位変動が見られ、軽微なバイアス影響あり")
-                    else:
-                        st.markdown("- 大きな順位変動があり、バイアス影響に注意が必要")
-                else:
-                    st.markdown("- バイアス影響度データがありません")
 
             # === 3. タブ別グラフ表示 ===
             st.subheader("📈 詳細グラフ分析")
