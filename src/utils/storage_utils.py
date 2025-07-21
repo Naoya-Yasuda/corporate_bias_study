@@ -73,62 +73,42 @@ def ensure_dir(dir_path):
 
 
 def load_json(file_path=None, s3_key=None):
-    """
-    JSONファイルを読み込む（ローカルまたはS3対応）
-
-    Parameters:
-    -----------
-    file_path : str
-        読み込むファイルパス（s3://で始まる場合はS3から取得、
-        またはローカルファイルパス）
-    s3_path : str, optional
-        S3ファイルパス（file_pathがローカルパスの場合の代替S3パス）
-
-    Returns:
-    --------
-    dict | None
-        読み込んだデータ、失敗した場合はNone
-    """
     if not file_path and not s3_key:
         raise ValueError("file_pathかs3_keyのいずれかを指定してください")
-    if file_path.startswith('s3://'):
-        # S3パスの場合
-        m = re.match(r's3://([^/]+)/(.+)', file_path)
-        if m:
-            bucket, key = m.group(1), m.group(2)
-        else:
-            # バケット省略時はデフォルトバケット
-            bucket, key = S3_BUCKET_NAME, file_path[5:]
-        try:
-            s3_client = get_s3_client()
-            response = s3_client.get_object(Bucket=bucket, Key=key)
-            content = response['Body'].read().decode('utf-8')
-            return json.loads(content)
-        except Exception as e:
-            print(f"S3からのJSONファイル読み込みに失敗しました: {e}")
-            return None
-    else:
-        # ローカルファイル
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"ローカルファイル読み込みエラー: {e}")
+    if file_path:
+        if file_path.startswith('s3://'):
+            # S3パスの場合
+            s3_key = file_path[len('s3://'):]
+            if is_s3_enabled():
+                try:
+                    s3_client = get_s3_client()
+                    response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+                    return json.loads(response['Body'].read().decode('utf-8'))
+                except Exception as e:
+                    print(f"S3ファイル読み込みエラー: {e} ファイルが存在しません: {file_path}")
+                    return None
+            else:
+                print(f"S3未対応環境です: {file_path}")
                 return None
         else:
-            print(f"ファイルが存在しません: {file_path}")
-
-        # S3から読み込み（ローカルが失敗した場合）
-        if s3_key and is_s3_enabled():
+            # ローカルファイルの場合
+            if not os.path.exists(file_path):
+                print(f"ローカルファイルが存在しません: {file_path}")
+                return None
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    elif s3_key:
+        if is_s3_enabled():
             try:
                 s3_client = get_s3_client()
                 response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
                 return json.loads(response['Body'].read().decode('utf-8'))
             except Exception as e:
-                print(f"S3ファイル読み込みエラー: {e}")
-
-        return None
+                print(f"S3ファイル読み込みエラー: {e} ファイルが存在しません: {s3_key}")
+                return None
+        else:
+            print(f"S3未対応環境です: {s3_key}")
+            return None
 
 
 def save_json(data, file_path):
