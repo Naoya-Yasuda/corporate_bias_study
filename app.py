@@ -17,6 +17,8 @@ import numpy as np
 from src.analysis.hybrid_data_loader import HybridDataLoader
 import japanize_matplotlib
 from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap, plot_stability_score_distribution
+import os
+from src.utils.storage_config import get_base_paths
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
@@ -283,6 +285,24 @@ if viz_type == "時系列分析":
             else:
                 best_data_by_date[date] = (data_s3, "s3")
     available_dates = sorted(best_data_by_date.keys())
+        # ここから追加
+    status_list = []
+    for date in available_dates:
+        data, source = best_data_by_date[date]
+        # パス取得ロジックを修正
+        paths = get_base_paths(date)
+        if source == 'local':
+            path = os.path.join(paths["integrated"], "bias_analysis_results.json")
+        else:
+            # S3パスはprefixをそのまま表示
+            path = f"s3://{paths['integrated']}/bias_analysis_results.json"
+        status = 'OK' if data is not None else '取得失敗'
+        status_list.append(f"{date}｜{source}｜{status}｜{path}")
+
+    with st.sidebar.expander("データ取得状況（デバッグ用）"):
+        for s in status_list:
+            st.write(s)
+    # ここまで追加
     period_options = {
         "1ヶ月": 4,
         "3ヶ月": 12,
@@ -306,10 +326,26 @@ if viz_type == "時系列分析":
         st.info("利用可能なデータがありません")
         st.stop()
     latest_date = max(selected_dates)
-    dashboard_data = best_data_by_date[latest_date][0]
-    if not dashboard_data or "analysis_results" not in dashboard_data:
-        st.info("該当データがありません")
+    dashboard_data, source = best_data_by_date[latest_date]
+    if dashboard_data is None:
+        if source == 'local':
+            file_path = os.path.join(get_base_paths(latest_date)['integrated'], 'bias_analysis_results.json')
+        else:
+            file_path = f"s3://{get_base_paths(latest_date)['integrated']}/bias_analysis_results.json"
+        st.error(
+            f"データ取得に失敗しました: {latest_date}\n"
+            f"取得元: {source}\n"
+            f"ファイルパス: {file_path}\n"
+            "該当日付のデータファイルが存在しないか、読み込みに失敗しています。"
+        )
         st.stop()
+    if "analysis_results" not in dashboard_data:
+        st.error(
+            f"analysis_resultsが見つかりません: {latest_date}\n"
+            f"取得元: {source}\n"
+            f"ファイル内容: {str(dashboard_data)[:500]}..."
+        )
+    st.stop()
     analysis_data = dashboard_data["analysis_results"]
     sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
     all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
