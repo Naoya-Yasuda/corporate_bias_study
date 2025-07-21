@@ -831,21 +831,38 @@ if viz_type == "単日分析":
                     fig = plot_ranking_similarity(similarity_data, title)
                     st.pyplot(fig, use_container_width=True)
 
-                    # 詳細情報
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown("**📊 類似度指標詳細**")
-                        for metric, value in similarity_data.items():
-                            if value is not None:
-                                if isinstance(value, (int, float)):
-                                    st.markdown(f"- **{metric}**: {value:.3f}")
-                                else:
-                                    st.markdown(f"- **{metric}**: {value}")
-                    with col2:
-                        st.markdown("**📋 指標説明**")
-                        st.markdown("- **RBO**: 上位重視重複度（0-1）")
-                        st.markdown("- **Kendall Tau**: 順位相関係数（-1〜1）")
-                        st.markdown("- **Overlap Ratio**: 共通要素率（0-1）")
+                                        # グラフ解説（metrics_validationの解釈情報を使用）
+                    if selected_category in citations_data and selected_subcategory in citations_data[selected_category]:
+                        subcat_comparison_data = citations_data[selected_category][selected_subcategory]
+                        ranking_similarity = subcat_comparison_data.get("ranking_similarity", {})
+                        metrics_validation = ranking_similarity.get("metrics_validation", {})
+
+                        if metrics_validation:
+                            st.markdown("**📊 グラフ解説**")
+
+                            # 統合解釈
+                            interpretation = metrics_validation.get("interpretation", "")
+                            if interpretation:
+                                st.markdown(f"**統合解釈**: {interpretation}")
+
+                            # 個別指標解釈
+                            kendall_interpretation = metrics_validation.get("kendall_tau_interpretation", "")
+                            rbo_interpretation = metrics_validation.get("rbo_interpretation", "")
+
+                            if kendall_interpretation:
+                                st.markdown(f"**Kendall Tau解釈**: {kendall_interpretation}")
+                            if rbo_interpretation:
+                                st.markdown(f"**RBO解釈**: {rbo_interpretation}")
+
+                            # 共通サイト情報
+                            common_count = metrics_validation.get("common_items_count", 0)
+                            overlap_percentage = metrics_validation.get("overlap_percentage", 0)
+                            if common_count > 0:
+                                st.markdown(f"**共通サイト**: {common_count}個（重複率: {overlap_percentage}%）")
+                        else:
+                            st.info("グラフ解説データがありません")
+                    else:
+                        st.info("グラフ解説データがありません")
 
                 with tab2:
                     st.markdown("**公式ドメイン比較**")

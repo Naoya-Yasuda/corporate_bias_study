@@ -2384,7 +2384,7 @@ class BiasAnalysisEngine:
         rbo_score = metrics.get("rbo", 0)
         overlap_ratio = metrics.get("overlap_ratio", 0)
 
-        # 共通アイテムの分析
+        # 共通サイトの分析
         google_set = set(google_domains[:10])
         citations_set = set(citations_domains[:10])
         common_items = google_set & citations_set
@@ -2398,7 +2398,7 @@ class BiasAnalysisEngine:
         if abs(kendall_tau) > 0.8 and rbo_score < 0.3:
             explanation.append(
                 f"Kendall τ({kendall_tau:.3f})とRBO({rbo_score:.3f})の差は、"
-                f"共通アイテム({common_count}個)の順位関係は一貫しているが、"
+                f"共通サイト({common_count}個)の順位関係は一貫しているが、"
                 f"上位ランキングでの重複が少ないことを示している"
             )
 
@@ -2417,17 +2417,17 @@ class BiasAnalysisEngine:
         elif abs(kendall_tau) < 0.3 and rbo_score < 0.3:
             explanation.append("低い一貫性：両ランキングは大きく異なる傾向を示している")
 
-        # 共通アイテム数による解釈の追加
+        # 共通サイト数による解釈の追加
         if common_count <= 2:
-            explanation.append(f"共通アイテムが{common_count}個と少ないため、順位相関の信頼性は限定的")
+            explanation.append(f"共通サイトが{common_count}個と少ないため、順位相関の信頼性は限定的")
         elif common_count >= 5:
-            explanation.append(f"共通アイテムが{common_count}個あり、順位相関の信頼性は高い")
+            explanation.append(f"共通サイトが{common_count}個あり、順位相関の信頼性は高い")
 
         # 完全相関の特殊ケース
         if abs(kendall_tau) == 1.0:
             if common_count >= 2:
                 explanation.append(
-                    f"Kendall τ=1.0は{common_count}個の共通アイテム全てが"
+                    f"Kendall τ=1.0は{common_count}個の共通サイト全てが"
                     f"同じ方向（上昇または下降）の順位変動を示している"
                 )
 
@@ -2444,7 +2444,7 @@ class BiasAnalysisEngine:
     def _interpret_kendall_tau(self, tau: float, common_count: int) -> str:
         """Kendall's τの解釈を生成"""
         if common_count < 2:
-            return "共通アイテム不足により計算不可"
+            return "共通サイト不足により計算不可"
         elif abs(tau) == 1.0:
             direction = "完全に一致した方向" if tau > 0 else "完全に逆の方向"
             return f"完全相関({direction}の順位変動)"

@@ -98,7 +98,7 @@ def compute_tau(ranking1, ranking2):
         ranks1 = {item: idx for idx, item in enumerate(ranking1)}
         ranks2 = {item: idx for idx, item in enumerate(ranking2)}
 
-        # 共通アイテムの順位のみを抽出
+        # 共通サイトの順位のみを抽出
         common_ranks1 = [ranks1[item] for item in common_items]
         common_ranks2 = [ranks2[item] for item in common_items]
 
