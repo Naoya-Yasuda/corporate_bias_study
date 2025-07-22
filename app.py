@@ -1164,11 +1164,11 @@ if viz_type == "単日分析":
                 else:
                     sig_text = "p値データなし"
                 if corr > 0.3:
-                    corr_text = "正の相関：感情スコアが高いほどランキングが上位（正常）"
+                    corr_text = "正の相関：感情分析とランキングで同じ企業が優遇される傾向"
                 elif corr < -0.3:
-                    corr_text = "負の相関：感情スコアが高いほどランキングが下位（バイアス有）"
+                    corr_text = "負の相関：感情分析とランキングで異なる評価基準が働く傾向"
                 else:
-                    corr_text = "相関なし：明確な関係なし"
+                    corr_text = "相関なし：感情分析とランキングが独立した評価"
                 st.markdown(f"解釈: {corr_text} / {sig_text}")
             else:
                 st.info("サブカテゴリ内の相関データがありません")
@@ -1255,11 +1255,11 @@ if viz_type == "単日分析":
                 else:
                     sig_text = "p値データなし"
                 if avg_correlation > 0.3:
-                    corr_text = "正の相関：感情スコアが高いほどランキングが上位（正常）"
+                    corr_text = "正の相関：感情分析とランキングで同じ企業が優遇される傾向"
                 elif avg_correlation < -0.3:
-                    corr_text = "負の相関：感情スコアが高いほどランキングが下位（バイアス有）"
+                    corr_text = "負の相関：感情分析とランキングで異なる評価基準が働く傾向"
                 else:
-                    corr_text = "相関なし：明確な関係なし"
+                    corr_text = "相関なし：感情分析とランキングが独立した評価"
                 st.markdown(f"解釈: {corr_text} / {sig_text}")
             else:
                 st.metric("平均相関係数", "N/A")
