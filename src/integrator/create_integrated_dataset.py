@@ -206,7 +206,8 @@ def main():
         # 統合データセット作成実行
         integrated_dataset = integrator.create_integrated_dataset(
             force_recreate=args.force_recreate,
-            verbose=args.verbose
+            verbose=args.verbose,
+            runs=args.runs
         )
 
         if integrated_dataset:
