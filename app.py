@@ -345,7 +345,7 @@ if viz_type == "時系列分析":
             f"取得元: {source}\n"
             f"ファイル内容: {str(dashboard_data)[:500]}..."
         )
-    st.stop()
+        st.stop()
     analysis_data = dashboard_data["analysis_results"]
     sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
     all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
@@ -384,31 +384,104 @@ if viz_type == "時系列分析":
     if not selected_entities:
         st.info("エンティティを選択してください")
         st.stop()
+
+
+
+    # --- 時系列データ収集 ---
     bi_timeseries = {entity: [] for entity in selected_entities}
+    sentiment_timeseries = {entity: [] for entity in selected_entities}
+    ranking_timeseries = {entity: [] for entity in selected_entities}
     date_labels = []
+
     for date in selected_dates:
-        dashboard_data = best_data_by_date[date][0]
+        dashboard_data, source = best_data_by_date[date]
         analysis_data = dashboard_data["analysis_results"]
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
+        ranking_data = analysis_data.get("ranking_bias_analysis", {})
+
+        # 感情分析データ
         subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
         entities_data = subcat_data.get("entities", {})
+
+        # ランキング分析データ
+        ranking_subcat_data = ranking_data.get(selected_category, {}).get(selected_subcategory, {})
+        ranking_entities_data = ranking_subcat_data.get("entities", {})
+
         date_labels.append(date)
+
         for entity in selected_entities:
+            # BI値
             bi = None
             if entity in entities_data:
                 bi = entities_data[entity].get("basic_metrics", {}).get("normalized_bias_index")
             bi_timeseries[entity].append(bi)
+
+            # 感情スコア平均
+            sentiment_avg = None
+            if entity in entities_data:
+                sentiment_avg = entities_data[entity].get("basic_metrics", {}).get("sentiment_score_avg")
+            sentiment_timeseries[entity].append(sentiment_avg)
+
+            # ランキング平均
+            ranking_avg = None
+            if entity in ranking_entities_data:
+                ranking_avg = ranking_entities_data.get("avg_rank")
+            ranking_timeseries[entity].append(ranking_avg)
+
+    # --- 時系列分析ダッシュボード ---
+    st.subheader(f"時系列分析｜{selected_category}｜{selected_subcategory}")
+
+    # タブで可視化タイプを選択
+    ts_tabs = st.tabs(["BI値時系列推移", "感情スコア時系列推移", "ランキング時系列推移"])
     import matplotlib.pyplot as plt
-    st.subheader(f"BI値（バイアス指標）時系列推移｜{selected_category}｜{selected_subcategory}")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for entity, values in bi_timeseries.items():
-        ax.plot(date_labels, values, marker="o", label=entity)
-    ax.set_xlabel("日付")
-    ax.set_ylabel("BI値（normalized_bias_index）")
-    ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    st.pyplot(fig, use_container_width=True)
+
+    # BI値時系列推移タブ
+    with ts_tabs[0]:
+        st.info("各エンティティのNormalized Bias Index（バイアス指標）の時系列推移を表示します。値が大きいほどバイアスが強いことを示します。", icon="ℹ️")
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        for entity, values in bi_timeseries.items():
+            ax.plot(date_labels, values, marker="o", label=entity, linewidth=2, markersize=6)
+        ax.set_xlabel("日付")
+        ax.set_ylabel("BI値（normalized_bias_index）")
+        ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+    # 感情スコア時系列推移タブ
+    with ts_tabs[1]:
+        st.info("各エンティティの感情スコア平均値の時系列推移を表示します。値が高いほど好意的な評価を示します。", icon="ℹ️")
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        for entity, values in sentiment_timeseries.items():
+            ax.plot(date_labels, values, marker="s", label=entity, linewidth=2, markersize=6)
+        ax.set_xlabel("日付")
+        ax.set_ylabel("感情スコア平均")
+        ax.set_title(f"感情スコアの時系列推移（{selected_category} - {selected_subcategory}）")
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+    # ランキング時系列推移タブ
+    with ts_tabs[2]:
+        st.info("各エンティティの平均ランキングの時系列推移を表示します。値が小さいほど上位ランキングを示します。", icon="ℹ️")
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        for entity, values in ranking_timeseries.items():
+            ax.plot(date_labels, values, marker="^", label=entity, linewidth=2, markersize=6)
+        ax.set_xlabel("日付")
+        ax.set_ylabel("平均ランキング")
+        ax.set_title(f"ランキングの時系列推移（{selected_category} - {selected_subcategory}）")
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
 
 
 # タイトル
