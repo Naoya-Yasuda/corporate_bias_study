@@ -275,6 +275,10 @@ if viz_type == "時系列分析":
             return 0, ""
         exec_local, date_local = get_meta(data_local)
         exec_s3, date_s3 = get_meta(data_s3)
+        # 両方のデータがNoneの場合は除外
+        if data_local is None and data_s3 is None:
+            continue
+
         if exec_local > exec_s3:
             best_data_by_date[date] = (data_local, "local")
         elif exec_s3 > exec_local:
@@ -299,7 +303,7 @@ if viz_type == "時系列分析":
         status = 'OK' if data is not None else '取得失敗'
         status_list.append(f"{date}｜{source}｜{status}｜{path}")
 
-    with st.sidebar.expander("データ取得状況（デバッグ用）"):
+    with st.sidebar.expander("データ取得状況"):
         for s in status_list:
             st.write(s)
     # ここまで追加
@@ -395,6 +399,8 @@ if viz_type == "時系列分析":
 
     for date in selected_dates:
         dashboard_data, source = best_data_by_date[date]
+        if dashboard_data is None:
+            continue
         analysis_data = dashboard_data["analysis_results"]
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
         ranking_data = analysis_data.get("ranking_bias_analysis", {})
@@ -427,6 +433,11 @@ if viz_type == "時系列分析":
             if entity in ranking_entities_data:
                 ranking_avg = ranking_entities_data.get("avg_rank")
             ranking_timeseries[entity].append(ranking_avg)
+
+    # データが取得できたかチェック
+    if not date_labels:
+        st.error("選択された期間でデータを取得できませんでした。別の期間を選択してください。")
+        st.stop()
 
     # --- 時系列分析ダッシュボード ---
     st.subheader(f"時系列分析｜{selected_category}｜{selected_subcategory}")
