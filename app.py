@@ -201,6 +201,10 @@ def get_storage_mode():
 
 storage_mode = get_storage_mode()
 
+# タイトル
+st.title("企業バイアス分析ダッシュボード")
+st.markdown("AI検索サービスにおける企業優遇バイアスの可視化")
+
 # --- サイドバー設定 ---
 st.sidebar.header("📊 データ選択")
 
@@ -395,6 +399,22 @@ if viz_type == "時系列分析":
     bi_timeseries = {entity: [] for entity in selected_entities}
     sentiment_timeseries = {entity: [] for entity in selected_entities}
     ranking_timeseries = {entity: [] for entity in selected_entities}
+
+    # 新規追加：ランキング類似度と公式/非公式比率の時系列データ
+    rbo_timeseries = []
+    kendall_tau_timeseries = []
+    overlap_ratio_timeseries = []
+    google_official_ratio_timeseries = []
+    citations_official_ratio_timeseries = []
+    official_bias_delta_timeseries = []
+
+    # 新規追加：ポジティブ/ネガティブ比率の時系列データ
+    google_positive_ratio_timeseries = []
+    google_negative_ratio_timeseries = []
+    citations_positive_ratio_timeseries = []
+    citations_negative_ratio_timeseries = []
+    positive_bias_delta_timeseries = []
+
     date_labels = []
 
     for date in selected_dates:
@@ -404,6 +424,7 @@ if viz_type == "時系列分析":
         analysis_data = dashboard_data["analysis_results"]
         sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
         ranking_data = analysis_data.get("ranking_bias_analysis", {})
+        citations_google_data = analysis_data.get("citations_google_comparison", {})
 
         # 感情分析データ
         subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
@@ -412,6 +433,29 @@ if viz_type == "時系列分析":
         # ランキング分析データ
         ranking_subcat_data = ranking_data.get(selected_category, {}).get(selected_subcategory, {})
         ranking_entities_data = ranking_subcat_data.get("entities", {})
+
+        # 新規追加：ランキング類似度データ
+        similarity_data = citations_google_data.get(selected_category, {}).get(selected_subcategory, {}).get("ranking_similarity", {})
+        rbo_timeseries.append(similarity_data.get("rbo_score"))
+        kendall_tau_timeseries.append(similarity_data.get("kendall_tau"))
+        overlap_ratio_timeseries.append(similarity_data.get("overlap_ratio"))
+
+        # 新規追加：公式/非公式比率データ
+        official_data = citations_google_data.get(selected_category, {}).get(selected_subcategory, {}).get("official_domain_analysis", {})
+        google_official_ratio_timeseries.append(official_data.get("google_official_ratio"))
+        citations_official_ratio_timeseries.append(official_data.get("citations_official_ratio"))
+        official_bias_delta_timeseries.append(official_data.get("official_bias_delta"))
+
+        # 新規追加：ポジティブ/ネガティブ比率データ
+        sentiment_comparison_data = citations_google_data.get(selected_category, {}).get(selected_subcategory, {}).get("sentiment_comparison", {})
+        google_sentiment_dist = sentiment_comparison_data.get("google_sentiment_distribution", {})
+        citations_sentiment_dist = sentiment_comparison_data.get("citations_sentiment_distribution", {})
+
+        google_positive_ratio_timeseries.append(google_sentiment_dist.get("positive"))
+        google_negative_ratio_timeseries.append(google_sentiment_dist.get("negative"))
+        citations_positive_ratio_timeseries.append(citations_sentiment_dist.get("positive"))
+        citations_negative_ratio_timeseries.append(citations_sentiment_dist.get("negative"))
+        positive_bias_delta_timeseries.append(sentiment_comparison_data.get("positive_bias_delta"))
 
         date_labels.append(date)
 
@@ -443,7 +487,7 @@ if viz_type == "時系列分析":
     st.subheader(f"時系列分析｜{selected_category}｜{selected_subcategory}")
 
     # タブで可視化タイプを選択
-    ts_tabs = st.tabs(["BI値時系列推移", "感情スコア時系列推移", "ランキング時系列推移"])
+    ts_tabs = st.tabs(["BI値時系列推移", "感情スコア時系列推移", "ランキング時系列推移", "ランキング類似度時系列推移", "公式/非公式比率時系列推移", "ポジティブ/ネガティブ比率時系列推移"])
     import matplotlib.pyplot as plt
 
     # BI値時系列推移タブ
@@ -470,6 +514,8 @@ if viz_type == "時系列分析":
             ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax.grid(True, alpha=0.3)
+            # 0.0の基準線を追加
+            ax.axhline(y=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
@@ -509,6 +555,8 @@ if viz_type == "時系列分析":
             ax.set_title(f"感情スコア差分の時系列推移（{selected_category} - {selected_subcategory}）")
             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax.grid(True, alpha=0.3)
+            # 0.0の基準線を追加
+            ax.axhline(y=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
@@ -562,12 +610,210 @@ if viz_type == "時系列分析":
                         max_val = max(valid_values)
                         st.write(f"**{entity}**: 平均ランク={avg_val:.1f}, 最高位={min_val:.0f}, 最低位={max_val:.0f}")
 
+    # ランキング類似度時系列推移タブ
+    with ts_tabs[3]:
+        st.info("Google検索とPerplexityの検索結果の類似度指標の時系列推移を表示します。\n\n"
+               "・RBO：上位の検索結果がどれだけ一致しているか（1に近いほど上位の結果が同じ）\n"
+               "・Kendall Tau：順位の並びがどれだけ似ているか（1に近いほど順位の並びが同じ）\n"
+               "・Overlap Ratio：全体の検索結果がどれだけ重複しているか（1に近いほど同じURLが多い）", icon="ℹ️")
 
-# タイトル
-st.title("企業バイアス分析ダッシュボード")
-st.markdown("AI検索サービスにおける企業優遇バイアスの可視化")
+        # データの有効性チェック
+        valid_rbo = [v for v in rbo_timeseries if v is not None]
+        valid_kendall = [v for v in kendall_tau_timeseries if v is not None]
+        valid_overlap = [v for v in overlap_ratio_timeseries if v is not None]
 
-if viz_type == "単日分析":
+        if not valid_rbo and not valid_kendall and not valid_overlap:
+            st.warning("ランキング類似度データが利用できません。ranking_similarityが存在しないか、データ形式が正しくありません。")
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            # RBOスコア
+            if valid_rbo:
+                valid_indices = [i for i, v in enumerate(rbo_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_rbo, marker="o", label="RBO", linewidth=2, markersize=6, color="blue")
+
+            # Kendall Tau
+            if valid_kendall:
+                valid_indices = [i for i, v in enumerate(kendall_tau_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_kendall, marker="s", label="Kendall Tau", linewidth=2, markersize=6, color="orange")
+
+            # Overlap Ratio
+            if valid_overlap:
+                valid_indices = [i for i, v in enumerate(overlap_ratio_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_overlap, marker="^", label="Overlap Ratio", linewidth=2, markersize=6, color="green")
+
+            ax.set_xlabel("日付")
+            ax.set_ylabel("類似度スコア")
+            ax.set_title(f"ランキング類似度の時系列推移（{selected_category} - {selected_subcategory}）")
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3)
+            ax.set_ylim(0, 1)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+            # 統計情報の表示
+            with st.expander("ランキング類似度統計情報", expanded=False):
+                if valid_rbo:
+                    avg_rbo = sum(valid_rbo) / len(valid_rbo)
+                    min_rbo = min(valid_rbo)
+                    max_rbo = max(valid_rbo)
+                    st.write(f"**RBO**: 平均={avg_rbo:.3f}, 最小={min_rbo:.3f}, 最大={max_rbo:.3f}")
+
+                if valid_kendall:
+                    avg_kendall = sum(valid_kendall) / len(valid_kendall)
+                    min_kendall = min(valid_kendall)
+                    max_kendall = max(valid_kendall)
+                    st.write(f"**Kendall Tau**: 平均={avg_kendall:.3f}, 最小={min_kendall:.3f}, 最大={max_kendall:.3f}")
+
+                if valid_overlap:
+                    avg_overlap = sum(valid_overlap) / len(valid_overlap)
+                    min_overlap = min(valid_overlap)
+                    max_overlap = max(valid_overlap)
+                    st.write(f"**Overlap Ratio**: 平均={avg_overlap:.3f}, 最小={min_overlap:.3f}, 最大={max_overlap:.3f}")
+
+    # 公式/非公式比率時系列推移タブ
+    with ts_tabs[4]:
+        st.info("Google検索とPerplexityの公式サイト比率の時系列推移を表示します。\n\n"
+               "・Google公式比率：Google検索結果における公式サイトの割合\n"
+               "・Citations公式比率：Perplexity検索結果における公式サイトの割合\n"
+               "・バイアス差分：Google比率 - Citations比率（正の値はGoogleが公式サイトを多く表示）", icon="ℹ️")
+
+        # データの有効性チェック
+        valid_google_ratio = [v for v in google_official_ratio_timeseries if v is not None]
+        valid_citations_ratio = [v for v in citations_official_ratio_timeseries if v is not None]
+        valid_bias_delta = [v for v in official_bias_delta_timeseries if v is not None]
+
+        if not valid_google_ratio and not valid_citations_ratio and not valid_bias_delta:
+            st.warning("公式/非公式比率データが利用できません。official_domain_analysisが存在しないか、データ形式が正しくありません。")
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            # Google公式比率
+            if valid_google_ratio:
+                valid_indices = [i for i, v in enumerate(google_official_ratio_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_google_ratio, marker="o", label="Google公式比率", linewidth=2, markersize=6, color="blue")
+
+            # Citations公式比率
+            if valid_citations_ratio:
+                valid_indices = [i for i, v in enumerate(citations_official_ratio_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_citations_ratio, marker="s", label="Citations公式比率", linewidth=2, markersize=6, color="orange")
+
+            # バイアス差分
+            if valid_bias_delta:
+                valid_indices = [i for i, v in enumerate(official_bias_delta_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_bias_delta, marker="^", label="バイアス差分", linewidth=2, markersize=6, color="red")
+
+            ax.set_xlabel("日付")
+            ax.set_ylabel("比率・差分")
+            ax.set_title(f"公式/非公式比率の時系列推移（{selected_category} - {selected_subcategory}）")
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3)
+            ax.set_ylim(-0.5, 1.0)
+            # 0.0の基準線を追加
+            ax.axhline(y=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+            # 統計情報の表示
+            with st.expander("公式/非公式比率統計情報", expanded=False):
+                if valid_google_ratio:
+                    avg_google = sum(valid_google_ratio) / len(valid_google_ratio)
+                    min_google = min(valid_google_ratio)
+                    max_google = max(valid_google_ratio)
+                    st.write(f"**Google公式比率**: 平均={avg_google:.3f}, 最小={min_google:.3f}, 最大={max_google:.3f}")
+
+                if valid_citations_ratio:
+                    avg_citations = sum(valid_citations_ratio) / len(valid_citations_ratio)
+                    min_citations = min(valid_citations_ratio)
+                    max_citations = max(valid_citations_ratio)
+                    st.write(f"**Citations公式比率**: 平均={avg_citations:.3f}, 最小={min_citations:.3f}, 最大={max_citations:.3f}")
+
+                if valid_bias_delta:
+                    avg_bias = sum(valid_bias_delta) / len(valid_bias_delta)
+                    min_bias = min(valid_bias_delta)
+                    max_bias = max(valid_bias_delta)
+                    bias_trend = "Google優位" if avg_bias > 0 else "Citations優位" if avg_bias < 0 else "均衡"
+                    st.write(f"**バイアス差分**: 平均={avg_bias:.3f}, 最小={min_bias:.3f}, 最大={max_bias:.3f} ({bias_trend})")
+
+    # ポジティブ/ネガティブ比率時系列推移タブ
+    with ts_tabs[5]:
+        st.info("Google検索とPerplexityの検索結果の感情分析比率の時系列推移を表示します。\n\n"
+               "・Googleポジティブ比率：Google検索結果のポジティブ感情の割合\n"
+               "・Citationsポジティブ比率：Perplexity検索結果のポジティブ感情の割合\n"
+               "・ポジティブバイアス差分：両者のポジティブ比率の差（正の値はGoogle優位）", icon="ℹ️")
+
+        # データの有効性チェック
+        valid_google_positive = [v for v in google_positive_ratio_timeseries if v is not None]
+        valid_google_negative = [v for v in google_negative_ratio_timeseries if v is not None]
+        valid_citations_positive = [v for v in citations_positive_ratio_timeseries if v is not None]
+        valid_citations_negative = [v for v in citations_negative_ratio_timeseries if v is not None]
+        valid_positive_bias_delta = [v for v in positive_bias_delta_timeseries if v is not None]
+
+        if not valid_google_positive and not valid_citations_positive and not valid_positive_bias_delta:
+            st.warning("ポジティブ/ネガティブ比率データが利用できません。sentiment_comparisonが存在しないか、データ形式が正しくありません。")
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            # Googleポジティブ比率
+            if valid_google_positive:
+                valid_indices = [i for i, v in enumerate(google_positive_ratio_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_google_positive, marker="o", label="Googleポジティブ比率", linewidth=2, markersize=6, color="blue")
+
+            # Citationsポジティブ比率
+            if valid_citations_positive:
+                valid_indices = [i for i, v in enumerate(citations_positive_ratio_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_citations_positive, marker="s", label="Citationsポジティブ比率", linewidth=2, markersize=6, color="orange")
+
+            # ポジティブバイアス差分
+            if valid_positive_bias_delta:
+                valid_indices = [i for i, v in enumerate(positive_bias_delta_timeseries) if v is not None]
+                valid_dates = [date_labels[i] for i in valid_indices]
+                ax.plot(valid_dates, valid_positive_bias_delta, marker="^", label="ポジティブバイアス差分", linewidth=2, markersize=6, color="red")
+
+            ax.set_xlabel("日付")
+            ax.set_ylabel("比率・差分")
+            ax.set_title(f"ポジティブ/ネガティブ比率の時系列推移（{selected_category} - {selected_subcategory}）")
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3)
+            ax.set_ylim(-1.0, 1.0)
+            # 0.0の基準線を追加
+            ax.axhline(y=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+            # 統計情報の表示
+            with st.expander("ポジティブ/ネガティブ比率統計情報", expanded=False):
+                if valid_google_positive:
+                    avg_google_pos = sum(valid_google_positive) / len(valid_google_positive)
+                    min_google_pos = min(valid_google_positive)
+                    max_google_pos = max(valid_google_positive)
+                    st.write(f"**Googleポジティブ比率**: 平均={avg_google_pos:.3f}, 最小={min_google_pos:.3f}, 最大={max_google_pos:.3f}")
+
+                if valid_citations_positive:
+                    avg_citations_pos = sum(valid_citations_positive) / len(valid_citations_positive)
+                    min_citations_pos = min(valid_citations_positive)
+                    max_citations_pos = max(valid_citations_positive)
+                    st.write(f"**Citationsポジティブ比率**: 平均={avg_citations_pos:.3f}, 最小={min_citations_pos:.3f}, 最大={max_citations_pos:.3f}")
+
+                if valid_positive_bias_delta:
+                    avg_positive_bias = sum(valid_positive_bias_delta) / len(valid_positive_bias_delta)
+                    min_positive_bias = min(valid_positive_bias_delta)
+                    max_positive_bias = max(valid_positive_bias_delta)
+                    bias_trend = "Google優位" if avg_positive_bias > 0 else "Citations優位" if avg_positive_bias < 0 else "均衡"
+                    st.write(f"**ポジティブバイアス差分**: 平均={avg_positive_bias:.3f}, 最小={min_positive_bias:.3f}, 最大={max_positive_bias:.3f} ({bias_trend})")
+
+elif viz_type == "単日分析":
     dashboard_data = loader.get_integrated_dashboard_data(selected_date)
     analysis_data = dashboard_data["analysis_results"] if dashboard_data else None
 
