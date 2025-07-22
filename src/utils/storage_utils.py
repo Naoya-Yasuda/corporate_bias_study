@@ -73,11 +73,16 @@ def ensure_dir(dir_path):
 
 
 def load_json(file_path=None, s3_key=None):
+    import streamlit as st
     if not file_path and not s3_key:
         raise ValueError("file_pathかs3_keyのいずれかを指定してください")
     if file_path:
         if file_path.startswith('s3://'):
-            s3_key = file_path[len('s3://'):]
+            prefix = f's3://{S3_BUCKET_NAME}/'
+            if file_path.startswith(prefix):
+                s3_key = file_path[len(prefix):]
+            else:
+                s3_key = file_path[len('s3://'):]
             if is_s3_enabled():
                 try:
                     s3_client = get_s3_client()
@@ -487,5 +492,5 @@ def load_json_from_s3_integrated(date_or_path: str, filename: str = "bias_analys
             raise FileNotFoundError(f"S3から{s3_path}を読み込めませんでした")
         return data
     except Exception as e:
-        print(f"S3から{s3_path}の読み込み失敗: {e}")
-        raise FileNotFoundError(f"S3から{s3_path}を読み込めませんでした: {date_or_path}")
+        print(f"S3から{s3_path}の読み込み失敗: {e} ({repr(e)})")
+        raise FileNotFoundError(f"S3から{s3_path}を読み込めませんでした: {date_or_path} | Exception: {e} | {repr(e)}")
