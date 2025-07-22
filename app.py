@@ -429,6 +429,8 @@ if viz_type == "時系列分析":
         # 感情分析データ
         subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
         entities_data = subcat_data.get("entities", {})
+        # Noneやdict以外を除外
+        entities_data = {k: v for k, v in entities_data.items() if isinstance(v, dict)}
 
         # ランキング分析データ
         ranking_subcat_data = ranking_data.get(selected_category, {}).get(selected_subcategory, {})
@@ -1001,11 +1003,12 @@ elif viz_type == "単日分析":
                     execution_counts[entity] = entity_data["basic_metrics"].get("execution_count", 0)
                 # 重篤度
                 if "severity_score" in entity_data:
-                    sev = entity_data["severity_score"]
-                    if isinstance(sev, dict):
-                        score = sev.get("severity_score")
+                    # severity = entity_data.get("severity_score", {}).get("severity_score", 0)
+                    severity = (entity_data.get("severity_score") or {}).get("severity_score", 0)
+                    if isinstance(severity, dict):
+                        score = severity.get("severity_score")
                     else:
-                        score = sev
+                        score = severity
                     if score is not None:
                         severity_dict[entity] = score
                 # p値
@@ -1504,7 +1507,7 @@ elif viz_type == "単日分析":
         cross_data = analysis_data.get("cross_analysis_insights", {})
 
         # 新タブ構成
-        main_tabs = st.tabs(["サブカテゴリ分析", "全体統合分析"])
+        main_tabs = st.tabs(["サブカテゴリ分析", "全体統合分析", "市場分析"])
 
         # 重篤度スコアの説明文を変数にまとめて使い回す
         severity_info_text = """
@@ -1529,6 +1532,8 @@ elif viz_type == "単日分析":
             sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
             subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
             entities = subcat_data.get("entities", {})
+            # Noneやdict以外を除外
+            entities = {k: v for k, v in entities.items() if isinstance(v, dict)}
 
             # サブカテゴリ重篤度ランキング
             st.markdown("#### 重篤度ランキング（サブカテゴリ内）")
@@ -1540,7 +1545,7 @@ elif viz_type == "単日分析":
                     if not isinstance(entity_data, dict):
                         continue  # dict型以外はスキップ
                     # severity = entity_data.get("severity_score", {}).get("severity_score", 0)
-                    severity = entity_data.get("severity_score", {}).get("severity_score", 0)
+                    severity = (entity_data.get("severity_score") or {}).get("severity_score", 0)
                     ranking_rows.append({
                         "エンティティ": entity,
                         "重篤度スコア": f"{severity:.3f}",
@@ -1643,7 +1648,9 @@ elif viz_type == "単日分析":
                     for subcategory, subcat_data in category_data.items():
                         entities = subcat_data.get("entities", {})
                         for entity, entity_data in entities.items():
-                            severity_score = entity_data.get("severity_score", {}).get("severity_score", 0)
+                            if not isinstance(entity_data, dict):
+                                continue
+                            severity_score = (entity_data.get("severity_score") or {}).get("severity_score", 0)
                             severity_data[f"{category}/{subcategory}/{entity}"] = severity_score
                 return dict(sorted(severity_data.items(), key=lambda x: x[1], reverse=True))
             severity_ranking = extract_severity_ranking(analysis_data)
@@ -1756,68 +1763,67 @@ elif viz_type == "単日分析":
             st.metric("パターン", translated_pattern)
             # 必要に応じて解説追加
 
-            # === 市場支配・公平性分析（market_dominance_analysis） ===
-            st.subheader("🏢 市場支配・公平性分析（企業・サービス粒度）")
-            relative_bias = analysis_data.get("relative_bias_analysis", {})
-            mda = None
-            if selected_category in relative_bias and selected_subcategory in relative_bias[selected_category]:
-                mda = relative_bias[selected_category][selected_subcategory].get("market_dominance_analysis", None)
-            if not mda:
-                st.info("市場支配・公平性分析データがありません")
-            else:
-                # --- サマリーカード ---
-                integrated = mda.get("integrated_fairness", {})
-                score = integrated.get("integrated_score", "-")
-                confidence = integrated.get("confidence", "-")
-                interpretation = integrated.get("interpretation", "-")
-                st.markdown(f"**統合市場公平性スコア**: {score}  ")
-                st.markdown(f"**信頼度**: {confidence}")
-                st.markdown(f"**解釈**: {interpretation}")
-                st.markdown("---")
-
-                # --- 企業レベル分析 ---
-                ent = mda.get("enterprise_level", {})
-                if ent:
-                    st.markdown("### 企業レベル分析（企業粒度）")
-                    ent_score = ent.get("fairness_score", "-")
-                    ent_favor = ent.get("tier_analysis", {}).get("favoritism_interpretation", "-")
-                    ent_corr = ent.get("correlation_analysis", {}).get("interpretation", "-")
-                    ent_corr_coef = ent.get("correlation_analysis", {}).get("correlation_coefficient", "-")
-                    st.markdown(f"- 公平性スコア: {ent_score}")
-                    st.markdown(f"- 優遇傾向: {ent_favor}")
-                    st.markdown(f"- 相関: {ent_corr}（{ent_corr_coef}）")
-                    # 棒グラフ: 企業規模ごとのバイアス分布
-                    tier_stats = ent.get("tier_analysis", {}).get("tier_statistics", {})
-                    entities = mda.get("entities", {})
-                    import matplotlib.pyplot as plt
-                    from src.utils.plot_utils import plot_enterprise_bias_bar, plot_marketcap_bias_scatter
-                    if tier_stats and entities:
-                        fig = plot_enterprise_bias_bar(tier_stats, entities)
-                        st.pyplot(fig, use_container_width=True)
-                        plt.close(fig)
-                    else:
-                        st.info("企業規模ごとのバイアス分布データがありません")
-                    # 散布図: 時価総額とバイアス
-                    marketcap_bias = []
-                    for ename, edata in entities.items():
-                        mc = edata.get("market_cap")
-                        bi = edata.get("bias_index")
-                        if mc is not None and bi is not None:
-                            marketcap_bias.append((ename, mc, bi))
-                    if marketcap_bias:
-                        fig = plot_marketcap_bias_scatter(marketcap_bias)
-                        st.pyplot(fig, use_container_width=True)
-                        plt.close(fig)
-                    else:
-                        st.info("時価総額とバイアスの相関データがありません")
-                    st.markdown("---")
-                # --- サービスレベル分析 ---
-                if selected_category == "企業":
-                    st.markdown("### サービスレベル分析（サービス粒度）")
-                    st.info("このカテゴリではサービスレベル分析は実施しません")
+            # --- 市場分析タブ ---
+            with main_tabs[2]:
+                # === 市場支配・公平性分析（market_dominance_analysis） ===
+                st.subheader("🏢 市場支配・公平性分析（企業・サービス粒度）")
+                relative_bias = analysis_data.get("relative_bias_analysis", {})
+                mda = None
+                if selected_category in relative_bias and selected_subcategory in relative_bias[selected_category]:
+                    mda = relative_bias[selected_category][selected_subcategory].get("market_dominance_analysis", None)
+                if not mda:
+                    st.info("市場支配・公平性分析データがありません")
                 else:
+                    # --- サマリーカード ---
+                    integrated = mda.get("integrated_fairness", {})
+                    score = integrated.get("integrated_score", "-")
+                    confidence = integrated.get("confidence", "-")
+                    interpretation = integrated.get("interpretation", "-")
+                    st.markdown(f"**統合市場公平性スコア**: {score}  ")
+                    st.markdown(f"**信頼度**: {confidence}")
+                    st.markdown(f"**解釈**: {interpretation}")
+                    st.markdown("---")
+
+                    # --- 企業レベル分析 ---
+                    ent = mda.get("enterprise_level", {})
                     svc = mda.get("service_level", {})
-                    if svc:
+                    ent_favor = None  # ここで必ず初期化
+                    if selected_category == "企業" and ent:
+                        st.markdown("### 企業レベル分析（企業粒度）")
+                        ent_score = ent.get("fairness_score", "-")
+                        ent_favor = ent.get("tier_analysis", {}).get("favoritism_interpretation", "-")
+                        ent_corr = ent.get("correlation_analysis", {}).get("interpretation", "-")
+                        ent_corr_coef = ent.get("correlation_analysis", {}).get("correlation_coefficient", "-")
+                        st.markdown(f"- 公平性スコア: {ent_score}")
+                        st.markdown(f"- 優遇傾向: {ent_favor}")
+                        st.markdown(f"- 相関: {ent_corr}（{ent_corr_coef}）")
+                        # 棒グラフ: 企業規模ごとのバイアス分布
+                        tier_stats = ent.get("tier_analysis", {}).get("tier_statistics", {})
+                        entities = mda.get("entities", {})
+                        import matplotlib.pyplot as plt
+                        from src.utils.plot_utils import plot_enterprise_bias_bar, plot_marketcap_bias_scatter
+                        if tier_stats and entities:
+                            fig = plot_enterprise_bias_bar(tier_stats, entities)
+                            st.pyplot(fig, use_container_width=True)
+                            plt.close(fig)
+                        else:
+                            st.info("企業規模ごとのバイアス分布データがありません")
+                        # 散布図: 時価総額とバイアス
+                        marketcap_bias = []
+                        for ename, edata in entities.items():
+                            mc = edata.get("market_cap")
+                            bi = edata.get("bias_index")
+                            if mc is not None and bi is not None:
+                                marketcap_bias.append((ename, mc, bi))
+                        if marketcap_bias:
+                            fig = plot_marketcap_bias_scatter(marketcap_bias)
+                            st.pyplot(fig, use_container_width=True)
+                            plt.close(fig)
+                        else:
+                            st.info("時価総額とバイアスの相関データがありません")
+                        st.markdown("---")
+                    # --- サービスレベル分析 ---
+                    if selected_category != "企業" and svc:
                         st.markdown("### サービスレベル分析（サービス粒度）")
                         cat_fairness = svc.get("category_fairness", {})
                         overall_corr = svc.get("overall_correlation", {})
@@ -1849,24 +1855,24 @@ elif viz_type == "単日分析":
                             st.info("サービスごとの市場シェアとバイアスの相関データがありません")
                         st.markdown("---")
 
-                # --- インサイト・推奨事項 ---
-                st.markdown("### インサイト・推奨事項")
-                insights = []
-                if interpretation: insights.append(interpretation)
-                if ent_favor: insights.append(ent_favor)
-                if overall_corr.get('interpretation'): insights.append(overall_corr.get('interpretation'))
-                for rec in mda.get("improvement_recommendations", []):
-                    insights.append(f"改善推奨: {rec}")
-                if insights:
-                    for ins in insights:
-                        st.markdown(f"- {ins}")
-                else:
-                    st.info("インサイト・推奨事項データがありません")
-                st.markdown("---")
+                    # --- インサイト・推奨事項 ---
+                    st.markdown("### インサイト・推奨事項")
+                    insights = []
+                    if interpretation: insights.append(interpretation)
+                    if ent_favor: insights.append(ent_favor)
+                    if overall_corr.get('interpretation'): insights.append(overall_corr.get('interpretation'))
+                    for rec in mda.get("improvement_recommendations", []):
+                        insights.append(f"改善推奨: {rec}")
+                    if insights:
+                        for ins in insights:
+                            st.markdown(f"- {ins}")
+                    else:
+                        st.info("インサイト・推奨事項データがありません")
+                    st.markdown("---")
 
-                # --- 詳細データ（expander） ---
-                with st.expander("詳細データ（market_dominance_analysis JSON）", expanded=False):
-                    st.json(mda, expanded=False)
+                    # --- 詳細データ（expander） ---
+                    with st.expander("詳細データ（market_dominance_analysis JSON）", expanded=False):
+                        st.json(mda, expanded=False)
 
     elif viz_type_detail == "おすすめランキング分析結果":
         # perplexity_rankingsデータを直接参照
