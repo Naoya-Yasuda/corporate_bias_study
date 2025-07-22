@@ -1780,6 +1780,7 @@ elif viz_type == "単日分析":
                     confidence = integrated.get("confidence", "-")
                     interpretation = integrated.get("interpretation", "-")
                     st.markdown(f"**統合市場公平性スコア**: {score}  ")
+                    st.caption("各サービスカテゴリで、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。")
                     st.markdown(f"**信頼度**: {confidence}")
                     st.markdown(f"**解釈**: {interpretation}")
                     st.markdown("---")
@@ -1828,18 +1829,19 @@ elif viz_type == "単日分析":
                         cat_fairness = svc.get("category_fairness", {})
                         overall_corr = svc.get("overall_correlation", {})
                         eq_score = svc.get("equal_opportunity_score", "-")
-                        st.markdown(f"- カテゴリごとの公平性スコア: {cat_fairness}")
-                        st.markdown(f"- 市場シェアとバイアスの相関: {overall_corr.get('interpretation', '-')}")
+                        # 公平性スコア（数値のみ、詳細は上部参照）
+                        st.markdown(f"- 公平性スコア: {cat_fairness}")
+                        st.caption("※公平性スコアの詳細な説明は上部の統合市場公平性スコア欄を参照してください。")
+                        # 市場シェアとバイアスの相関（数値のみ）
+                        st.markdown(f"- 市場シェアとバイアスの相関: {overall_corr.get('correlation_coefficient', '-')}")
+                        # 相関解釈文（傾向文）を必ず表示
+                        if overall_corr.get('interpretation'):
+                            st.info(f"相関解釈: {overall_corr.get('interpretation')}")
+                        # 機会均等スコア（数値＋解説文）
                         st.markdown(f"- 機会均等スコア: {eq_score}")
-                        # 棒グラフ: サービスカテゴリごとの公平性スコア
-                        from src.utils.plot_utils import plot_service_fairness_bar, plot_service_share_bias_scatter
-                        if cat_fairness:
-                            fig = plot_service_fairness_bar(cat_fairness)
-                            st.pyplot(fig, use_container_width=True)
-                            plt.close(fig)
-                        else:
-                            st.info("サービスカテゴリごとの公平性スコアデータがありません")
-                        # 散布図: サービスごとの市場シェアとバイアス
+                        st.caption("市場シェアに関係なく、全サービスが均等にAI検索で露出する理想状態との乖離を示す指標です。0に近いほど機会均等、値が大きいほど一部サービスに偏りがあることを意味します。")
+                        # 棒グラフは削除、散布図のみ残す
+                        from src.utils.plot_utils import plot_service_share_bias_scatter
                         entities = mda.get("entities", {})
                         share_bias = []
                         for sname, sdata in entities.items():
@@ -1852,15 +1854,13 @@ elif viz_type == "単日分析":
                             st.pyplot(fig, use_container_width=True)
                             plt.close(fig)
                         else:
-                            st.info("サービスごとの市場シェアとバイアスの相関データがありません")
+                            st.info("サービスごとの市場シェアとバイアスの相関データがありません。実行回数が少ない場合やデータ欠損時はグラフが表示されません。")
                         st.markdown("---")
 
                     # --- インサイト・推奨事項 ---
                     st.markdown("### インサイト・推奨事項")
                     insights = []
-                    if interpretation: insights.append(interpretation)
-                    if ent_favor: insights.append(ent_favor)
-                    if overall_corr.get('interpretation'): insights.append(overall_corr.get('interpretation'))
+                    # interpretationはここでは表示しない（サマリーカードで表示済み）
                     for rec in mda.get("improvement_recommendations", []):
                         insights.append(f"改善推奨: {rec}")
                     if insights:
