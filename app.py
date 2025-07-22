@@ -422,16 +422,16 @@ if viz_type == "時系列分析":
                 bi = entities_data[entity].get("basic_metrics", {}).get("normalized_bias_index")
             bi_timeseries[entity].append(bi)
 
-            # 感情スコア平均
+            # 感情スコア差分（raw_delta）
             sentiment_avg = None
             if entity in entities_data:
-                sentiment_avg = entities_data[entity].get("basic_metrics", {}).get("sentiment_score_avg")
+                sentiment_avg = entities_data[entity].get("basic_metrics", {}).get("raw_delta")
             sentiment_timeseries[entity].append(sentiment_avg)
 
-            # ランキング平均
+            # ランキング平均（正しいパスで取得）
             ranking_avg = None
             if entity in ranking_entities_data:
-                ranking_avg = ranking_entities_data.get("avg_rank")
+                ranking_avg = ranking_entities_data[entity].get("avg_rank")
             ranking_timeseries[entity].append(ranking_avg)
 
     # データが取得できたかチェック
@@ -450,49 +450,117 @@ if viz_type == "時系列分析":
     with ts_tabs[0]:
         st.info("各エンティティのNormalized Bias Index（バイアス指標）の時系列推移を表示します。値が大きいほどバイアスが強いことを示します。", icon="ℹ️")
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        for entity, values in bi_timeseries.items():
-            ax.plot(date_labels, values, marker="o", label=entity, linewidth=2, markersize=6)
-        ax.set_xlabel("日付")
-        ax.set_ylabel("BI値（normalized_bias_index）")
-        ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax.grid(True, alpha=0.3)
-        plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
+        # データの有効性チェック
+        valid_bi_data = {k: v for k, v in bi_timeseries.items() if any(x is not None for x in v)}
 
-    # 感情スコア時系列推移タブ
+        if not valid_bi_data:
+            st.warning("BI値データが利用できません。normalized_bias_indexが存在しないか、データ形式が正しくありません。")
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            for entity, values in valid_bi_data.items():
+                # None値を除外してプロット
+                valid_values = [(i, v) for i, v in enumerate(values) if v is not None]
+                if valid_values:
+                    x_indices, y_values = zip(*valid_values)
+                    x_dates = [date_labels[i] for i in x_indices]
+                    ax.plot(x_dates, y_values, marker="o", label=entity, linewidth=2, markersize=6)
+
+            ax.set_xlabel("日付")
+            ax.set_ylabel("BI値（normalized_bias_index）")
+            ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+            # 統計情報の表示
+            with st.expander("BI値統計情報", expanded=False):
+                for entity, values in valid_bi_data.items():
+                    valid_values = [v for v in values if v is not None]
+                    if valid_values:
+                        avg_val = sum(valid_values) / len(valid_values)
+                        min_val = min(valid_values)
+                        max_val = max(valid_values)
+                        bias_direction = "正のバイアス" if avg_val > 0 else "負のバイアス" if avg_val < 0 else "バイアスなし"
+                        st.write(f"**{entity}**: 平均BI={avg_val:.3f}, 最小={min_val:.3f}, 最大={max_val:.3f} ({bias_direction})")
+
+        # 感情スコア時系列推移タブ
     with ts_tabs[1]:
-        st.info("各エンティティの感情スコア平均値の時系列推移を表示します。値が高いほど好意的な評価を示します。", icon="ℹ️")
+        st.info("各エンティティの感情スコア差分（raw_delta）の時系列推移を表示します。値が高いほど好意的なバイアスを示します。", icon="ℹ️")
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        for entity, values in sentiment_timeseries.items():
-            ax.plot(date_labels, values, marker="s", label=entity, linewidth=2, markersize=6)
-        ax.set_xlabel("日付")
-        ax.set_ylabel("感情スコア平均")
-        ax.set_title(f"感情スコアの時系列推移（{selected_category} - {selected_subcategory}）")
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax.grid(True, alpha=0.3)
-        plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
+        # データの有効性チェック
+        valid_sentiment_data = {k: v for k, v in sentiment_timeseries.items() if any(x is not None for x in v)}
+
+        if not valid_sentiment_data:
+            st.warning("感情スコアデータが利用できません。raw_deltaが存在しないか、データ形式が正しくありません。")
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            for entity, values in valid_sentiment_data.items():
+                # None値を除外してプロット
+                valid_values = [(i, v) for i, v in enumerate(values) if v is not None]
+                if valid_values:
+                    x_indices, y_values = zip(*valid_values)
+                    x_dates = [date_labels[i] for i in x_indices]
+                    ax.plot(x_dates, y_values, marker="s", label=entity, linewidth=2, markersize=6)
+
+            ax.set_xlabel("日付")
+            ax.set_ylabel("感情スコア差分（raw_delta）")
+            ax.set_title(f"感情スコア差分の時系列推移（{selected_category} - {selected_subcategory}）")
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+            # 統計情報の表示
+            with st.expander("感情スコア統計情報", expanded=False):
+                for entity, values in valid_sentiment_data.items():
+                    valid_values = [v for v in values if v is not None]
+                    if valid_values:
+                        avg_val = sum(valid_values) / len(valid_values)
+                        min_val = min(valid_values)
+                        max_val = max(valid_values)
+                        bias_direction = "好意的バイアス" if avg_val > 0 else "否定的バイアス" if avg_val < 0 else "バイアスなし"
+                        st.write(f"**{entity}**: 平均差分={avg_val:.2f}, 最小={min_val:.2f}, 最大={max_val:.2f} ({bias_direction})")
 
     # ランキング時系列推移タブ
     with ts_tabs[2]:
         st.info("各エンティティの平均ランキングの時系列推移を表示します。値が小さいほど上位ランキングを示します。", icon="ℹ️")
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        for entity, values in ranking_timeseries.items():
-            ax.plot(date_labels, values, marker="^", label=entity, linewidth=2, markersize=6)
-        ax.set_xlabel("日付")
-        ax.set_ylabel("平均ランキング")
-        ax.set_title(f"ランキングの時系列推移（{selected_category} - {selected_subcategory}）")
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax.grid(True, alpha=0.3)
-        plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
+        # データの有効性チェック
+        valid_ranking_data = {k: v for k, v in ranking_timeseries.items() if any(x is not None for x in v)}
+
+        if not valid_ranking_data:
+            st.warning("ランキングデータが利用できません。avg_rankが存在しないか、データ形式が正しくありません。")
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            for entity, values in valid_ranking_data.items():
+                # None値を除外してプロット
+                valid_values = [(i, v) for i, v in enumerate(values) if v is not None]
+                if valid_values:
+                    x_indices, y_values = zip(*valid_values)
+                    x_dates = [date_labels[i] for i in x_indices]
+                    ax.plot(x_dates, y_values, marker="^", label=entity, linewidth=2, markersize=6)
+
+            ax.set_xlabel("日付")
+            ax.set_ylabel("平均ランキング（avg_rank）")
+            ax.set_title(f"ランキングの時系列推移（{selected_category} - {selected_subcategory}）")
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+            # 統計情報の表示
+            with st.expander("ランキング統計情報", expanded=False):
+                for entity, values in valid_ranking_data.items():
+                    valid_values = [v for v in values if v is not None]
+                    if valid_values:
+                        avg_val = sum(valid_values) / len(valid_values)
+                        min_val = min(valid_values)
+                        max_val = max(valid_values)
+                        st.write(f"**{entity}**: 平均ランク={avg_val:.1f}, 最高位={min_val:.0f}, 最低位={max_val:.0f}")
 
 
 # タイトル
