@@ -2659,6 +2659,10 @@ class BiasAnalysisEngine:
                             rank_values.append(rank)
 
                     if len(bias_values) >= 2:
+                        # ランキング値の逆転（数値が大きいほど上位になるように）
+                        max_rank = max(rank_values)
+                        rank_values = [max_rank - rank + 1 for rank in rank_values]
+
                         pearson_corr, p_value = pearsonr(bias_values, rank_values)
                         spearman_corr, _ = spearmanr(bias_values, rank_values)
 

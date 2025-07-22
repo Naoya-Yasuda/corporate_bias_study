@@ -1123,7 +1123,10 @@ if viz_type == "単日分析":
         # --- サブカテゴリ分析タブ ---
         with main_tabs[0]:
             st.markdown(f"### サブカテゴリ分析: {selected_category} / {selected_subcategory}")
-            st.info(severity_info_text)
+
+            # 重篤度スコアの計算式をexpanderで表示
+            with st.expander("重篤度スコアの計算式", expanded=False):
+                st.markdown(severity_info_text)
             # サブカテゴリ単位のデータ抽出
             sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
             subcat_data = sentiment_data.get(selected_category, {}).get(selected_subcategory, {})
@@ -1147,29 +1150,61 @@ if viz_type == "単日分析":
 
             # サブカテゴリ感情-ランキング相関
             st.markdown("#### 感情-ランキング相関（サブカテゴリ内）")
+
+            # 計算方法の説明を追加
+            with st.expander("相関係数の計算方法", expanded=False):
+                st.markdown("""
+                **計算対象**: 感情分析のbias_index vs ランキング分析のavg_rank
+
+                **計算手順**:
+                1. 共通エンティティの抽出（感情分析とランキング分析の両方に存在する企業）
+                2. ランキング値の逆転処理（数値が大きいほど上位になるように）
+                   - 元のランキング: 1位=1, 2位=2, 3位=3...
+                   - 逆転後: 1位=5, 2位=4, 3位=3...（5社の場合）
+                3. Pearson相関係数の計算
+                4. Spearman相関係数の計算
+
+                **解釈**:
+                - 正の相関: 感情分析で好意的な企業がランキングでも上位
+                - 負の相関: 感情分析で好意的な企業がランキングでは下位
+                - 相関なし: 感情分析とランキングが独立した評価
+                """)
+
             cross_insights = analysis_data.get("cross_analysis_insights", {})
             sentiment_corr = cross_insights.get("sentiment_ranking_correlation", {})
             subcat_corr = sentiment_corr.get(selected_category, {}).get(selected_subcategory, {})
             if subcat_corr:
                 corr = subcat_corr.get('correlation', 0)
                 pval = subcat_corr.get('p_value', None)
-                st.metric("相関係数", f"{corr:.3f}")
-                st.markdown(f"p値: {pval}")
-                # 解釈
+                spearman = subcat_corr.get('spearman', None)
+                n_entities = subcat_corr.get('n_entities', None)
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Pearson相関係数", f"{corr:.3f}")
+                with col2:
+                    if spearman is not None:
+                        st.metric("Spearman相関係数", f"{spearman:.3f}")
+                with col3:
+                    if n_entities is not None:
+                        st.metric("分析対象企業数", f"{n_entities}")
+
                 if pval is not None:
+                    st.markdown(f"**p値**: {pval:.3f}")
                     if pval < 0.05:
                         sig_text = "統計的に有意 (p < 0.05)"
                     else:
                         sig_text = "統計的に有意でない (p >= 0.05)"
                 else:
                     sig_text = "p値データなし"
+
                 if corr > 0.3:
                     corr_text = "正の相関：感情分析とランキングで同じ企業が優遇される傾向"
                 elif corr < -0.3:
                     corr_text = "負の相関：感情分析とランキングで異なる評価基準が働く傾向"
                 else:
                     corr_text = "相関なし：感情分析とランキングが独立した評価"
-                st.markdown(f"解釈: {corr_text} / {sig_text}")
+                st.markdown(f"**解釈**: {corr_text} / {sig_text}")
             else:
                 st.info("サブカテゴリ内の相関データがありません")
 
@@ -1193,7 +1228,10 @@ if viz_type == "単日分析":
         # --- 全体統合分析タブ ---
         with main_tabs[1]:
             st.markdown("### 全体統合分析")
-            st.info(severity_info_text)
+
+            # 重篤度スコアの計算式をexpanderで表示
+            with st.expander("重篤度スコアの計算式", expanded=False):
+                st.markdown(severity_info_text)
 
             # 全体重篤度ランキング
             st.markdown("#### 全体重篤度ランキング")
@@ -1232,35 +1270,73 @@ if viz_type == "単日分析":
 
             # 全体感情-ランキング相関
             st.markdown("#### 全体感情-ランキング相関")
+
+            # 計算方法の説明を追加
+            with st.expander("全体相関の計算方法", expanded=False):
+                st.markdown("""
+                **計算対象**: 全サブカテゴリの感情-ランキング相関の平均値
+
+                **計算手順**:
+                1. 各サブカテゴリで感情分析のbias_index vs ランキング分析のavg_rankの相関を計算
+                2. ランキング値の逆転処理を各サブカテゴリで実行
+                3. 全サブカテゴリのPearson相関係数の平均値を算出
+                4. 全サブカテゴリのp値の平均値を算出
+
+                **解釈**:
+                - 正の相関: 全体的に感情分析で好意的な企業がランキングでも上位
+                - 負の相関: 全体的に感情分析で好意的な企業がランキングでは下位
+                - 相関なし: 全体的に感情分析とランキングが独立した評価
+                """)
+
             cross_insights = analysis_data.get("cross_analysis_insights", {})
             sentiment_corr_data = cross_insights.get('sentiment_ranking_correlation', {})
             all_correlations = []
             all_pvals = []
+            all_spearman = []
+            all_n_entities = []
             for category_data in sentiment_corr_data.values():
                 for subcategory_data in category_data.values():
                     if 'correlation' in subcategory_data:
                         all_correlations.append(subcategory_data['correlation'])
                     if 'p_value' in subcategory_data:
                         all_pvals.append(subcategory_data['p_value'])
+                    if 'spearman' in subcategory_data:
+                        all_spearman.append(subcategory_data['spearman'])
+                    if 'n_entities' in subcategory_data:
+                        all_n_entities.append(subcategory_data['n_entities'])
+
             if all_correlations:
                 avg_correlation = sum(all_correlations) / len(all_correlations)
-                st.metric("平均相関係数", f"{avg_correlation:.3f}")
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("平均Pearson相関係数", f"{avg_correlation:.3f}")
+                with col2:
+                    if all_spearman:
+                        avg_spearman = sum(all_spearman) / len(all_spearman)
+                        st.metric("平均Spearman相関係数", f"{avg_spearman:.3f}")
+                with col3:
+                    if all_n_entities:
+                        total_entities = sum(all_n_entities)
+                        st.metric("総分析対象企業数", f"{total_entities}")
+
                 if all_pvals:
                     avg_pval = sum(all_pvals) / len(all_pvals)
-                    st.markdown(f"平均p値: {avg_pval:.3f}")
+                    st.markdown(f"**平均p値**: {avg_pval:.3f}")
                     if avg_pval < 0.05:
                         sig_text = "統計的に有意 (p < 0.05)"
                     else:
                         sig_text = "統計的に有意でない (p >= 0.05)"
                 else:
                     sig_text = "p値データなし"
+
                 if avg_correlation > 0.3:
                     corr_text = "正の相関：感情分析とランキングで同じ企業が優遇される傾向"
                 elif avg_correlation < -0.3:
                     corr_text = "負の相関：感情分析とランキングで異なる評価基準が働く傾向"
                 else:
                     corr_text = "相関なし：感情分析とランキングが独立した評価"
-                st.markdown(f"解釈: {corr_text} / {sig_text}")
+                st.markdown(f"**解釈**: {corr_text} / {sig_text}")
             else:
                 st.metric("平均相関係数", "N/A")
 
