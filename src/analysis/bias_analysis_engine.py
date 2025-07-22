@@ -1693,12 +1693,24 @@ class BiasAnalysisEngine:
                     bias_inequality = self._calculate_bias_inequality(entities)
                     # 2. 企業優遇度分析（market_dominance_analysisに統合済み）
                     market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
+                    market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
 
-                    # 3. 統合市場支配力分析（企業レベル + サービスレベル）
-                    market_dominance_analysis = self._analyze_market_dominance_bias(entities)
+                    # 3. 統合市場支配力分析（企業レベル/サービスレベル分岐）
+                    if category == "企業":
+                        enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps, market_shares)
+                        service_analysis = {}
+                    else:
+                        enterprise_analysis = {}
+                        service_analysis = self._analyze_service_level_bias(entities, market_shares)
+                    integrated_score = self._calculate_integrated_market_fairness(enterprise_analysis, service_analysis)
+                    market_dominance_analysis = {
+                        "enterprise_level": enterprise_analysis,
+                        "service_level": service_analysis,
+                        "integrated_fairness": integrated_score,
+                        "analysis_type": "comprehensive_market_dominance"
+                    }
 
                     # 4. 互換性のための従来分析（段階的移行用）
-                    market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
                     market_share_correlation = self._analyze_market_share_correlation(
                         entities, market_shares, category
                     )
@@ -1708,30 +1720,6 @@ class BiasAnalysisEngine:
                     integrated_relative_evaluation = self._generate_enhanced_integrated_evaluation(
                         bias_inequality, market_share_correlation, market_dominance_analysis
                     )
-                    # --- 多重比較補正の横展開 ---
-                    # 例: 企業優遇度分析のp値補正
-                    p_values = []
-                    entity_names = []
-                    for entity_name, entity_data in entities.items():
-                        p_val = entity_data.get('favoritism_significance', {}).get('p_value')
-                        if p_val is not None:
-                            p_values.append(p_val)
-                            entity_names.append(entity_name)
-                    corrected = None
-                    if len(p_values) >= 2:
-                        try:
-                            from statsmodels.stats.multitest import multipletests
-                            rejected, corrected_p_values, alpha_sidak, alpha_bonf = multipletests(
-                                p_values, alpha=0.05, method='holm'
-                            )
-                            corrected = {
-                                "correction_method": "holm",
-                                "original_p_values": dict(zip(entity_names, p_values)),
-                                "corrected_p_values": dict(zip(entity_names, corrected_p_values)),
-                                "rejected_hypotheses": dict(zip(entity_names, rejected))
-                            }
-                        except ImportError:
-                            corrected = {"error": "statsmodels not available for multiple comparison correction"}
 
                     category_results[subcategory] = {
                         "bias_inequality": bias_inequality,
@@ -1741,9 +1729,6 @@ class BiasAnalysisEngine:
                         "integrated_evaluation": integrated_relative_evaluation,
                         "entities": entities  # 二重entitiesを避けて直接entitiesを設定
                     }
-
-                    if corrected:
-                        category_results[subcategory]["multiple_comparison_correction"] = corrected
 
                 relative_analysis_results[category] = category_results
 

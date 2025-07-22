@@ -1472,3 +1472,112 @@ def plot_stability_score_distribution(ranking_bias_data, current_category, curre
     except Exception as e:
         print(f"Error in plot_stability_score_distribution: {str(e)}")
         return None
+
+def plot_enterprise_bias_bar(tier_stats, entities):
+    """
+    企業規模ごとのバイアス分布を棒グラフで可視化
+    tier_stats: {tier: {"entities": [...], "mean_bias": ...}, ...}
+    entities: {企業名: {"bias_index": ...}}
+    """
+    import matplotlib.pyplot as plt
+    bars = []
+    labels = []
+    colors = []
+    color_map = {"mega_enterprise": "#d62728", "large_enterprise": "#ff7f0e", "mid_enterprise": "#1f77b4", "small_enterprise": "#2ca02c"}
+    for tier, stat in tier_stats.items():
+        for ename in stat.get("entities", []):
+            bi = entities.get(ename, {}).get("bias_index")
+            if bi is not None:
+                bars.append(bi)
+                labels.append(f"{ename}\n({tier})")
+                colors.append(color_map.get(tier, "#888888"))
+    if not bars:
+        return None
+    fig, ax = plt.subplots(figsize=(max(6, len(labels)*0.6), 4))
+    ax.bar(labels, bars, color=colors)
+    ax.axhline(0, color='k', linestyle='--', alpha=0.5)
+    ax.set_ylabel("バイアス指標 (BI)")
+    ax.set_title("企業規模ごとのバイアス分布")
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    return fig
+
+def plot_marketcap_bias_scatter(marketcap_bias):
+    """
+    企業の時価総額とバイアスの相関を散布図で可視化
+    marketcap_bias: [(企業名, market_cap, bias_index), ...]
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    if not marketcap_bias:
+        return None
+    names, mcs, bis = zip(*marketcap_bias)
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.scatter(mcs, bis, s=80, c="#1f77b4", alpha=0.7)
+    for i, name in enumerate(names):
+        ax.annotate(name, (mcs[i], bis[i]), fontsize=9, ha="right", va="bottom")
+    if len(mcs) > 1:
+        coef = np.polyfit(mcs, bis, 1)
+        poly1d_fn = np.poly1d(coef)
+        ax.plot(mcs, poly1d_fn(mcs), color="red", linestyle="--", label="回帰直線")
+    ax.set_xlabel("時価総額")
+    ax.set_ylabel("バイアス指標 (BI)")
+    ax.set_title("時価総額とバイアスの相関")
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    return fig
+
+def plot_service_fairness_bar(cat_fairness):
+    """
+    サービスカテゴリごとの公平性スコアを棒グラフで可視化
+    cat_fairness: {カテゴリ名: {"fairness_score": ...}} または {"fairness_score": ...}（単一カテゴリ）
+    """
+    import matplotlib.pyplot as plt
+    if not cat_fairness:
+        return None
+    if isinstance(cat_fairness, dict) and "fairness_score" in cat_fairness:
+        # 単一カテゴリ
+        labels = ["カテゴリ"]
+        scores = [cat_fairness["fairness_score"]]
+    else:
+        labels = []
+        scores = []
+        for cname, cdata in cat_fairness.items():
+            score = cdata.get("fairness_score")
+            if score is not None:
+                labels.append(cname)
+                scores.append(score)
+    if not scores:
+        return None
+    fig, ax = plt.subplots(figsize=(max(6, len(labels)*0.6), 4))
+    ax.bar(labels, scores, color="#ff7f0e")
+    ax.set_ylabel("公平性スコア")
+    ax.set_title("サービスカテゴリごとの公平性スコア")
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    return fig
+
+def plot_service_share_bias_scatter(share_bias):
+    """
+    サービスごとの市場シェアとバイアスの相関を散布図で可視化
+    share_bias: [(サービス名, market_share, bias_index), ...]
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    if not share_bias:
+        return None
+    names, shares, bis = zip(*share_bias)
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.scatter(shares, bis, s=80, c="#2ca02c", alpha=0.7)
+    for i, name in enumerate(names):
+        ax.annotate(name, (shares[i], bis[i]), fontsize=9, ha="right", va="bottom")
+    if len(shares) > 1:
+        coef = np.polyfit(shares, bis, 1)
+        poly1d_fn = np.poly1d(coef)
+        ax.plot(shares, poly1d_fn(shares), color="red", linestyle="--", label="回帰直線")
+    ax.set_xlabel("市場シェア")
+    ax.set_ylabel("バイアス指標 (BI)")
+    ax.set_title("市場シェアとバイアスの相関（サービス単位）")
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    return fig

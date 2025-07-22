@@ -71,6 +71,109 @@ globs: ["**/app.py", "**/plot_utils.py"]
   - `moderate_service_bias`: サービスレベルの適度なバイアス
   - `balanced_analysis`: バランスの取れた分析結果
 
+## 2.3 市場支配・公平性分析セクション（market_dominance_analysisの可視化・詳細設計）
+
+### 2.3.1 目的
+- 選択中カテゴリ・サブカテゴリにおける市場支配・公平性の状況を、企業粒度・サービス粒度の両面から直感的に把握できるようにする。
+- バイアスと市場データ（シェア・時価総額等）の関係や、優遇傾向・改善推奨を明示する。
+
+### 2.3.2 データ取得フロー
+1. サイドバーでカテゴリ・サブカテゴリを選択（例：「デジタルサービス」＞「クラウドサービス」）
+2. bias_analysis_results.json の
+   `relative_bias_analysis.[カテゴリ].[サブカテゴリ].market_dominance_analysis`
+   を取得
+3. 企業レベル（enterprise_level）、サービスレベル（service_level）、統合スコア（integrated_fairness）を分離して利用
+
+### 2.3.3 UI構成
+
+#### 2.3.3.1 サマリーカード（上部）
+- 統合市場公平性スコア（0〜1、小数第3位まで）
+- 信頼度（high/medium/low）
+- 解釈文（例：「軽微な市場バイアス存在」など）
+
+#### 2.3.3.2 企業レベル分析（企業粒度）
+- 主要指標
+  - 公平性スコア（enterprise_level.fairness_score）
+  - 優遇傾向（enterprise_level.tier_analysis.favoritism_interpretation）
+  - 相関解釈（enterprise_level.correlation_analysis.interpretation, correlation_coefficient）
+- グラフ
+  1. 企業規模ごとのバイアス分布グラフ（棒グラフ）
+     - x軸：企業名（または規模カテゴリ＋企業名）
+     - y軸：バイアススコア（bias_index）
+     - 色分け：企業規模（Mega, Large, Mid, Small）
+     - データ：enterprise_level.tier_analysis.tier_statistics, entities.[企業名].bias_index
+  2. 時価総額とバイアスの相関グラフ（散布図）
+     - x軸：時価総額（market_cap）
+     - y軸：バイアススコア（bias_index）
+     - 点：各企業
+     - 回帰直線（オプション）
+     - データ：entities.[企業名].market_cap, bias_index
+
+#### 2.3.3.3 サービスレベル分析（サービス粒度）
+- 主要指標
+  - カテゴリごとの公平性スコア（service_level.category_fairness.[カテゴリ名].fairness_score）
+  - 市場シェアとバイアスの相関（service_level.overall_correlation.interpretation, correlation_coefficient）
+  - 機会均等スコア（service_level.equal_opportunity_score）
+- グラフ
+  1. サービスカテゴリごとの公平性スコアグラフ（棒グラフ）
+     - x軸：サービスカテゴリ名
+     - y軸：公平性スコア
+     - 補助線：市場集中度（market_concentration）を2軸目で表示も可
+     - データ：service_level.category_fairness
+  2. サービスごとの市場シェアとバイアスの相関グラフ（散布図）
+     - x軸：市場シェア
+     - y軸：バイアススコア
+     - 点：各サービス
+     - データ：entities.[サービス名].market_share, bias_index
+
+#### 2.3.3.4 インサイト・推奨事項
+- 解釈文（integrated_fairness.interpretation, enterprise_level.tier_analysis.favoritism_interpretation, service_level.overall_correlation.interpretation など）
+- 改善推奨（improvement_recommendations）
+
+#### 2.3.3.5 詳細データ（expander）
+- market_dominance_analysis の全JSONを展開表示
+
+### 2.3.4 UI配置イメージ
+```
+─────────────────────────────
+[統合市場公平性スコア] 0.500（信頼度: high）
+軽微な市場バイアス存在
+─────────────────────────────
+[企業レベル分析]
+  ・公平性スコア: 1.0
+  ・優遇傾向: 大企業に対する明確な優遇傾向
+  ・相関: 中程度負の相関（-0.604）
+  ・[棒グラフ] 企業規模ごとのバイアス分布
+  ・[散布図] 時価総額とバイアスの相関
+─────────────────────────────
+[サービスレベル分析]
+  ・公平性スコア: 0.583
+  ・相関: 市場シェアが大きいサービスほど優遇される傾向（0.865）
+  ・機会均等スコア: 0
+  ・[棒グラフ] サービスカテゴリごとの公平性スコア
+  ・[散布図] サービスごとの市場シェアとバイアスの相関
+─────────────────────────────
+[インサイト・推奨事項]
+  市場シェアと露出度の整合性向上
+─────────────────────────────
+[詳細データ]（expanderでJSON展開）
+─────────────────────────────
+```
+
+### 2.3.5 実装上の注意
+- サイドバーでカテゴリ・サブカテゴリが選択されている前提で、該当データのみを表示
+- 企業粒度・サービス粒度の区別をUI上で明示
+- グラフはデータ件数が少ない場合は表と併用
+- 欠損値やデータ不足時は「-」や「データなし」と明示
+- 詳細データはexpanderで折りたたみ
+
+### 2.3.6 使用する主なデータパス
+- `relative_bias_analysis.[カテゴリ].[サブカテゴリ].market_dominance_analysis.enterprise_level`
+- `relative_bias_analysis.[カテゴリ].[サブカテゴリ].market_dominance_analysis.service_level`
+- `relative_bias_analysis.[カテゴリ].[サブカテゴリ].market_dominance_analysis.integrated_fairness`
+- `relative_bias_analysis.[カテゴリ].[サブカテゴリ].market_dominance_analysis.improvement_recommendations`
+- `relative_bias_analysis.[カテゴリ].[サブカテゴリ].market_dominance_analysis.entities`
+
 ## 3. タブ別詳細仕様
 
 ### 3.1 重篤度ランキングタブ ❌ 未実装
