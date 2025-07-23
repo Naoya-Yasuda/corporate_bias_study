@@ -9,7 +9,6 @@ import os
 import datetime
 import time
 import argparse
-from dotenv import load_dotenv
 from ..categories import get_categories, get_all_categories, load_yaml_categories
 from ..prompts.prompt_manager import PromptManager
 from ..utils.text_utils import extract_ranking_and_reasons
@@ -18,9 +17,6 @@ from ..utils.storage_utils import save_results, get_results_paths
 from ..utils.storage_config import get_s3_key
 import logging
 import sys
-
-# .envファイルから環境変数を読み込む
-load_dotenv()
 
 # 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")

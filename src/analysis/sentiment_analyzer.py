@@ -18,7 +18,6 @@ import argparse
 import sys
 import logging
 import re
-from dotenv import load_dotenv
 from tqdm import tqdm
 
 from src.prompts.prompt_manager import PromptManager
@@ -28,9 +27,6 @@ from src.utils.perplexity_api import PerplexityAPI
 
 # パスの設定
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-
-# 環境変数の読み込み
-load_dotenv()
 
 # 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")

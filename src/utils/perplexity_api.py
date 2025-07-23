@@ -11,10 +11,6 @@ import json
 import time
 import requests
 from typing import Dict, List, Optional, Union
-from dotenv import load_dotenv
-
-# 環境変数の読み込み
-load_dotenv()
 
 # Perplexity API の設定
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
@@ -127,7 +123,5 @@ class PerplexityAPI:
         """
         利用可能なPerplexityモデルのリストを返す（.envで管理、なければデフォルト）
         """
-        # 環境変数を再読み込みして確実に最新値を取得
-        load_dotenv(override=True)
         models_str = os.environ.get("PERPLEXITY_MODELS_TO_TRY", "sonar")
         return models_str.split(",")

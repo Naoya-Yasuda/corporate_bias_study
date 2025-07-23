@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     fonts-ipafont-mincho \
     fonts-noto-cjk \
     fonts-noto-cjk-extra \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Pythonパッケージの依存関係をコピー

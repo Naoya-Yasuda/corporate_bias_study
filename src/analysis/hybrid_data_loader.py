@@ -23,11 +23,7 @@ from pathlib import Path
 from src.utils.storage_utils import load_json
 from src.utils.storage_utils import save_results, list_s3_files
 from src.utils.storage_config import get_base_paths, S3_BUCKET_NAME
-from dotenv import load_dotenv
 from src.utils.storage_utils import load_json_from_s3_integrated
-
-# 環境変数を読み込み
-load_dotenv()
 
 # ログ設定
 logger = logging.getLogger(__name__)

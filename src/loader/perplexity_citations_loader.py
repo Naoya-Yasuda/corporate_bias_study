@@ -13,7 +13,6 @@ import time
 import argparse
 import requests
 import re
-from dotenv import load_dotenv
 
 # 共通ユーティリティをインポート
 from ..utils import (
@@ -26,9 +25,6 @@ from ..utils.storage_config import get_s3_key
 from ..categories import get_categories, get_all_categories
 from ..utils.perplexity_api import PerplexityAPI
 from ..prompts.prompt_manager import PromptManager
-
-# .envファイルから環境変数を読み込む
-load_dotenv()
 
 # 環境変数から認証情報を取得
 PPLX_API_KEY = os.environ.get("PERPLEXITY_API_KEY")

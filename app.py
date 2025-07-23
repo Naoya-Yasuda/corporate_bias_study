@@ -19,6 +19,8 @@ import japanize_matplotlib
 from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap, plot_stability_score_distribution
 import os
 from src.utils.storage_config import get_base_paths
+from src.components.auth import google_oauth_login, get_allowed_domains
+import plotly.graph_objs as go
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
@@ -2318,3 +2320,57 @@ elif viz_type == "単日分析":
 
 # --- CSS調整 ---
 # （main-dashboard-areaやblock-container等のカスタムCSS・JSは削除）
+
+# デバッグモード設定（環境変数から取得）
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
+# 許可ドメインを環境変数から取得
+allowed_domains = get_allowed_domains()
+
+# Google OAuth + ドメイン制限認証
+auth_ok, user_email = google_oauth_login(
+    allowed_domains=allowed_domains,
+    debug_mode=DEBUG_MODE
+)
+
+if not auth_ok:
+    st.stop()
+
+# --- ログアウト機能 ---
+if 'logout' not in st.session_state:
+    st.session_state['logout'] = False
+
+def logout():
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.experimental_rerun()
+
+# --- サイドバー ---
+st.sidebar.title("メニュー")
+menu = st.sidebar.radio("ページ選択", ("ダッシュボード", "設定"))
+st.sidebar.button("ログアウト", on_click=logout)
+
+# --- メインエリア ---
+st.title("サイバー大学ダッシュボード（サンプル）")
+st.write(f"ようこそ、{user_email} さん！")
+
+# デバッグ情報の表示
+if DEBUG_MODE:
+    st.sidebar.info(f"デバッグモード: 有効")
+    st.sidebar.info(f"許可ドメイン: {', '.join(allowed_domains)}")
+
+if menu == "ダッシュボード":
+    st.subheader("ダミー統計グラフ")
+    # ダミーデータのグラフ
+    data = go.Bar(x=["A", "B", "C"], y=[10, 20, 15])
+    fig = go.Figure(data=[data])
+    st.plotly_chart(fig)
+    st.info("ここに各種分析結果やお知らせ等を追加できます。")
+
+elif menu == "設定":
+    st.subheader("ユーザー設定（サンプル）")
+    st.write("設定項目はここに追加できます。")
+
+    # ユーザー情報の表示
+    st.write(f"**ログインユーザー:** {user_email}")
+    st.write(f"**許可ドメイン:** {', '.join(allowed_domains)}")

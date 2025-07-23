@@ -36,9 +36,6 @@ import yaml
 from scipy.stats import ttest_ind, pearsonr, spearmanr
 import argparse
 
-# 環境変数を読み込み
-load_dotenv()
-
 # ログ設定
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -4,7 +4,6 @@
 import time
 import datetime
 import os
-from dotenv import load_dotenv
 from ..categories import get_categories
 from ..prompts.prompt_manager import PromptManager
 from ..prompts.sentiment_prompts import extract_score
@@ -14,9 +13,6 @@ import logging
 from ..utils.storage_utils import save_results, get_results_paths
 from ..utils.storage_config import get_s3_key
 from ..utils.perplexity_api import PerplexityAPI
-
-# .envファイルから環境変数を読み込む
-load_dotenv()
 
 # 環境変数から認証情報を取得
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")

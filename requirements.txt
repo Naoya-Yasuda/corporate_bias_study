@@ -34,3 +34,4 @@ s3fs==2025.7.0
 plotly>=5.0.0
 
 setuptools>=65.0.0
+git+https://github.com/ai-yash/st-oauth.git

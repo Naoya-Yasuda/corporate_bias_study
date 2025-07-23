@@ -11,7 +11,6 @@ import datetime
 import requests
 import time
 import argparse
-from dotenv import load_dotenv
 from tqdm import tqdm
 from ..utils import (
     extract_domain,
@@ -20,9 +19,6 @@ from ..utils import (
 from ..utils.storage_utils import get_results_paths, save_results
 from ..utils.storage_config import get_s3_key
 from ..categories import get_categories, get_all_categories
-
-# 環境変数の読み込み
-load_dotenv()
 
 # Google Custom Search API の設定
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
