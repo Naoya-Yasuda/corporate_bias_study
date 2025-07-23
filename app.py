@@ -85,7 +85,6 @@ def get_dashboard_data_async(_loader, selected_date):
             st.error(f"❌ データ取得エラー: {selected_date} (読み込み時間: {load_time:.2f}秒)")
             st.error(f"エラー詳細: {str(e)}")
             return None
-
 # 環境変数の読み込み
 # load_dotenv() # 削除
 
