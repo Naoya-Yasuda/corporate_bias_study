@@ -1781,7 +1781,9 @@ elif viz_type == "単日分析":
                     interpretation = integrated.get("interpretation", "-")
                     # 粒度ごとに表示内容を切り替え
                     if selected_category == "企業":
-                        st.markdown(f"**企業レベル公平性スコア**: {score}  ")
+                        st.markdown("#### 企業レベル公平性スコア")
+                        st.metric(label="企業レベル公平性スコア", value=score)
+                        # st.markdown(f"<span style='font-size:2em; font-weight:bold; color:#2ca02c'>{score}</span>", unsafe_allow_html=True)
                         st.caption("企業粒度で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** 企業ごとのバイアス指標・市場シェア・階層間格差・バイアス分散などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
                         st.markdown(f"**信頼度**: {confidence}")
                         st.markdown(f"**解釈**: {interpretation}")
@@ -1793,7 +1795,9 @@ elif viz_type == "単日分析":
                             st.markdown(f"- **計算方法:** 各企業の時価総額とバイアス指標のペアでPearson相関係数を算出\n- **意味:** 市場シェアが大きい企業ほどAIで優遇される傾向があるかを示す。公平性スコアとは直接の計算関係はなく、補助的な分析指標です。\n- **相関係数:** {corr.get('correlation_coefficient', '-')}")
                             st.info(corr.get("interpretation", ""))
                     else:
-                        st.markdown(f"**サービスレベル公平性スコア**: {score}  ")
+                        st.markdown("#### サービスレベル公平性スコア")
+                        st.metric(label="サービスレベル公平性スコア", value=score)
+                        # st.markdown(f"<span style='font-size:2em; font-weight:bold; color:#1f77b4'>{score}</span>", unsafe_allow_html=True)
                         st.caption("サービス粒度で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** 各サービスのバイアス指標・市場シェア・Fair Share Ratio・バイアス分散・市場集中度などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
                         st.markdown(f"**信頼度**: {confidence}")
                         st.markdown(f"**解釈**: {interpretation}")
