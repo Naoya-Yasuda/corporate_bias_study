@@ -1766,7 +1766,7 @@ elif viz_type == "単日分析":
             # --- 市場分析タブ ---
             with main_tabs[2]:
                 # === 市場支配・公平性分析（market_dominance_analysis） ===
-                st.subheader("🏢 市場支配・公平性分析（企業・サービス粒度）")
+                st.subheader("🏢 市場支配・公平性分析")
                 relative_bias = analysis_data.get("relative_bias_analysis", {})
                 mda = None
                 if selected_category in relative_bias and selected_subcategory in relative_bias[selected_category]:
@@ -1779,100 +1779,123 @@ elif viz_type == "単日分析":
                     score = integrated.get("integrated_score", "-")
                     confidence = integrated.get("confidence", "-")
                     interpretation = integrated.get("interpretation", "-")
-                    st.markdown(f"**統合市場公平性スコア**: {score}  ")
-                    st.caption("各サービスカテゴリで、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。")
+                    # 粒度ごとに表示内容を切り替え
+                    if selected_category == "企業":
+                        st.markdown(f"**企業レベル公平性スコア**: {score}  ")
+                        st.caption("企業粒度で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** 企業ごとのバイアス指標・市場シェア・階層間格差・バイアス分散などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
+                        # 補助指標（例：時価総額とバイアスの相関）
+                        ent = mda.get("enterprise_level", {})
+                        corr = ent.get("correlation_analysis", {})
+                        if corr and corr.get("available"):
+                            st.markdown("#### 市場シェアとバイアスの相関（補助指標）")
+                            st.markdown(f"- **計算方法:** 各企業の時価総額とバイアス指標のペアでPearson相関係数を算出\n- **意味:** 市場シェアが大きい企業ほどAIで優遇される傾向があるかを示す。公平性スコアとは直接の計算関係はなく、補助的な分析指標です。\n- **相関係数:** {corr.get('correlation_coefficient', '-')}")
+                            st.info(corr.get("interpretation", ""))
+                    else:
+                        st.markdown(f"**サービスレベル公平性スコア**: {score}  ")
+                        st.caption("サービス粒度で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** 各サービスのバイアス指標・市場シェア・Fair Share Ratio・バイアス分散・市場集中度などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
+                        # 補助指標（相関・機会均等スコア）
+                        svc = mda.get("service_level", {})
+                        overall_corr = svc.get("overall_correlation", {})
+                        eq_score = svc.get("equal_opportunity_score", "-")
+                        if overall_corr and overall_corr.get("correlation_coefficient") is not None:
+                            st.markdown("#### 市場シェアとバイアスの相関（補助指標）")
+                            st.markdown(f"- **計算方法:** 各サービスの市場シェアとバイアス指標のペアでPearson相関係数を算出\n- **意味:** 市場シェアが大きいサービスほどAIで優遇される傾向があるかを示す。公平性スコアとは直接の計算関係はなく、補助的な分析指標です。\n- **相関係数:** {overall_corr.get('correlation_coefficient', '-')}")
+                            st.info(overall_corr.get("interpretation", ""))
+                        if eq_score != "-":
+                            st.markdown("#### 機会均等スコア（補助指標）")
+                            st.markdown("- **計算方法:** 各サービスのFair Share Ratio（期待露出度÷市場シェア）が1.0に近いほど高スコア。全サービスの平均値を表示\n- **意味:** 全サービスが均等にAI検索で露出する理想状態との乖離を示す。公平性スコアとは直接の計算関係はなく、補助的な指標です。\n- **機会均等スコア:** " + str(eq_score))
                     st.markdown(f"**信頼度**: {confidence}")
                     st.markdown(f"**解釈**: {interpretation}")
                     st.markdown("---")
 
                     # --- 企業レベル分析 ---
-                    ent = mda.get("enterprise_level", {})
-                    svc = mda.get("service_level", {})
-                    ent_favor = None  # ここで必ず初期化
-                    if selected_category == "企業" and ent:
-                        st.markdown("### 企業レベル分析（企業粒度）")
-                        ent_score = ent.get("fairness_score", "-")
-                        ent_favor = ent.get("tier_analysis", {}).get("favoritism_interpretation", "-")
-                        ent_corr = ent.get("correlation_analysis", {}).get("interpretation", "-")
-                        ent_corr_coef = ent.get("correlation_analysis", {}).get("correlation_coefficient", "-")
-                        st.markdown(f"- 公平性スコア: {ent_score}")
-                        st.markdown(f"- 優遇傾向: {ent_favor}")
-                        st.markdown(f"- 相関: {ent_corr}（{ent_corr_coef}）")
-                        # 棒グラフ: 企業規模ごとのバイアス分布
-                        tier_stats = ent.get("tier_analysis", {}).get("tier_statistics", {})
-                        entities = mda.get("entities", {})
-                        import matplotlib.pyplot as plt
-                        from src.utils.plot_utils import plot_enterprise_bias_bar, plot_marketcap_bias_scatter
-                        if tier_stats and entities:
-                            fig = plot_enterprise_bias_bar(tier_stats, entities)
-                            st.pyplot(fig, use_container_width=True)
-                            plt.close(fig)
-                        else:
-                            st.info("企業規模ごとのバイアス分布データがありません")
-                        # 散布図: 時価総額とバイアス
-                        marketcap_bias = []
-                        for ename, edata in entities.items():
-                            mc = edata.get("market_cap")
-                            bi = edata.get("bias_index")
-                            if mc is not None and bi is not None:
-                                marketcap_bias.append((ename, mc, bi))
-                        if marketcap_bias:
-                            fig = plot_marketcap_bias_scatter(marketcap_bias)
-                            st.pyplot(fig, use_container_width=True)
-                            plt.close(fig)
-                        else:
-                            st.info("時価総額とバイアスの相関データがありません")
-                        st.markdown("---")
+                    # ent = mda.get("enterprise_level", {})
+                    # svc = mda.get("service_level", {})
+                    # ent_favor = None  # ここで必ず初期化
+                    # if selected_category == "企業" and ent:
+                    #     st.markdown("### 企業レベル分析（企業粒度）")
+                    #     ent_score = ent.get("fairness_score", "-")
+                    #     ent_favor = ent.get("tier_analysis", {}).get("favoritism_interpretation", "-")
+                    #     ent_corr = ent.get("correlation_analysis", {}).get("interpretation", "-")
+                    #     ent_corr_coef = ent.get("correlation_analysis", {}).get("correlation_coefficient", "-")
+                    #     st.markdown(f"- 公平性スコア: {ent_score}")
+                    #     st.markdown(f"- 優遇傾向: {ent_favor}")
+                    #     st.markdown(f"- 相関: {ent_corr}（{ent_corr_coef}）")
+                    #     # 棒グラフ: 企業規模ごとのバイアス分布
+                    #     tier_stats = ent.get("tier_analysis", {}).get("tier_statistics", {})
+                    #     entities = mda.get("entities", {})
+                    #     import matplotlib.pyplot as plt
+                    #     from src.utils.plot_utils import plot_enterprise_bias_bar, plot_marketcap_bias_scatter
+                    #     if tier_stats and entities:
+                    #         fig = plot_enterprise_bias_bar(tier_stats, entities)
+                    #         st.pyplot(fig, use_container_width=True)
+                    #         plt.close(fig)
+                    #     else:
+                    #         st.info("企業規模ごとのバイアス分布データがありません")
+                    #     # 散布図: 時価総額とバイアス
+                    #     marketcap_bias = []
+                    #     for ename, edata in entities.items():
+                    #         mc = edata.get("market_cap")
+                    #         bi = edata.get("bias_index")
+                    #         if mc is not None and bi is not None:
+                    #             marketcap_bias.append((ename, mc, bi))
+                    #     if marketcap_bias:
+                    #         fig = plot_marketcap_bias_scatter(marketcap_bias)
+                    #         st.pyplot(fig, use_container_width=True)
+                    #         plt.close(fig)
+                    #     else:
+                    #         st.info("時価総額とバイアスの相関データがありません")
+                    #     st.markdown("---")
                     # --- サービスレベル分析 ---
-                    if selected_category != "企業" and svc:
-                        st.markdown("### サービスレベル分析（サービス粒度）")
-                        cat_fairness = svc.get("category_fairness", {})
-                        overall_corr = svc.get("overall_correlation", {})
-                        eq_score = svc.get("equal_opportunity_score", "-")
-                        # 公平性スコア（数値のみ、詳細は上部参照）
-                        st.markdown(f"- 公平性スコア: {cat_fairness}")
-                        st.caption("※公平性スコアの詳細な説明は上部の統合市場公平性スコア欄を参照してください。")
-                        # 市場シェアとバイアスの相関（数値のみ）
-                        st.markdown(f"- 市場シェアとバイアスの相関: {overall_corr.get('correlation_coefficient', '-')}")
-                        # 相関解釈文（傾向文）を必ず表示
-                        if overall_corr.get('interpretation'):
-                            st.info(f"相関解釈: {overall_corr.get('interpretation')}")
-                        # 機会均等スコア（数値＋解説文）
-                        st.markdown(f"- 機会均等スコア: {eq_score}")
-                        st.caption("市場シェアに関係なく、全サービスが均等にAI検索で露出する理想状態との乖離を示す指標です。0に近いほど機会均等、値が大きいほど一部サービスに偏りがあることを意味します。")
-                        # 棒グラフは削除、散布図のみ残す
-                        from src.utils.plot_utils import plot_service_share_bias_scatter
-                        entities = mda.get("entities", {})
-                        share_bias = []
-                        for sname, sdata in entities.items():
-                            share = sdata.get("market_share")
-                            bi = sdata.get("bias_index")
-                            if share is not None and bi is not None:
-                                share_bias.append((sname, share, bi))
-                        if share_bias:
-                            fig = plot_service_share_bias_scatter(share_bias)
-                            st.pyplot(fig, use_container_width=True)
-                            plt.close(fig)
-                        else:
-                            st.info("サービスごとの市場シェアとバイアスの相関データがありません。実行回数が少ない場合やデータ欠損時はグラフが表示されません。")
-                        st.markdown("---")
+                    # if selected_category != "企業" and svc:
+                    #     st.markdown("### サービスレベル分析（サービス粒度）")
+                    #     cat_fairness = svc.get("category_fairness", {})
+                    #     overall_corr = svc.get("overall_correlation", {})
+                    #     eq_score = svc.get("equal_opportunity_score", "-")
+                    #     # 公平性スコア（数値のみ、詳細は上部参照）
+                    #     st.markdown(f"- 公平性スコア: {cat_fairness}")
+                    #     st.caption("※公平性スコアの詳細な説明は上部の統合市場公平性スコア欄を参照してください。")
+                    #     # 市場シェアとバイアスの相関（数値のみ）
+                    #     st.markdown(f"- 市場シェアとバイアスの相関: {overall_corr.get('correlation_coefficient', '-')}")
+                    #     # 相関解釈文（傾向文）を必ず表示
+                    #     if overall_corr.get('interpretation'):
+                    #         st.info(f"相関解釈: {overall_corr.get('interpretation')}")
+                    #     # 機会均等スコア（数値＋解説文）
+                    #     st.markdown(f"- 機会均等スコア: {eq_score}")
+                    #     st.caption("市場シェアに関係なく、全サービスが均等にAI検索で露出する理想状態との乖離を示す指標です。0に近いほど機会均等、値が大きいほど一部サービスに偏りがあることを意味します。")
+                    #     # 棒グラフは削除、散布図のみ残す
+                    #     from src.utils.plot_utils import plot_service_share_bias_scatter
+                    #     entities = mda.get("entities", {})
+                    #     share_bias = []
+                    #     for sname, sdata in entities.items():
+                    #         share = sdata.get("market_share")
+                    #         bi = sdata.get("bias_index")
+                    #         if share is not None and bi is not None:
+                    #             share_bias.append((sname, share, bi))
+                    #     if share_bias:
+                    #         fig = plot_service_share_bias_scatter(share_bias)
+                    #         st.pyplot(fig, use_container_width=True)
+                    #         plt.close(fig)
+                    #     else:
+                    #         st.info("サービスごとの市場シェアとバイアスの相関データがありません。実行回数が少ない場合やデータ欠損時はグラフが表示されません。")
+                    #     st.markdown("---")
 
-                    # --- インサイト・推奨事項 ---
-                    st.markdown("### インサイト・推奨事項")
-                    insights = []
-                    # interpretationはここでは表示しない（サマリーカードで表示済み）
-                    for rec in mda.get("improvement_recommendations", []):
-                        insights.append(f"改善推奨: {rec}")
-                    if insights:
-                        for ins in insights:
-                            st.markdown(f"- {ins}")
-                    else:
-                        st.info("インサイト・推奨事項データがありません")
-                    st.markdown("---")
+                    # # --- インサイト・推奨事項 ---
+                    # st.markdown("### インサイト・推奨事項")
+                    # insights = []
+                    # # interpretationはここでは表示しない（サマリーカードで表示済み）
+                    # for rec in mda.get("improvement_recommendations", []):
+                    #     insights.append(f"改善推奨: {rec}")
+                    # if insights:
+                    #     for ins in insights:
+                    #         st.markdown(f"- {ins}")
+                    # else:
+                    #     st.info("インサイト・推奨事項データがありません")
+                    # st.markdown("---")
 
-                    # --- 詳細データ（expander） ---
-                    with st.expander("詳細データ（market_dominance_analysis JSON）", expanded=False):
-                        st.json(mda, expanded=False)
+                    # # --- 詳細データ（expander） ---
+                    # with st.expander("詳細データ（market_dominance_analysis JSON）", expanded=False):
+                    #     st.json(mda, expanded=False)
 
     elif viz_type_detail == "おすすめランキング分析結果":
         # perplexity_rankingsデータを直接参照
