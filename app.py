@@ -1783,6 +1783,8 @@ elif viz_type == "単日分析":
                     if selected_category == "企業":
                         st.markdown(f"**企業レベル公平性スコア**: {score}  ")
                         st.caption("企業粒度で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** 企業ごとのバイアス指標・市場シェア・階層間格差・バイアス分散などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
+                        st.markdown(f"**信頼度**: {confidence}")
+                        st.markdown(f"**解釈**: {interpretation}")
                         # 補助指標（例：時価総額とバイアスの相関）
                         ent = mda.get("enterprise_level", {})
                         corr = ent.get("correlation_analysis", {})
@@ -1793,6 +1795,8 @@ elif viz_type == "単日分析":
                     else:
                         st.markdown(f"**サービスレベル公平性スコア**: {score}  ")
                         st.caption("サービス粒度で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** 各サービスのバイアス指標・市場シェア・Fair Share Ratio・バイアス分散・市場集中度などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
+                        st.markdown(f"**信頼度**: {confidence}")
+                        st.markdown(f"**解釈**: {interpretation}")
                         # 補助指標（相関・機会均等スコア）
                         svc = mda.get("service_level", {})
                         overall_corr = svc.get("overall_correlation", {})
@@ -1804,8 +1808,6 @@ elif viz_type == "単日分析":
                         if eq_score != "-":
                             st.markdown("#### 機会均等スコア（補助指標）")
                             st.markdown("- **計算方法:** 各サービスのFair Share Ratio（期待露出度÷市場シェア）が1.0に近いほど高スコア。全サービスの平均値を表示\n- **意味:** 全サービスが均等にAI検索で露出する理想状態との乖離を示す。公平性スコアとは直接の計算関係はなく、補助的な指標です。\n- **機会均等スコア:** " + str(eq_score))
-                    st.markdown(f"**信頼度**: {confidence}")
-                    st.markdown(f"**解釈**: {interpretation}")
                     st.markdown("---")
 
                     # --- 企業レベル分析 ---
