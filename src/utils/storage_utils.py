@@ -73,7 +73,6 @@ def ensure_dir(dir_path):
 
 
 def load_json(file_path=None, s3_key=None):
-    import streamlit as st
     if not file_path and not s3_key:
         raise ValueError("file_pathかs3_keyのいずれかを指定してください")
     if file_path:
