@@ -173,12 +173,12 @@ def process_categories_with_search(categories, max_categories=None):
                 query = f"{service}"
                 search_data = get_google_search_results(query, num_results=10)
                 official_results = process_search_results(search_data, service_name=service, services_dict=services) if search_data else []
-                time.sleep(1)
+                time.sleep(0.5)
                 # 評判情報用の検索
                 query_rep = f"{service} 評判 口コミ"
                 search_data_rep = get_google_search_results(query_rep, num_results=10)
                 reputation_results = process_search_results(search_data_rep, service_name=None, services_dict=None, include_is_official=False) if search_data_rep else []
-                time.sleep(1)
+                time.sleep(0.5)
                 entities[service] = {
                     "official_results": official_results,
                     "reputation_results": reputation_results,

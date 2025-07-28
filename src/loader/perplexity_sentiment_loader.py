@@ -93,7 +93,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                     results[category][subcategory]["masked_reasons"].append(reason)
                 except Exception as e:
                     print(f"マスクあり評価値の抽出エラー: {e}, 結果: {masked_result}")
-                time.sleep(1)
+                time.sleep(0.5)
     # マスクなし（各企業ごと） num_runs回
     for run in range(num_runs):
         print(f"マスクなし 実行 {run+1}/{num_runs}")
@@ -116,7 +116,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                         results[category][subcategory]["entities"][competitor]["unmasked_reasons"].append(reason)
                     except Exception as e:
                         print(f"マスクなし評価値の抽出エラー ({competitor}): {e}")
-                    time.sleep(1)
+                    time.sleep(0.5)
     # 平均値と標準偏差の計算など
     for category in results:
         for subcategory in results[category]:

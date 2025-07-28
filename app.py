@@ -409,7 +409,7 @@ if viz_type == "時系列分析":
     selected_entities = st.sidebar.multiselect(
         "エンティティを選択（複数選択可）",
         entities,
-        default=entities[:10] if len(entities) > 10 else entities,
+        default=entities,  # 全件をデフォルトで表示
         key="ts_entities_selector"
     )
     if not selected_entities:
@@ -897,7 +897,7 @@ elif viz_type == "単日分析":
             "エンティティを選択（複数選択可）",
             entities,
             key="entities_selector",
-            default=entities[:10] if len(entities) > 10 else entities  # デフォルトで最初の10項目（または全て）を選択
+            default=entities  # 全件をデフォルトで表示
         )
         # --- 表形式表示（常に上部に表示） ---
         sentiment_flat = dashboard_data.get("perplexity_sentiment_flat", [])
@@ -1146,7 +1146,7 @@ elif viz_type == "単日分析":
                 selected_entities = st.sidebar.multiselect(
                     "エンティティを選択（複数選択可）",
                     all_entities,
-                    default=all_entities[:10] if len(all_entities) > 10 else all_entities,
+                    default=all_entities,  # 全件をデフォルトで表示
                     key="sentiment_entities"
                 )
             else:
@@ -1950,7 +1950,7 @@ elif viz_type == "単日分析":
                 selected_entities = st.sidebar.multiselect(
                     "エンティティを選択（複数選択可）",
                     all_entities,
-                    default=all_entities[:10] if len(all_entities) > 10 else all_entities,
+                    default=all_entities,  # 全件をデフォルトで表示
                     key="sentiment_entities"
                 )
             else:
