@@ -20,7 +20,7 @@ from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap, plot_
 import os
 from src.utils.storage_config import get_base_paths
 from src.components.auth import google_oauth_login, get_allowed_domains
-import plotly.graph_objs as go
+import plotly.graph_objects as go
 
 # キャッシュ付きデータ取得関数
 @st.cache_data(ttl=3600)  # 1時間キャッシュ
@@ -1993,6 +1993,205 @@ elif viz_type == "単日分析":
                     # # --- 詳細データ（expander） ---
                     # with st.expander("詳細データ（market_dominance_analysis JSON）", expanded=False):
                     #     st.json(mda, expanded=False)
+
+                    # === HHI分析UI関数群 ===
+                    def render_market_concentration_analysis(analysis_data, selected_category, selected_subcategory):
+                        """
+                        市場集中度分析セクションのレンダリング
+                        """
+                        relative_bias = analysis_data.get("relative_bias_analysis", {})
+                        market_concentration = None
+                        if (selected_category in relative_bias and
+                            selected_subcategory in relative_bias[selected_category]):
+                            market_concentration = relative_bias[selected_category][selected_subcategory].get(
+                                "market_concentration_analysis", None
+                            )
+                        if not market_concentration:
+                            st.info("市場集中度分析データがありません")
+                            return
+                        st.markdown("---")
+                        st.subheader("📊 市場集中度分析")
+                        st.caption("市場構造の集中度とバイアスリスクの関係性を分析します")
+                        render_hhi_summary_metrics(market_concentration, selected_category)
+
+                        # カテゴリに応じて詳細分析セクションを切り替え
+                        if selected_category == "企業":
+                            # 企業カテゴリ: 企業レベルHHI分析のみ表示
+                            render_enterprise_hhi_analysis(market_concentration)
+                        else:
+                            # その他のカテゴリ: サービスレベルHHI分析のみ表示
+                            render_service_hhi_analysis(market_concentration)
+
+                        # 相関分析とインサイトは全カテゴリで表示
+                        render_concentration_bias_correlation(market_concentration)
+                        render_market_structure_insights(market_concentration)
+
+                    def render_hhi_summary_metrics(market_concentration, selected_category):
+                        st.markdown("#### 📈 市場集中度概要")
+                        service_hhi = market_concentration.get("service_hhi", {})
+                        service_score = service_hhi.get("hhi_score", 0.0)
+                        service_level = service_hhi.get("concentration_level", "不明")
+                        enterprise_hhi = market_concentration.get("enterprise_hhi", {})
+                        enterprise_score = enterprise_hhi.get("hhi_score", 0.0)
+                        enterprise_level = enterprise_hhi.get("concentration_level", "不明")
+                        correlation = market_concentration.get("concentration_bias_correlation", {})
+                        # データ構造の修正: correlation_analysis内から取得
+                        correlation_analysis = correlation.get("correlation_analysis", {})
+                        correlation_strength = correlation_analysis.get("correlation_significance", "不明")
+
+                        # カテゴリに応じて表示内容を切り替え
+                        if selected_category == "企業":
+                            # 企業カテゴリ: 企業市場集中度とバイアス相関を2カラムで表示
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if enterprise_score > 0:
+                                    st.metric(label="企業市場集中度", value=f"{enterprise_score:.1f}", delta=enterprise_level)
+                                else:
+                                    st.metric(label="企業市場集中度", value="計算不可", delta="データ不足")
+                            with col2:
+                                st.metric(label="バイアス相関強度", value=correlation_strength, delta="市場集中度との関係")
+                        else:
+                            # その他のカテゴリ: サービス市場集中度とバイアス相関を2カラムで表示
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if service_score > 0:
+                                    st.metric(label="サービス市場集中度", value=f"{service_score:.1f}", delta=service_level)
+                                else:
+                                    st.metric(label="サービス市場集中度", value="計算不可", delta="データ不足")
+                            with col2:
+                                st.metric(label="バイアス相関強度", value=correlation_strength, delta="市場集中度との関係")
+
+                    def render_service_hhi_analysis(market_concentration):
+                        service_hhi = market_concentration.get("service_hhi", {})
+                        if not service_hhi or service_hhi.get("hhi_score", 0) == 0:
+                            st.info("サービスレベルHHI分析データがありません")
+                            return
+                        st.markdown("#### 🏢 サービス市場集中度分析")
+                        hhi_score = service_hhi.get("hhi_score", 0)
+                        concentration_level = service_hhi.get("concentration_level", "不明")
+                        market_structure = service_hhi.get("market_structure", "不明")
+                        if concentration_level == "高集中市場":
+                            color = "🔴"
+                        elif concentration_level == "中程度集中市場":
+                            color = "🟡"
+                        else:
+                            color = "🟢"
+                        st.markdown(f"**HHI値**: {hhi_score:.1f} ({color} {concentration_level})")
+                        st.markdown(f"**市場構造**: {market_structure}")
+                        top_services = service_hhi.get("top_services", [])
+                        if top_services:
+                            st.markdown("**上位サービス**:")
+                            for service in top_services[:5]:
+                                rank_emoji = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][service.get("rank", 1) - 1]
+                                st.markdown(f"- {rank_emoji} {service.get('service', '')}: {service.get('share', 0):.1f}%")
+                        effective_competitors = service_hhi.get("effective_competitors", 0)
+                        if effective_competitors > 0:
+                            st.markdown(f"**有効競争者数**: {effective_competitors}社")
+                        share_dispersion = service_hhi.get("share_dispersion", 0)
+                        if share_dispersion > 0:
+                            st.markdown(f"**シェア分散**: {share_dispersion:.2f}")
+
+                    def render_enterprise_hhi_analysis(market_concentration):
+                        enterprise_hhi = market_concentration.get("enterprise_hhi", {})
+                        if not enterprise_hhi or enterprise_hhi.get("hhi_score", 0) == 0:
+                            st.info("企業レベルHHI分析データがありません")
+                            return
+                        st.markdown("#### 🏭 企業市場集中度分析")
+                        hhi_score = enterprise_hhi.get("hhi_score", 0)
+                        concentration_level = enterprise_hhi.get("concentration_level", "不明")
+                        if concentration_level == "高集中市場":
+                            color = "🔴"
+                        elif concentration_level == "中程度集中市場":
+                            color = "🟡"
+                        else:
+                            color = "🟢"
+                        st.markdown(f"**HHI値**: {hhi_score:.1f} ({color} {concentration_level})")
+                        enterprise_tiers = enterprise_hhi.get("enterprise_tiers", {})
+                        if enterprise_tiers:
+                            st.markdown("**企業規模別シェア**:")
+                            labels = ["大企業", "中企業", "小企業"]
+                            values = [
+                                enterprise_tiers.get("large", 0),
+                                enterprise_tiers.get("medium", 0),
+                                enterprise_tiers.get("small", 0)
+                            ]
+                            non_zero_labels = []
+                            non_zero_values = []
+                            for label, value in zip(labels, values):
+                                if value > 0:
+                                    non_zero_labels.append(label)
+                                    non_zero_values.append(value)
+                            if non_zero_values:
+                                fig = go.Figure(data=[go.Pie(
+                                    labels=non_zero_labels,
+                                    values=non_zero_values,
+                                    hole=0.3,
+                                    marker_colors=['#ff7f0e', '#2ca02c', '#d62728']
+                                )])
+                                fig.update_layout(title="企業規模別シェア分布", height=400)
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.info("企業規模別シェアデータがありません")
+                        market_power = enterprise_hhi.get("market_power_analysis", "")
+                        if market_power:
+                            st.markdown(f"**市場支配力分析**: {market_power}")
+                        bias_risk = enterprise_hhi.get("bias_risk_assessment", "")
+                        if bias_risk:
+                            if "高い" in bias_risk or "極めて高い" in bias_risk:
+                                st.error(f"**バイアスリスク評価**: {bias_risk}")
+                            elif "中程度" in bias_risk:
+                                st.warning(f"**バイアスリスク評価**: {bias_risk}")
+                            else:
+                                st.success(f"**バイアスリスク評価**: {bias_risk}")
+
+                    def render_concentration_bias_correlation(market_concentration):
+                        correlation = market_concentration.get("concentration_bias_correlation", {})
+                        if not correlation:
+                            st.info("集中度-バイアス相関分析データがありません")
+                            return
+                        st.markdown("#### 📈 集中度-バイアス相関分析")
+                        # データ構造の修正: correlation_analysis内から取得
+                        correlation_analysis = correlation.get("correlation_analysis", {})
+                        service_corr = correlation_analysis.get("service_hhi_bias_correlation", 0)
+                        if service_corr != 0:
+                            st.markdown(f"**サービスHHI-バイアス相関**: {service_corr:.3f}")
+                        enterprise_corr = correlation_analysis.get("enterprise_hhi_bias_correlation", 0)
+                        if enterprise_corr != 0:
+                            st.markdown(f"**企業HHI-バイアス相関**: {enterprise_corr:.3f}")
+                        correlation_strength = correlation_analysis.get("correlation_significance", "")
+                        if correlation_strength:
+                            st.markdown(f"**相関強度**: {correlation_strength}")
+                        interpretation = correlation_analysis.get("interpretation", "")
+                        if interpretation:
+                            st.info(f"**相関解釈**: {interpretation}")
+                        st.markdown("**相関係数の解釈**:")
+                        st.markdown("- **0.7以上**: 強い正の相関（市場集中度が高いほどバイアスが強い）")
+                        st.markdown("- **0.3-0.7**: 中程度の正の相関")
+                        st.markdown("- **0.0-0.3**: 弱い正の相関")
+                        st.markdown("- **0.0**: 相関なし")
+                        st.markdown("- **負の値**: 逆相関（市場集中度が高いほどバイアスが弱い）")
+
+                    def render_market_structure_insights(market_concentration):
+                        insights = market_concentration.get("market_structure_insights", [])
+                        if not insights:
+                            st.info("市場構造インサイトデータがありません")
+                            return
+                        st.markdown("#### 💡 市場構造インサイト")
+                        for i, insight in enumerate(insights, 1):
+                            if "高い" in insight or "極めて" in insight or "顕著" in insight:
+                                icon = "🔴"
+                            elif "中程度" in insight or "期待" in insight:
+                                icon = "🟡"
+                            else:
+                                icon = "🟢"
+                            st.markdown(f"{icon} **{i}.** {insight}")
+                        st.markdown("**改善提案**:")
+                        st.markdown("- 市場集中度の監視強化")
+                        st.markdown("- 競争促進政策の検討")
+                        st.markdown("- バイアス軽減策の実装")
+
+                    # === 市場集中度分析（HHI） ===
+                    render_market_concentration_analysis(analysis_data, selected_category, selected_subcategory)
 
     elif viz_type_detail == "おすすめランキング分析結果":
         # perplexity_rankingsデータを直接参照
