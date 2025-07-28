@@ -88,6 +88,28 @@ def get_dashboard_data_async(_loader, selected_date):
 from src.components.auth import google_oauth_login, get_allowed_domains
 import plotly.graph_objs as go
 
+# キャッシュ付きデータ取得関数
+@st.cache_data(ttl=3600)  # 1時間キャッシュ
+def get_cached_dashboard_data(_loader, selected_date):
+    """
+    ダッシュボードデータをキャッシュ付きで取得
+
+    Parameters:
+    -----------
+    _loader : HybridDataLoader
+        データローダーインスタンス（キャッシュキーから除外）
+    selected_date : str
+        選択された日付
+
+    Returns:
+    --------
+    dict
+        ダッシュボードデータ
+    """
+    # キャッシュの効果を確認するためのログ
+    st.sidebar.info(f"📥 データ取得中: {selected_date} (キャッシュ機能有効)")
+    return _loader.get_integrated_dashboard_data(selected_date)
+
 # 環境変数の読み込み
 # load_dotenv() # 削除
 
