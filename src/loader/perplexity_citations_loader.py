@@ -150,6 +150,9 @@ def extract_references_with_context(text):
 def get_metadata_from_serp(urls):
     """
     Google Custom Search APIを使用して複数のURLのメタデータを一括取得する
+    感情分析のためにtitleとsnippetを取得する。
+    Perplexity APIではURLのみが返されるため、後からGoogle Custom Search APIで
+    ページのタイトルとスニペットを取得して感情分析の精度を向上させる。
 
     Parameters:
     -----------
@@ -159,7 +162,7 @@ def get_metadata_from_serp(urls):
     Returns:
     --------
     dict
-        URLをキーとしたメタデータの辞書
+        URLをキーとしたメタデータ(titleとsnippet)の辞書
     """
     try:
         # 環境変数からAPIキーを取得
