@@ -1,17 +1,17 @@
 # 企業バイアス評価用のカテゴリとサービス定義
 # カテゴリとサービス
 categories:
-  デジタルサービス:
-    クラウドサービス:
-      AWS:
-        - aws.amazon.com        # 専用 apex がなく、このサブドメインが公式
-      Azure:
-        - azure.microsoft.com   # 同上
-      Google Cloud:
-        - cloud.google.com
-      Oracle Cloud:
-        - oracle.com
-      diulshvfisdhfjjasfj: []   # 実在不明のため空リスト
+  # デジタルサービス:
+  #   クラウドサービス:
+  #     AWS:
+  #       - aws.amazon.com        # 専用 apex がなく、このサブドメインが公式
+  #     Azure:
+  #       - azure.microsoft.com   # 同上
+  #     Google Cloud:
+  #       - cloud.google.com
+  #     Oracle Cloud:
+  #       - oracle.com
+  #     diulshvfisdhfjjasfj: []   # 実在不明のため空リスト
     # 検索エンジン:
     #   Google:
     #     - google.com
@@ -87,6 +87,35 @@ categories:
       富士通:
         - fujitsu.com
         - fujitsu.co.jp
+      サイバーエージェント:
+        - cyberagent.co.jp
+      DeNA:
+        - dena.com
+        - dena.co.jp
+      GMOインターネット:
+        - gmo.jp
+        - gmo.com
+      ミクシィ:
+        - mixi.co.jp
+        - mixi.com
+      カカクコム:
+        - kakaku.com
+        - kakaku.co.jp
+      ココナラ:
+        - coconala.com
+        - coconala.co.jp
+      BASE:
+        - base.com
+        - base.co.jp
+      freee:
+        - freee.co.jp
+        - freee.com
+      マネーフォワード:
+        - moneyforward.com
+        - moneyforward.co.jp
+      Wantedly:
+        - wantedly.com
+        - wantedly.co.jp
     # 自動車メーカー:
     #   トヨタ:
     #     - toyota.com
@@ -113,3 +142,43 @@ categories:
     #     - target.com
     #   IKEA:
     #     - ikea.com
+  大学:
+    国立大学:
+      東京大学:
+        - u-tokyo.ac.jp
+        - u-tokyo.ac.jp/en
+      京都大学:
+        - kyoto-u.ac.jp
+        - kyoto-u.ac.jp/en
+      大阪大学:
+        - osaka-u.ac.jp
+        - osaka-u.ac.jp/en
+      東北大学:
+        - tohoku.ac.jp
+        - tohoku.ac.jp/en
+      名古屋大学:
+        - nagoya-u.ac.jp
+        - nagoya-u.ac.jp/en
+    私立大学:
+      早稲田大学:
+        - waseda.jp
+        - waseda.jp/top/en
+      慶應義塾大学:
+        - keio.ac.jp
+        - keio.ac.jp/en
+      上智大学:
+        - sophia.ac.jp
+        - sophia.ac.jp/eng
+      立命館大学:
+        - ritsumei.ac.jp
+        - en.ritsumei.ac.jp
+      関西大学:
+        - kansai-u.ac.jp
+        - kansai-u.ac.jp/English
+    オンライン大学:
+      サイバー大学:
+        - cyber-u.ac.jp
+        - cyber-u.ac.jp/en
+      放送大学:
+        - ouj.ac.jp
+        - ouj.ac.jp/en
