@@ -20,6 +20,28 @@ from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap, plot_
 import os
 from src.utils.storage_config import get_base_paths
 
+# キャッシュ付きデータ取得関数
+@st.cache_data(ttl=3600)  # 1時間キャッシュ
+def get_cached_dashboard_data(_loader, selected_date):
+    """
+    ダッシュボードデータをキャッシュ付きで取得
+
+    Parameters:
+    -----------
+    _loader : HybridDataLoader
+        データローダーインスタンス（キャッシュキーから除外）
+    selected_date : str
+        選択された日付
+
+    Returns:
+    --------
+    dict
+        ダッシュボードデータ
+    """
+    # キャッシュの効果を確認するためのログ
+    st.sidebar.info(f"📥 データ取得中: {selected_date} (キャッシュ機能有効)")
+    return _loader.get_integrated_dashboard_data(selected_date)
+
 # 環境変数の読み込み
 # load_dotenv() # 削除
 
@@ -270,8 +292,9 @@ if viz_type == "時系列分析":
 
     best_data_by_date = {}
     for date in all_dates:
-        data_local = loader_local.get_integrated_dashboard_data(date) if date in dates_local else None
-        data_s3 = loader_s3.get_integrated_dashboard_data(date) if date in dates_s3 else None
+        # キャッシュ付きでデータを取得
+        data_local = get_cached_dashboard_data(loader_local, date) if date in dates_local else None
+        data_s3 = get_cached_dashboard_data(loader_s3, date) if date in dates_s3 else None
         def get_meta(d):
             if d and "analysis_results" in d and "metadata" in d["analysis_results"]:
                 meta = d["analysis_results"]["metadata"]
@@ -816,7 +839,8 @@ if viz_type == "時系列分析":
                     st.write(f"**ポジティブバイアス差分**: 平均={avg_positive_bias:.3f}, 最小={min_positive_bias:.3f}, 最大={max_positive_bias:.3f} ({bias_trend})")
 
 elif viz_type == "単日分析":
-    dashboard_data = loader.get_integrated_dashboard_data(selected_date)
+    # キャッシュ付きでデータを取得（サブカテゴリ切り替え時に再取得しない）
+    dashboard_data = get_cached_dashboard_data(loader, selected_date)
     analysis_data = dashboard_data["analysis_results"] if dashboard_data else None
 
     if not analysis_data:
