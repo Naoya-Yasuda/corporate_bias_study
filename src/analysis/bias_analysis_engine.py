@@ -2141,7 +2141,7 @@ class BiasAnalysisEngine:
         Parameters:
         -----------
         market_caps : Dict[str, float]
-            企業別時価総額
+            企業別時価総額（単位：兆円）
 
         Returns:
         --------
@@ -2150,9 +2150,10 @@ class BiasAnalysisEngine:
         """
         total_cap = sum(market_caps.values())
 
-        large_cap = sum(cap for cap in market_caps.values() if cap >= 1e12)  # 1兆円以上
-        medium_cap = sum(cap for cap in market_caps.values() if 1e11 <= cap < 1e12)  # 1000億円-1兆円
-        small_cap = sum(cap for cap in market_caps.values() if cap < 1e11)  # 1000億円未満
+        # 閾値を兆円単位に修正
+        large_cap = sum(cap for cap in market_caps.values() if cap >= 10)  # 10兆円以上
+        medium_cap = sum(cap for cap in market_caps.values() if 1 <= cap < 10)  # 1-10兆円
+        small_cap = sum(cap for cap in market_caps.values() if cap < 1)  # 1兆円未満
 
         return {
             "large": round(large_cap / total_cap * 100, 1),
