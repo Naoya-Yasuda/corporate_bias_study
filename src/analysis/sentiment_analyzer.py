@@ -188,7 +188,7 @@ def process_google_search_results(data, args):
                         for result, sentiment in zip(batch, sentiments):
                             result["sentiment"] = sentiment
 
-                        time.sleep(1.3)  # API制限対策
+                        time.sleep(1.25)  # API制限対策
 
                 if invalid_results:
                     if args.verbose:
@@ -252,7 +252,7 @@ def process_perplexity_results(data, args):
                         for result, sentiment in zip(batch, sentiments):
                             result["sentiment"] = sentiment
 
-                        time.sleep(1.3)  # API制限対策
+                        time.sleep(1.25)  # API制限対策
 
                 if invalid_results:
                     if args.verbose:

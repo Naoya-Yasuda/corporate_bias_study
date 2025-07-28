@@ -112,7 +112,7 @@ def collect_rankings(api_key, categories, num_runs=1):
 
                 if run < num_runs - 1 or processed < total_categories:
                     print("  APIレート制限を考慮して待機中...")
-                    time.sleep(1.3)
+                    time.sleep(1.25)
 
             # 各サービスごとの順位を集計
             service_ranks = {service: [] for service in services}
