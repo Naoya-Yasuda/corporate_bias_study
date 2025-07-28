@@ -85,6 +85,7 @@ def get_dashboard_data_async(_loader, selected_date):
             st.error(f"❌ データ取得エラー: {selected_date} (読み込み時間: {load_time:.2f}秒)")
             st.error(f"エラー詳細: {str(e)}")
             return None
+
 # 環境変数の読み込み
 # load_dotenv() # 削除
 
@@ -334,20 +335,10 @@ if viz_type == "時系列分析":
     all_dates = sorted(list(dates_local | dates_s3))
 
     best_data_by_date = {}
-
-    # 進捗バーを表示
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-
-    for i, date in enumerate(all_dates):
-        # 進捗を更新
-        progress = (i + 1) / len(all_dates)
-        progress_bar.progress(progress)
-        status_text.text(f"データ取得中... {i+1}/{len(all_dates)}: {date}")
-
-        # 非同期でデータを取得
-        data_local = get_dashboard_data_async(loader_local, date) if date in dates_local else None
-        data_s3 = get_dashboard_data_async(loader_s3, date) if date in dates_s3 else None
+    for date in all_dates:
+        # キャッシュ付きでデータを取得
+        data_local = get_cached_dashboard_data(loader_local, date) if date in dates_local else None
+        data_s3 = get_cached_dashboard_data(loader_s3, date) if date in dates_s3 else None
         def get_meta(d):
             if d and "analysis_results" in d and "metadata" in d["analysis_results"]:
                 meta = d["analysis_results"]["metadata"]
@@ -905,8 +896,8 @@ if viz_type == "時系列分析":
                     st.write(f"**ポジティブバイアス差分**: 平均={avg_positive_bias:.3f}, 最小={min_positive_bias:.3f}, 最大={max_positive_bias:.3f} ({bias_trend})")
 
 elif viz_type == "単日分析":
-    # 非同期でデータを取得（読み込み状況を表示）
-    dashboard_data = get_dashboard_data_async(loader, selected_date)
+    # キャッシュ付きでデータを取得（サブカテゴリ切り替え時に再取得しない）
+    dashboard_data = get_cached_dashboard_data(loader, selected_date)
     analysis_data = dashboard_data["analysis_results"] if dashboard_data else None
 
     if not analysis_data:
