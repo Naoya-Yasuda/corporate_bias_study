@@ -1855,6 +1855,41 @@ elif viz_type == "単日分析":
 
             # --- 市場分析タブ ---
             with main_tabs[2]:
+                # 工事中バナー（市場分析タブ内でのみ表示）
+                st.markdown("""
+                <div style="background-color: #ff6b6b; color: white; padding: 10px; border-radius: 5px; text-align: center; margin-bottom: 20px;">
+                    <h3>🚧 工事中 🚧</h3>
+                    <p><strong>現在、動的市場シェア推定システムの実装中です</strong></p>
+                    <p>HHI分析機能は動作はしますが、ダミーデータかつ一部機能が開発中です</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # 工事状況の詳細説明
+                with st.expander("ℹ️ 現在の開発状況", expanded=False):
+                    st.markdown("""
+                    **🔄 進行中の開発**
+                    - 動的市場シェア推定システムの実装
+                    - サービスシェア推定アルゴリズムの開発
+                    - リアルタイムHHI計算機能の構築
+
+                    **✅ 利用可能な機能**
+                    - 既存のバイアス分析（Raw Delta、BI、有意性等）
+                    - 静的HHI分析（企業・サービス市場集中度）
+                    - 市場集中度-バイアス相関分析
+
+                    **🚧 開発中の機能**
+                    - 動的市場シェア推定
+                    - リアルタイムHHI計算
+                    - バイアス予測システム
+                    - 早期警告システム
+
+                    **📅 予定**
+                    - Phase 1: 基盤構築（進行中）
+                    - Phase 2: 企業シェア推定（予定）
+                    - Phase 3: サービスシェア推定（予定）
+                    - Phase 4: 統合システム（予定）
+                    """)
+
                 # === 市場支配・公平性分析（market_dominance_analysis） ===
                 st.subheader("🏢 市場支配・公平性分析")
                 relative_bias = analysis_data.get("relative_bias_analysis", {})
@@ -2011,6 +2046,26 @@ elif viz_type == "単日分析":
                         st.markdown("---")
                         st.subheader("📊 市場集中度分析")
                         st.caption("市場構造の集中度とバイアスリスクの関係性を分析します")
+
+                        # HHI計算式の説明を追加
+                        with st.expander("ℹ️ HHI（ハーフィンダール・ハーシュマン指数）の計算式", expanded=False):
+                            st.markdown("""
+                            **HHI = Σ(各企業・サービスの市場シェア)²**
+
+                            **計算例:**
+                            - 企業A: 40% → 40² = 1,600
+                            - 企業B: 30% → 30² = 900
+                            - 企業C: 20% → 20² = 400
+                            - 企業D: 10% → 10² = 100
+
+                            **HHI = 1,600 + 900 + 400 + 100 = 3,000**
+
+                            **解釈:**
+                            - 1,500未満: 低集中市場
+                            - 1,500-2,500: 中集中市場
+                            - 2,500以上: 高集中市場
+                            """)
+
                         render_hhi_summary_metrics(market_concentration, selected_category)
 
                         # カテゴリに応じて詳細分析セクションを切り替え
