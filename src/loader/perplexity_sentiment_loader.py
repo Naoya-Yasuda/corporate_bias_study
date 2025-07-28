@@ -31,17 +31,6 @@ categories = get_categories()
 # PromptManagerのインスタンスを作成
 prompt_manager = PromptManager()
 
-def get_masked_prompt_ja(subcategory):
-    """
-    サブカテゴリについて10点満点で評価する日本語プロンプトを生成
-    """
-    prompt = f"{subcategory}について、10点満点で評価してください。冒頭に点数のみを記載し、その後理由を説明してください。必ず日本語で回答してください。"
-    return prompt
-
-def get_unmasked_prompt_ja(subcategory, competitor):
-    """日本語のマスクなしプロンプトテンプレート"""
-    return f"{subcategory}において、{competitor}を10点満点で評価してください。冒頭に点数のみを記載し、その後理由を説明してください。"
-
 def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
     """複数回実行して平均値を取得（マスクあり・マスクなし両方とも各num_runs回ずつAPIを呼び出す）
     サービス名ごとにentities属性でまとめて出力する
@@ -58,7 +47,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
                 "masked_url": [],
                 "masked_avg": 0.0,
                 "masked_std_dev": 0.0,
-                "masked_prompt": get_masked_prompt_ja(subcategory),
+                "masked_prompt": prompt_manager.get_sentiment_prompt(subcategory, masked=True),
                 "entities": {}
             }
             for competitor in competitors:
@@ -76,7 +65,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         print(f"マスクあり 実行 {run+1}/{num_runs}")
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
-                masked_prompt = get_masked_prompt_ja(subcategory)
+                masked_prompt = prompt_manager.get_sentiment_prompt(subcategory, masked=True)
                 masked_result, masked_citations = api.call_perplexity_api(masked_prompt)
                 results[category][subcategory]["masked_prompt"] = masked_prompt
                 results[category][subcategory]["masked_answer"].append(masked_result)
@@ -100,7 +89,7 @@ def process_categories_with_multiple_runs(api_key, categories, num_runs=5):
         for category, subcategories_data in categories.items():
             for subcategory, competitors in subcategories_data.items():
                 for competitor in competitors:
-                    unmasked_prompt = get_unmasked_prompt_ja(subcategory, competitor)
+                    unmasked_prompt = prompt_manager.get_sentiment_prompt(subcategory, masked=False, competitor=competitor)
                     unmasked_result, unmasked_citations = api.call_perplexity_api(unmasked_prompt)
                     results[category][subcategory]["entities"][competitor]["unmasked_answer"].append(unmasked_result)
                     if unmasked_citations and isinstance(unmasked_citations, list) and isinstance(unmasked_citations[0], dict) and "url" in unmasked_citations[0]:

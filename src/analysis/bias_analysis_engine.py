@@ -1774,11 +1774,15 @@ class BiasAnalysisEngine:
             市場集中度分析結果
         """
         try:
+            # カテゴリ名とサブカテゴリ名のマッピング
+            # データセットのカテゴリ名を市場データのカテゴリ名に変換
+            market_category = self._map_category_to_market_data(category, subcategory)
+
             # サービスレベルHHI算出
-            service_hhi = self._calculate_service_hhi(market_shares, category, subcategory)
+            service_hhi = self._calculate_service_hhi(market_shares, market_category, subcategory)
 
             # 企業レベルHHI算出
-            enterprise_hhi = self._calculate_enterprise_hhi(market_caps, category, subcategory)
+            enterprise_hhi = self._calculate_enterprise_hhi(market_caps, market_category, subcategory)
 
             # 集中度-バイアス相関分析
             concentration_correlation = self._analyze_concentration_bias_correlation(
@@ -1819,17 +1823,23 @@ class BiasAnalysisEngine:
         """
         try:
             # 1. 対象カテゴリ・サブカテゴリの市場シェアデータを抽出
-            category_data = market_shares.get(category, {})
-            subcategory_data = category_data.get(subcategory, {})
+            # 市場シェアデータは直接カテゴリ名でアクセス
+            subcategory_data = market_shares.get(category, {})
 
             if not subcategory_data:
                 return self._create_empty_hhi_result("サービス市場シェアデータが不足")
 
-            # 2. 市場シェアをパーセンテージから小数に変換
+            # 2. 市場シェアデータの構造を確認して適切に処理
             shares = {}
-            for service, share in subcategory_data.items():
-                if isinstance(share, (int, float)) and share > 0:
-                    shares[service] = float(share) / 100.0  # パーセンテージを小数に変換
+            for service, data in subcategory_data.items():
+                if isinstance(data, dict) and 'market_share' in data:
+                    # 新しい構造: {service: {"market_share": value, "enterprise": name}}
+                    share_value = data['market_share']
+                    if isinstance(share_value, (int, float)) and share_value > 0:
+                        shares[service] = float(share_value)  # 既に小数形式
+                elif isinstance(data, (int, float)) and data > 0:
+                    # 古い構造: {service: value} (パーセンテージ形式)
+                    shares[service] = float(data) / 100.0  # パーセンテージを小数に変換
 
             if not shares:
                 return self._create_empty_hhi_result("有効な市場シェアデータがありません")
@@ -1897,8 +1907,8 @@ class BiasAnalysisEngine:
         """
         try:
             # 1. 対象カテゴリ・サブカテゴリの時価総額データを抽出
-            category_data = market_caps.get(category, {})
-            subcategory_data = category_data.get(subcategory, {})
+            # 時価総額データは直接カテゴリ名でアクセス
+            subcategory_data = market_caps.get(category, {})
 
             if not subcategory_data:
                 return self._create_empty_hhi_result("企業時価総額データが不足")
@@ -4762,6 +4772,47 @@ class BiasAnalysisEngine:
                             return enterprise_name
 
         return None
+
+    def _map_category_to_market_data(self, category: str, subcategory: str) -> str:
+        """
+        データセットのカテゴリ名を市場データのカテゴリ名にマッピング
+
+        Parameters:
+        -----------
+        category : str
+            データセットのカテゴリ名
+        subcategory : str
+            データセットのサブカテゴリ名
+
+        Returns:
+        --------
+        str
+            市場データのカテゴリ名
+        """
+        # カテゴリマッピングルール
+        category_mapping = {
+            # デジタルサービス → 市場データのカテゴリ名
+            ("デジタルサービス", "クラウドサービス"): "クラウドサービス",
+            ("デジタルサービス", "検索エンジン"): "検索エンジン",
+            ("デジタルサービス", "ECサイト"): "ECサイト",
+            ("デジタルサービス", "ストリーミングサービス"): "ストリーミングサービス",
+            ("デジタルサービス", "SNS"): "SNS",
+            ("デジタルサービス", "動画共有サイト"): "動画共有サイト",
+
+            # 企業 → 市場データのカテゴリ名
+            ("企業", "日本のテック企業"): "日本のテック企業",
+            ("企業", "世界的テック企業"): "世界的テック企業",
+            ("企業", "自動車メーカー"): "自動車メーカー",
+            ("企業", "小売業"): "小売業",
+        }
+
+        # マッピングを検索
+        key = (category, subcategory)
+        if key in category_mapping:
+            return category_mapping[key]
+
+        # マッピングが見つからない場合は、サブカテゴリ名をそのまま使用
+        return subcategory
 
 
 def main():
