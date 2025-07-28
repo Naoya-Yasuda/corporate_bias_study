@@ -220,7 +220,7 @@ def get_metadata_from_serp(urls):
 
                 # レート制限を考慮して待機
                 if i < len(unique_urls) - 1:
-                    time.sleep(1.25)
+                    time.sleep(0.1)
 
             except Exception as e:
                 print(f"  URL {url} のメタデータ取得エラー: {e}")

@@ -1675,9 +1675,15 @@ class BiasAnalysisEngine:
         return insights
 
     def _analyze_relative_bias(self, sentiment_analysis: Dict) -> Dict[str, Any]:
-        """相対バイアス分析の完全実装（多重比較補正横展開）"""
+        """相対バイアス分析の完全実装（多重比較補正横展開 + HHI分析機能追加）"""
         try:
             relative_analysis_results = {}
+
+            # 市場データの読み込み
+            market_data = self._load_market_data()
+            market_shares = market_data.get("market_shares", {})
+            market_caps = market_data.get("market_caps", {})
+
             for category, subcategories in sentiment_analysis.items():
                 category_results = {}
                 for subcategory, subcategory_data in subcategories.items():
@@ -1691,10 +1697,8 @@ class BiasAnalysisEngine:
 
                     # 1. バイアス不平等指標の計算
                     bias_inequality = self._calculate_bias_inequality(entities)
-                    # 2. 企業優遇度分析（market_dominance_analysisに統合済み）
-                    market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
-                    market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
 
+                    # 2. 企業優遇度分析（market_dominance_analysisに統合済み）
                     # 3. 統合市場支配力分析（企業レベル/サービスレベル分岐）
                     if category == "企業":
                         enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps, market_shares)
@@ -1714,11 +1718,18 @@ class BiasAnalysisEngine:
                     market_share_correlation = self._analyze_market_share_correlation(
                         entities, market_shares, category
                     )
+
                     # 5. 相対ランキング変動（暫定実装）
                     relative_ranking_analysis = self._analyze_relative_ranking_changes_stub(entities)
+
                     # 6. 統合相対評価（market_dominance_analysisに統合済み）
                     integrated_relative_evaluation = self._generate_enhanced_integrated_evaluation(
                         bias_inequality, market_share_correlation, market_dominance_analysis
+                    )
+
+                    # 7. 市場集中度分析（HHI分析機能追加）
+                    market_concentration_analysis = self._analyze_market_concentration(
+                        market_shares, market_caps, category, subcategory, entities
                     )
 
                     category_results[subcategory] = {
@@ -1727,6 +1738,7 @@ class BiasAnalysisEngine:
                         "market_share_correlation": market_share_correlation,  # 後方互換性用
                         "relative_ranking_analysis": relative_ranking_analysis,
                         "integrated_evaluation": integrated_relative_evaluation,
+                        "market_concentration_analysis": market_concentration_analysis,  # 新規追加
                         "entities": entities  # 二重entitiesを避けて直接entitiesを設定
                     }
 
@@ -1737,6 +1749,733 @@ class BiasAnalysisEngine:
         except Exception as e:
             logging.error(f"相対バイアス分析エラー: {e}")
             return {}
+
+    def _analyze_market_concentration(self, market_shares: Dict[str, Any], market_caps: Dict[str, Any],
+                                    category: str, subcategory: str, entities: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        市場集中度分析（HHI分析）
+
+        Parameters:
+        -----------
+        market_shares : Dict[str, Any]
+            市場シェアデータ
+        market_caps : Dict[str, Any]
+            時価総額データ
+        category : str
+            カテゴリ名
+        subcategory : str
+            サブカテゴリ名
+        entities : Dict[str, Any]
+            エンティティデータ
+
+        Returns:
+        --------
+        Dict[str, Any]
+            市場集中度分析結果
+        """
+        try:
+            # サービスレベルHHI算出
+            service_hhi = self._calculate_service_hhi(market_shares, category, subcategory)
+
+            # 企業レベルHHI算出
+            enterprise_hhi = self._calculate_enterprise_hhi(market_caps, category, subcategory)
+
+            # 集中度-バイアス相関分析
+            concentration_correlation = self._analyze_concentration_bias_correlation(
+                service_hhi, enterprise_hhi, entities
+            )
+
+            # 市場構造インサイト生成
+            market_insights = self._generate_market_structure_insights(service_hhi, enterprise_hhi)
+
+            return {
+                "service_hhi": service_hhi,
+                "enterprise_hhi": enterprise_hhi,
+                "concentration_bias_correlation": concentration_correlation,
+                "market_structure_insights": market_insights
+            }
+
+        except Exception as e:
+            logging.error(f"市場集中度分析エラー: {e}")
+            return self._create_empty_market_concentration_result(f"分析エラー: {str(e)}")
+
+    def _calculate_service_hhi(self, market_shares: Dict[str, Any], category: str, subcategory: str) -> Dict[str, Any]:
+        """
+        サービスレベルでのHHIを算出
+
+        Parameters:
+        -----------
+        market_shares : Dict[str, Any]
+            市場シェアデータ（src/data/market_shares.json）
+        category : str
+            カテゴリ名
+        subcategory : str
+            サブカテゴリ名
+
+        Returns:
+        --------
+        Dict[str, Any]
+            HHI分析結果
+        """
+        try:
+            # 1. 対象カテゴリ・サブカテゴリの市場シェアデータを抽出
+            category_data = market_shares.get(category, {})
+            subcategory_data = category_data.get(subcategory, {})
+
+            if not subcategory_data:
+                return self._create_empty_hhi_result("サービス市場シェアデータが不足")
+
+            # 2. 市場シェアをパーセンテージから小数に変換
+            shares = {}
+            for service, share in subcategory_data.items():
+                if isinstance(share, (int, float)) and share > 0:
+                    shares[service] = float(share) / 100.0  # パーセンテージを小数に変換
+
+            if not shares:
+                return self._create_empty_hhi_result("有効な市場シェアデータがありません")
+
+            # 3. HHI計算: Σ(市場シェア_i)^2 * 10000
+            hhi_score = sum(share ** 2 for share in shares.values()) * 10000
+
+            # 4. 集中度レベル判定
+            concentration_level = self._interpret_hhi_level(hhi_score)
+
+            # 5. 上位サービス抽出（シェア順）
+            sorted_services = sorted(shares.items(), key=lambda x: x[1], reverse=True)
+            top_services = []
+            for i, (service, share) in enumerate(sorted_services[:5], 1):  # 上位5社
+                top_services.append({
+                    "service": service,
+                    "share": round(share * 100, 1),  # パーセンテージで表示
+                    "rank": i
+                })
+
+            # 6. 市場構造分類
+            market_structure = self._classify_market_structure(hhi_score, top_services)
+
+            # 7. 公平性への影響評価
+            fairness_implications = self._assess_fairness_implications(hhi_score, concentration_level, top_services)
+
+            # 8. 計算詳細
+            calculation_details = {
+                "total_services": len(shares),
+                "effective_competitors": self._count_effective_competitors(shares),
+                "largest_share": round(max(shares.values()) * 100, 1),
+                "smallest_share": round(min(shares.values()) * 100, 1),
+                "share_variance": round(np.var(list(shares.values())) * 10000, 2) if len(shares) > 1 else 0
+            }
+
+            return {
+                "hhi_score": round(hhi_score, 1),
+                "concentration_level": concentration_level,
+                "market_structure": market_structure,
+                "top_services": top_services,
+                "fairness_implications": fairness_implications,
+                "calculation_details": calculation_details
+            }
+
+        except Exception as e:
+            return self._create_empty_hhi_result(f"HHI計算エラー: {str(e)}")
+
+    def _calculate_enterprise_hhi(self, market_caps: Dict[str, Any], category: str, subcategory: str) -> Dict[str, Any]:
+        """
+        企業レベルでのHHIを算出
+
+        Parameters:
+        -----------
+        market_caps : Dict[str, Any]
+            時価総額データ（src/data/market_caps.json）
+        category : str
+            カテゴリ名
+        subcategory : str
+            サブカテゴリ名
+
+        Returns:
+        --------
+        Dict[str, Any]
+            企業HHI分析結果
+        """
+        try:
+            # 1. 対象カテゴリ・サブカテゴリの時価総額データを抽出
+            category_data = market_caps.get(category, {})
+            subcategory_data = category_data.get(subcategory, {})
+
+            if not subcategory_data:
+                return self._create_empty_hhi_result("企業時価総額データが不足")
+
+            # 2. 有効な時価総額データを抽出
+            caps = {}
+            for enterprise, cap in subcategory_data.items():
+                if isinstance(cap, (int, float)) and cap > 0:
+                    caps[enterprise] = float(cap)
+
+            if not caps:
+                return self._create_empty_hhi_result("有効な時価総額データがありません")
+
+            # 3. 時価総額を市場シェアに変換
+            total_market_cap = sum(caps.values())
+            shares = {enterprise: cap / total_market_cap for enterprise, cap in caps.items()}
+
+            # 4. HHI計算
+            hhi_score = sum(share ** 2 for share in shares.values()) * 10000
+
+            # 5. 集中度レベル判定
+            concentration_level = self._interpret_hhi_level(hhi_score)
+
+            # 6. 企業規模別シェア計算
+            enterprise_tiers = self._calculate_enterprise_tiers(caps)
+
+            # 7. 市場支配力分析
+            market_power_analysis = self._analyze_market_power(hhi_score, enterprise_tiers)
+
+            # 8. バイアスリスク評価
+            bias_risk_assessment = self._assess_bias_risk_from_concentration(hhi_score, concentration_level)
+
+            # 9. 計算詳細
+            calculation_details = {
+                "total_enterprises": len(caps),
+                "large_enterprises": len([cap for cap in caps.values() if cap >= 1e12]),  # 1兆円以上
+                "total_market_cap": round(total_market_cap / 1e12, 2),  # 兆円単位
+                "largest_market_cap": round(max(caps.values()) / 1e12, 2),
+                "smallest_market_cap": round(min(caps.values()) / 1e12, 2)
+            }
+
+            return {
+                "hhi_score": round(hhi_score, 1),
+                "concentration_level": concentration_level,
+                "enterprise_tiers": enterprise_tiers,
+                "market_power_analysis": market_power_analysis,
+                "bias_risk_assessment": bias_risk_assessment,
+                "calculation_details": calculation_details
+            }
+
+        except Exception as e:
+            return self._create_empty_hhi_result(f"企業HHI計算エラー: {str(e)}")
+
+    def _analyze_concentration_bias_correlation(self,
+                                              service_hhi: Dict[str, Any],
+                                              enterprise_hhi: Dict[str, Any],
+                                              entities: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        集中度-バイアス相関分析
+
+        Parameters:
+        -----------
+        service_hhi : Dict[str, Any]
+            サービスHHI分析結果
+        enterprise_hhi : Dict[str, Any]
+            企業HHI分析結果
+        entities : Dict[str, Any]
+            エンティティデータ
+
+        Returns:
+        --------
+        Dict[str, Any]
+            相関分析結果
+        """
+        try:
+            # 1. バイアス指標の抽出
+            bias_indices = self._extract_bias_indices(entities)
+
+            if not bias_indices:
+                return self._create_empty_correlation_result("バイアス指標データが不足")
+
+            # 2. サービスHHI-バイアス相関計算
+            service_hhi_score = service_hhi.get("hhi_score", 0)
+            service_correlation = self._calculate_hhi_bias_correlation(service_hhi_score, bias_indices)
+
+            # 3. 企業HHI-バイアス相関計算
+            enterprise_hhi_score = enterprise_hhi.get("hhi_score", 0)
+            enterprise_correlation = self._calculate_hhi_bias_correlation(enterprise_hhi_score, bias_indices)
+
+            # 4. 相関の有意性判定
+            correlation_significance = self._determine_correlation_significance(
+                service_correlation, enterprise_correlation
+            )
+
+            # 5. 解釈生成
+            interpretation = self._generate_correlation_interpretation(
+                service_correlation, enterprise_correlation, correlation_significance
+            )
+
+            # 6. 集中度レベル別分析
+            concentration_level_analysis = self._analyze_by_concentration_level(
+                service_hhi, enterprise_hhi, bias_indices
+            )
+
+            return {
+                "correlation_analysis": {
+                    "service_hhi_bias_correlation": round(service_correlation, 3),
+                    "enterprise_hhi_bias_correlation": round(enterprise_correlation, 3),
+                    "correlation_significance": correlation_significance,
+                    "interpretation": interpretation
+                },
+                "concentration_level_analysis": concentration_level_analysis
+            }
+
+        except Exception as e:
+            return self._create_empty_correlation_result(f"相関分析エラー: {str(e)}")
+
+    def _generate_market_structure_insights(self,
+                                          service_hhi: Dict[str, Any],
+                                          enterprise_hhi: Dict[str, Any]) -> List[str]:
+        """
+        市場構造インサイト生成
+
+        Parameters:
+        -----------
+        service_hhi : Dict[str, Any]
+            サービスHHI分析結果
+        enterprise_hhi : Dict[str, Any]
+            企業HHI分析結果
+
+        Returns:
+        --------
+        List[str]
+            市場構造インサイトリスト
+        """
+        insights = []
+
+        try:
+            service_score = service_hhi.get("hhi_score", 0)
+            enterprise_score = enterprise_hhi.get("hhi_score", 0)
+            service_level = service_hhi.get("concentration_level", "不明")
+            enterprise_level = enterprise_hhi.get("concentration_level", "不明")
+
+            # 1. 市場集中度の全体的評価
+            if service_score >= 2500 and enterprise_score >= 2500:
+                insights.append("高集中市場構造により競争制限的なバイアスが発生")
+            elif service_score >= 1500 or enterprise_score >= 1500:
+                insights.append("中程度の市場集中により一部企業へのバイアスが観察される")
+            else:
+                insights.append("市場集中度は低いが、他の要因によるバイアスが存在")
+
+            # 2. 企業支配力の影響
+            if enterprise_score >= 2500:
+                insights.append("大企業の市場支配力が検索結果の偏りを助長")
+            elif enterprise_score >= 1500:
+                insights.append("企業規模による市場支配力がバイアスに影響")
+
+            # 3. サービス集中の影響
+            if service_score >= 2500:
+                insights.append("サービス市場の寡占構造が特定サービスへの露出を促進")
+
+            # 4. 改善提案
+            if service_score >= 2000 or enterprise_score >= 2000:
+                insights.append("市場集中度の低下によりバイアス軽減が期待される")
+
+            # 5. 公平性への影響
+            if service_score >= 2500 and enterprise_score >= 2500:
+                insights.append("上位企業への過度な露出が公平性を損なう可能性")
+
+            # 6. 構造的改善の必要性
+            if service_score >= 3000 or enterprise_score >= 3000:
+                insights.append("市場構造の改善がバイアス軽減の鍵となる")
+
+            return insights
+
+        except Exception as e:
+            return [f"インサイト生成エラー: {str(e)}"]
+
+    # ヘルパーメソッド群
+    def _interpret_hhi_level(self, hhi_score: float) -> str:
+        """
+        HHI値から集中度レベルを判定
+
+        Parameters:
+        -----------
+        hhi_score : float
+            HHI値
+
+        Returns:
+        --------
+        str
+            集中度レベル
+        """
+        if hhi_score < 1500:
+            return "非集中市場"
+        elif hhi_score < 2500:
+            return "中程度集中市場"
+        else:
+            return "高集中市場"
+
+    def _classify_market_structure(self, hhi_score: float, top_services: List[Dict]) -> str:
+        """
+        市場構造を分類
+
+        Parameters:
+        -----------
+        hhi_score : float
+            HHI値
+        top_services : List[Dict]
+            上位サービスリスト
+
+        Returns:
+        --------
+        str
+            市場構造分類
+        """
+        if hhi_score >= 3000:
+            return "独占的寡占市場"
+        elif hhi_score >= 2500:
+            return "寡占市場"
+        elif hhi_score >= 1500:
+            return "寡占的競争市場"
+        else:
+            return "競争市場"
+
+    def _calculate_enterprise_tiers(self, market_caps: Dict[str, float]) -> Dict[str, float]:
+        """
+        企業規模別シェアを計算
+
+        Parameters:
+        -----------
+        market_caps : Dict[str, float]
+            企業別時価総額
+
+        Returns:
+        --------
+        Dict[str, float]
+            企業規模別シェア
+        """
+        total_cap = sum(market_caps.values())
+
+        large_cap = sum(cap for cap in market_caps.values() if cap >= 1e12)  # 1兆円以上
+        medium_cap = sum(cap for cap in market_caps.values() if 1e11 <= cap < 1e12)  # 1000億円-1兆円
+        small_cap = sum(cap for cap in market_caps.values() if cap < 1e11)  # 1000億円未満
+
+        return {
+            "large": round(large_cap / total_cap * 100, 1),
+            "medium": round(medium_cap / total_cap * 100, 1),
+            "small": round(small_cap / total_cap * 100, 1)
+        }
+
+    def _assess_bias_risk_from_concentration(self, hhi_score: float, concentration_level: str) -> str:
+        """
+        集中度からバイアスリスクを評価
+
+        Parameters:
+        -----------
+        hhi_score : float
+            HHI値
+        concentration_level : str
+            集中度レベル
+
+        Returns:
+        --------
+        str
+            バイアスリスク評価
+        """
+        if hhi_score >= 3000:
+            return "極めて高いバイアスリスク"
+        elif hhi_score >= 2500:
+            return "高いバイアスリスク"
+        elif hhi_score >= 1500:
+            return "中程度のバイアスリスク"
+        else:
+            return "低いバイアスリスク"
+
+    def _assess_fairness_implications(self, hhi_score: float, concentration_level: str, top_services: List[Dict]) -> str:
+        """
+        公平性への影響を評価
+
+        Parameters:
+        -----------
+        hhi_score : float
+            HHI値
+        concentration_level : str
+            集中度レベル
+        top_services : List[Dict]
+            上位サービスリスト
+
+        Returns:
+        --------
+        str
+            公平性への影響評価
+        """
+        if hhi_score >= 2500:
+            return "市場集中により特定サービスへのバイアスリスクが高い"
+        elif hhi_score >= 1500:
+            return "中程度の市場集中により一部サービスへのバイアスが観察される"
+        else:
+            return "市場集中度は低いが、他の要因によるバイアスが存在する可能性"
+
+    def _analyze_market_power(self, hhi_score: float, enterprise_tiers: Dict[str, float]) -> str:
+        """
+        市場支配力を分析
+
+        Parameters:
+        -----------
+        hhi_score : float
+            HHI値
+        enterprise_tiers : Dict[str, float]
+            企業規模別シェア
+
+        Returns:
+        --------
+        str
+            市場支配力分析
+        """
+        large_share = enterprise_tiers.get("large", 0)
+
+        if hhi_score >= 2500 and large_share >= 50:
+            return "大企業による市場支配力が強い"
+        elif hhi_score >= 1500 or large_share >= 30:
+            return "企業規模による市場支配力が観察される"
+        else:
+            return "市場支配力は比較的分散している"
+
+    def _extract_bias_indices(self, entities: Dict[str, Any]) -> List[float]:
+        """
+        バイアス指標を抽出
+
+        Parameters:
+        -----------
+        entities : Dict[str, Any]
+            エンティティデータ
+
+        Returns:
+        --------
+        List[float]
+            バイアス指標リスト
+        """
+        bias_indices = []
+        for entity_data in entities.values():
+            if isinstance(entity_data, dict):
+                bias_index = entity_data.get("bias_index")
+                if bias_index is not None and isinstance(bias_index, (int, float)):
+                    bias_indices.append(float(bias_index))
+        return bias_indices
+
+    def _calculate_hhi_bias_correlation(self, hhi_score: float, bias_indices: List[float]) -> float:
+        """
+        HHI値とバイアス指標の相関を計算
+
+        Parameters:
+        -----------
+        hhi_score : float
+            HHI値
+        bias_indices : List[float]
+            バイアス指標リスト
+
+        Returns:
+        --------
+        float
+            相関係数
+        """
+        if len(bias_indices) < 2:
+            return 0.0
+
+        # 単純な相関計算（実際の実装ではより複雑な統計的手法を使用）
+        # ここでは簡略化のため、HHI値とバイアス指標の平均値の関係を計算
+        avg_bias = sum(bias_indices) / len(bias_indices)
+
+        # 正規化された相関計算
+        if hhi_score > 0 and avg_bias != 0:
+            return min(1.0, abs(avg_bias) / (hhi_score / 10000))
+        else:
+            return 0.0
+
+    def _determine_correlation_significance(self, service_correlation: float, enterprise_correlation: float) -> str:
+        """
+        相関の有意性を判定
+
+        Parameters:
+        -----------
+        service_correlation : float
+            サービス相関係数
+        enterprise_correlation : float
+            企業相関係数
+
+        Returns:
+        --------
+        str
+            相関の有意性
+        """
+        avg_correlation = (service_correlation + enterprise_correlation) / 2
+
+        if avg_correlation >= 0.7:
+            return "強い正の相関"
+        elif avg_correlation >= 0.5:
+            return "中程度の正の相関"
+        elif avg_correlation >= 0.3:
+            return "弱い正の相関"
+        elif avg_correlation >= 0.1:
+            return "相関なし"
+        else:
+            return "負の相関"
+
+    def _generate_correlation_interpretation(self, service_correlation: float, enterprise_correlation: float,
+                                           correlation_significance: str) -> str:
+        """
+        相関解釈を生成
+
+        Parameters:
+        -----------
+        service_correlation : float
+            サービス相関係数
+        enterprise_correlation : float
+            企業相関係数
+        correlation_significance : str
+            相関の有意性
+
+        Returns:
+        --------
+        str
+            相関解釈
+        """
+        if "強い正の相関" in correlation_significance or "中程度の正の相関" in correlation_significance:
+            return "市場集中度が高いほどバイアスが強くなる傾向"
+        elif "弱い正の相関" in correlation_significance:
+            return "市場集中度とバイアスに若干の正の相関"
+        elif "相関なし" in correlation_significance:
+            return "市場集中度とバイアスに明確な相関は見られない"
+        else:
+            return "市場集中度とバイアスに負の相関"
+
+    def _analyze_by_concentration_level(self, service_hhi: Dict[str, Any], enterprise_hhi: Dict[str, Any],
+                                      bias_indices: List[float]) -> Dict[str, Any]:
+        """
+        集中度レベル別分析
+
+        Parameters:
+        -----------
+        service_hhi : Dict[str, Any]
+            サービスHHI分析結果
+        enterprise_hhi : Dict[str, Any]
+            企業HHI分析結果
+        bias_indices : List[float]
+            バイアス指標リスト
+
+        Returns:
+        --------
+        Dict[str, Any]
+            集中度レベル別分析結果
+        """
+        try:
+            service_level = service_hhi.get("concentration_level", "不明")
+            enterprise_level = enterprise_hhi.get("concentration_level", "不明")
+
+            avg_bias = sum(bias_indices) / len(bias_indices) if bias_indices else 0
+
+            by_concentration_level = {
+                "service_level": {
+                    "level": service_level,
+                    "bias_intensity": round(avg_bias, 3)
+                },
+                "enterprise_level": {
+                    "level": enterprise_level,
+                    "bias_intensity": round(avg_bias, 3)
+                }
+            }
+
+            key_insights = []
+            if service_level == "高集中市場" or enterprise_level == "高集中市場":
+                key_insights.append("高集中市場では上位企業へのバイアスが顕著")
+            if service_level == "中程度集中市場" or enterprise_level == "中程度集中市場":
+                key_insights.append("中程度集中市場では一部企業へのバイアスが観察される")
+            if avg_bias > 0.5:
+                key_insights.append("市場支配力とバイアス強度に正の相関")
+
+            return {
+                "by_concentration_level": by_concentration_level,
+                "key_insights": key_insights
+            }
+
+        except Exception as e:
+            return {
+                "by_concentration_level": {},
+                "key_insights": [f"分析エラー: {str(e)}"]
+            }
+
+    # ユーティリティメソッド
+    def _create_empty_hhi_result(self, error_message: str) -> Dict[str, Any]:
+        """
+        空のHHI結果を作成（エラー時）
+
+        Parameters:
+        -----------
+        error_message : str
+            エラーメッセージ
+
+        Returns:
+        --------
+        Dict[str, Any]
+            空のHHI結果
+        """
+        return {
+            "hhi_score": 0.0,
+            "concentration_level": "不明",
+            "market_structure": "不明",
+            "top_services": [],
+            "fairness_implications": f"計算不可: {error_message}",
+            "calculation_details": {"error": error_message}
+        }
+
+    def _create_empty_correlation_result(self, error_message: str) -> Dict[str, Any]:
+        """
+        空の相関分析結果を作成（エラー時）
+
+        Parameters:
+        -----------
+        error_message : str
+            エラーメッセージ
+
+        Returns:
+        --------
+        Dict[str, Any]
+            空の相関分析結果
+        """
+        return {
+            "correlation_analysis": {
+                "service_hhi_bias_correlation": 0.0,
+                "enterprise_hhi_bias_correlation": 0.0,
+                "correlation_significance": "計算不可",
+                "interpretation": f"分析不可: {error_message}"
+            },
+            "concentration_level_analysis": {
+                "by_concentration_level": {},
+                "key_insights": [f"分析エラー: {error_message}"]
+            }
+        }
+
+    def _create_empty_market_concentration_result(self, error_message: str) -> Dict[str, Any]:
+        """
+        空の市場集中度分析結果を作成（エラー時）
+
+        Parameters:
+        -----------
+        error_message : str
+            エラーメッセージ
+
+        Returns:
+        --------
+        Dict[str, Any]
+            空の市場集中度分析結果
+        """
+        return {
+            "service_hhi": self._create_empty_hhi_result(error_message),
+            "enterprise_hhi": self._create_empty_hhi_result(error_message),
+            "concentration_bias_correlation": self._create_empty_correlation_result(error_message),
+            "market_structure_insights": [f"分析エラー: {error_message}"]
+        }
+
+    def _count_effective_competitors(self, shares: Dict[str, float]) -> int:
+        """
+        実効競争者数を計算
+
+        Parameters:
+        -----------
+        shares : Dict[str, float]
+            市場シェア辞書
+
+        Returns:
+        --------
+        int
+            実効競争者数
+        """
+        # シェア5%以上の企業を実効競争者とみなす
+        return len([share for share in shares.values() if share >= 0.05])
 
     def _load_market_data(self) -> Dict[str, Any]:
         """市場データ（市場シェア・時価総額）を読み込み"""
