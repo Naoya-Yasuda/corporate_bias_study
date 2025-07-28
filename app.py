@@ -38,9 +38,51 @@ def get_cached_dashboard_data(_loader, selected_date):
     dict
         ダッシュボードデータ
     """
-    # キャッシュの効果を確認するためのログ
-    st.sidebar.info(f"📥 データ取得中: {selected_date} (キャッシュ機能有効)")
     return _loader.get_integrated_dashboard_data(selected_date)
+
+# 非同期データ取得関数
+def get_dashboard_data_async(_loader, selected_date):
+    """
+    ダッシュボードデータを非同期で取得（読み込み状況を表示）
+
+    Parameters:
+    -----------
+    _loader : HybridDataLoader
+        データローダーインスタンス
+    selected_date : str
+        選択された日付
+
+    Returns:
+    --------
+    dict
+        ダッシュボードデータ
+    """
+    # 読み込み開始時刻を記録
+    start_time = datetime.now()
+
+    # 読み込み状況を表示
+    with st.spinner(f"📥 データ取得中: {selected_date}..."):
+        try:
+            data = get_cached_dashboard_data(_loader, selected_date)
+            end_time = datetime.now()
+            load_time = (end_time - start_time).total_seconds()
+
+            # キャッシュ情報をサイドバーに表示
+            if load_time < 0.1:  # キャッシュから取得された場合
+                st.sidebar.success(f"💾 キャッシュから読み込み: {selected_date}")
+            else:
+                st.sidebar.info(f"📥 新規読み込み: {selected_date} ({load_time:.2f}秒)")
+
+            if not data:
+                st.error(f"❌ データ取得失敗: {selected_date}")
+
+            return data
+        except Exception as e:
+            end_time = datetime.now()
+            load_time = (end_time - start_time).total_seconds()
+            st.error(f"❌ データ取得エラー: {selected_date} (読み込み時間: {load_time:.2f}秒)")
+            st.error(f"エラー詳細: {str(e)}")
+            return None
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
@@ -291,10 +333,20 @@ if viz_type == "時系列分析":
     all_dates = sorted(list(dates_local | dates_s3))
 
     best_data_by_date = {}
-    for date in all_dates:
-        # キャッシュ付きでデータを取得
-        data_local = get_cached_dashboard_data(loader_local, date) if date in dates_local else None
-        data_s3 = get_cached_dashboard_data(loader_s3, date) if date in dates_s3 else None
+
+    # 進捗バーを表示
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for i, date in enumerate(all_dates):
+        # 進捗を更新
+        progress = (i + 1) / len(all_dates)
+        progress_bar.progress(progress)
+        status_text.text(f"データ取得中... {i+1}/{len(all_dates)}: {date}")
+
+        # 非同期でデータを取得
+        data_local = get_dashboard_data_async(loader_local, date) if date in dates_local else None
+        data_s3 = get_dashboard_data_async(loader_s3, date) if date in dates_s3 else None
         def get_meta(d):
             if d and "analysis_results" in d and "metadata" in d["analysis_results"]:
                 meta = d["analysis_results"]["metadata"]
@@ -315,6 +367,11 @@ if viz_type == "時系列分析":
                 best_data_by_date[date] = (data_local, "local")
             else:
                 best_data_by_date[date] = (data_s3, "s3")
+
+    # 進捗バーとステータステキストをクリア
+    progress_bar.empty()
+    status_text.empty()
+
     available_dates = sorted(best_data_by_date.keys())
         # ここから追加
     status_list = []
@@ -330,9 +387,17 @@ if viz_type == "時系列分析":
         status = 'OK' if data is not None else '取得失敗'
         status_list.append(f"{date}｜{source}｜{status}｜{path}")
 
-    with st.sidebar.expander("データ取得状況"):
-        for s in status_list:
-            st.write(s)
+    with st.sidebar.expander("📊 データ取得状況", expanded=False):
+        if status_list:
+            for s in status_list:
+                if "OK" in s:
+                    st.success(s)
+                elif "失敗" in s or "エラー" in s:
+                    st.error(s)
+                else:
+                    st.info(s)
+        else:
+            st.info("データ取得状況がありません")
     # ここまで追加
     period_options = {
         "1ヶ月": 4,
@@ -839,12 +904,12 @@ if viz_type == "時系列分析":
                     st.write(f"**ポジティブバイアス差分**: 平均={avg_positive_bias:.3f}, 最小={min_positive_bias:.3f}, 最大={max_positive_bias:.3f} ({bias_trend})")
 
 elif viz_type == "単日分析":
-    # キャッシュ付きでデータを取得（サブカテゴリ切り替え時に再取得しない）
-    dashboard_data = get_cached_dashboard_data(loader, selected_date)
+    # 非同期でデータを取得（読み込み状況を表示）
+    dashboard_data = get_dashboard_data_async(loader, selected_date)
     analysis_data = dashboard_data["analysis_results"] if dashboard_data else None
 
     if not analysis_data:
-        st.sidebar.error(f"分析データの読み込みに失敗しました: {selected_date}")
+        st.error(f"分析データの読み込みに失敗しました: {selected_date}")
         st.stop()
 
     # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
