@@ -1,5 +1,10 @@
 name: AI Bias & Ranking Analysis (Weekly)
 
+# 同時実行制御設定
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   schedule:
     - cron: '0 21 * * 1'   # 毎週月曜日 06:00 JST (=21:00 UTC) に実行
