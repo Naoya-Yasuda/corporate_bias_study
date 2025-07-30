@@ -1,0 +1,28 @@
+# データ収集パイプライン用Dockerfile
+FROM python:3.11-slim
+
+# 作業ディレクトリを設定
+WORKDIR /app
+
+# システムパッケージの更新と必要なツールのインストール
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# GitHub Actions用のrequirements.txtをコピー
+COPY requirements-github-actions.txt .
+
+# Pythonパッケージをインストール
+RUN pip install --no-cache-dir -r requirements-github-actions.txt
+
+# アプリケーションコードをコピー
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+COPY config/ ./config/
+COPY pyproject.toml .
+
+# 環境変数を設定
+ENV PYTHONPATH=/app
+
+# デフォルトコマンド（データ収集スクリプト実行）
+CMD ["python", "-m", "scripts.run_bias_analysis"]
