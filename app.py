@@ -21,6 +21,57 @@ import os
 from src.utils.storage_config import get_base_paths
 import plotly.graph_objects as go
 
+# 認証機能のインポート
+from src.components.auth_ui import render_auth_page, show_dashboard_header
+from src.utils.auth_utils import validate_auth_config, is_authenticated
+
+# ページ設定
+st.set_page_config(
+    page_title="企業バイアス分析ダッシュボード",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# 認証チェック
+def check_authentication():
+    """認証状態をチェックし、未認証の場合は認証ページを表示"""
+
+    # デバッグ情報をログに出力
+    import logging
+    import os
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    logger.info("認証チェック開始")
+    logger.info(f"環境変数確認: GOOGLE_CLIENT_ID={'設定済み' if os.getenv('GOOGLE_CLIENT_ID') else '未設定'}")
+    logger.info(f"環境変数確認: GOOGLE_CLIENT_SECRET={'設定済み' if os.getenv('GOOGLE_CLIENT_SECRET') else '未設定'}")
+    logger.info(f"環境変数確認: GOOGLE_REDIRECT_URI={os.getenv('GOOGLE_REDIRECT_URI', '未設定')}")
+
+    # 認証設定の検証
+    if not validate_auth_config():
+        st.error("認証設定が正しく設定されていません。")
+        st.info("以下の環境変数が設定されているか確認してください：")
+        st.code("""
+        GOOGLE_CLIENT_ID=your_client_id
+        GOOGLE_CLIENT_SECRET=your_client_secret
+        GOOGLE_REDIRECT_URI=http://localhost:8501
+        ALLOWED_DOMAINS=cyber-u.ac.jp
+        """)
+        st.stop()
+
+    # 認証状態チェック
+    if not is_authenticated():
+        render_auth_page()
+        st.stop()
+
+# 認証チェック実行
+check_authentication()
+
+# 認証成功後のダッシュボードヘッダー表示
+if hasattr(st.session_state, 'authenticated') and st.session_state.authenticated:
+    if hasattr(st.session_state, 'user_info') and st.session_state.user_info:
+        show_dashboard_header(st.session_state.user_info)
+
 # キャッシュ付きデータ取得関数
 @st.cache_data(ttl=3600)  # 1時間キャッシュ
 def get_cached_dashboard_data(_loader, selected_date):
@@ -105,14 +156,6 @@ def set_plot_style():
 
 # スタイル設定を適用
 set_plot_style()
-
-# ページ設定
-st.set_page_config(
-    page_title="企業バイアス分析ダッシュボード",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # 統一されたCSS設定
 # （main-dashboard-areaやstDataFrame等のカスタムCSSは削除）
