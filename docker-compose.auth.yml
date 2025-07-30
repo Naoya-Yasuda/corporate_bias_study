@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  auth-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.auth
+    image: auth-dashboard:latest
+    container_name: auth-dashboard
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - AUTH_DEBUG_MODE=true
+    volumes:
+      # 開発用：必要なファイルをマウント
+      - ./src/auth:/app/src/auth
+      - ./src/components/auth_ui.py:/app/src/components/auth_ui.py
+      - ./src/utils/auth_utils.py:/app/src/utils/auth_utils.py
+      - ./src/utils/plot_utils.py:/app/src/utils/plot_utils.py
+      - ./src/utils/storage_utils.py:/app/src/utils/storage_utils.py
+      - ./src/utils/storage_config.py:/app/src/utils/storage_config.py
+      - ./src/analysis/hybrid_data_loader.py:/app/src/analysis/hybrid_data_loader.py
+      - ./app.py:/app/app.py
+    restart: unless-stopped
+    # 簡素化されたヘルスチェック
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 2
+      start_period: 60s
