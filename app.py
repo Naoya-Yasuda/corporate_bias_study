@@ -2676,38 +2676,17 @@ elif viz_type == "単日分析":
             from src.utils.plot_utils import (
                 plot_ranking_similarity_for_ranking_analysis,
                 plot_bias_indices_bar_for_ranking_analysis,
-                plot_ranking_variation_heatmap
+                plot_ranking_variation_heatmap,
+                plot_entity_stability_analysis
             )
 
             # タブ作成
             tab1, tab2, tab3, tab4 = st.tabs([
-                "ランキング類似度分析", "バイアス指標棒グラフ",
-                "ランキング変動ヒートマップ", "安定性スコア分布"
+                "バイアス指標棒グラフ", "ランキング変動ヒートマップ",
+                "ランキング安定性分析", "安定性スコア分布"
             ])
 
             with tab1:
-                st.markdown("**ランキング類似度分析**")
-                st.info("Google検索とPerplexityの検索結果の類似度を3つの指標で比較します：\n\n"
-                       "・RBO：上位の検索結果がどれだけ一致しているか（1に近いほど上位の結果が同じ）\n"
-                       "・Kendall Tau：順位の並びがどれだけ似ているか（1に近いほど順位の並びが同じ）\n"
-                       "・Overlap Ratio：全体の検索結果がどれだけ重複しているか（1に近いほど同じURLが多い）", icon="ℹ️")
-
-                if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
-                    try:
-                        similarity_data = dashboard_data["analysis_results"]["citations_google_comparison"][selected_category][selected_subcategory]["ranking_similarity"]
-
-                        fig = plot_ranking_similarity_for_ranking_analysis(similarity_data)
-                        if fig:
-                            st.pyplot(fig, use_container_width=True)
-                            plt.close(fig)
-                        else:
-                            st.info("類似度分析データがありません")
-                    except Exception as e:
-                        st.error(f"グラフ描画エラー: {str(e)}")
-                else:
-                    st.warning("分析データが不足しています")
-
-            with tab2:
                 st.markdown("**バイアス指標棒グラフ**")
                 st.info("各エンティティのバイアス指標を棒グラフで表示します。\n\n"
                        "バイアス指標は、各エンティティと他のエンティティとの順位差の平均値として計算されます。\n"
@@ -2729,7 +2708,7 @@ elif viz_type == "単日分析":
                 else:
                     st.warning("分析データが不足しています")
 
-            with tab3:
+            with tab2:
                 st.markdown("**ランキング変動ヒートマップ**")
                 st.info("各エンティティの順位変動を実行回数ごとにヒートマップで表示します。\n"
                        "色が濃いほど順位が低く、薄いほど順位が高いことを示します。", icon="ℹ️")
@@ -2747,6 +2726,66 @@ elif viz_type == "単日分析":
                             st.info("ヒートマップ用のデータがありません")
                     except Exception as e:
                         st.error(f"ヒートマップ描画エラー: {str(e)}")
+                else:
+                    st.warning("分析データが不足しています")
+
+            with tab3:
+                st.markdown("**ランキング安定性分析**")
+                st.info("各エンティティのランキング安定性を分析します。\n\n"
+                       "・順位標準偏差：実行回数間での順位のばらつき（0に近いほど安定）\n"
+                       "・順位範囲：実行回数間での順位の変動幅（0に近いほど安定）\n"
+                       "・安定性スコア：全体的なランキングの安定性（1に近いほど安定）", icon="ℹ️")
+
+                if ranking_bias_data and selected_category in ranking_bias_data and selected_subcategory in ranking_bias_data[selected_category]:
+                    try:
+                        subcat_data = ranking_bias_data[selected_category][selected_subcategory]
+                        stability_analysis = subcat_data.get("category_summary", {}).get("stability_analysis", {})
+
+                        if stability_analysis.get("available", False):
+                            # 安定性分析データを表示
+                            st.subheader("全体安定性")
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                st.metric("全体安定性スコア", f"{stability_analysis.get('overall_stability', 0):.3f}")
+                            with col2:
+                                st.metric("実行回数", stability_analysis.get("execution_count", 0))
+                            with col3:
+                                st.metric("平均順位標準偏差", f"{stability_analysis.get('avg_rank_std', 0):.3f}")
+
+                            st.write(f"**解釈**: {stability_analysis.get('stability_interpretation', 'N/A')}")
+
+                            # エンティティ別安定性データをグラフで表示
+                            rank_variance = stability_analysis.get("rank_variance", {})
+                            if rank_variance:
+                                st.subheader("エンティティ別安定性分析")
+
+                                # グラフを表示
+                                fig = plot_entity_stability_analysis(rank_variance)
+                                if fig:
+                                    st.pyplot(fig, use_container_width=True)
+                                    plt.close(fig)
+                                else:
+                                    st.info("安定性分析グラフの作成に失敗しました")
+
+                                # 詳細データテーブルも表示（折りたたみ可能）
+                                with st.expander("詳細データテーブル"):
+                                    stability_df = []
+                                    for entity, data in rank_variance.items():
+                                        stability_df.append({
+                                            "エンティティ": entity,
+                                            "平均順位": f"{data.get('mean_rank', 0):.2f}",
+                                            "順位標準偏差": f"{data.get('rank_std', 0):.3f}",
+                                            "順位範囲": f"{data.get('rank_range', 0):.1f}"
+                                        })
+
+                                    if stability_df:
+                                        df = pd.DataFrame(stability_df)
+                                        st.dataframe(df, use_container_width=True)
+                        else:
+                            st.info("安定性分析データがありません")
+                    except Exception as e:
+                        st.error(f"安定性分析エラー: {str(e)}")
                 else:
                     st.warning("分析データが不足しています")
 

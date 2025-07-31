@@ -1581,3 +1581,89 @@ def plot_service_share_bias_scatter(share_bias):
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
     return fig
+
+def plot_entity_stability_analysis(rank_variance):
+    """
+    エンティティ別安定性分析を可視化
+
+    Parameters:
+    -----------
+    rank_variance : dict
+        エンティティ別の安定性データ
+        {
+            "エンティティ名": {
+                "mean_rank": float,
+                "rank_std": float,
+                "rank_range": float
+            }
+        }
+
+    Returns:
+    --------
+    matplotlib.figure.Figure or None
+    """
+    try:
+        if not rank_variance:
+            return None
+
+        # データフレームに変換
+        entities = []
+        mean_ranks = []
+        rank_stds = []
+        rank_ranges = []
+
+        for entity, data in rank_variance.items():
+            entities.append(entity)
+            mean_ranks.append(data.get('mean_rank', 0))
+            rank_stds.append(data.get('rank_std', 0))
+            rank_ranges.append(data.get('rank_range', 0))
+
+        # プロット作成
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+
+        # 1. 平均順位と順位標準偏差の散布図
+        colors = plt.cm.viridis(np.linspace(0, 1, len(entities)))
+
+        for i, entity in enumerate(entities):
+            ax1.scatter(mean_ranks[i], rank_stds[i],
+                       c=[colors[i]], s=100, alpha=0.7, label=entity)
+            ax1.annotate(entity, (mean_ranks[i], rank_stds[i]),
+                        xytext=(5, 5), textcoords='offset points',
+                        fontsize=9, ha='left')
+
+        ax1.set_xlabel('平均順位', fontsize=12)
+        ax1.set_ylabel('順位標準偏差', fontsize=12)
+        ax1.set_title('平均順位 vs 順位標準偏差', fontsize=14)
+        ax1.grid(True, alpha=0.3)
+
+        # 安定性の解釈を追加
+        ax1.text(0.02, 0.98, '● 標準偏差が小さいほど安定\n● 平均順位が小さいほど上位',
+                transform=ax1.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
+
+        # 2. 順位範囲の棒グラフ
+        bars = ax2.bar(range(len(entities)), rank_ranges, color=colors, alpha=0.7)
+        ax2.set_xlabel('エンティティ', fontsize=12)
+        ax2.set_ylabel('順位範囲', fontsize=12)
+        ax2.set_title('エンティティ別順位範囲', fontsize=14)
+        ax2.set_xticks(range(len(entities)))
+        ax2.set_xticklabels(entities, rotation=45, ha='right')
+        ax2.grid(True, alpha=0.3, axis='y')
+
+        # バーの上に値を表示
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                    f'{height:.1f}', ha='center', va='bottom', fontsize=9)
+
+        # 順位範囲の解釈を追加
+        ax2.text(0.02, 0.98, '● 範囲が小さいほど安定\n● 範囲が大きいほど変動大',
+                transform=ax2.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.7))
+
+        plt.tight_layout()
+        return fig
+
+    except Exception as e:
+        print(f"Error in plot_entity_stability_analysis: {str(e)}")
+        return None
