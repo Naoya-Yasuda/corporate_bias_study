@@ -267,7 +267,7 @@ def plot_sentiment_comparison(sentiment_data, title):
     plt.tight_layout()
     return fig
 
-def _display_ranking_interpretation(self, metrics_data, result_type):
+def _display_ranking_interpretation(metrics_data, result_type):
     """ランキング類似度の解説を表示"""
     if not metrics_data or "error" in metrics_data:
         st.info(f"{result_type}のグラフ解説データがありません")
@@ -1525,12 +1525,11 @@ elif viz_type == "単日分析":
                         st.pyplot(fig, use_container_width=True)
 
                         # 公式結果の解説を表示
-                        self._display_ranking_interpretation(official_metrics, "公式結果")
+                        _display_ranking_interpretation(official_metrics, "公式結果")
                     else:
                         st.warning("公式結果のランキング類似度データが利用できません。")
 
-                    # グラフ解説（新しいデータ構造に対応）
-                    self._display_ranking_interpretation(official_metrics, "公式結果")
+
 
                 with tab2:
                     st.markdown("**ランキング類似度分析（評判結果）**")
@@ -1546,7 +1545,7 @@ elif viz_type == "単日分析":
                         st.pyplot(fig, use_container_width=True)
 
                         # 評判結果の解説を表示
-                        self._display_ranking_interpretation(reputation_metrics, "評判結果")
+                        _display_ranking_interpretation(reputation_metrics, "評判結果")
                     else:
                         st.warning("評判結果のランキング類似度データが利用できません。")
 
