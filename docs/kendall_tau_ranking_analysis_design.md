@@ -32,13 +32,20 @@
 
 ## 2. Perplexity-Google比較の詳細設計
 
-### 2.1 データ構造の定義
+### 2.1 基本方針
 
-#### DomainRankingクラス
+**シンプルな順位比較に戻す**
+- 複雑な統合手法を削除
+- Google検索結果の順位とPerplexity検索結果の順位を直接比較
+- 共通ドメインの順位相関をKendall Tauで測定
+
+### 2.2 データ構造の定義
+
+#### SimpleRankingクラス
 
 ```python
-class DomainRanking:
-    """ドメインランキング情報を保持するクラス"""
+class SimpleRanking:
+    """シンプルな順位情報を保持するクラス"""
 
     def __init__(self, domain: str, rank: int, source: str, entity: str, result_type: str):
         self.domain = domain
@@ -46,34 +53,32 @@ class DomainRanking:
         self.source = source  # "google" or "perplexity"
         self.entity = entity  # "AWS", "Azure", etc.
         self.result_type = result_type  # "official" or "reputation"
-        self.weight = self._calculate_weight()
 
-    def _calculate_weight(self) -> float:
-        """結果タイプに基づく重み付け"""
-        base_weight = 1.0
-        if self.result_type == "official":
-            return base_weight * 1.5  # 公式サイトを重視
-        else:
-            return base_weight * 1.0  # 評判サイト
+    def __repr__(self):
+        return f"SimpleRanking(domain='{self.domain}', rank={self.rank}, source='{self.source}', entity='{self.entity}', result_type='{self.result_type}')"
 ```
 
-### 2.2 順位付きドメイン抽出
+### 2.3 順位付きドメイン抽出
 
 ```python
-def extract_ranked_domains(self, subcategory_data: Dict) -> List[DomainRanking]:
-    """サブカテゴリデータから順位付きドメインを抽出"""
-    domain_rankings = []
+def extract_simple_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
+    """サブカテゴリデータから順位付きドメインを抽出（シンプル版）"""
+    rankings = []
 
-    for entity_name, entity_data in subcategory_data["entities"].items():
+    if "entities" not in subcategory_data:
+        return rankings
+
+    entities = subcategory_data["entities"]
+    for entity_name, entity_data in entities.items():
         # official_results から抽出
         if "official_results" in entity_data:
             for i, result in enumerate(entity_data["official_results"]):
-                domain = self._extract_domain_from_url(result.get("url", ""))
+                domain = result.get("domain")
                 if domain:
-                    domain_rankings.append(DomainRanking(
+                    rankings.append(SimpleRanking(
                         domain=domain,
                         rank=i + 1,  # 1-based ranking
-                        source="perplexity",
+                        source=source,
                         entity=entity_name,
                         result_type="official"
                     ))
@@ -81,184 +86,164 @@ def extract_ranked_domains(self, subcategory_data: Dict) -> List[DomainRanking]:
         # reputation_results から抽出
         if "reputation_results" in entity_data:
             for i, result in enumerate(entity_data["reputation_results"]):
-                domain = self._extract_domain_from_url(result.get("url", ""))
+                domain = result.get("domain")
                 if domain:
-                    domain_rankings.append(DomainRanking(
+                    rankings.append(SimpleRanking(
                         domain=domain,
                         rank=i + 1,  # 1-based ranking
-                        source="perplexity",
+                        source=source,
                         entity=entity_name,
                         result_type="reputation"
                     ))
 
-    return domain_rankings
+    return rankings
 ```
 
-### 2.3 統合順位計算
+### 2.4 シンプルな順位統合
 
 ```python
-def calculate_integrated_ranking(self, domain_rankings: List[DomainRanking],
-                                integration_method: str = "weighted_average") -> List[str]:
-    """ドメインランキングを統合して最終順位を計算"""
+def calculate_simple_ranking(self, rankings: List[SimpleRanking]) -> Dict[str, int]:
+    """シンプルな順位統合：ドメインごとの平均順位を計算"""
+    domain_ranks = {}
 
-    # ドメイン別にグループ化
-    domain_groups = {}
-    for ranking in domain_rankings:
+    for ranking in rankings:
         domain = ranking.domain
-        if domain not in domain_groups:
-            domain_groups[domain] = []
-        domain_groups[domain].append(ranking)
+        if domain not in domain_ranks:
+            domain_ranks[domain] = []
+        domain_ranks[domain].append(ranking.rank)
 
-    # 統合スコア計算
-    domain_scores = {}
-    for domain, rankings in domain_groups.items():
-        if integration_method == "weighted_average":
-            score = self._calculate_weighted_average_score(rankings)
-        elif integration_method == "frequency_based":
-            score = self._calculate_frequency_score(rankings)
-        elif integration_method == "entity_priority":
-            score = self._calculate_entity_priority_score(rankings)
+    # 平均順位を計算
+    avg_ranks = {}
+    for domain, ranks in domain_ranks.items():
+        avg_ranks[domain] = sum(ranks) / len(ranks)
 
-        domain_scores[domain] = score
+    # 平均順位でソート
+    sorted_domains = sorted(avg_ranks.keys(), key=lambda x: avg_ranks[x])
 
-    # スコアでソートしてドメインリストを返す
-    sorted_domains = sorted(domain_scores.keys(),
-                           key=lambda x: domain_scores[x], reverse=True)
+    # 最終順位を付与
+    final_ranks = {}
+    for i, domain in enumerate(sorted_domains):
+        final_ranks[domain] = i + 1
 
-    return sorted_domains[:20]  # 上位20ドメイン
+    return final_ranks
 ```
 
-#### 統合方法の詳細
-
-**重み付き平均方式**
+### 2.5 Kendall Tau計算
 
 ```python
-def _calculate_weighted_average_score(self, rankings: List[DomainRanking]) -> float:
-    """重み付き平均スコア計算"""
-    total_weight = 0
-    weighted_sum = 0
-
-    for ranking in rankings:
-        # 順位をスコアに変換（1位=10点, 2位=9点, ...）
-        score = 11 - ranking.rank
-        weighted_score = score * ranking.weight
-        weighted_sum += weighted_score
-        total_weight += ranking.weight
-
-    return weighted_sum / total_weight if total_weight > 0 else 0
-```
-
-**頻度ベース方式**
-
-```python
-def _calculate_frequency_score(self, rankings: List[DomainRanking]) -> float:
-    """頻度ベーススコア計算"""
-    entity_count = len(set(r.entity for r in rankings))
-    avg_rank = sum(r.rank for r in rankings) / len(rankings)
-    return entity_count * (11 - avg_rank)
-```
-
-**企業優先度方式**
-
-```python
-def _calculate_entity_priority_score(self, rankings: List[DomainRanking]) -> float:
-    """企業優先度ベースのスコア計算"""
-    # 市場シェア上位企業の結果を重視
-    entity_weights = {
-        "AWS": 1.5, "Azure": 1.3, "Google Cloud": 1.2, "Oracle Cloud": 1.0
-    }
-
-    total_score = 0
-    for ranking in rankings:
-        entity_weight = entity_weights.get(ranking.entity, 1.0)
-        score = (11 - ranking.rank) * ranking.weight * entity_weight
-        total_score += score
-
-    return total_score
-```
-
-### 2.4 Kendall Tau計算の改善
-
-```python
-def compute_improved_ranking_metrics(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
-    """改善されたランキングメトリクス計算"""
+def compute_simple_ranking_metrics(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
+    """シンプルなランキングメトリクス計算"""
 
     # 1. 順位付きドメイン抽出
-    google_rankings = self.extract_ranked_domains(google_data)
-    citations_rankings = self.extract_ranked_domains(citations_data)
+    google_rankings = self.extract_simple_rankings(google_data, "google")
+    citations_rankings = self.extract_simple_rankings(citations_data, "perplexity")
 
-    # 2. 統合順位計算（複数方法で比較）
-    integration_methods = ["weighted_average", "frequency_based", "entity_priority"]
-    results = {}
+    # 2. 統合順位計算
+    google_final_ranks = self.calculate_simple_ranking(google_rankings)
+    citations_final_ranks = self.calculate_simple_ranking(citations_rankings)
 
-    for method in integration_methods:
-        google_domains = self.calculate_integrated_ranking(google_rankings, method)
-        citations_domains = self.calculate_integrated_ranking(citations_rankings, method)
-
-        # 3. Kendall Tau計算
-        kendall_tau = self._compute_kendall_tau(google_domains, citations_domains)
-        rbo_score = self._compute_rbo(google_domains, citations_domains)
-        overlap_ratio = self._compute_overlap_ratio(google_domains, citations_domains)
-
-        results[method] = {
-            "kendall_tau": kendall_tau,
-            "rbo_score": rbo_score,
-            "overlap_ratio": overlap_ratio,
-            "google_domains": google_domains,
-            "citations_domains": citations_domains
-        }
-
-    return results
-
-def _compute_kendall_tau(self, ranking1: List[str], ranking2: List[str]) -> float:
-    """改善されたKendall Tau計算"""
-    # 共通ドメインを抽出
-    common_domains = set(ranking1) & set(ranking2)
+    # 3. 共通ドメインの特定
+    common_domains = set(google_final_ranks.keys()) & set(citations_final_ranks.keys())
 
     if len(common_domains) < 2:
-        return 0.0
+        return {
+            "error": "共通ドメインが不足しています（最低2個必要）",
+            "common_domains_count": len(common_domains)
+        }
 
-    # 共通ドメインの順位を抽出
-    ranks1 = [ranking1.index(domain) for domain in common_domains]
-    ranks2 = [ranking2.index(domain) for domain in common_domains]
+    # 4. 共通ドメインの順位リスト作成
+    google_ranks_list = [google_final_ranks[domain] for domain in common_domains]
+    citations_ranks_list = [citations_final_ranks[domain] for domain in common_domains]
 
-    # Kendall Tau計算
-    return self._calculate_kendall_tau_coefficient(ranks1, ranks2)
-```
+    # 5. Kendall Tau計算
+    kendall_tau = self._compute_kendall_tau(google_ranks_list, citations_ranks_list)
 
-### 2.5 詳細分析機能
+    # 6. RBO計算
+    rbo_score = self._compute_rbo(google_ranks_list, citations_ranks_list)
 
-```python
-def analyze_ranking_details(self, google_rankings: List[DomainRanking],
-                           citations_rankings: List[DomainRanking]) -> Dict[str, Any]:
-    """ランキングの詳細分析"""
-
-    analysis = {
-        "domain_frequency": self._analyze_domain_frequency(google_rankings, citations_rankings),
-        "entity_bias": self._analyze_entity_bias(google_rankings, citations_rankings),
-        "result_type_distribution": self._analyze_result_type_distribution(google_rankings, citations_rankings),
-        "ranking_stability": self._analyze_ranking_stability(google_rankings, citations_rankings)
-    }
-
-    return analysis
-
-def _analyze_domain_frequency(self, google_rankings: List[DomainRanking],
-                             citations_rankings: List[DomainRanking]) -> Dict[str, Any]:
-    """ドメイン出現頻度分析"""
-    google_freq = {}
-    citations_freq = {}
-
-    for ranking in google_rankings:
-        google_freq[ranking.domain] = google_freq.get(ranking.domain, 0) + 1
-
-    for ranking in citations_rankings:
-        citations_freq[ranking.domain] = citations_freq.get(ranking.domain, 0) + 1
+    # 7. Overlap Ratio計算
+    overlap_ratio = len(common_domains) / max(len(google_final_ranks), len(citations_final_ranks))
 
     return {
-        "google_frequency": google_freq,
-        "citations_frequency": citations_freq,
-        "common_domains": set(google_freq.keys()) & set(citations_freq.keys())
+        "kendall_tau": kendall_tau,
+        "rbo_score": rbo_score,
+        "overlap_ratio": overlap_ratio,
+        "common_domains": list(common_domains),
+        "google_ranks": google_final_ranks,
+        "citations_ranks": citations_final_ranks,
+        "google_domains_count": len(google_final_ranks),
+        "citations_domains_count": len(citations_final_ranks),
+        "common_domains_count": len(common_domains)
     }
+
+def _compute_kendall_tau(self, ranks1: List[int], ranks2: List[int]) -> float:
+    """Kendall Tau計算"""
+    from scipy.stats import kendalltau
+    tau, p_value = kendalltau(ranks1, ranks2)
+    return tau
+
+def _compute_rbo(self, ranks1: List[int], ranks2: List[int]) -> float:
+    """Rank-Biased Overlap計算"""
+    from src.utils.rank_utils import rbo
+    return rbo(ranks1, ranks2)
+```
+
+### 2.6 メイン分析メソッド
+
+```python
+def _analyze_citations_google_comparison(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
+    """Google検索とPerplexity引用データの比較分析（シンプル版）"""
+
+    results = {}
+
+    for category in google_data.keys():
+        if category not in citations_data:
+            continue
+
+        category_results = {}
+        google_category = google_data[category]
+        citations_category = citations_data[category]
+
+        for subcategory in google_category.keys():
+            if subcategory not in citations_category:
+                continue
+
+            try:
+                # シンプルなランキングメトリクス計算
+                ranking_metrics = self.compute_simple_ranking_metrics(
+                    google_category[subcategory], citations_category[subcategory]
+                )
+
+                # 公式ドメイン分析
+                official_domain_analysis = self._analyze_official_domain_bias(
+                    google_category[subcategory], citations_category[subcategory]
+                )
+
+                # 感情分析比較
+                sentiment_comparison = self._compare_sentiment_distributions(
+                    google_category[subcategory], citations_category[subcategory]
+                )
+
+                category_results[subcategory] = {
+                    "ranking_similarity": ranking_metrics,
+                    "official_domain_analysis": official_domain_analysis,
+                    "sentiment_comparison": sentiment_comparison,
+                    "data_quality": {
+                        "google_data_complete": "google_domains_count" in ranking_metrics,
+                        "citations_data_complete": "citations_domains_count" in ranking_metrics
+                    }
+                }
+
+            except Exception as e:
+                logger.error(f"比較分析エラー ({category}/{subcategory}): {e}")
+                category_results[subcategory] = {
+                    "error": str(e),
+                    "analysis_failed": True
+                }
+
+        results[category] = category_results
+
+    return results
 ```
 
 ## 3. おすすめランキング分析の詳細設計
@@ -326,253 +311,257 @@ def _analyze_domain_frequency(self, google_rankings: List[DomainRanking],
 **比較対象**: 異なるエンティティ間の順位差分析
 
 **具体的な比較方法**:
+1. **エンティティペアの特定**: 全エンティティの組み合わせ
+2. **順位差計算**: 各ペアの平均順位差を計算
+3. **統計的有意性**: 順位差の統計的有意性を検定
+
+**実装箇所**:
+- `_calculate_ranking_category_analysis()`: カテゴリレベル分析
+- `_generate_ranking_insights()`: ランキング洞察生成
+
+### 3.4 改善されたおすすめランキング分析
+
+#### 3.4.1 実行回数間の完全比較
+
+**現在の問題点**:
+- 実行回数間の比較が不完全
+- 一部のペアのみで比較
+
+**改善案**:
 ```python
-# ranking_comparisonの計算（line 1446-1463）
-for i, e1 in enumerate(avg_ranking):
-    for j, e2 in enumerate(avg_ranking):
-        if i < j and e1 in entities and e2 in entities:
-            arr1 = np.array(entities[e1].get('all_ranks', []))
-            arr2 = np.array(entities[e2].get('all_ranks', []))
-            if len(arr1) == len(arr2) and len(arr1) > 0:
-                mean_diff = float(np.mean(arr1 - arr2))
-                ranking_comparison[f"{e1}_vs_{e2}"] = {"mean_diff": mean_diff}
-```
+def _calculate_complete_inter_run_comparison(self, answer_list: List[Dict]) -> Dict[str, Any]:
+    """実行回数間の完全比較"""
 
-### 3.4 現在の実装の問題点
-
-#### 3.4.1 実行回数間比較の問題
-
-**問題**: 現在の実装では、実行回数間のKendall Tau計算が不完全
-
-**具体的な問題**:
-1. **比較対象の不明確性**: どの実行回同士を比較しているか不明
-2. **統計的有意性の欠如**: 複数回実行の統計的検定が不十分
-3. **安定性指標の限界**: 単純な標準偏差のみで安定性を評価
-
-#### 3.4.2 改善が必要な箇所
-
-**修正が必要なメソッド**:
-1. `_calculate_ranking_stability()`: 実行回数間のKendall Tau計算を追加
-2. `_calculate_ranking_quality()`: 一貫性指標の改善
-3. `compare_entity_rankings()`: 複数実行回の比較機能強化
-
-### 3.5 改善設計
-
-#### 3.5.1 実行回数間Kendall Tau計算の改善
-
-```python
-def _calculate_execution_ranking_correlation(self, answer_list: List[Dict]) -> Dict[str, Any]:
-    """実行回数間のランキング相関分析"""
-
-    # 各実行回のランキングを抽出
-    execution_rankings = []
-    for answer in answer_list:
-        ranking = self._extract_ranking_from_answer(answer["answer"])
-        execution_rankings.append(ranking)
+    # 各実行回のランキング抽出
+    run_rankings = []
+    for answer_data in answer_list:
+        ranking = self._extract_ranking_from_answer(answer_data["answer"])
+        run_rankings.append(ranking)
 
     # 全ペアのKendall Tau計算
-    kendall_taus = []
-    for i in range(len(execution_rankings)):
-        for j in range(i + 1, len(execution_rankings)):
-            tau = self._compute_kendall_tau(execution_rankings[i], execution_rankings[j])
-            kendall_taus.append(tau)
-
-    # 統計的指標
-    avg_tau = np.mean(kendall_taus) if kendall_taus else 0.0
-    std_tau = np.std(kendall_taus) if kendall_taus else 0.0
+    tau_values = []
+    for i in range(len(run_rankings)):
+        for j in range(i + 1, len(run_rankings)):
+            tau = self._compute_kendall_tau_between_rankings(run_rankings[i], run_rankings[j])
+            tau_values.append(tau)
 
     return {
-        "average_kendall_tau": avg_tau,
-        "kendall_tau_std": std_tau,
-        "execution_consistency": "高" if avg_tau > 0.8 else "中" if avg_tau > 0.5 else "低",
-        "all_kendall_taus": kendall_taus
+        "avg_kendall_tau": np.mean(tau_values),
+        "std_kendall_tau": np.std(tau_values),
+        "min_kendall_tau": np.min(tau_values),
+        "max_kendall_tau": np.max(tau_values),
+        "tau_values": tau_values,
+        "comparison_count": len(tau_values)
     }
 ```
 
-#### 3.5.2 ランキング安定性の詳細分析
+#### 3.4.2 ランキング安定性の詳細分析
 
+**現在の問題点**:
+- 安定性指標が単純すぎる
+- 変動パターンの分析が不足
+
+**改善案**:
 ```python
-def _analyze_ranking_stability_detailed(self, entities: Dict[str, Any]) -> Dict[str, Any]:
-    """詳細なランキング安定性分析"""
+def _analyze_ranking_stability_patterns(self, all_ranks: List[int]) -> Dict[str, Any]:
+    """ランキング安定性パターン分析"""
 
-    stability_metrics = {}
-    for entity, data in entities.items():
-        all_ranks = data.get('all_ranks', [])
+    # 基本統計
+    mean_rank = np.mean(all_ranks)
+    std_rank = np.std(all_ranks)
+    rank_range = max(all_ranks) - min(all_ranks)
 
-        if len(all_ranks) >= 2:
-            # 基本統計
-            mean_rank = np.mean(all_ranks)
-            std_rank = np.std(all_ranks)
-            rank_range = max(all_ranks) - min(all_ranks)
+    # 変動パターン分析
+    rank_changes = [all_ranks[i+1] - all_ranks[i] for i in range(len(all_ranks)-1)]
+    positive_changes = sum(1 for change in rank_changes if change > 0)
+    negative_changes = sum(1 for change in rank_changes if change < 0)
+    no_changes = sum(1 for change in rank_changes if change == 0)
 
-            # 順位変動パターン
-            rank_changes = [all_ranks[i+1] - all_ranks[i] for i in range(len(all_ranks)-1)]
-            positive_changes = sum(1 for c in rank_changes if c > 0)
-            negative_changes = sum(1 for c in rank_changes if c < 0)
+    # 安定性レベル判定
+    if std_rank < 0.5:
+        stability_level = "非常に安定"
+    elif std_rank < 1.0:
+        stability_level = "安定"
+    elif std_rank < 2.0:
+        stability_level = "中程度"
+    else:
+        stability_level = "不安定"
 
-            stability_metrics[entity] = {
-                "mean_rank": mean_rank,
-                "rank_std": std_rank,
-                "rank_range": rank_range,
-                "stability_score": max(0, 1 - std_rank / 3),  # 0-1の安定性スコア
-                "rank_trend": "上昇" if positive_changes > negative_changes else "下降" if negative_changes > positive_changes else "安定",
-                "consistency_level": "高" if std_rank < 0.5 else "中" if std_rank < 1.0 else "低"
-            }
-
-    return stability_metrics
+    return {
+        "mean_rank": mean_rank,
+        "std_rank": std_rank,
+        "rank_range": rank_range,
+        "positive_changes": positive_changes,
+        "negative_changes": negative_changes,
+        "no_changes": no_changes,
+        "stability_level": stability_level,
+        "change_pattern": "上昇傾向" if positive_changes > negative_changes else "下降傾向" if negative_changes > positive_changes else "安定"
+    }
 ```
 
-#### 3.5.3 エンティティ間比較の改善
+#### 3.4.3 ランキング品質の包括的評価
 
+**現在の問題点**:
+- 品質指標が限定的
+- データの完全性チェックが不十分
+
+**改善案**:
 ```python
-def _analyze_entity_ranking_relationships(self, entities: Dict[str, Any]) -> Dict[str, Any]:
-    """エンティティ間のランキング関係分析"""
+def _calculate_comprehensive_ranking_quality(self, ranking_summary: Dict, answer_list: List[Dict]) -> Dict[str, Any]:
+    """包括的なランキング品質評価"""
 
-    entity_names = list(entities.keys())
-    relationships = {}
+    entities = ranking_summary.get("entities", {})
+    avg_ranking = ranking_summary.get("avg_ranking", [])
 
-    for i, entity1 in enumerate(entity_names):
-        for j, entity2 in enumerate(entity_names):
-            if i < j:
-                ranks1 = entities[entity1].get('all_ranks', [])
-                ranks2 = entities[entity2].get('all_ranks', [])
+    # 完全性スコア
+    completeness_score = len(avg_ranking) / len(entities) if entities else 0.0
 
-                if len(ranks1) == len(ranks2) and len(ranks1) > 0:
-                    # 平均順位差
-                    mean_diff = np.mean(np.array(ranks1) - np.array(ranks2))
+    # 一貫性スコア
+    consistency_scores = []
+    for entity_data in entities.values():
+        all_ranks = entity_data.get("all_ranks", [])
+        if len(all_ranks) > 1:
+            std = np.std(all_ranks)
+            consistency = max(0.0, 1.0 - std / 3.0)
+            consistency_scores.append(consistency)
 
-                    # 順位差の変動
-                    rank_diffs = [ranks1[k] - ranks2[k] for k in range(len(ranks1))]
-                    diff_std = np.std(rank_diffs)
+    consistency_score = np.mean(consistency_scores) if consistency_scores else 0.0
 
-                    # 順位関係の安定性
-                    consistent_relationship = all(diff > 0 for diff in rank_diffs) or all(diff < 0 for diff in rank_diffs)
+    # データ品質スコア
+    data_quality_score = 0.0
+    quality_factors = []
 
-                    relationships[f"{entity1}_vs_{entity2}"] = {
-                        "mean_rank_difference": mean_diff,
-                        "rank_difference_std": diff_std,
-                        "consistent_relationship": consistent_relationship,
-                        "relationship_strength": "強" if abs(mean_diff) > 2 else "中" if abs(mean_diff) > 1 else "弱"
-                    }
+    # 公式URLの存在
+    official_url_count = sum(1 for entity_data in entities.values() if entity_data.get("official_url"))
+    official_url_ratio = official_url_count / len(entities) if entities else 0.0
+    if official_url_ratio >= 0.8:
+        quality_factors.append("公式URL充足")
+        data_quality_score += 0.3
 
-    return relationships
+    # 実行回数の充足
+    execution_count = len(answer_list)
+    if execution_count >= 10:
+        quality_factors.append("実行回数充足")
+        data_quality_score += 0.3
+    elif execution_count >= 5:
+        quality_factors.append("実行回数中程度")
+        data_quality_score += 0.2
+
+    # 順位変動の適切性
+    avg_std = np.mean([np.std(entity_data.get("all_ranks", [])) for entity_data in entities.values()])
+    if avg_std < 2.0:
+        quality_factors.append("順位安定性良好")
+        data_quality_score += 0.4
+
+    return {
+        "completeness_score": completeness_score,
+        "consistency_score": consistency_score,
+        "data_quality_score": data_quality_score,
+        "quality_factors": quality_factors,
+        "official_url_ratio": official_url_ratio,
+        "execution_count": execution_count,
+        "avg_rank_std": avg_std,
+        "overall_quality_score": (completeness_score + consistency_score + data_quality_score) / 3
+    }
 ```
-
-### 3.6 実装計画
-
-#### Phase 1: 基本構造の改善（1-2週間）
-1. 実行回数間Kendall Tau計算の実装
-2. ランキング安定性分析の詳細化
-3. エンティティ間関係分析の追加
-
-#### Phase 2: 統計的検定の強化（1週間）
-1. 複数実行回の統計的有意性検定
-2. 信頼区間の計算
-3. 効果量の算出
-
-#### Phase 3: 可視化・解釈の改善（1週間）
-1. 実行回数間相関の可視化
-2. 安定性パターンの解釈
-3. 推奨事項の生成
-
-### 3.7 期待される効果
-
-1. **精度向上**: 実行回数間の相関を正確に測定
-2. **安定性評価**: ランキングの一貫性を定量的に評価
-3. **統計的信頼性**: 複数実行の統計的検定による信頼性向上
-4. **詳細分析**: エンティティ間の関係性を詳細に分析
-5. **実用性向上**: より実用的なランキング品質評価
 
 ## 4. 実装計画
 
-### 4.1 Phase 1: 基本構造実装（1-2週間）
+### 4.1 Phase 1: Perplexity-Google比較の簡素化
 
-1. **DomainRankingクラスの実装**
-2. **extract_ranked_domains関数の実装**
-3. **calculate_integrated_ranking関数の実装**
-4. **基本的なKendall Tau計算の改善**
+1. **複雑な統合手法の削除**
+   - `weighted_average`、`frequency_based`、`entity_priority`を削除
+   - `DomainRanking`クラスを`SimpleRanking`クラスに変更
 
-### 4.2 Phase 2: 統合アルゴリズム実装（1-2週間）
+2. **シンプルな順位比較の実装**
+   - `extract_simple_rankings()`の実装
+   - `calculate_simple_ranking()`の実装
+   - `compute_simple_ranking_metrics()`の実装
 
-1. **重み付き平均方式の実装**
-2. **頻度ベース方式の実装**
-3. **企業優先度方式の実装**
-4. **複数方式の比較機能**
+3. **メイン分析メソッドの更新**
+   - `_analyze_citations_google_comparison()`の簡素化
+   - 不要な複雑な処理の削除
 
-### 4.3 Phase 3: 分析機能拡張（1週間）
+### 4.2 Phase 2: おすすめランキング分析の改善
 
-1. **詳細分析機能の実装**
-2. **ドメイン頻度分析**
-3. **エンティティバイアス分析**
-4. **結果タイプ分布分析**
+1. **実行回数間の完全比較**
+   - `_calculate_complete_inter_run_comparison()`の実装
+   - 全ペアのKendall Tau計算
 
-### 4.4 Phase 4: 検証・最適化（1週間）
+2. **ランキング安定性の詳細分析**
+   - `_analyze_ranking_stability_patterns()`の実装
+   - 変動パターンの分析
 
-1. **既存データでの動作確認**
-2. **パフォーマンス最適化**
-3. **エラーハンドリングの強化**
-4. **ドキュメント更新**
+3. **ランキング品質の包括的評価**
+   - `_calculate_comprehensive_ranking_quality()`の実装
+   - 多角的な品質評価
+
+### 4.3 Phase 3: テストと検証
+
+1. **単体テスト**
+   - 各関数の動作確認
+   - エッジケースの処理確認
+
+2. **統合テスト**
+   - 実際のデータでの動作確認
+   - 結果の妥当性検証
+
+3. **パフォーマンステスト**
+   - 大規模データでの動作確認
+   - 処理時間の測定
 
 ## 5. 期待される効果
 
-### 5.1 精度向上
+### 5.1 Perplexity-Google比較
 
-- **正確な順位情報の保持**: 元データの順位情報を適切に保持
-- **適切な統合方法**: 複数の統合方法による多角的な分析
-- **統計的信頼性**: より信頼性の高いKendall Tau値
+1. **分析の簡素化**
+   - 複雑な統合手法を削除し、理解しやすい分析に
+   - 本来の目的である順位比較に集中
 
-### 5.2 多角的分析
+2. **結果の信頼性向上**
+   - シンプルで透明性の高い計算方法
+   - 結果の解釈が容易
 
-- **複数統合方法**: 3つの異なる統合方法による比較
-- **詳細分析**: ドメイン頻度、エンティティバイアス等の詳細分析
-- **透明性向上**: 統合プロセスの透明性確保
+3. **保守性の向上**
+   - コードの複雑さを削減
+   - バグの可能性を低減
 
-### 5.3 柔軟性向上
+### 5.2 おすすめランキング分析
 
-- **設定可能な統合方法**: 用途に応じた統合方法の選択
-- **拡張可能な設計**: 新しい統合方法の追加が容易
-- **カスタマイズ可能**: 重み付けやパラメータの調整が可能
+1. **分析の深さ向上**
+   - 実行回数間の完全比較
+   - 詳細な安定性パターン分析
 
-### 5.4 品質向上
+2. **品質評価の充実**
+   - 多角的な品質指標
+   - データの信頼性評価
 
-- **エラーハンドリング**: 堅牢なエラーハンドリング
-- **バリデーション**: 入力データの適切な検証
-- **ログ機能**: 詳細なログによる追跡可能性
+3. **洞察の向上**
+   - より詳細な分析結果
+   - 実用的な改善提案
 
 ## 6. リスクと対策
 
-### 6.1 実装リスク
+### 6.1 リスク
 
-**リスク**: 複雑な統合ロジックによるバグ
-**対策**: 段階的な実装と十分なテスト
+1. **既存機能への影響**
+   - 既存の分析結果との整合性
+   - ユーザーインターフェースの変更
 
-### 6.2 パフォーマンスリスク
+2. **性能への影響**
+   - 計算量の変化
+   - メモリ使用量の変化
 
-**リスク**: 大量データでの処理時間増加
-**対策**: 効率的なアルゴリズムとキャッシュ機能
+### 6.2 対策
 
-### 6.3 互換性リスク
+1. **段階的実装**
+   - 既存機能を保持しながら段階的に改善
+   - 後方互換性の確保
 
-**リスク**: 既存機能への影響
-**対策**: 後方互換性の確保と段階的移行
+2. **十分なテスト**
+   - 単体テスト、統合テストの充実
+   - 実際のデータでの検証
 
-## 7. 成功指標
-
-### 7.1 技術的指標
-
-- **Kendall Tau精度**: 既知のデータセットでの精度向上
-- **処理時間**: 既存実装と同等以下の処理時間
-- **エラー率**: 1%以下のエラー率
-
-### 7.2 機能指標
-
-- **分析深度**: より詳細な分析結果の提供
-- **ユーザビリティ**: 直感的な結果解釈
-- **拡張性**: 新しい分析機能の追加が容易
-
----
-
-**作成日**: 2025年7月31日
-**作成者**: AI Assistant
-**バージョン**: 1.0
-**ステータス**: 設計完了
+3. **ドキュメント更新**
+   - 変更内容の明確な記録
+   - ユーザー向け説明の更新

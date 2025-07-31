@@ -37,12 +37,18 @@ st.set_page_config(
 def check_authentication():
     """認証状態をチェックし、未認証の場合は認証ページを表示"""
 
+    # OAuth認証フラグの確認
+    oauth_flag = os.getenv('OAUTH_FLAG', 'true').lower()
+    if oauth_flag in ['false', '0', 'no']:
+        st.info("OAuth認証が無効化されています（OAUTH_FLAG=false）")
+        return
+
     # デバッグ情報をログに出力
     import logging
-    import os
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     logger.info("認証チェック開始")
+    logger.info(f"OAUTH_FLAG: {oauth_flag}")
     logger.info(f"環境変数確認: GOOGLE_CLIENT_ID={'設定済み' if os.getenv('GOOGLE_CLIENT_ID') else '未設定'}")
     logger.info(f"環境変数確認: GOOGLE_CLIENT_SECRET={'設定済み' if os.getenv('GOOGLE_CLIENT_SECRET') else '未設定'}")
     logger.info(f"環境変数確認: GOOGLE_REDIRECT_URI={os.getenv('GOOGLE_REDIRECT_URI', '未設定')}")
@@ -57,6 +63,8 @@ def check_authentication():
         GOOGLE_REDIRECT_URI=http://localhost:8501
         ALLOWED_DOMAINS=cyber-u.ac.jp
         """)
+        st.info("または、認証を無効化するには：")
+        st.code("OAUTH_FLAG=false")
         st.stop()
 
     # 認証状態チェック

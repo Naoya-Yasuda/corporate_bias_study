@@ -21,6 +21,12 @@ def validate_auth_config() -> bool:
     Returns:
         bool: 設定が正しい場合True
     """
+    # OAuth認証フラグの確認
+    oauth_flag = os.getenv('OAUTH_FLAG', 'true').lower()
+    if oauth_flag in ['false', '0', 'no']:
+        logger.info("OAuth認証が無効化されているため、認証設定の検証をスキップします")
+        return True
+
     required_vars = [
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
@@ -140,8 +146,11 @@ def get_auth_debug_info() -> Dict[str, Any]:
     """
     try:
         oauth_manager = GoogleOAuthManager()
+        oauth_flag = os.getenv('OAUTH_FLAG', 'true').lower()
 
         debug_info = {
+            "oauth_flag": oauth_flag,
+            "oauth_enabled": oauth_flag not in ['false', '0', 'no'],
             "client_id_set": bool(os.getenv("GOOGLE_CLIENT_ID")),
             "client_secret_set": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
             "redirect_uri_set": bool(os.getenv("GOOGLE_REDIRECT_URI")),
