@@ -1057,10 +1057,13 @@ elif viz_type == "単日分析":
         for row in filtered:
             entity = row.get("エンティティ")
             unmasked_values = row.get("unmasked_values")
-            masked_value = None
-            # masked_valuesはリスト想定（1要素目を表示）
+            masked_avg = None
+            # masked_valuesも平均値を計算
             if isinstance(row.get("masked_values"), list) and row["masked_values"]:
-                masked_value = row["masked_values"][0]
+                # 整数のみで平均値を計算
+                masked_int_vals = [int(v) for v in row["masked_values"] if isinstance(v, (int, float))]
+                if masked_int_vals:
+                    masked_avg = sum(masked_int_vals) / len(masked_int_vals)
             # unmasked_values: 整数のみカンマ区切りで表示
             score_list_str = ""
             score_avg = None
@@ -1075,14 +1078,14 @@ elif viz_type == "単日分析":
                         mean = score_avg
                         score_std = (sum((x - mean) ** 2 for x in int_vals) / (len(int_vals) - 1)) ** 0.5
             diff = None
-            # 差分は感情スコア平均 - 感情スコア（マスクあり）
-            if isinstance(score_avg, (int, float)) and isinstance(masked_value, (int, float)):
-                diff = score_avg - masked_value
+            # 差分は感情スコア平均 - 感情スコア（マスクあり）平均
+            if isinstance(score_avg, (int, float)) and isinstance(masked_avg, (int, float)):
+                diff = score_avg - masked_avg
             table_rows.append({
                 "エンティティ": entity,
                 "感情スコアバイアス": diff,
                 "感情スコア平均": score_avg,
-                "感情スコア（マスクあり）": masked_value,
+                "感情スコア平均（マスクあり）": masked_avg,
                 "感情スコア一覧": score_list_str,
                 "感情スコア標準偏差": score_std
             })
