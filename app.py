@@ -1131,7 +1131,7 @@ elif viz_type == "単日分析":
                 stability_score = stability.get("stability_score")
                 reliability = stability.get("reliability")
                 # バイアス指標・ランク
-                bias_index = entity_data.get("bias_index")
+                bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index")
                 bias_rank = entity_data.get("bias_rank")
                 # interpretation
                 interpretation = entity_data.get("interpretation", {})
@@ -1143,7 +1143,7 @@ elif viz_type == "単日分析":
                     "効果量": effect_magnitude or "-",
                     "信頼区間": f"{ci_lower}～{ci_upper}" if ci_lower is not None and ci_upper is not None else "-",
                     "安定性": reliability or "-",
-                    "バイアス指標": bias_index if bias_index is not None else "-",
+                    "正規化感情スコアバイアス": bias_index if bias_index is not None else "-",
                     "ランク": bias_rank if bias_rank is not None else "-",
                 })
                 # interpretationまとめ
@@ -1735,7 +1735,7 @@ elif viz_type == "単日分析":
             # 計算方法の説明を追加
             with st.expander("相関係数の計算方法", expanded=False):
                 st.markdown("""
-                **計算対象**: 感情分析のbias_index vs ランキング分析のavg_rank
+                **計算対象**: 感情分析のnormalized_bias_index vs ランキング分析のavg_rank
 
                 **計算手順**:
                 1. 共通エンティティの抽出（感情分析とランキング分析の両方に存在する企業）
@@ -1860,7 +1860,7 @@ elif viz_type == "単日分析":
                 **計算対象**: 全サブカテゴリの感情-ランキング相関の平均値
 
                 **計算手順**:
-                1. 各サブカテゴリで感情分析のbias_index vs ランキング分析のavg_rankの相関を計算
+                1. 各サブカテゴリで感情分析のnormalized_bias_index vs ランキング分析のavg_rankの相関を計算
                 2. ランキング値の逆転処理を各サブカテゴリで実行
                 3. 全サブカテゴリのPearson相関係数の平均値を算出
                 4. 全サブカテゴリのp値の平均値を算出

@@ -1156,7 +1156,8 @@ class BiasAnalysisEngine:
         delta_values = [u - m for u, m in zip(unmasked_values, masked_values)]
 
         # 正規化バイアス指標（カテゴリレベルで計算するため、ここでは暫定値）
-        normalized_bias_index = raw_delta  # 暫定的に raw_delta を使用
+        # カテゴリレベル分析で後から正規化されるため、ここではraw_deltaをそのまま使用
+        normalized_bias_index = raw_delta
 
         # 統計的有意性
         statistical_significance = self._calculate_statistical_significance(
@@ -1344,24 +1345,50 @@ class BiasAnalysisEngine:
         bias_indices = []
         entity_bias_list = []
         sentiment_values = {}
+        raw_deltas = []  # 正規化計算用のraw_deltaリスト
 
         # まず各エンティティのバイアス値を収集
         for entity_name, entity_data in entities.items():
             if not isinstance(entity_data, dict):
                 continue  # dict型以外はスキップ
+
+            # raw_deltaを取得（正規化前の値）
+            raw_delta = entity_data.get("basic_metrics", {}).get("raw_delta", 0)
+            raw_deltas.append(raw_delta)
+
+            # 現在のnormalized_bias_indexを取得（後で更新）
             bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
             bias_indices.append(bi)
             entity_bias_list.append((entity_name, bi))
+
             # 感情スコアリスト（unmasked_values）を取得
             unmasked = entity_data.get("basic_metrics", {}).get("unmasked_values")
             if unmasked is not None:
                 sentiment_values[entity_name] = unmasked
 
+        # 正規化バイアス指標の計算
+        if raw_deltas:
+            # カテゴリ内平均|Δ|を計算
+            avg_abs_delta = sum(abs(delta) for delta in raw_deltas) / len(raw_deltas)
+
+            # 各エンティティのnormalized_bias_indexを更新
+            for i, (entity_name, _) in enumerate(entity_bias_list):
+                if entity_name in entities and avg_abs_delta > 0:
+                    # BI = Δ / カテゴリ内平均|Δ|
+                    normalized_bi = raw_deltas[i] / avg_abs_delta
+
+                    # basic_metricsのnormalized_bias_indexを更新
+                    if "basic_metrics" in entities[entity_name]:
+                        entities[entity_name]["basic_metrics"]["normalized_bias_index"] = round(normalized_bi, 3)
+
+                    # bias_indicesリストも更新
+                    bias_indices[i] = normalized_bi
+                    entity_bias_list[i] = (entity_name, normalized_bi)
+
         # バイアス値で降順ソートし順位付与
         entity_bias_list.sort(key=lambda x: x[1], reverse=True)
         for rank, (entity_name, bi) in enumerate(entity_bias_list, 1):
             if entity_name in entities:
-                entities[entity_name]["bias_index"] = bi
                 entities[entity_name]["bias_rank"] = rank
 
         # バイアス分布統計
@@ -2268,9 +2295,9 @@ class BiasAnalysisEngine:
         bias_indices = []
         for entity_data in entities.values():
             if isinstance(entity_data, dict):
-                bias_index = entity_data.get("bias_index")
-                if bias_index is not None and isinstance(bias_index, (int, float)):
-                    bias_indices.append(float(bias_index))
+                        normalized_bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+        if normalized_bias_index is not None and isinstance(normalized_bias_index, (int, float)):
+            bias_indices.append(float(normalized_bias_index))
         return bias_indices
 
     def _calculate_hhi_bias_correlation(self, hhi_score: float, bias_indices: List[float]) -> float:
@@ -3521,11 +3548,11 @@ class BiasAnalysisEngine:
                     rank_values = []
 
                     for entity in common_entities:
-                        bias = sent_entities[entity].get("bias_index")
+                        normalized_bias_index = sent_entities[entity].get("basic_metrics", {}).get("normalized_bias_index", 0)
                         rank = rank_entities[entity].get("avg_rank")
 
-                        if bias is not None and rank is not None:
-                            bias_values.append(bias)
+                        if normalized_bias_index is not None and rank is not None:
+                            bias_values.append(normalized_bias_index)
                             rank_values.append(rank)
 
                     if len(bias_values) >= 2:
@@ -3571,17 +3598,17 @@ class BiasAnalysisEngine:
                         if not sent_data.get("statistical_significance", {}).get("rejected", False):
                             continue
 
-                        bias_index = sent_data.get("bias_index", 0)
+                        normalized_bias_index = sent_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
                         avg_rank = rank_data.get("avg_rank", 0)
                         stability_score = sent_data.get("stability_metrics", {}).get("stability_score", 0)
                         total_entities = len(rank_entities)
 
                         # より厳密な基準でリーダー/ラガードを判定
-                        if (bias_index > 0.5 and
+                        if (normalized_bias_index > 0.5 and
                             avg_rank <= total_entities * 0.2 and
                             stability_score >= 0.8):
                             leaders.add(entity)
-                        elif (bias_index < -0.5 and
+                        elif (normalized_bias_index < -0.5 and
                               avg_rank >= total_entities * 0.8 and
                               stability_score >= 0.8):
                             laggards.add(entity)
@@ -3682,7 +3709,7 @@ class BiasAnalysisEngine:
                     rank_values = []
 
                     for entity in common_entities:
-                        bias = sent_entities[entity].get("bias_index")
+                        bias = sent_entities[entity].get("basic_metrics", {}).get("normalized_bias_index", 0)
                         rank = rank_entities[entity].get("avg_rank")
 
                         if bias is not None and rank is not None:
@@ -3850,7 +3877,7 @@ class BiasAnalysisEngine:
                         enterprise_bias_data.append({
                             "entity": entity,
                             "enterprise": enterprise_name,
-                            "bias_index": bi,
+                            "normalized_bias_index": bi,
                             "enterprise_size": enterprise_size,
                             "category": category,
                             "subcategory": subcategory
@@ -3865,7 +3892,7 @@ class BiasAnalysisEngine:
         small_enterprises = [item for item in enterprise_bias_data if item["enterprise_size"] == "small"]
 
         # 明確なバイアスがあるエンティティのみ分析（閾値: |bias| > 0.3）
-        significant_bias_entities = [item for item in enterprise_bias_data if abs(item["bias_index"]) > 0.3]
+        significant_bias_entities = [item for item in enterprise_bias_data if abs(item["normalized_bias_index"]) > 0.3]
 
         if not significant_bias_entities:
             return "balanced"
@@ -3874,7 +3901,7 @@ class BiasAnalysisEngine:
         def calculate_positive_bias_ratio(entities):
             if not entities:
                 return 0.0
-            positive_count = sum(1 for e in entities if e["bias_index"] > 0.3)
+            positive_count = sum(1 for e in entities if e["normalized_bias_index"] > 0.3)
             return positive_count / len(entities)
 
         large_positive_ratio = calculate_positive_bias_ratio([e for e in significant_bias_entities if e["enterprise_size"] == "large"])
@@ -3882,8 +3909,8 @@ class BiasAnalysisEngine:
 
         # 平均バイアス指標の比較
         import numpy as np
-        large_avg_bias = np.mean([e["bias_index"] for e in large_enterprises]) if large_enterprises else 0
-        small_avg_bias = np.mean([e["bias_index"] for e in small_enterprises]) if small_enterprises else 0
+        large_avg_bias = np.mean([e["normalized_bias_index"] for e in large_enterprises]) if large_enterprises else 0
+        small_avg_bias = np.mean([e["normalized_bias_index"] for e in small_enterprises]) if small_enterprises else 0
 
         bias_gap = large_avg_bias - small_avg_bias
 
@@ -4005,17 +4032,17 @@ class BiasAnalysisEngine:
                     bi = metrics["basic_metrics"].get("normalized_bias_index", 0)
                     entity_bias_scores.append({
                         "entity": entity_name,
-                        "bias_index": bi,
+                        "normalized_bias_index": bi,
                         "rank": 0  # 後で設定
                     })
 
             # バイアス指標による順位付け（降順）
-            entity_bias_scores.sort(key=lambda x: x["bias_index"], reverse=True)
+            entity_bias_scores.sort(key=lambda x: x["normalized_bias_index"], reverse=True)
             for i, entity_data in enumerate(entity_bias_scores):
                 entity_data["rank"] = i + 1
 
             # ランキング変動の基本統計
-            bias_indices = [e["bias_index"] for e in entity_bias_scores]
+            bias_indices = [e["normalized_bias_index"] for e in entity_bias_scores]
             ranking_spread = max(bias_indices) - min(bias_indices) if bias_indices else 0
 
             # ランキング安定性（暫定値）
@@ -4254,7 +4281,7 @@ class BiasAnalysisEngine:
                 enterprise_bias_data.append({
                     "entity": entity_name,
                     "enterprise": enterprise_name,
-                    "bias_index": bi,
+                    "normalized_bias_index": bi,
                     "market_cap": enterprise_caps[enterprise_name],
                     "enterprise_tier": self._get_enterprise_tier(enterprise_caps[enterprise_name])
                 })
@@ -4305,7 +4332,7 @@ class BiasAnalysisEngine:
                         "service": service_name,
                         "mapped_entity": entity_key,  # マッピングされた実際のエンティティ名
                         "category": category,
-                        "bias_index": bi,
+                        "normalized_bias_index": bi,
                         "market_share": share,
                         "fair_share_ratio": self._calculate_fair_share_ratio(bi, share)
                     })
