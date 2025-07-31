@@ -2991,8 +2991,8 @@ class BiasAnalysisEngine:
 
             for subcategory in common_subcategories:
                 try:
-                    # シンプルなランキングメトリクス計算
-                    ranking_metrics = self.compute_simple_ranking_metrics(
+                    # 別々のランキングメトリクス計算
+                    ranking_metrics = self.compute_separate_ranking_metrics(
                         google_category[subcategory], citations_category[subcategory]
                     )
 
@@ -3066,8 +3066,8 @@ class BiasAnalysisEngine:
 
         return domains[:20]  # 上位20ドメインまで
 
-    def extract_simple_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
-        """サブカテゴリデータから順位付きドメインを抽出（シンプル版）"""
+    def extract_official_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
+        """official_resultsのみから順位付きドメインを抽出"""
         rankings = []
 
         if "entities" not in subcategory_data:
@@ -3075,7 +3075,7 @@ class BiasAnalysisEngine:
 
         entities = subcategory_data["entities"]
         for entity_name, entity_data in entities.items():
-            # official_results から抽出
+            # official_results のみから抽出
             if "official_results" in entity_data:
                 for i, result in enumerate(entity_data["official_results"]):
                     domain = result.get("domain")
@@ -3088,7 +3088,18 @@ class BiasAnalysisEngine:
                             result_type="official"
                         ))
 
-            # reputation_results から抽出
+        return rankings
+
+    def extract_reputation_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
+        """reputation_resultsのみから順位付きドメインを抽出"""
+        rankings = []
+
+        if "entities" not in subcategory_data:
+            return rankings
+
+        entities = subcategory_data["entities"]
+        for entity_name, entity_data in entities.items():
+            # reputation_results のみから抽出
             if "reputation_results" in entity_data:
                 for i, result in enumerate(entity_data["reputation_results"]):
                     domain = result.get("domain")
@@ -3128,19 +3139,41 @@ class BiasAnalysisEngine:
 
         return final_ranks
 
-    def compute_simple_ranking_metrics(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
-        """シンプルなランキングメトリクス計算"""
+    def compute_separate_ranking_metrics(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
+        """official_resultsとreputation_resultsを別々に分析"""
 
-        # 1. 順位付きドメイン抽出
-        google_rankings = self.extract_simple_rankings(google_data, "google")
-        citations_rankings = self.extract_simple_rankings(citations_data, "perplexity")
+        # 1. official_resultsの分析
+        google_official_rankings = self.extract_official_rankings(google_data, "google")
+        citations_official_rankings = self.extract_official_rankings(citations_data, "perplexity")
 
-        # 2. 統合順位計算
-        google_final_ranks = self.calculate_simple_ranking(google_rankings)
-        citations_final_ranks = self.calculate_simple_ranking(citations_rankings)
+        google_official_final_ranks = self.calculate_simple_ranking(google_official_rankings)
+        citations_official_final_ranks = self.calculate_simple_ranking(citations_official_rankings)
 
-        # 3. 共通ドメインの特定
-        common_domains = set(google_final_ranks.keys()) & set(citations_final_ranks.keys())
+        official_metrics = self._calculate_ranking_similarity(
+            google_official_final_ranks, citations_official_final_ranks
+        )
+
+        # 2. reputation_resultsの分析
+        google_reputation_rankings = self.extract_reputation_rankings(google_data, "google")
+        citations_reputation_rankings = self.extract_reputation_rankings(citations_data, "perplexity")
+
+        google_reputation_final_ranks = self.calculate_simple_ranking(google_reputation_rankings)
+        citations_reputation_final_ranks = self.calculate_simple_ranking(citations_reputation_rankings)
+
+        reputation_metrics = self._calculate_ranking_similarity(
+            google_reputation_final_ranks, citations_reputation_final_ranks
+        )
+
+        return {
+            "official_results_metrics": official_metrics,
+            "reputation_results_metrics": reputation_metrics
+        }
+
+    def _calculate_ranking_similarity(self, google_ranks: Dict[str, int], citations_ranks: Dict[str, int]) -> Dict[str, Any]:
+        """共通ドメインの順位類似性を計算"""
+
+        # 共通ドメインの特定
+        common_domains = set(google_ranks.keys()) & set(citations_ranks.keys())
 
         if len(common_domains) < 2:
             return {
@@ -3148,20 +3181,20 @@ class BiasAnalysisEngine:
                 "common_domains_count": len(common_domains)
             }
 
-        # 4. 共通ドメインの順位リスト作成
-        google_ranks_list = [google_final_ranks[domain] for domain in common_domains]
-        citations_ranks_list = [citations_final_ranks[domain] for domain in common_domains]
+        # 共通ドメインの順位リスト作成
+        google_ranks_list = [google_ranks[domain] for domain in common_domains]
+        citations_ranks_list = [citations_ranks[domain] for domain in common_domains]
 
-        # 5. Kendall Tau計算
-        kendall_tau = self._compute_simple_kendall_tau(google_ranks_list, citations_ranks_list)
+        # Kendall Tau計算
+        kendall_tau = round(self._compute_simple_kendall_tau(google_ranks_list, citations_ranks_list), 3)
 
-        # 6. RBO計算
-        rbo_score = self._compute_simple_rbo(google_ranks_list, citations_ranks_list)
+        # RBO計算
+        rbo_score = round(self._compute_simple_rbo(google_ranks_list, citations_ranks_list), 3)
 
-        # 7. Overlap Ratio計算
-        overlap_ratio = len(common_domains) / max(len(google_final_ranks), len(citations_final_ranks))
+        # Overlap Ratio計算
+        overlap_ratio = round(len(common_domains) / max(len(google_ranks), len(citations_ranks)), 3)
 
-        # 8. 解説ロジック追加
+        # 解説ロジック
         kendall_tau_interpretation = self._interpret_kendall_tau(kendall_tau, len(common_domains))
         rbo_interpretation = self._interpret_rbo(rbo_score)
         overall_similarity_level = self._determine_overall_similarity_level(kendall_tau, rbo_score, overlap_ratio)
@@ -3171,10 +3204,10 @@ class BiasAnalysisEngine:
             "rbo_score": rbo_score,
             "overlap_ratio": overlap_ratio,
             "common_domains": list(common_domains),
-            "google_ranks": google_final_ranks,
-            "citations_ranks": citations_final_ranks,
-            "google_domains_count": len(google_final_ranks),
-            "citations_domains_count": len(citations_final_ranks),
+            "google_ranks": google_ranks,
+            "citations_ranks": citations_ranks,
+            "google_domains_count": len(google_ranks),
+            "citations_domains_count": len(citations_ranks),
             "common_domains_count": len(common_domains),
             "kendall_tau_interpretation": kendall_tau_interpretation,
             "rbo_interpretation": rbo_interpretation,

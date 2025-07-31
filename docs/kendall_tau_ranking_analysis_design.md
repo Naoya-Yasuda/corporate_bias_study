@@ -58,11 +58,29 @@ class SimpleRanking:
         return f"SimpleRanking(domain='{self.domain}', rank={self.rank}, source='{self.source}', entity='{self.entity}', result_type='{self.result_type}')"
 ```
 
-### 2.3 順位付きドメイン抽出
+
+
+### 2.6 修正された設計：別々の指標を出す
+
+#### 2.6.1 問題の再認識
+
+**現在の実装の問題：**
+- `official_results`と`reputation_results`を同じ`rankings`リストに追加
+- 結果として順位が重複し、Kendall TauやRBOの計算が意味不明
+- 異なる検索クエリの結果を混ぜてしまっている
+
+#### 2.6.2 修正された設計方針
+
+**基本方針：**
+- `official_results`と`reputation_results`を**別々に分析**
+- それぞれ独立したKendall Tau、RBO、Overlap Ratioを計算
+- 2つの指標を別々に表示し、比較可能にする
+
+#### 2.6.3 修正されたデータ構造
 
 ```python
-def extract_simple_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
-    """サブカテゴリデータから順位付きドメインを抽出（シンプル版）"""
+def extract_official_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
+    """official_resultsのみから順位付きドメインを抽出"""
     rankings = []
 
     if "entities" not in subcategory_data:
@@ -70,7 +88,7 @@ def extract_simple_rankings(self, subcategory_data: Dict, source: str) -> List[S
 
     entities = subcategory_data["entities"]
     for entity_name, entity_data in entities.items():
-        # official_results から抽出
+        # official_results のみから抽出
         if "official_results" in entity_data:
             for i, result in enumerate(entity_data["official_results"]):
                 domain = result.get("domain")
@@ -83,7 +101,18 @@ def extract_simple_rankings(self, subcategory_data: Dict, source: str) -> List[S
                         result_type="official"
                     ))
 
-        # reputation_results から抽出
+    return rankings
+
+def extract_reputation_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
+    """reputation_resultsのみから順位付きドメインを抽出"""
+    rankings = []
+
+    if "entities" not in subcategory_data:
+        return rankings
+
+    entities = subcategory_data["entities"]
+    for entity_name, entity_data in entities.items():
+        # reputation_results のみから抽出
         if "reputation_results" in entity_data:
             for i, result in enumerate(entity_data["reputation_results"]):
                 domain = result.get("domain")
@@ -99,51 +128,44 @@ def extract_simple_rankings(self, subcategory_data: Dict, source: str) -> List[S
     return rankings
 ```
 
-### 2.4 シンプルな順位統合
+#### 2.6.4 修正されたメトリクス計算
 
 ```python
-def calculate_simple_ranking(self, rankings: List[SimpleRanking]) -> Dict[str, int]:
-    """シンプルな順位統合：ドメインごとの平均順位を計算"""
-    domain_ranks = {}
+def compute_separate_ranking_metrics(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
+    """official_resultsとreputation_resultsを別々に分析"""
 
-    for ranking in rankings:
-        domain = ranking.domain
-        if domain not in domain_ranks:
-            domain_ranks[domain] = []
-        domain_ranks[domain].append(ranking.rank)
+    # 1. official_resultsの分析
+    google_official_rankings = self.extract_official_rankings(google_data, "google")
+    citations_official_rankings = self.extract_official_rankings(citations_data, "perplexity")
 
-    # 平均順位を計算
-    avg_ranks = {}
-    for domain, ranks in domain_ranks.items():
-        avg_ranks[domain] = sum(ranks) / len(ranks)
+    google_official_final_ranks = self.calculate_simple_ranking(google_official_rankings)
+    citations_official_final_ranks = self.calculate_simple_ranking(citations_official_rankings)
 
-    # 平均順位でソート
-    sorted_domains = sorted(avg_ranks.keys(), key=lambda x: avg_ranks[x])
+    official_metrics = self._calculate_ranking_similarity(
+        google_official_final_ranks, citations_official_final_ranks
+    )
 
-    # 最終順位を付与
-    final_ranks = {}
-    for i, domain in enumerate(sorted_domains):
-        final_ranks[domain] = i + 1
+    # 2. reputation_resultsの分析
+    google_reputation_rankings = self.extract_reputation_rankings(google_data, "google")
+    citations_reputation_rankings = self.extract_reputation_rankings(citations_data, "perplexity")
 
-    return final_ranks
-```
+    google_reputation_final_ranks = self.calculate_simple_ranking(google_reputation_rankings)
+    citations_reputation_final_ranks = self.calculate_simple_ranking(citations_reputation_rankings)
 
-### 2.5 Kendall Tau計算
+    reputation_metrics = self._calculate_ranking_similarity(
+        google_reputation_final_ranks, citations_reputation_final_ranks
+    )
 
-```python
-def compute_simple_ranking_metrics(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
-    """シンプルなランキングメトリクス計算"""
+    return {
+        "official_results_metrics": official_metrics,
+        "reputation_results_metrics": reputation_metrics
+    }
 
-    # 1. 順位付きドメイン抽出
-    google_rankings = self.extract_simple_rankings(google_data, "google")
-    citations_rankings = self.extract_simple_rankings(citations_data, "perplexity")
+def _calculate_ranking_similarity(self, google_ranks: Dict[str, int], citations_ranks: Dict[str, int]) -> Dict[str, Any]:
+    """共通ドメインの順位類似性を計算"""
 
-    # 2. 統合順位計算
-    google_final_ranks = self.calculate_simple_ranking(google_rankings)
-    citations_final_ranks = self.calculate_simple_ranking(citations_rankings)
-
-    # 3. 共通ドメインの特定
-    common_domains = set(google_final_ranks.keys()) & set(citations_final_ranks.keys())
+    # 共通ドメインの特定
+    common_domains = set(google_ranks.keys()) & set(citations_ranks.keys())
 
     if len(common_domains) < 2:
         return {
@@ -151,48 +173,45 @@ def compute_simple_ranking_metrics(self, google_data: Dict, citations_data: Dict
             "common_domains_count": len(common_domains)
         }
 
-    # 4. 共通ドメインの順位リスト作成
-    google_ranks_list = [google_final_ranks[domain] for domain in common_domains]
-    citations_ranks_list = [citations_final_ranks[domain] for domain in common_domains]
+    # 共通ドメインの順位リスト作成
+    google_ranks_list = [google_ranks[domain] for domain in common_domains]
+    citations_ranks_list = [citations_ranks[domain] for domain in common_domains]
 
-    # 5. Kendall Tau計算
-    kendall_tau = self._compute_kendall_tau(google_ranks_list, citations_ranks_list)
+    # Kendall Tau計算
+    kendall_tau = self._compute_simple_kendall_tau(google_ranks_list, citations_ranks_list)
 
-    # 6. RBO計算
-    rbo_score = self._compute_rbo(google_ranks_list, citations_ranks_list)
+    # RBO計算
+    rbo_score = self._compute_simple_rbo(google_ranks_list, citations_ranks_list)
 
-    # 7. Overlap Ratio計算
-    overlap_ratio = len(common_domains) / max(len(google_final_ranks), len(citations_final_ranks))
+    # Overlap Ratio計算
+    overlap_ratio = len(common_domains) / max(len(google_ranks), len(citations_ranks))
+
+    # 解説ロジック
+    kendall_tau_interpretation = self._interpret_kendall_tau(kendall_tau, len(common_domains))
+    rbo_interpretation = self._interpret_rbo(rbo_score)
+    overall_similarity_level = self._determine_overall_similarity_level(kendall_tau, rbo_score, overlap_ratio)
 
     return {
         "kendall_tau": kendall_tau,
         "rbo_score": rbo_score,
         "overlap_ratio": overlap_ratio,
         "common_domains": list(common_domains),
-        "google_ranks": google_final_ranks,
-        "citations_ranks": citations_final_ranks,
-        "google_domains_count": len(google_final_ranks),
-        "citations_domains_count": len(citations_final_ranks),
-        "common_domains_count": len(common_domains)
+        "google_ranks": google_ranks,
+        "citations_ranks": citations_ranks,
+        "google_domains_count": len(google_ranks),
+        "citations_domains_count": len(citations_ranks),
+        "common_domains_count": len(common_domains),
+        "kendall_tau_interpretation": kendall_tau_interpretation,
+        "rbo_interpretation": rbo_interpretation,
+        "overall_similarity_level": overall_similarity_level
     }
-
-def _compute_kendall_tau(self, ranks1: List[int], ranks2: List[int]) -> float:
-    """Kendall Tau計算"""
-    from scipy.stats import kendalltau
-    tau, p_value = kendalltau(ranks1, ranks2)
-    return tau
-
-def _compute_rbo(self, ranks1: List[int], ranks2: List[int]) -> float:
-    """Rank-Biased Overlap計算"""
-    from src.utils.rank_utils import rbo
-    return rbo(ranks1, ranks2)
 ```
 
-### 2.6 メイン分析メソッド
+#### 2.6.5 修正されたメイン分析メソッド
 
 ```python
 def _analyze_citations_google_comparison(self, google_data: Dict, citations_data: Dict) -> Dict[str, Any]:
-    """Google検索とPerplexity引用データの比較分析（シンプル版）"""
+    """Google検索とPerplexity引用データの比較分析（修正版）"""
 
     results = {}
 
@@ -209,8 +228,8 @@ def _analyze_citations_google_comparison(self, google_data: Dict, citations_data
                 continue
 
             try:
-                # シンプルなランキングメトリクス計算
-                ranking_metrics = self.compute_simple_ranking_metrics(
+                # 別々のランキングメトリクス計算
+                ranking_metrics = self.compute_separate_ranking_metrics(
                     google_category[subcategory], citations_category[subcategory]
                 )
 
@@ -229,8 +248,8 @@ def _analyze_citations_google_comparison(self, google_data: Dict, citations_data
                     "official_domain_analysis": official_domain_analysis,
                     "sentiment_comparison": sentiment_comparison,
                     "data_quality": {
-                        "google_data_complete": "google_domains_count" in ranking_metrics,
-                        "citations_data_complete": "citations_domains_count" in ranking_metrics
+                        "google_data_complete": "google_domains_count" in ranking_metrics.get("official_results_metrics", {}),
+                        "citations_data_complete": "citations_domains_count" in ranking_metrics.get("official_results_metrics", {})
                     }
                 }
 
@@ -245,6 +264,49 @@ def _analyze_citations_google_comparison(self, google_data: Dict, citations_data
 
     return results
 ```
+
+#### 2.6.6 期待される出力形式
+
+```json
+{
+  "ranking_similarity": {
+    "official_results_metrics": {
+      "kendall_tau": 0.527,
+      "rbo_score": 0.039,
+      "overlap_ratio": 0.284,
+      "kendall_tau_interpretation": "中程度の順位相関",
+      "rbo_interpretation": "非常に低い上位重複度",
+      "overall_similarity_level": "low"
+    },
+    "reputation_results_metrics": {
+      "kendall_tau": 0.412,
+      "rbo_score": 0.052,
+      "overlap_ratio": 0.198,
+      "kendall_tau_interpretation": "弱い順位相関",
+      "rbo_interpretation": "非常に低い上位重複度",
+      "overall_similarity_level": "low"
+    }
+  }
+}
+```
+
+#### 2.6.7 修正のメリット
+
+1. **データの性質を正確に反映**
+   - `official_results`と`reputation_results`は異なる検索クエリの結果
+   - それぞれ独立した順位として扱う
+
+2. **分析の精度向上**
+   - 2つの異なる検索結果を混ぜない
+   - より詳細な洞察が得られる
+
+3. **比較可能性**
+   - どちらの検索結果がGoogleとより相関が高いか比較可能
+   - 各検索結果の特性を明確に把握可能
+
+4. **実装の簡潔性**
+   - 複雑な統合ロジックが不要
+   - 既存の計算ロジックをそのまま使用可能
 
 ## 3. おすすめランキング分析の詳細設計
 
