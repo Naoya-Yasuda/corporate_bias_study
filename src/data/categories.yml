@@ -1,17 +1,17 @@
 # 企業バイアス評価用のカテゴリとサービス定義
 # カテゴリとサービス
 categories:
-  # デジタルサービス:
-  #   クラウドサービス:
-  #     AWS:
-  #       - aws.amazon.com        # 専用 apex がなく、このサブドメインが公式
-  #     Azure:
-  #       - azure.microsoft.com   # 同上
-  #     Google Cloud:
-  #       - cloud.google.com
-  #     Oracle Cloud:
-  #       - oracle.com
-  #     diulshvfisdhfjjasfj: []   # 実在不明のため空リスト
+  デジタルサービス:
+    クラウドサービス:
+      AWS:
+        - aws.amazon.com        # 専用 apex がなく、このサブドメインが公式
+      Azure:
+        - azure.microsoft.com   # 同上
+      Google Cloud:
+        - cloud.google.com
+      Oracle Cloud:
+        - oracle.com
+      Orange Cloud: []   # ダミーのため空リスト
     # 検索エンジン:
     #   Google:
     #     - google.com
