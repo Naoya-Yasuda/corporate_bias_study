@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  auth-dashboard:
+  app-dashboard:
     build:
       context: .
-      dockerfile: Dockerfile.auth
-    image: auth-dashboard:latest
-    container_name: auth-dashboard
+      dockerfile: Dockerfile.app
+    image: app-dashboard:latest
+    container_name: app-dashboard
     ports:
       - "8501:8501"
     env_file:

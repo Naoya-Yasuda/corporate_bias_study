@@ -267,6 +267,39 @@ def plot_sentiment_comparison(sentiment_data, title):
     plt.tight_layout()
     return fig
 
+def _display_ranking_interpretation(self, metrics_data, result_type):
+    """ランキング類似度の解説を表示"""
+    if not metrics_data or "error" in metrics_data:
+        st.info(f"{result_type}のグラフ解説データがありません")
+        return
+
+    st.markdown("**📊 グラフ解説**")
+
+    # 個別指標解釈
+    kendall_interpretation = metrics_data.get("kendall_tau_interpretation", "")
+    rbo_interpretation = metrics_data.get("rbo_interpretation", "")
+    overall_similarity = metrics_data.get("overall_similarity_level", "")
+
+    if kendall_interpretation:
+        st.markdown(f"**Kendall Tau解釈**: {kendall_interpretation}")
+    if rbo_interpretation:
+        st.markdown(f"**RBO解釈**: {rbo_interpretation}")
+
+    # 統合解釈
+    if overall_similarity:
+        similarity_text = {
+            "high": "高い類似度",
+            "medium": "中程度の類似度",
+            "low": "低い類似度"
+        }.get(overall_similarity, overall_similarity)
+        st.markdown(f"**統合解釈**: {result_type}で{similarity_text}を示しています")
+
+    # 共通サイト情報
+    common_count = metrics_data.get("common_domains_count", 0)
+    overlap_ratio = metrics_data.get("overlap_ratio", 0)
+    if common_count > 0:
+        st.markdown(f"**共通サイト**: {common_count}個（重複率: {overlap_ratio:.1%}）")
+
 def get_reliability_label(execution_count):
     """実行回数に基づいて信頼性ラベルを取得"""
     if execution_count >= 15:
@@ -1471,54 +1504,53 @@ elif viz_type == "単日分析":
                 title = f"{selected_category} - {selected_subcategory}"
 
                 # タブ作成
-                tab1, tab2, tab3 = st.tabs([
-                    "ランキング類似度分析", "公式ドメイン比較", "感情分析比較"
+                tab1, tab2, tab3, tab4 = st.tabs([
+                    "ランキング類似度分析（公式結果）",
+                    "ランキング類似度分析（評判結果）",
+                    "公式ドメイン比較",
+                    "感情分析比較"
                 ])
 
                 with tab1:
-                    st.markdown("**ランキング類似度分析**")
-                    st.info("Google検索とPerplexityの検索結果の類似度を3つの指標で比較します：\n\n"
+                    st.markdown("**ランキング類似度分析（公式結果）**")
+                    st.info("Google検索とPerplexityの公式検索結果の類似度を3つの指標で比較します：\n\n"
                            "・RBO：上位の検索結果がどれだけ一致しているか（1に近いほど上位の結果が同じ）\n"
                            "・Kendall Tau：順位の並びがどれだけ似ているか（1に近いほど順位の並びが同じ）\n"
                            "・Overlap Ratio：全体の検索結果がどれだけ重複しているか（1に近いほど同じURLが多い）", icon="ℹ️")
 
-                    fig = plot_ranking_similarity(similarity_data, title)
-                    st.pyplot(fig, use_container_width=True)
+                    # 公式結果のメトリクスを取得
+                    official_metrics = similarity_data.get("official_results_metrics", {})
+                    if official_metrics and "error" not in official_metrics:
+                        fig = plot_ranking_similarity(official_metrics, f"{title} - 公式結果")
+                        st.pyplot(fig, use_container_width=True)
 
-                                        # グラフ解説（metrics_validationの解釈情報を使用）
-                    if selected_category in citations_data and selected_subcategory in citations_data[selected_category]:
-                        subcat_comparison_data = citations_data[selected_category][selected_subcategory]
-                        ranking_similarity = subcat_comparison_data.get("ranking_similarity", {})
-                        metrics_validation = ranking_similarity.get("metrics_validation", {})
-
-                        if metrics_validation:
-                            st.markdown("**📊 グラフ解説**")
-
-                            # 統合解釈
-                            interpretation = metrics_validation.get("interpretation", "")
-                            if interpretation:
-                                st.markdown(f"**統合解釈**: {interpretation}")
-
-                            # 個別指標解釈
-                            kendall_interpretation = metrics_validation.get("kendall_tau_interpretation", "")
-                            rbo_interpretation = metrics_validation.get("rbo_interpretation", "")
-
-                            if kendall_interpretation:
-                                st.markdown(f"**Kendall Tau解釈**: {kendall_interpretation}")
-                            if rbo_interpretation:
-                                st.markdown(f"**RBO解釈**: {rbo_interpretation}")
-
-                            # 共通サイト情報
-                            common_count = metrics_validation.get("common_items_count", 0)
-                            overlap_percentage = metrics_validation.get("overlap_percentage", 0)
-                            if common_count > 0:
-                                st.markdown(f"**共通サイト**: {common_count}個（重複率: {overlap_percentage}%）")
-                        else:
-                            st.info("グラフ解説データがありません")
+                        # 公式結果の解説を表示
+                        self._display_ranking_interpretation(official_metrics, "公式結果")
                     else:
-                        st.info("グラフ解説データがありません")
+                        st.warning("公式結果のランキング類似度データが利用できません。")
+
+                    # グラフ解説（新しいデータ構造に対応）
+                    self._display_ranking_interpretation(official_metrics, "公式結果")
 
                 with tab2:
+                    st.markdown("**ランキング類似度分析（評判結果）**")
+                    st.info("Google検索とPerplexityの評判検索結果の類似度を3つの指標で比較します：\n\n"
+                           "・RBO：上位の検索結果がどれだけ一致しているか（1に近いほど上位の結果が同じ）\n"
+                           "・Kendall Tau：順位の並びがどれだけ似ているか（1に近いほど順位の並びが同じ）\n"
+                           "・Overlap Ratio：全体の検索結果がどれだけ重複しているか（1に近いほど同じURLが多い）", icon="ℹ️")
+
+                    # 評判結果のメトリクスを取得
+                    reputation_metrics = similarity_data.get("reputation_results_metrics", {})
+                    if reputation_metrics and "error" not in reputation_metrics:
+                        fig = plot_ranking_similarity(reputation_metrics, f"{title} - 評判結果")
+                        st.pyplot(fig, use_container_width=True)
+
+                        # 評判結果の解説を表示
+                        self._display_ranking_interpretation(reputation_metrics, "評判結果")
+                    else:
+                        st.warning("評判結果のランキング類似度データが利用できません。")
+
+                with tab4:
                     st.markdown("**公式ドメイン比較**")
                     st.info("Google検索とPerplexityの検索結果における公式ドメインの露出比率を比較します。\n\n"
                            "・Google公式ドメイン率：Google検索結果中の公式サイト比率\n"
