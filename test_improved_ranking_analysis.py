@@ -59,12 +59,19 @@ def test_extract_simple_rankings():
         }
     }
 
-    # 抽出テスト
-    rankings = engine.extract_simple_rankings(test_data, "test")
-    print(f"抽出されたランキング数: {len(rankings)}")
+    # 抽出テスト（存在するメソッドを使用）
+    try:
+        # extract_official_rankingsとextract_reputation_rankingsを使用
+        official_rankings = engine.extract_official_rankings(test_data, "test")
+        reputation_rankings = engine.extract_reputation_rankings(test_data, "test")
 
-    for ranking in rankings:
-        print(f"  {ranking}")
+        all_rankings = official_rankings + reputation_rankings
+        print(f"抽出されたランキング数: {len(all_rankings)}")
+
+        for ranking in all_rankings:
+            print(f"  {ranking}")
+    except Exception as e:
+        print(f"抽出エラー: {e}")
 
     print()
 
@@ -142,19 +149,33 @@ def test_simple_ranking_metrics():
 
     # シンプルなメトリクス計算
     try:
-        results = engine.compute_simple_ranking_metrics(google_data, citations_data)
+        results = engine.compute_separate_ranking_metrics(google_data, citations_data)
         print("シンプルなメトリクス計算成功:")
 
         if "error" in results:
             print(f"エラー: {results['error']}")
         else:
-            print(f"Kendall Tau: {results['kendall_tau']:.3f}")
-            print(f"RBO Score: {results['rbo_score']:.3f}")
-            print(f"Overlap Ratio: {results['overlap_ratio']:.3f}")
-            print(f"Google Domains: {results['google_domains_count']}")
-            print(f"Citations Domains: {results['citations_domains_count']}")
-            print(f"Common Domains: {results['common_domains_count']}")
-            print(f"共通ドメイン: {results['common_domains']}")
+            # official_resultsとreputation_resultsの両方を表示
+            official_metrics = results.get("official_results_metrics", {})
+            reputation_metrics = results.get("reputation_results_metrics", {})
+
+            print("Official Results Metrics:")
+            if "error" in official_metrics:
+                print(f"  エラー: {official_metrics['error']}")
+            else:
+                print(f"  Kendall Tau: {official_metrics.get('kendall_tau', 0):.3f}")
+                print(f"  RBO Score: {official_metrics.get('rbo_score', 0):.3f}")
+                print(f"  Overlap Ratio: {official_metrics.get('overlap_ratio', 0):.3f}")
+                print(f"  Common Domains: {official_metrics.get('common_domains_count', 0)}")
+
+            print("Reputation Results Metrics:")
+            if "error" in reputation_metrics:
+                print(f"  エラー: {reputation_metrics['error']}")
+            else:
+                print(f"  Kendall Tau: {reputation_metrics.get('kendall_tau', 0):.3f}")
+                print(f"  RBO Score: {reputation_metrics.get('rbo_score', 0):.3f}")
+                print(f"  Overlap Ratio: {reputation_metrics.get('overlap_ratio', 0):.3f}")
+                print(f"  Common Domains: {reputation_metrics.get('common_domains_count', 0)}")
 
     except Exception as e:
         print(f"エラー: {e}")
@@ -208,15 +229,12 @@ def test_with_real_data():
                     if "ranking_similarity" in subcategory_results:
                         ranking = subcategory_results["ranking_similarity"]
                         if "error" not in ranking:
-                            print(f"    シンプルメトリクス: Kendall Tau={ranking['kendall_tau']:.3f}, RBO={ranking['rbo_score']:.3f}, Overlap={ranking['overlap_ratio']:.3f}")
-                            print(f"    共通ドメイン数: {ranking['common_domains_count']}")
+                            print(f"    シンプルメトリクス: Kendall Tau={ranking.get('kendall_tau', 0):.3f}, RBO={ranking.get('rbo_score', 0):.3f}, Overlap={ranking.get('overlap_ratio', 0):.3f}")
+                            print(f"    共通ドメイン数: {ranking.get('common_domains_count', 0)}")
                         else:
                             print(f"    エラー: {ranking['error']}")
 
-                    # 従来のメトリクス
-                    if "legacy_ranking_similarity" in subcategory_results:
-                        legacy = subcategory_results["legacy_ranking_similarity"]
-                        print(f"    従来のメトリクス: Kendall Tau={legacy.get('kendall_tau', 0):.3f}, RBO={legacy.get('rbo_score', 0):.3f}")
+
 
                     # データ品質
                     if "data_quality" in subcategory_results:

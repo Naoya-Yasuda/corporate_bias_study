@@ -2997,10 +2997,6 @@ class BiasAnalysisEngine:
                     )
 
                     # 従来の方法との比較（後方互換性のため）
-                    google_domains = self._extract_google_domains(google_category[subcategory])
-                    citations_domains = self._extract_citations_domains(citations_category[subcategory])
-                    legacy_metrics = self._compute_ranking_similarity(google_domains, citations_domains)
-
                     # 公式ドメイン比較
                     official_domain_analysis = self._analyze_official_domain_bias(
                         google_category[subcategory], citations_category[subcategory]
@@ -3013,14 +3009,13 @@ class BiasAnalysisEngine:
 
                     category_results[subcategory] = {
                         "ranking_similarity": ranking_metrics,
-                        "legacy_ranking_similarity": legacy_metrics,
                         "official_domain_analysis": official_domain_analysis,
                         "sentiment_comparison": sentiment_comparison,
-                        "google_domains_count": len(google_domains),
-                        "citations_domains_count": len(citations_domains),
+                        "google_domains_count": ranking_metrics.get("google_domains_count", 0),
+                        "citations_domains_count": ranking_metrics.get("citations_domains_count", 0),
                         "data_quality": {
-                            "google_data_complete": len(google_domains) > 0,
-                            "citations_data_complete": len(citations_domains) > 0
+                            "google_data_complete": ranking_metrics.get("google_domains_count", 0) > 0,
+                            "citations_data_complete": ranking_metrics.get("citations_domains_count", 0) > 0
                         }
                     }
 
@@ -3035,36 +3030,7 @@ class BiasAnalysisEngine:
 
         return results
 
-    def _extract_google_domains(self, google_subcategory_data: Dict) -> List[str]:
-        """Google検索データからドメインリストを抽出（後方互換性のため保持）"""
-        return self._extract_ranked_domains_legacy(google_subcategory_data, "google")
 
-    def _extract_citations_domains(self, citations_subcategory_data: Dict) -> List[str]:
-        """Perplexity引用データからドメインリストを抽出（後方互換性のため保持）"""
-        return self._extract_ranked_domains_legacy(citations_subcategory_data, "perplexity")
-
-    def _extract_ranked_domains_legacy(self, subcategory_data: Dict, source: str) -> List[str]:
-        """従来のドメイン抽出方法（後方互換性のため）"""
-        domains = []
-
-        if "entities" in subcategory_data:
-            entities = subcategory_data["entities"]
-            for entity_name, entity_data in entities.items():
-                # official_results から抽出
-                if "official_results" in entity_data:
-                    for result in entity_data["official_results"]:
-                        domain = result.get("domain")
-                        if domain and domain not in domains:
-                            domains.append(domain)
-
-                # reputation_results から抽出
-                if "reputation_results" in entity_data:
-                    for result in entity_data["reputation_results"]:
-                        domain = result.get("domain")
-                        if domain and domain not in domains:
-                            domains.append(domain)
-
-        return domains[:20]  # 上位20ドメインまで
 
     def extract_official_rankings(self, subcategory_data: Dict, source: str) -> List[SimpleRanking]:
         """official_resultsのみから順位付きドメインを抽出"""
@@ -3282,56 +3248,7 @@ class BiasAnalysisEngine:
 
 
 
-    def _compute_ranking_similarity(self, google_domains: List[str], citations_domains: List[str]) -> Dict[str, float]:
-        """ランキング類似度を計算（serp_metrics.pyの関数を活用）"""
-        try:
-            # compute_ranking_metrics統合済み - インポート不要
 
-            # 統合済みのcompute_ranking_metricsメソッドを使用
-            metrics = self.compute_ranking_metrics(google_domains, citations_domains, max_k=10)
-
-            # ランキング類似度の整合性検証を追加
-            validation_result = self._validate_ranking_metrics_consistency(
-                google_domains, citations_domains, metrics
-            )
-
-            return {
-                "rbo_score": round(metrics.get("rbo", 0), 3),
-                "kendall_tau": round(metrics.get("kendall_tau", 0), 3),
-                "overlap_ratio": round(metrics.get("overlap_ratio", 0), 3),
-                "delta_ranks_available": len(metrics.get("delta_ranks", {})) > 0,
-                "metrics_validation": validation_result
-            }
-
-        except Exception as e:
-            self.logger.warning(f"統合メソッドでのランキング類似度計算に失敗: {e}")
-
-            # フォールバック実装
-            try:
-                from src.utils.rank_utils import rbo, compute_tau
-                rbo_score = round(rbo(google_domains, citations_domains, p=0.9), 3)
-                kendall_tau = round(compute_tau(google_domains, citations_domains), 3)
-
-                google_set = set(google_domains[:10])
-                citations_set = set(citations_domains[:10])
-                overlap_ratio = len(google_set & citations_set) / len(google_set | citations_set)
-
-                return {
-                    "rbo_score": rbo_score,
-                    "kendall_tau": kendall_tau,
-                    "overlap_ratio": round(overlap_ratio, 3),
-                    "delta_ranks_available": False,
-                    "fallback_calculation": True
-                }
-            except Exception as fallback_error:
-                self.logger.error(f"フォールバック計算も失敗: {fallback_error}")
-                return {
-                    "rbo_score": 0.0,
-                    "kendall_tau": 0.0,
-                    "overlap_ratio": 0.0,
-                    "delta_ranks_available": False,
-                    "fallback_calculation": True
-                }
 
     def _validate_ranking_metrics_consistency(self, google_domains: List[str], citations_domains: List[str],
                                             metrics: Dict) -> Dict[str, Any]:
