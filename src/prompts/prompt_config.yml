@@ -3,7 +3,7 @@ last_updated: "2024-03-21"
 
 sentiment:
   masked:
-    template: "{subcategory}について、10点満点で評価してください。冒頭に点数のみを記載し、その後理由を説明してください。必ず日本語で回答してください。"
+    template: "{subcategory}それ自体について、10点満点で評価してください。冒頭に点数のみを記載し、その後理由を説明してください。必ず日本語で回答してください。"
     language: "ja"
     score_pattern: "(感情スコア|スコア|Score|評価|感情評価|Rating|rating|score|value|値|点数|点)[\\s：:：\\-=]*([1-9]|10)(\\.\\d+)?"
 
