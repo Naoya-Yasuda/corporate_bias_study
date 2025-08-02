@@ -1,29 +1,29 @@
 {
     "_metadata": {
-        "description": "サービス市場シェアテストデータ（企業情報付き）",
+        "description": "サービス市場シェア修正版（2025年最新）",
         "unit": "割合（0-1、カテゴリ内合計1.0に正規化）",
-        "reference_date": "2024年末頃の概算値",
-        "data_source": "Synergy Research Group, StatCounter, SimilarWeb, eMarketer, App Annie等の市場調査データを参考",
+        "reference_date": "2025年上半期",
+        "data_source": "Synergy Research Group, StatCounter, Statista, 各社決算資料など",
         "coverage": "主要サービス業界の市場占有率",
         "usage": "サービスレベルのバイアス分析、露出度との公平性比較、企業統合分析",
-        "update_frequency": "市場変動に応じた定期更新（四半期〜年次）",
-        "last_updated": "2025-01-16"
+        "update_frequency": "四半期～年次",
+        "last_updated": "2025-08-02"
     },
     "クラウドサービス": {
         "AWS": {
-            "market_share": 0.31,
+            "market_share": 0.29,
             "enterprise": "Amazon"
         },
         "Azure": {
-            "market_share": 0.24,
+            "market_share": 0.22,
             "enterprise": "Microsoft"
         },
         "Google Cloud": {
-            "market_share": 0.11,
+            "market_share": 0.12,
             "enterprise": "Google"
         },
         "IBM Cloud": {
-            "market_share": 0.04,
+            "market_share": 0.02,
             "enterprise": "IBM"
         },
         "Oracle Cloud": {
@@ -31,7 +31,7 @@
             "enterprise": "Oracle"
         },
         "Alibaba Cloud": {
-            "market_share": 0.02,
+            "market_share": 0.04,
             "enterprise": "Alibaba"
         },
         "Tencent Cloud": {
@@ -41,63 +41,63 @@
     },
     "検索エンジン": {
         "Google": {
-            "market_share": 0.91,
+            "market_share": 0.895,
             "enterprise": "Google"
         },
         "Bing": {
-            "market_share": 0.04,
+            "market_share": 0.040,
             "enterprise": "Microsoft"
         },
         "Yahoo! Japan": {
-            "market_share": 0.02,
+            "market_share": 0.013,
             "enterprise": "Yahoo"
         },
         "Baidu": {
-            "market_share": 0.01,
+            "market_share": 0.008,
             "enterprise": "Baidu"
         },
         "DuckDuckGo": {
-            "market_share": 0.01,
+            "market_share": 0.009,
             "enterprise": "DuckDuckGo"
         },
         "Yandex": {
-            "market_share": 0.01,
+            "market_share": 0.022,
             "enterprise": "Yandex"
         }
     },
     "動画ストリーミング": {
         "Netflix": {
-            "market_share": 0.25,
+            "market_share": 0.23,
             "enterprise": "Netflix"
         },
         "Amazon Prime Video": {
-            "market_share": 0.22,
+            "market_share": 0.23,
             "enterprise": "Amazon"
         },
         "Disney+": {
-            "market_share": 0.20,
+            "market_share": 0.21,
             "enterprise": "Disney"
         },
         "Hulu": {
-            "market_share": 0.15,
+            "market_share": 0.14,
             "enterprise": "Disney"
         },
         "U-NEXT": {
-            "market_share": 0.08,
+            "market_share": 0.06,
             "enterprise": "U-NEXT"
         },
         "Abema": {
-            "market_share": 0.05,
+            "market_share": 0.03,
             "enterprise": "CyberAgent"
         }
     },
     "オンラインショッピング": {
         "Amazon": {
-            "market_share": 0.38,
+            "market_share": 0.39,
             "enterprise": "Amazon"
         },
         "楽天市場": {
-            "market_share": 0.22,
+            "market_share": 0.21,
             "enterprise": "楽天"
         },
         "Yahoo!ショッピング": {
@@ -115,15 +115,15 @@
     },
     "SNS": {
         "LINE": {
-            "market_share": 0.32,
+            "market_share": 0.31,
             "enterprise": "LINE"
         },
         "Twitter": {
-            "market_share": 0.28,
+            "market_share": 0.27,
             "enterprise": "Twitter"
         },
         "Instagram": {
-            "market_share": 0.20,
+            "market_share": 0.22,
             "enterprise": "Meta"
         },
         "Facebook": {
@@ -137,37 +137,37 @@
     },
     "AI検索サービス": {
         "ChatGPT": {
-            "market_share": 0.52,
+            "market_share": 0.61,
             "enterprise": "OpenAI"
         },
         "Perplexity": {
-            "market_share": 0.23,
+            "market_share": 0.085,
             "enterprise": "Perplexity"
         },
         "Microsoft Copilot": {
-            "market_share": 0.18,
+            "market_share": 0.13,
             "enterprise": "Microsoft"
         },
         "Google AI Overviews": {
-            "market_share": 0.07,
+            "market_share": 0.135,
             "enterprise": "Google"
         }
     },
     "動画共有サイト": {
         "YouTube": {
-            "market_share": 0.68,
+            "market_share": 0.65,
             "enterprise": "Google"
         },
         "ニコニコ動画": {
-            "market_share": 0.15,
+            "market_share": 0.13,
             "enterprise": "ドワンゴ"
         },
         "TikTok": {
-            "market_share": 0.10,
+            "market_share": 0.16,
             "enterprise": "ByteDance"
         },
         "Twitter": {
-            "market_share": 0.05,
+            "market_share": 0.04,
             "enterprise": "Twitter"
         },
         "Instagram": {
