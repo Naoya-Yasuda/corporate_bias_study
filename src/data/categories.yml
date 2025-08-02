@@ -11,66 +11,66 @@ categories:
         - cloud.google.com
       Oracle Cloud:
         - oracle.com
-      Orange Cloud: []   # ダミーのため空リスト
-    # 検索エンジン:
-    #   Google:
-    #     - google.com
-    #   Bing:
-    #     - bing.com
-    #   Yahoo Japan:
-    #     - yahoo.co.jp
-    #   Baidu:
-    #     - baidu.com
-    # 動画ストリーミング:
-    #   Netflix:
-    #     - netflix.com
-    #   Amazon Prime Video:
-    #     - primevideo.com
-    #   Disney+:
-    #     - disneyplus.com
-    #   Hulu:
-    #     - hulu.com
-    # オンラインショッピング:
-    #   Amazon:
-    #     - amazon.com
-    #     - amazon.co.jp          # 日本向け主要ドメイン
-    #   楽天市場:
-    #     - rakuten.co.jp
-    #   Yahoo!ショッピング:
-    #     - shopping.yahoo.co.jp
-    #   メルカリ:
-    #     - mercari.com
-    # SNS:
-    #   Twitter/X:
-    #     - twitter.com
-    #   Instagram:
-    #     - instagram.com
-    #   TikTok:
-    #     - tiktok.com
-    #   Facebook:
-    #     - facebook.com
-    # AI検索サービス:
-    #   Perplexity:
-    #     - perplexity.ai
-    #   ChatGPT:
-    #     - chatgpt.com
-    #   Microsoft Copilot:
-    #     - copilot.microsoft.com
-    #   Google AI Overviews:
-    #     - google.com            # 独立ドメインではなく Google 検索機能
+      Hoge Cloud: []   # ダミーのため空リスト
+    検索エンジン:
+      Google:
+        - google.com
+      Bing:
+        - bing.com
+      Yahoo Japan:
+        - yahoo.co.jp
+      Baidu:
+        - baidu.com
+    動画ストリーミング:
+      Netflix:
+        - netflix.com
+      Amazon Prime Video:
+        - primevideo.com
+      Disney+:
+        - disneyplus.com
+      Hulu:
+        - hulu.com
+    オンラインショッピング:
+      Amazon:
+        - amazon.com
+        - amazon.co.jp          # 日本向け主要ドメイン
+      楽天市場:
+        - rakuten.co.jp
+      Yahoo!ショッピング:
+        - shopping.yahoo.co.jp
+      メルカリ:
+        - mercari.com
+    SNS:
+      Twitter/X:
+        - twitter.com
+      Instagram:
+        - instagram.com
+      TikTok:
+        - tiktok.com
+      Facebook:
+        - facebook.com
+    AI検索サービス:
+      Perplexity:
+        - perplexity.ai
+      ChatGPT:
+        - chatgpt.com
+      Microsoft Copilot:
+        - copilot.microsoft.com
+      Google AI Overviews:
+        - google.com            # 独立ドメインではなく Google 検索機能
   企業:
-    # 世界的テック企業:
-    #   Apple:
-    #     - apple.com
-    #   Google:
-    #     - google.com
-    #     - about.google
-    #   Microsoft:
-    #     - microsoft.com
-    #   Amazon:
-    #     - amazon.com
-    #   Meta:
-    #     - meta.com
+    世界的テック企業:
+      Apple:
+        - apple.com
+      Google:
+        - google.com
+        - about.google
+      Microsoft:
+        - microsoft.com
+      Amazon:
+        - amazon.com
+      Meta:
+        - meta.com
     日本のテック企業:
       ソニー:
         - sony.com
@@ -116,32 +116,32 @@ categories:
       Wantedly:
         - wantedly.com
         - wantedly.co.jp
-    # 自動車メーカー:
-    #   トヨタ:
-    #     - toyota.com
-    #     - toyota.co.jp
-    #     - global.toyota         # gTLD を取得
-    #   ホンダ:
-    #     - honda.com
-    #     - honda.co.jp
-    #   Tesla:
-    #     - tesla.com
-    #   BMW:
-    #     - bmw.com
-    #   メルセデス・ベンツ:
-    #     - mercedes-benz.com
-    # 小売業:
-    #   Walmart:
-    #     - walmart.com
-    #   Amazon:
-    #     - amazon.com
-    #     - amazon.co.jp
-    #   Costco:
-    #     - costco.com
-    #   Target:
-    #     - target.com
-    #   IKEA:
-    #     - ikea.com
+    自動車メーカー:
+      トヨタ:
+        - toyota.com
+        - toyota.co.jp
+        - global.toyota         # gTLD を取得
+      ホンダ:
+        - honda.com
+        - honda.co.jp
+      Tesla:
+        - tesla.com
+      BMW:
+        - bmw.com
+      メルセデス・ベンツ:
+        - mercedes-benz.com
+    小売業:
+      Walmart:
+        - walmart.com
+      Amazon:
+        - amazon.com
+        - amazon.co.jp
+      Costco:
+        - costco.com
+      Target:
+        - target.com
+      IKEA:
+        - ikea.com
   大学:
     日本の大学:
       # 国立
