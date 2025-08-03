@@ -140,46 +140,14 @@ def render_load_status(expanded=False, key_prefix="", simplified=False):
                 cache_loads = sum(1 for item in st.session_state.load_status if "キャッシュ" in item)
                 st.caption(f"📈 総読み込み: {total_loads}件 (新規: {new_loads}件, キャッシュ: {cache_loads}件)")
 
-                # ページネーション設定
-                items_per_page = 8
-                total_pages = (len(st.session_state.load_status) + items_per_page - 1) // items_per_page
-
-                if total_pages > 1:
-                    # ページ選択
-                    current_page = st.selectbox(
-                        "ページ選択",
-                        range(1, total_pages + 1),
-                        key=f"{key_prefix}load_status_page_selector"
-                    )
-
-                    # 表示範囲を計算
-                    start_idx = (current_page - 1) * items_per_page
-                    end_idx = min(start_idx + items_per_page, len(st.session_state.load_status))
-                    display_items = st.session_state.load_status[start_idx:end_idx]
-
-                    st.caption(f"ページ {current_page}/{total_pages} ({start_idx + 1}-{end_idx}件)")
-                else:
-                    display_items = st.session_state.load_status
-
-                # 読み込みリストを表示
-                for item in display_items:
+                # 読み込みリストを表示（全件表示）
+                for item in st.session_state.load_status:
                     if "新規読み込み" in item:
                         st.info(item)
                     else:
                         st.success(item)
 
-                # 全件表示ボタン
-                if total_pages > 1:
-                    if st.button("全件表示", key=f"{key_prefix}show_all_load_status"):
-                        st.session_state[f"{key_prefix}show_all_load_status"] = True
 
-                    if st.session_state.get(f"{key_prefix}show_all_load_status", False):
-                        st.write("**全件表示:**")
-                        for item in st.session_state.load_status:
-                            if "新規読み込み" in item:
-                                st.info(item)
-                            else:
-                                st.success(item)
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
