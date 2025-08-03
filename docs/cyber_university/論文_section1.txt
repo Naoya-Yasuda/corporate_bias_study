@@ -37,21 +37,21 @@ Venkit et al.（2024）は、AI検索サービスが「ユーザーバイアス�
 本研究により、AI検索サービスの市場影響力が増大する現在において、公正で透明性の高い情報環境の構築に向けた重要な基盤が提供されることが期待される。
 
 参考文献
-Lee, S. (2024). Fairness and biases in AI algorithms and interfaces. Proceedings of the ALISE Annual Conference.
+Lee, S. (2024). Fairness and biases in AI algorithms and interfaces. ALISE Academy Workshop, 2024 ALISE Annual Conference, October 14-17, 2024, Portland, Oregon. Proceedings of the ALISE Annual Conference. https://iopn.library.illinois.edu/journals/aliseacp/article/view/1701
 Yopaz. (2025). 2025年上半期、僕らとAIの距離がもう一段、近づいた. https://yopaz.jp/trend/ai-chatbot-market-trends-h1-2025/
 i3design. (2024). 【2025年最新】Perplexity AI完全ガイド：機能・使い方から料金まで徹底解説. https://www.i3design.jp/in-pocket/12510
-Gartner, Inc. (2024). Gartner predicts search engine volume will drop 25 percent by 2026 due to AI chatbots and other virtual agents. Press Release, February 19, 2024.
-Venkit, P. N., Laban, P., Zhou, Y., Mao, Y., & Wu, C. S. (2024). Search engines in an ai era: The false promise of factual and verifiable source-cited responses. arXiv preprint arXiv:2410.22349.
-Choudhary, T. (2024). Political bias in large language models: a comparative analysis of ChatGPT-4, Perplexity, Google Gemini, and Claude. IEEE Access, 13, 11341-11379.
-Zhou, M., Abhishek, V., Derdenger, T., Kim, J., et al. (2024). Bias in generative AI. arXiv preprint arXiv:2403.02726.
-Gallegos, I. O., Rossi, R. A., Barrow, J., Tanjim, M. M., et al. (2024). Bias and fairness in large language models: A survey. Computational Linguistics, coli_a_00524.
-Weidinger, L., Mellor, J., Rauh, M., Griffin, C., et al. (2021). Ethical and social risks of harm from language models. arXiv preprint arXiv:2112.04359.
-Guo, Y., Guo, M., Su, J., Yang, Z., Zhu, M., Li, H., Qiu, M., et al. (2024). Bias in large language models: Origin, evaluation, and mitigation. arXiv preprint arXiv:2411.10915.
-Hoppner, T., & Uphues, S. (2024). On the Antitrust Implications of Embedding Generative AI in Core Platform Services. CPI Antitrust Chronicles.
-Deldjoo, Y. (2024). Understanding biases in ChatGPT-based recommender systems: Provider fairness, temporal stability, and recency. ACM Transactions on Recommender Systems.
-Dusi, M., Arici, N., Gerevini, A. E., Putelli, L., & Serina, I. (2024). Discrimination bias detection through categorical association in pre-trained language models. IEEE Access, 10719988.
-公正取引委員会. (2025). 生成AIに関する実態調査報告書.
-InfoComニューズレター. (2025). 生成AIが増幅する認知バイアスの危険性. https://www.icr.co.jp/newsletter/
-Raza, S., Bamgbose, O., Ghuge, S., Tavakol, F., et al. (2024). Developing Safe and Responsible Large Language Model: Can We Balance Bias Reduction and Language Understanding in Large Language Models? arXiv preprint arXiv:2404.01399.
-Manne, G. A., & Auer, D. (2024). From Data Myths to Data Reality: What Generative AI Can Tell Us About Competition Policy (and Vice Versa). CPI Antitrust Chronicle February 2024.
-McKinsey. (2023). 生成AIがもたらす潜在的な経済効果. McKinsey Global Institute.
+Gartner, Inc. (2024). Gartner predicts search engine volume will drop 25 percent by 2026 due to AI chatbots and other virtual agents. Press Release, February 19, 2024. https://www.gartner.com/en/newsroom/press-releases/2024-02-19-gartner-predicts-search-engine-volume-will-drop-25-percent-by-2026-due-to-ai-chatbots-and-other-virtual-agents
+Venkit, P. N., Laban, P., Zhou, Y., Mao, Y., & Wu, C. S. (2024). Search engines in an ai era: The false promise of factual and verifiable source-cited responses. arXiv preprint arXiv:2410.22349. https://doi.org/10.48550/arXiv.2410.22349
+Choudhary, T. (2024). Political bias in large language models: A comparative analysis of ChatGPT-4, Perplexity, Google Gemini, and Claude. IEEE Access, 13, 11341-11379. https://doi.org/10.1109/ACCESS.2024.3523764
+Zhou, M., Abhishek, V., Derdenger, T., Kim, J., & Srinivasan, K. (2024). Bias in generative AI. arXiv preprint arXiv:2403.02726. https://doi.org/10.48550/arXiv.2403.02726
+Gallegos, I. O., Rossi, R. A., Barrow, J., Tanjim, M. M., Ahmed, K., Amer, A., ... & Srinivasan, K. (2024). Bias and fairness in large language models: A survey. Computational Linguistics, 50(3), 1097-1179. https://doi.org/10.1162/coli_a_00524
+Weidinger, L., Mellor, J., Rauh, M., Griffin, C., Uesato, J., Huang, P. S., ... & Gabriel, I. (2021). Ethical and social risks of harm from language models. arXiv preprint arXiv:2112.04359. https://doi.org/10.48550/arXiv.2112.04359
+Guo, Y., Guo, M., Su, J., Yang, Z., Zhu, M., Li, H., ... & Liu, Y. (2024). Bias in large language models: Origin, evaluation, and mitigation. arXiv preprint arXiv:2411.10915. https://doi.org/10.48550/arXiv.2411.10915
+Hoppner, T., & Uphues, S. (2024). On the antitrust implications of embedding generative AI in core platform services. CPI Antitrust Chronicle, SSRN Electronic Journal. https://doi.org/10.2139/ssrn.4904876
+Deldjoo, Y. (2024). Understanding biases in ChatGPT-based recommender systems: Provider fairness, temporal stability, and recency. ACM Transactions on Recommender Systems, 2(3), Article 18. https://doi.org/10.1145/3690655
+Dusi, M., Arici, N., Gerevini, A. E., Putelli, L., & Serina, I. (2024). Discrimination bias detection through categorical association in pre-trained language models. IEEE Access, 12, 162651-162673. https://doi.org/10.1109/ACCESS.2024.3482010
+公正取引委員会. (2025). 生成AIに関する実態調査報告書 ver.1.0. 令和7年6月6日. https://www.jftc.go.jp/houdou/pressrelease/2025/jun/250606generativeai.html
+InfoComニューズレター. (2025). 生成AIが増幅する認知バイアスの危険性. 2025年5月29日. https://www.icr.co.jp/newsletter/wtr434-20250529-mizuno.html
+Raza, S., Bamgbose, O., Ghuge, S., Tavakol, F., Reji, D. J., Mamgain, S., ... & Ding, C. (2024). Developing safe and responsible large language model: Can we balance bias reduction and language understanding in large language models? Machine Learning, 1-43. https://doi.org/10.1007/s10994-025-06767-4
+Manne, G. A., & Auer, D. (2024). From data myths to data reality: What generative AI can tell us about competition policy (and vice versa). CPI Antitrust Chronicle, February 2024. https://laweconcenter.org/resources/from-data-myths-to-data-reality-what-generative-ai-can-tell-us-about-competition-policy-and-vice-versa/
+McKinsey & Company. (2023). 生成AIがもたらす潜在的な経済効果：生産性の次なるフロンティア. McKinsey Global Institute. https://www.mckinsey.com/jp/~/media/mckinsey/locations/asia/japan/our%20insights/the_economic_potential_of_generative_ai_the_next_productivity_frontier_colormama_4k.pdf
