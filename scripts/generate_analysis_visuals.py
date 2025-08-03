@@ -309,7 +309,8 @@ class AnalysisVisualizationGenerator:
                 if isinstance(category_data, dict):
                     for subcategory_data in category_data.values():
                         if isinstance(subcategory_data, dict):
-                            pearson_corr = subcategory_data.get("pearson_correlation")
+                            # correlationキーを優先し、pearson_correlationキーもフォールバックとして使用
+                            pearson_corr = subcategory_data.get("correlation") or subcategory_data.get("pearson_correlation")
                             if pearson_corr is not None:
                                 correlations.append(pearson_corr)
 

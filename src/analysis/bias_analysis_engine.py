@@ -1793,7 +1793,9 @@ class BiasAnalysisEngine:
             return relative_analysis_results
 
         except Exception as e:
+            import traceback
             logging.error(f"相対バイアス分析エラー: {e}")
+            logging.error(f"スタックトレース: {traceback.format_exc()}")
             return {}
 
     def _analyze_market_concentration(self, market_shares: Dict[str, Any], market_caps: Dict[str, Any],
@@ -2605,9 +2607,20 @@ class BiasAnalysisEngine:
         """
         カテゴリ内バイアス分布の不平等度（Gini係数・標準偏差・最大最小差）をMetricsCalculator経由で計算
         """
-        # バイアス指標の抽出
-        bias_indices = [entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
-                        for entity_data in entities.values()]
+        # バイアス指標の抽出（数値型に変換）
+        bias_indices = []
+        for entity_name, entity_data in entities.items():
+            bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+            # 文字列の場合は数値に変換
+            if isinstance(bias_index, str):
+                try:
+                    bias_index = float(bias_index)
+                except (ValueError, TypeError):
+                    bias_index = 0.0
+            elif not isinstance(bias_index, (int, float)):
+                bias_index = 0.0
+            bias_indices.append(bias_index)
+
         if not bias_indices:
             return {"error": "バイアス指標データなし"}
         # MetricsCalculatorの新メソッドで一括計算
@@ -2836,10 +2849,13 @@ class BiasAnalysisEngine:
             market_analysis = market_dominance_analysis.get("service_level", {})
             if market_analysis.get("available", False):
                 category_fairness = market_analysis.get("category_fairness", {})
-                unfair_categories = [cat for cat, data in category_fairness.items()
-                                   if data.get("fairness_score", 0.5) < 0.5]
-                if unfair_categories:
-                    recommendations.append(f"市場カテゴリ別改善: {', '.join(unfair_categories)}での公平性向上")
+                if isinstance(category_fairness, dict):
+                    unfair_categories = [cat for cat, data in category_fairness.items()
+                                       if isinstance(data, dict) and data.get("fairness_score", 0.5) < 0.5]
+                    if unfair_categories:
+                        recommendations.append(f"市場カテゴリ別改善: {', '.join(unfair_categories)}での公平性向上")
+                    else:
+                        recommendations.append("市場シェアと露出度の整合性向上")
                 else:
                     recommendations.append("市場シェアと露出度の整合性向上")
             else:
@@ -3742,10 +3758,16 @@ class BiasAnalysisEngine:
                     avg_score = sum(s["consistency_score"] for s in category_scores) / len(category_scores)
                     reliability = self._aggregate_reliability([s["reliability"] for s in category_scores])
 
+                    # サブカテゴリスコアを辞列形式に変換
+                    subcategory_scores_dict = {}
+                    for i, score in enumerate(category_scores):
+                        subcategory_name = list(sentiment_analysis.get(category, {}).keys())[i] if i < len(list(sentiment_analysis.get(category, {}).keys())) else f"subcategory_{i}"
+                        subcategory_scores_dict[subcategory_name] = score
+
                     result["by_category"][category] = {
                         "score": avg_score,
                         "reliability": reliability,
-                        "subcategory_scores": category_scores
+                        "subcategory_scores": subcategory_scores_dict
                     }
 
                     consistency_scores.append(avg_score)
@@ -3771,7 +3793,7 @@ class BiasAnalysisEngine:
                             )
 
                             if category in result["by_category"] and "subcategory_scores" in result["by_category"][category]:
-                                for score in result["by_category"][category]["subcategory_scores"]:
+                                for subcategory_name, score in result["by_category"][category]["subcategory_scores"].items():
                                     score["components"]["google_citations_alignment"] = alignment_score
                                     score["consistency_score"] = (score["consistency_score"] + alignment_score) / 2
 
@@ -4539,6 +4561,65 @@ class BiasAnalysisEngine:
         # 拡張企業階層別バイアス分析を使用
         return self._analyze_enterprise_tier_bias_enhanced(enterprise_bias_data)
 
+    def _analyze_enterprise_tier_bias_enhanced(self, enterprise_bias_data: List[Dict]) -> Dict[str, Any]:
+        """拡張企業規模階層別のバイアス分析（データタイプ対応版）"""
+
+        if not enterprise_bias_data:
+            return {"available": False, "reason": "企業データなし"}
+
+        # 企業を階層別に分類
+        tier_data = {
+            "mega_enterprise": [],
+            "large_enterprise": [],
+            "mid_enterprise": []
+        }
+
+        for data in enterprise_bias_data:
+            market_cap = data.get("market_cap", 0)
+            tier = self._get_enterprise_tier(market_cap)
+            if tier in tier_data:
+                tier_data[tier].append(data)
+
+        # 各階層の統計を計算
+        tier_stats = {}
+        tier_gaps = {}
+
+        for tier, data_list in tier_data.items():
+            if data_list:
+                biases = [item.get("normalized_bias_index", 0) for item in data_list]
+                tier_stats[tier] = {
+                    "count": len(data_list),
+                    "mean_bias": statistics.mean(biases),
+                    "std_bias": statistics.stdev(biases) if len(biases) > 1 else 0,
+                    "min_bias": min(biases),
+                    "max_bias": max(biases)
+                }
+
+        # 階層間の格差を計算
+        if len(tier_stats) > 1:
+            tier_means = {tier: stats["mean_bias"] for tier, stats in tier_stats.items()}
+            tier_gaps = {
+                "max_min_gap": max(tier_means.values()) - min(tier_means.values()),
+                "variance": statistics.variance(list(tier_means.values())) if len(tier_means) > 1 else 0
+            }
+
+        # 優遇タイプを判定
+        favoritism_analysis = self._determine_favoritism_type_from_tiers(tier_stats, tier_gaps)
+
+        # 統合公平性スコアを計算
+        integrated_fairness_score = self._calculate_enterprise_fairness_score_enhanced({
+            "tier_stats": tier_stats,
+            "favoritism_analysis": favoritism_analysis
+        })
+
+        return {
+            "available": True,
+            "tier_stats": tier_stats,
+            "tier_gaps": tier_gaps,
+            "favoritism_analysis": favoritism_analysis,
+            "integrated_fairness_score": integrated_fairness_score
+        }
+
     def _determine_favoritism_type_from_tiers(self, tier_stats: Dict, tier_gaps: Dict) -> Dict[str, Any]:
         """階層別統計から優遇タイプを判定（現在の階層名を維持）"""
 
@@ -4634,7 +4715,7 @@ class BiasAnalysisEngine:
             return {"available": False, "reason": "データ不足（2企業以上必要）"}
 
         market_caps = [item["market_cap"] for item in enterprise_bias_data]
-        bias_indices = [item["bias_index"] for item in enterprise_bias_data]
+        bias_indices = [item.get("normalized_bias_index", 0) for item in enterprise_bias_data]
 
         try:
             # Pearson相関係数の計算（Python 3.9対応）
@@ -4939,6 +5020,16 @@ class BiasAnalysisEngine:
                 value = self._extract_share_value(service_data)
             else:
                 value = service_data
+
+            # 文字列の場合は数値に変換
+            if isinstance(value, str):
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    value = 0.0
+            elif not isinstance(value, (int, float)):
+                value = 0.0
+
             sample_values.append(value)
 
         # 判定ロジック
@@ -4989,36 +5080,49 @@ class BiasAnalysisEngine:
         if not values:
             return []
 
+        # 文字列を数値に変換
+        numeric_values = []
+        for v in values:
+            if isinstance(v, str):
+                try:
+                    numeric_values.append(float(v))
+                except (ValueError, TypeError):
+                    numeric_values.append(0.0)
+            elif isinstance(v, (int, float)):
+                numeric_values.append(float(v))
+            else:
+                numeric_values.append(0.0)
+
         if method == "min_max":
-            min_val = min(values)
-            max_val = max(values)
+            min_val = min(numeric_values)
+            max_val = max(numeric_values)
             if max_val == min_val:
-                return [0.5] * len(values)  # 全値が同じ場合は中立値
-            return [(v - min_val) / (max_val - min_val) for v in values]
+                return [0.5] * len(numeric_values)  # 全値が同じ場合は中立値
+            return [(v - min_val) / (max_val - min_val) for v in numeric_values]
 
         elif method == "z_score":
-            mean_val = statistics.mean(values)
-            std_val = statistics.stdev(values) if len(values) > 1 else 1.0
-            z_scores = [(v - mean_val) / std_val for v in values]
+            mean_val = statistics.mean(numeric_values)
+            std_val = statistics.stdev(numeric_values) if len(numeric_values) > 1 else 1.0
+            z_scores = [(v - mean_val) / std_val for v in numeric_values]
             # Zスコアを0.0～1.0に変換
             min_z = min(z_scores)
             max_z = max(z_scores)
             if max_z == min_z:
-                return [0.5] * len(values)
+                return [0.5] * len(numeric_values)
             return [(z - min_z) / (max_z - min_z) for z in z_scores]
 
         elif method == "log_normal":
             # 対数正規化（0や負の値を避けるため+1）
-            log_values = [math.log(v + 1) for v in values]
+            log_values = [math.log(v + 1) for v in numeric_values]
             min_log = min(log_values)
             max_log = max(log_values)
             if max_log == min_log:
-                return [0.5] * len(values)
+                return [0.5] * len(numeric_values)
             return [(log_v - min_log) / (max_log - min_log) for log_v in log_values]
 
         else:
             # デフォルトはmin_max正規化
-            return self._normalize_absolute_data(values, "min_max")
+            return self._normalize_absolute_data(numeric_values, "min_max")
 
     def _normalize_by_data_type(self, services: Dict[str, Any], data_type: str) -> Dict[str, float]:
         """データタイプ別の正規化処理
@@ -5141,6 +5245,80 @@ class BiasAnalysisEngine:
 
         # マッピングが見つからない場合は、サブカテゴリ名をそのまま使用
         return subcategory
+
+    def _analyze_category_fairness_enhanced(self, service_bias_data: List[Dict]) -> Dict[str, Any]:
+        """カテゴリ別公平性分析（拡張版）"""
+        if not service_bias_data:
+            return {"available": False, "reason": "データなし"}
+
+        # バイアス指標の抽出
+        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data]
+        shares = [item.get("normalized_share", 0) for item in service_bias_data]
+
+        # 基本統計
+        mean_bias = statistics.mean(bias_indices) if bias_indices else 0
+        bias_variance = statistics.variance(bias_indices) if len(bias_indices) > 1 else 0
+        mean_share = statistics.mean(shares) if shares else 0
+
+        # 相関分析
+        correlation = 0.0
+        if len(bias_indices) > 1 and len(shares) > 1:
+            try:
+                correlation = statistics.correlation(bias_indices, shares)
+            except:
+                correlation = 0.0
+
+        # 公平性スコア計算
+        fairness_score = max(0, 1.0 - abs(correlation)) * (1.0 - bias_variance)
+
+        return {
+            "available": True,
+            "mean_bias": round(mean_bias, 3),
+            "bias_variance": round(bias_variance, 3),
+            "mean_share": round(mean_share, 3),
+            "bias_share_correlation": round(correlation, 3),
+            "fairness_score": round(fairness_score, 3)
+        }
+
+    def _calculate_service_share_correlation_enhanced(self, service_bias_data: List[Dict]) -> Dict[str, Any]:
+        """サービスシェア相関分析（拡張版）"""
+        if not service_bias_data:
+            return {"available": False, "reason": "データなし"}
+
+        # バイアス指標とシェアの抽出
+        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data]
+        shares = [item.get("normalized_share", 0) for item in service_bias_data]
+
+        if len(bias_indices) < 2 or len(shares) < 2:
+            return {"available": False, "reason": "データ不足"}
+
+        try:
+            correlation = statistics.correlation(bias_indices, shares)
+            return {
+                "available": True,
+                "correlation": round(correlation, 3),
+                "correlation_abs": round(abs(correlation), 3),
+                "fairness_implication": "相関が弱いほど公平性が高い"
+            }
+        except:
+            return {"available": False, "reason": "相関計算エラー"}
+
+    def _calculate_equal_opportunity_score_enhanced(self, service_bias_data: List[Dict]) -> float:
+        """機会均等スコア計算（拡張版）"""
+        if not service_bias_data:
+            return 0.5
+
+        # バイアス指標の分散を基に機会均等性を評価
+        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data]
+
+        if len(bias_indices) < 2:
+            return 0.5
+
+        bias_variance = statistics.variance(bias_indices)
+        # 分散が小さいほど機会均等性が高い
+        equal_opportunity_score = max(0, 1.0 - bias_variance)
+
+        return round(equal_opportunity_score, 3)
 
 
 def main():
