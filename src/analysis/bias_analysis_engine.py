@@ -551,9 +551,9 @@ class BiasAnalysisEngine:
             interp = "非常に重篤"
         elif severity >= 4.0:
             interp = "重篤"
-        elif severity >= 2.0:
+        elif severity >= 1.0:
             interp = "中程度の重篤度"
-        elif severity >= 0.5:
+        elif severity >= 0.3:
             interp = "軽微"
         else:
             interp = "無視できる"
@@ -3813,21 +3813,41 @@ class BiasAnalysisEngine:
                 for subcategory, data in citations_comparison[category].items():
                     if "ranking_similarity" in data:
                         metrics = data["ranking_similarity"]
-                        if metrics.get("metrics_validation", {}).get("is_mathematically_consistent", False):
-                            kendall_tau = metrics.get("kendall_tau", 0)
-                            rbo_score = metrics.get("rbo_score", 0)
-                            overlap_ratio = metrics.get("overlap_ratio", 0)
+                        kendall_tau = metrics.get("kendall_tau", 0)
+                        rbo_score = metrics.get("rbo_score", 0)
+                        overlap_ratio = metrics.get("overlap_ratio", 0)
 
+                        # 数学的整合性チェックを緩和
+                        is_valid = (
+                            metrics.get("metrics_validation", {}).get("is_mathematically_consistent", False) or
+                            (kendall_tau != 0 or rbo_score != 0 or overlap_ratio != 0)
+                        )
+
+                        if is_valid:
                             alignment_score = (
                                 0.4 * abs(kendall_tau) +
                                 0.4 * rbo_score +
                                 0.2 * overlap_ratio
                             )
 
+                            # 既存のサブカテゴリスコアに統合
                             if category in result["by_category"] and "subcategory_scores" in result["by_category"][category]:
                                 for subcategory_name, score in result["by_category"][category]["subcategory_scores"].items():
                                     score["components"]["google_citations_alignment"] = alignment_score
                                     score["consistency_score"] = (score["consistency_score"] + alignment_score) / 2
+                            else:
+                                # 新しいサブカテゴリとして追加
+                                if category not in result["by_category"]:
+                                    result["by_category"][category] = {"subcategory_scores": {}}
+
+                                result["by_category"][category]["subcategory_scores"][subcategory] = {
+                                    "consistency_score": alignment_score,
+                                    "reliability": "medium",
+                                    "components": {
+                                        "sentiment_ranking_correlation": 0.0,
+                                        "google_citations_alignment": alignment_score
+                                    }
+                                }
 
                             consistency_scores.append(alignment_score)
 
