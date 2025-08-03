@@ -4,13 +4,17 @@
 1.1.1 AI検索サービスの市場動向
 近年、人工知能技術の急速な発展に伴い、従来の検索エンジンとは根本的に異なる新しい検索体験を提供する生成AIベースの検索サービスが急速に普及している。ChatGPT（OpenAI）、Perplexity AI、Microsoft Copilot、Google Geminiなどの生成AI検索サービスは、単なるリンク集の提示ではなく、自然言語での対話形式によって直接的な回答を生成する革新的なアプローチを採用している（Lee, 2024）。
 これらのサービスは、ユーザーの質問に対して即座に包括的な回答を提供し、従来の検索体験を根本的に変革している。特に重要なのは、これらのサービスが単なる情報提供を超えて、ユーザーの意思決定プロセスに直接介入するようになったことである。従来の検索エンジンが複数の情報源を提示するにとどまっていたのに対し、生成AI検索サービスは統合された「答え」を提供することで、ユーザーの判断に強い影響力を行使するようになっている。
-市場データによると、2025年上半期時点でChatGPTが生成AI市場において82.24%という圧倒的なシェアを獲得している一方、Perplexity（6.18%）、Google Gemini（5.33%）、Microsoft Copilot（4.97%）といった競合サービスも着実に市場シェアを拡大している（Yopaz, 2025）。特にPerplexity AIは急速な成長を遂げており、2024年初頭には月間アクティブユーザー数が1000万人を超えるサービスとなった（i3design, 2024）。
-米調査会社ガートナーは2024年2月、AIチャットボットの台頭により2026年までに従来の検索エンジンの検索ボリュームが25%減少すると予測しており（Gartner, 2024）、検索市場における生成AIの影響力は今後さらに拡大することが予想される。この予測は、生成AI検索サービスが従来の検索エンジンを置き換える可能性を示唆しており、その影響力の大きさを物語っている。
+2025年7月時点での市場データによれば、Googleは依然として世界の検索エンジン市場を89.54%のシェアで圧倒的に支配しているものの（realmac_studio, 2025）、生成AI検索サービスの台頭により、その地位に変化の兆しが見え始めている。特に、ChatGPTやPerplexityなどの生成AI検索エンジンの利用者増加により、Googleの検索シェアが90%を下回る状況が生じている（relation, 2025）。一部の専門家は、5年以内にGoogleの検索シェアが50%を下回る可能性も指摘している（ITmedia, 2025）。
+生成AI市場においては、2025年上半期時点でChatGPTが82.24%という圧倒的なシェアを獲得している一方、Perplexity（6.18%）、Google Gemini（5.33%）、Microsoft Copilot（4.97%）といった競合サービスも着実に市場シェアを拡大している（Yopaz, 2025）。特にPerplexity AIは急速な成長を遂げており、2024年初頭には月間アクティブユーザー数が1000万人を超えるサービスとなった（i3design, 2024）。
+日本市場では、携帯キャリアによる生成AIサービスの囲い込み戦略が注目されている。2024年6月以降、ソフトバンク、ワイモバイル、LINEMOが「Perplexity Pro」（通常月額2,950円）を1年間無料で提供するキャンペーンを実施し、2025年6月まで申し込みを受け付けた（alpha-intl, 2025）。このような抱き合わせ販売戦略は、AI検索サービスの普及促進と同時に、キャリア間の競争激化を象徴している（MyNavi, 2024）。
+米調査会社ガートナーは2024年2月、AIチャットボットの台頭により2026年までに従来の検索エンジンの検索ボリュームが25%減少すると予測しており（Gartner, 2024）、検索市場における生成AIの影響力は今後さらに拡大することが予想される。実際に、GoogleのAI Overview機能導入後、61.9%の企業が自然検索からの流入減少を報告している（WebTan, 2025）。
 1.1.2 従来研究との差異と新たな課題
 しかし、この技術的革新は同時に新たな社会的課題を生み出している。生成AI検索サービスは、従来の検索エンジンと異なり、複数の情報源を統合して単一の回答を生成するため、その過程で特定の企業やサービスに対する一貫した優遇や冷遇が生じる可能性がある。
 従来の検索エンジンでは、複数の検索結果が並列的に提示されるため、ユーザーが自ら比較検討することが可能であった。しかし、生成AI検索サービスでは統合された回答が提示されるため、その回答に含まれるバイアスがユーザーに直接的に影響を与えるリスクが高まっている。
 Venkit et al.（2024）は、AI検索サービスが「ユーザーバイアスを強化する」リスクを指摘し、検索結果の透明性と信頼性に関する懸念を提起している。また、Choudhary（2024）による複数のAIモデル（ChatGPT-4、Perplexity、Google Gemini、Claude）の比較分析では、政治的バイアスの存在が確認されており、AIシステムにおけるバイアス問題の深刻性が浮き彫りになっている。
 さらに重要なことは、これらの生成AI検索サービスがユーザーの企業評価や購買行動に与える影響力が急速に増大していることである。Zhou et al.（2024）が指摘するように、生成AIにおけるバイアスは「意思決定に大きく影響」を与える可能性があり、特に企業選択や商品購入といった経済活動において深刻な市場歪曲を引き起こすリスクが存在する。
+1.1.3 国際的なAI安全性への取り組みこうした課題を受けて、国際的なAI安全性に関する議論も活発化している。2025年7月に日本で設立されたAIセーフティ・インスティテュート（AISI）は、「AIセーフティに関するレッドチーミング手法ガイド」を公開し、攻撃者の観点からAIシステムのリスクを評価する手法を提示している（AISI, 2025）。レッドチーミングとは、敵対的な立場からシステムの脆弱性を検証する手法であり、AI検索サービスにおける企業優遇バイアスの検出においても重要な役割を果たす可能性がある。
+また、2025年6月のG7サミットでは、重要鉱物、AI、量子技術など6分野で共同声明が採択され（JETRO, 2025）、責任あるAI開発に向けた国際協調の重要性が再確認された。米国が2024年11月に主催した国際的なAISIネットワークの初会合では、AIによる偽情報や敵対的AIへの対応における二国間協力が議論されており（SPF USA, 2024）、企業優遇バイアスのような市場歪曲リスクも今後の重要な議題となることが予想される。
 従来のバイアス研究は主に性別、人種、年齢等の社会的属性に焦点を当ててきた（Weidinger et al., 2021; Guo et al., 2024）。しかし、生成AI検索サービスが商業的意思決定に与える影響力を考慮すると、企業優遇バイアスは市場公正性の観点から極めて重要な問題である。Gallegos et al.（2024）による大規模言語モデルのバイアスに関する包括的調査では、社会的バイアスの評価と軽減技術について詳細な分析が行われているが、企業優遇バイアスに特化した研究は依然として限定的である。
 
 1.2 本研究の主張と独創性
@@ -38,12 +42,21 @@ Venkit et al.（2024）は、AI検索サービスが「ユーザーバイアス�
 
 参考文献
 Lee, S. (2024). Fairness and biases in AI algorithms and interfaces. ALISE Academy Workshop, 2024 ALISE Annual Conference, October 14-17, 2024, Portland, Oregon. Proceedings of the ALISE Annual Conference. https://iopn.library.illinois.edu/journals/aliseacp/article/view/1701
+realmac_studio. (2025). 【2025年最新版】AI検索エンジン市場シェア動向. https://note.com/realmac_studio/n/na9de49b7e6bc
+relation. (2025). 【SEO担当者's レポート】AI Overviews（AI検索）の影響とCTRの変化. https://www.relation2012.com/blog/seo/87674/
+ITmedia. (2025). AI台頭で「検索王Google」は崩れるのか 5年で「シェア50％割る」予測も. https://www.itmedia.co.jp/business/articles/2505/22/news084.html
 Yopaz. (2025). 2025年上半期、僕らとAIの距離がもう一段、近づいた. https://yopaz.jp/trend/ai-chatbot-market-trends-h1-2025/
 i3design. (2024). 【2025年最新】Perplexity AI完全ガイド：機能・使い方から料金まで徹底解説. https://www.i3design.jp/in-pocket/12510
+alpha-intl. (2025). 「Perplexity Pro」を6ヵ月間無料で利用できるキャンペーンを6/19から開始. https://alpha-intl.net/news/2025/05/185010/
+MyNavi. (2024). 生成AIと料金プランのセット割に注力し始めた携帯各社、狙いは顧客獲得. https://news.mynavi.jp/article/mobile_business-182/
 Gartner, Inc. (2024). Gartner predicts search engine volume will drop 25 percent by 2026 due to AI chatbots and other virtual agents. Press Release, February 19, 2024. https://www.gartner.com/en/newsroom/press-releases/2024-02-19-gartner-predicts-search-engine-volume-will-drop-25-percent-by-2026-due-to-ai-chatbots-and-other-virtual-agents
+WebTan. (2025). SEOの常識が変わる？ AI Overviews登場後「自然検索流入が減少」が61.9％. https://webtan.impress.co.jp/n/2025/06/04/49463
 Venkit, P. N., Laban, P., Zhou, Y., Mao, Y., & Wu, C. S. (2024). Search engines in an ai era: The false promise of factual and verifiable source-cited responses. arXiv preprint arXiv:2410.22349. https://doi.org/10.48550/arXiv.2410.22349
 Choudhary, T. (2024). Political bias in large language models: A comparative analysis of ChatGPT-4, Perplexity, Google Gemini, and Claude. IEEE Access, 13, 11341-11379. https://doi.org/10.1109/ACCESS.2024.3523764
 Zhou, M., Abhishek, V., Derdenger, T., Kim, J., & Srinivasan, K. (2024). Bias in generative AI. arXiv preprint arXiv:2403.02726. https://doi.org/10.48550/arXiv.2403.02726
+AISI. (2025). AIセーフティ・インスティテュート（AISI）について. https://aisi.go.jp/assets/pdf/20250701_AISI_jp.pdf
+JETRO. (2025). G7首脳、重要鉱物・AI・量子技術など6分野で共同声明を採択. https://www.jetro.go.jp/biznews/2025/06/2769e40c4b0d52d5.html
+SPF USA. (2024). AI保証をめぐる日米協力：AIのセキュリティと安全性を高める技術. https://spfusa.org/publications/
 Gallegos, I. O., Rossi, R. A., Barrow, J., Tanjim, M. M., Ahmed, K., Amer, A., ... & Srinivasan, K. (2024). Bias and fairness in large language models: A survey. Computational Linguistics, 50(3), 1097-1179. https://doi.org/10.1162/coli_a_00524
 Weidinger, L., Mellor, J., Rauh, M., Griffin, C., Uesato, J., Huang, P. S., ... & Gabriel, I. (2021). Ethical and social risks of harm from language models. arXiv preprint arXiv:2112.04359. https://doi.org/10.48550/arXiv.2112.04359
 Guo, Y., Guo, M., Su, J., Yang, Z., Zhu, M., Li, H., ... & Liu, Y. (2024). Bias in large language models: Origin, evaluation, and mitigation. arXiv preprint arXiv:2411.10915. https://doi.org/10.48550/arXiv.2411.10915
