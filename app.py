@@ -2453,8 +2453,8 @@ elif viz_type == "単日分析":
                         table_rows.append({
                             "順位": i + 1,
                             "エンティティ": entity_name,
-                            "平均順位": f"{avg_rank:.2f}" if isinstance(avg_rank, (int, float)) else avg_rank,
-                            "順位標準偏差": f"{rank_std:.3f}" if rank_std else "0.000",
+                            "平均順位": avg_rank if isinstance(avg_rank, (int, float)) else 0,
+                            "順位標準偏差": rank_std if rank_std else 0,
                             "最良順位": min_rank,
                             "最悪順位": max_rank,
                             "順位変動": rank_variation,
@@ -2463,6 +2463,7 @@ elif viz_type == "単日分析":
 
                 if table_rows:
                     df_ranking = pd.DataFrame(table_rows)
+                    df_ranking = df_ranking.sort_values(by="平均順位", ascending=True)
                     st.dataframe(df_ranking, use_container_width=True)
                 else:
                     st.info("表示可能なランキングデータがありません")
