@@ -21,9 +21,9 @@ import os
 from src.utils.storage_config import get_base_paths
 import plotly.graph_objects as go
 
-# 認証機能のインポート
-from src.components.auth_ui import render_auth_page, show_dashboard_header
-from src.utils.auth_utils import validate_auth_config, is_authenticated
+# 認証機能のインポート（一時的に無効化）
+# from src.components.auth_ui import render_auth_page, show_dashboard_header
+# from src.utils.auth_utils import validate_auth_config, is_authenticated
 
 # ページ設定
 st.set_page_config(
@@ -33,52 +33,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 認証チェック
+# 認証チェック（一時的に無効化）
 def check_authentication():
     """認証状態をチェックし、未認証の場合は認証ページを表示"""
-
-    # OAuth認証フラグの確認
-    oauth_flag = os.getenv('OAUTH_FLAG', 'true').lower()
-    if oauth_flag in ['false', '0', 'no']:
-        st.info("OAuth認証が無効化されています（OAUTH_FLAG=false）")
-        return
-
-    # デバッグ情報をログに出力
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    logger.info("認証チェック開始")
-    logger.info(f"OAUTH_FLAG: {oauth_flag}")
-    logger.info(f"環境変数確認: GOOGLE_CLIENT_ID={'設定済み' if os.getenv('GOOGLE_CLIENT_ID') else '未設定'}")
-    logger.info(f"環境変数確認: GOOGLE_CLIENT_SECRET={'設定済み' if os.getenv('GOOGLE_CLIENT_SECRET') else '未設定'}")
-    logger.info(f"環境変数確認: GOOGLE_REDIRECT_URI={os.getenv('GOOGLE_REDIRECT_URI', '未設定')}")
-
-    # 認証設定の検証
-    if not validate_auth_config():
-        st.error("認証設定が正しく設定されていません。")
-        st.info("以下の環境変数が設定されているか確認してください：")
-        st.code("""
-        GOOGLE_CLIENT_ID=your_client_id
-        GOOGLE_CLIENT_SECRET=your_client_secret
-        GOOGLE_REDIRECT_URI=http://localhost:8501
-        ALLOWED_DOMAINS=cyber-u.ac.jp
-        """)
-        st.info("または、認証を無効化するには：")
-        st.code("OAUTH_FLAG=false")
-        st.stop()
-
-    # 認証状態チェック
-    if not is_authenticated():
-        render_auth_page()
-        st.stop()
+    st.info("認証機能は一時的に無効化されています")
+    return
 
 # 認証チェック実行
 check_authentication()
-
-# 認証成功後のダッシュボードヘッダー表示
-if hasattr(st.session_state, 'authenticated') and st.session_state.authenticated:
-    if hasattr(st.session_state, 'user_info') and st.session_state.user_info:
-        show_dashboard_header(st.session_state.user_info)
 
 # キャッシュ付きデータ取得関数
 @st.cache_data(ttl=3600)  # 1時間キャッシュ
@@ -1990,11 +1952,13 @@ elif viz_type == "単日分析":
                     confidence = integrated.get("confidence", "-")
                     interpretation = integrated.get("interpretation", "-")
                     # 粒度ごとに表示内容を切り替え
-                    if selected_category == "企業":
-                        st.markdown("#### 企業レベル公平性スコア")
-                        st.metric(label="企業レベル公平性スコア", value=score)
+                    if selected_category == "企業" or selected_category == "大学":
+                        # 企業と大学は同様の分析を表示
+                        category_label = "企業レベル" if selected_category == "企業" else "大学レベル"
+                        st.markdown(f"#### {category_label}公平性スコア")
+                        st.metric(label=f"{category_label}公平性スコア", value=score)
                         # st.markdown(f"<span style='font-size:2em; font-weight:bold; color:#2ca02c'>{score}</span>", unsafe_allow_html=True)
-                        st.caption("企業粒度で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** 企業ごとのバイアス指標・市場シェア・階層間格差・バイアス分散などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
+                        st.caption(f"{category_label}で、市場シェアに対してAI検索結果の露出度がどれだけ公平かを示す指標です。1に近いほど市場シェア通りに公平、1より大きいと過剰露出、1未満だと露出不足を意味します。\n\n**計算方法:** {category_label}ごとのバイアス指標・市場シェア・階層間格差・バイアス分散などを総合評価（詳細はdocs/bias_metrics_specification.md参照）")
                         st.markdown(f"**信頼度**: {confidence}")
                         st.markdown(f"**解釈**: {interpretation}")
                         # 補助指標（例：時価総額とバイアスの相関）
@@ -2002,7 +1966,7 @@ elif viz_type == "単日分析":
                         corr = ent.get("correlation_analysis", {})
                         if corr and corr.get("available"):
                             st.markdown("#### 市場シェアとバイアスの相関（補助指標）")
-                            st.markdown(f"- **計算方法:** 各企業の時価総額とバイアス指標のペアでPearson相関係数を算出\n- **意味:** 市場シェアが大きい企業ほどAIで優遇される傾向があるかを示す。公平性スコアとは直接の計算関係はなく、補助的な分析指標です。\n- **相関係数:** {corr.get('correlation_coefficient', '-')}")
+                            st.markdown(f"- **計算方法:** 各{category_label}の時価総額とバイアス指標のペアでPearson相関係数を算出\n- **意味:** 市場シェアが大きい{category_label}ほどAIで優遇される傾向があるかを示す。公平性スコアとは直接の計算関係はなく、補助的な分析指標です。\n- **相関係数:** {corr.get('correlation_coefficient', '-')}")
                             st.info(corr.get("interpretation", ""))
                     else:
                         st.markdown("#### サービスレベル公平性スコア")
@@ -2028,8 +1992,9 @@ elif viz_type == "単日分析":
                     # ent = mda.get("enterprise_level", {})
                     # svc = mda.get("service_level", {})
                     # ent_favor = None  # ここで必ず初期化
-                    # if selected_category == "企業" and ent:
-                    #     st.markdown("### 企業レベル分析（企業粒度）")
+                    # if (selected_category == "企業" or selected_category == "大学") and ent:
+                    #     category_label = "企業" if selected_category == "企業" else "大学"
+                    #     st.markdown(f"### {category_label}レベル分析（{category_label}粒度）")
                     #     ent_score = ent.get("fairness_score", "-")
                     #     ent_favor = ent.get("tier_analysis", {}).get("favoritism_interpretation", "-")
                     #     ent_corr = ent.get("correlation_analysis", {}).get("interpretation", "-")
@@ -2037,7 +2002,7 @@ elif viz_type == "単日分析":
                     #     st.markdown(f"- 公平性スコア: {ent_score}")
                     #     st.markdown(f"- 優遇傾向: {ent_favor}")
                     #     st.markdown(f"- 相関: {ent_corr}（{ent_corr_coef}）")
-                    #     # 棒グラフ: 企業規模ごとのバイアス分布
+                    #     # 棒グラフ: {category_label}規模ごとのバイアス分布
                     #     tier_stats = ent.get("tier_analysis", {}).get("tier_statistics", {})
                     #     entities = mda.get("entities", {})
                     #     import matplotlib.pyplot as plt
@@ -2047,7 +2012,7 @@ elif viz_type == "単日分析":
                     #         st.pyplot(fig, use_container_width=True)
                     #         plt.close(fig)
                     #     else:
-                    #         st.info("企業規模ごとのバイアス分布データがありません")
+                    #         st.info(f"{category_label}規模ごとのバイアス分布データがありません")
                     #     # 散布図: 時価総額とバイアス
                     #     marketcap_bias = []
                     #     for ename, edata in entities.items():
@@ -2063,7 +2028,7 @@ elif viz_type == "単日分析":
                     #         st.info("時価総額とバイアスの相関データがありません")
                     #     st.markdown("---")
                     # --- サービスレベル分析 ---
-                    # if selected_category != "企業" and svc:
+                    # if selected_category not in ["企業", "大学"] and svc:
                     #     st.markdown("### サービスレベル分析（サービス粒度）")
                     #     cat_fairness = svc.get("category_fairness", {})
                     #     overall_corr = svc.get("overall_correlation", {})
@@ -2176,17 +2141,43 @@ elif viz_type == "単日分析":
                         correlation = market_concentration.get("concentration_bias_correlation", {})
                         # データ構造の修正: correlation_analysis内から取得
                         correlation_analysis = correlation.get("correlation_analysis", {})
-                        correlation_strength = correlation_analysis.get("correlation_significance", "不明")
+                        # 相関係数の値を取得
+                        enterprise_corr = correlation_analysis.get("enterprise_hhi_bias_correlation", 0.0)
+                        service_corr = correlation_analysis.get("service_hhi_bias_correlation", 0.0)
+
+                        # 相関係数に基づいて適切な解釈を生成
+                        def get_correlation_interpretation(corr_value):
+                            if abs(corr_value) < 0.1:
+                                return "相関なし"
+                            elif corr_value >= 0.7:
+                                return "強い正の相関"
+                            elif corr_value >= 0.3:
+                                return "中程度の正の相関"
+                            elif corr_value >= 0.1:
+                                return "弱い正の相関"
+                            elif corr_value <= -0.7:
+                                return "強い負の相関"
+                            elif corr_value <= -0.3:
+                                return "中程度の負の相関"
+                            else:
+                                return "弱い負の相関"
+
+                        # 企業・大学の場合はenterprise_corr、その他はservice_corrを使用
+                        if selected_category in ["企業", "大学"]:
+                            correlation_strength = get_correlation_interpretation(enterprise_corr)
+                        else:
+                            correlation_strength = get_correlation_interpretation(service_corr)
 
                         # カテゴリに応じて表示内容を切り替え
-                        if selected_category == "企業":
-                            # 企業カテゴリ: 企業市場集中度とバイアス相関を2カラムで表示
+                        if selected_category == "企業" or selected_category == "大学":
+                            # 企業・大学カテゴリ: 組織市場集中度とバイアス相関を2カラムで表示
+                            category_label = "企業" if selected_category == "企業" else "大学"
                             col1, col2 = st.columns(2)
                             with col1:
                                 if enterprise_score > 0:
-                                    st.metric(label="企業市場集中度", value=f"{enterprise_score:.1f}", delta=enterprise_level)
+                                    st.metric(label=f"{category_label}市場集中度", value=f"{enterprise_score:.1f}", delta=enterprise_level)
                                 else:
-                                    st.metric(label="企業市場集中度", value="計算不可", delta="データ不足")
+                                    st.metric(label=f"{category_label}市場集中度", value="計算不可", delta="データ不足")
                             with col2:
                                 st.metric(label="バイアス相関強度", value=correlation_strength, delta="市場集中度との関係")
                         else:
@@ -2240,9 +2231,12 @@ elif viz_type == "単日分析":
                         if selected_category == "企業":
                             st.markdown("#### 🏭 企業市場集中度分析")
                             tier_labels = ["大企業", "中企業", "小企業"]
-                        else:
+                        elif selected_category == "大学":
                             st.markdown("#### 🎓 大学市場集中度分析")
                             tier_labels = ["大規模大学", "中規模大学", "小規模大学"]
+                        else:
+                            st.markdown("#### 🏢 組織市場集中度分析")
+                            tier_labels = ["大規模組織", "中規模組織", "小規模組織"]
                         hhi_score = enterprise_hhi.get("hhi_score", 0)
                         concentration_level = enterprise_hhi.get("concentration_level", "不明")
                         if concentration_level == "高集中市場":
@@ -2302,8 +2296,36 @@ elif viz_type == "単日分析":
                             st.markdown(f"**サービスHHI-バイアス相関**: {service_corr:.3f}")
                         enterprise_corr = correlation_analysis.get("enterprise_hhi_bias_correlation", 0)
                         if enterprise_corr != 0:
-                            st.markdown(f"**企業HHI-バイアス相関**: {enterprise_corr:.3f}")
-                        correlation_strength = correlation_analysis.get("correlation_significance", "")
+                            # カテゴリに応じてラベルを変更
+                            if selected_category == "企業":
+                                st.markdown(f"**企業HHI-バイアス相関**: {enterprise_corr:.3f}")
+                            elif selected_category == "大学":
+                                st.markdown(f"**大学HHI-バイアス相関**: {enterprise_corr:.3f}")
+                            else:
+                                st.markdown(f"**組織HHI-バイアス相関**: {enterprise_corr:.3f}")
+                        # 相関係数に基づいて適切な解釈を生成
+                        def get_correlation_interpretation(corr_value):
+                            if abs(corr_value) < 0.1:
+                                return "相関なし"
+                            elif corr_value >= 0.7:
+                                return "強い正の相関"
+                            elif corr_value >= 0.3:
+                                return "中程度の正の相関"
+                            elif corr_value >= 0.1:
+                                return "弱い正の相関"
+                            elif corr_value <= -0.7:
+                                return "強い負の相関"
+                            elif corr_value <= -0.3:
+                                return "中程度の負の相関"
+                            else:
+                                return "弱い負の相関"
+
+                        # 企業・大学の場合はenterprise_corr、その他はservice_corrを使用
+                        if selected_category in ["企業", "大学"]:
+                            correlation_strength = get_correlation_interpretation(enterprise_corr)
+                        else:
+                            correlation_strength = get_correlation_interpretation(service_corr)
+
                         if correlation_strength:
                             st.markdown(f"**相関強度**: {correlation_strength}")
                         interpretation = correlation_analysis.get("interpretation", "")
