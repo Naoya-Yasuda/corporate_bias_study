@@ -1307,9 +1307,13 @@ class BiasAnalysisEngine:
         else:
             bias_direction = "中立"
 
-        # バイアス強度
+        # バイアス強度（統計的有意性を考慮）
         abs_bi = abs(bi)
-        if abs_bi > self.config["bias_strength_thresholds"]["very_strong"]:
+
+        # 統計的に有意でない場合（p_value >= 0.05）は「無視できる」とする
+        if p_value is not None and p_value >= 0.05:
+            bias_strength = "無視できる"
+        elif abs_bi > self.config["bias_strength_thresholds"]["very_strong"]:
             bias_strength = "非常に強い"
         elif abs_bi > self.config["bias_strength_thresholds"]["strong"]:
             bias_strength = "強い"
@@ -3772,7 +3776,7 @@ class BiasAnalysisEngine:
                             "reliability": "low",
                             "components": {
                                 "sentiment_ranking_correlation": abs(pearson_corr),
-                                "google_citations_alignment": 0.0
+                                "google_citations_alignment": 0.0  # 後でcitations_comparisonから更新
                             }
                         }
 
@@ -3808,48 +3812,57 @@ class BiasAnalysisEngine:
         if citations_comparison:
             for category in citations_comparison:
                 if category not in result["by_category"]:
-                    result["by_category"][category] = {}
+                    result["by_category"][category] = {"subcategory_scores": {}}
 
                 for subcategory, data in citations_comparison[category].items():
                     if "ranking_similarity" in data:
                         metrics = data["ranking_similarity"]
-                        kendall_tau = metrics.get("kendall_tau", 0)
-                        rbo_score = metrics.get("rbo_score", 0)
-                        overlap_ratio = metrics.get("overlap_ratio", 0)
 
-                        # 数学的整合性チェックを緩和
-                        is_valid = (
-                            metrics.get("metrics_validation", {}).get("is_mathematically_consistent", False) or
-                            (kendall_tau != 0 or rbo_score != 0 or overlap_ratio != 0)
-                        )
+                        # official_results_metricsとreputation_results_metricsの両方を処理
+                        alignment_scores = []
 
-                        if is_valid:
-                            alignment_score = (
-                                0.4 * abs(kendall_tau) +
-                                0.4 * rbo_score +
-                                0.2 * overlap_ratio
-                            )
+                        for metric_type in ["official_results_metrics", "reputation_results_metrics"]:
+                            if metric_type in metrics:
+                                metric_data = metrics[metric_type]
+                                kendall_tau = metric_data.get("kendall_tau", 0)
+                                rbo_score = metric_data.get("rbo_score", 0)
+                                overlap_ratio = metric_data.get("overlap_ratio", 0)
+
+                                # 数学的整合性チェックを緩和
+                                is_valid = (
+                                    metric_data.get("metrics_validation", {}).get("is_mathematically_consistent", False) or
+                                    (kendall_tau != 0 or rbo_score != 0 or overlap_ratio != 0)
+                                )
+
+                                if is_valid:
+                                    alignment_score = (
+                                        0.4 * abs(kendall_tau) +
+                                        0.4 * rbo_score +
+                                        0.2 * overlap_ratio
+                                    )
+                                    alignment_scores.append(alignment_score)
+
+                        # 平均alignment_scoreを計算
+                        if alignment_scores:
+                            avg_alignment_score = sum(alignment_scores) / len(alignment_scores)
 
                             # 既存のサブカテゴリスコアに統合
-                            if category in result["by_category"] and "subcategory_scores" in result["by_category"][category]:
-                                for subcategory_name, score in result["by_category"][category]["subcategory_scores"].items():
-                                    score["components"]["google_citations_alignment"] = alignment_score
-                                    score["consistency_score"] = (score["consistency_score"] + alignment_score) / 2
+                            if subcategory in result["by_category"][category].get("subcategory_scores", {}):
+                                score = result["by_category"][category]["subcategory_scores"][subcategory]
+                                score["components"]["google_citations_alignment"] = avg_alignment_score
+                                score["consistency_score"] = (score["consistency_score"] + avg_alignment_score) / 2
                             else:
                                 # 新しいサブカテゴリとして追加
-                                if category not in result["by_category"]:
-                                    result["by_category"][category] = {"subcategory_scores": {}}
-
                                 result["by_category"][category]["subcategory_scores"][subcategory] = {
-                                    "consistency_score": alignment_score,
+                                    "consistency_score": avg_alignment_score,
                                     "reliability": "medium",
                                     "components": {
                                         "sentiment_ranking_correlation": 0.0,
-                                        "google_citations_alignment": alignment_score
+                                        "google_citations_alignment": avg_alignment_score
                                     }
                                 }
 
-                            consistency_scores.append(alignment_score)
+                            consistency_scores.append(avg_alignment_score)
 
         # 全体の評価
         if consistency_scores:
