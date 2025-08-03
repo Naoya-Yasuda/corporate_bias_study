@@ -2156,7 +2156,7 @@ elif viz_type == "単日分析":
                         # カテゴリに応じて詳細分析セクションを切り替え
                         if selected_category == "企業":
                             # 企業カテゴリ: 企業レベルHHI分析のみ表示
-                            render_enterprise_hhi_analysis(market_concentration)
+                            render_enterprise_hhi_analysis(market_concentration, selected_category)
                         else:
                             # その他のカテゴリ: サービスレベルHHI分析のみ表示
                             render_service_hhi_analysis(market_concentration)
@@ -2230,12 +2230,19 @@ elif viz_type == "単日分析":
                         if share_dispersion > 0:
                             st.markdown(f"**シェア分散**: {share_dispersion:.2f}")
 
-                    def render_enterprise_hhi_analysis(market_concentration):
+                    def render_enterprise_hhi_analysis(market_concentration, selected_category):
                         enterprise_hhi = market_concentration.get("enterprise_hhi", {})
                         if not enterprise_hhi or enterprise_hhi.get("hhi_score", 0) == 0:
-                            st.info("企業レベルHHI分析データがありません")
+                            st.info("企業・大学レベルHHI分析データがありません")
                             return
-                        st.markdown("#### 🏭 企業市場集中度分析")
+
+                        # カテゴリに応じたタイトル設定
+                        if selected_category == "企業":
+                            st.markdown("#### 🏭 企業市場集中度分析")
+                            tier_labels = ["大企業", "中企業", "小企業"]
+                        else:
+                            st.markdown("#### 🎓 大学市場集中度分析")
+                            tier_labels = ["大規模大学", "中規模大学", "小規模大学"]
                         hhi_score = enterprise_hhi.get("hhi_score", 0)
                         concentration_level = enterprise_hhi.get("concentration_level", "不明")
                         if concentration_level == "高集中市場":
@@ -2247,8 +2254,7 @@ elif viz_type == "単日分析":
                         st.markdown(f"**HHI値**: {hhi_score:.1f} ({color} {concentration_level})")
                         enterprise_tiers = enterprise_hhi.get("enterprise_tiers", {})
                         if enterprise_tiers:
-                            st.markdown("**企業規模別シェア**:")
-                            labels = ["大企業", "中企業", "小企業"]
+                            st.markdown("**規模別シェア**:")
                             values = [
                                 enterprise_tiers.get("large", 0),
                                 enterprise_tiers.get("medium", 0),
@@ -2256,7 +2262,7 @@ elif viz_type == "単日分析":
                             ]
                             non_zero_labels = []
                             non_zero_values = []
-                            for label, value in zip(labels, values):
+                            for label, value in zip(tier_labels, values):
                                 if value > 0:
                                     non_zero_labels.append(label)
                                     non_zero_values.append(value)
@@ -2267,10 +2273,10 @@ elif viz_type == "単日分析":
                                     hole=0.3,
                                     marker_colors=['#ff7f0e', '#2ca02c', '#d62728']
                                 )])
-                                fig.update_layout(title="企業規模別シェア分布", height=400)
+                                fig.update_layout(title="規模別シェア分布", height=400)
                                 st.plotly_chart(fig, use_container_width=True)
                             else:
-                                st.info("企業規模別シェアデータがありません")
+                                st.info("規模別シェアデータがありません")
                         market_power = enterprise_hhi.get("market_power_analysis", "")
                         if market_power:
                             st.markdown(f"**市場支配力分析**: {market_power}")

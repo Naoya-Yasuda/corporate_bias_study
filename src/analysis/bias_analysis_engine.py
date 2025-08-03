@@ -1981,7 +1981,7 @@ class BiasAnalysisEngine:
             concentration_level = self._interpret_hhi_level(hhi_score)
 
             # 6. 企業規模別シェア計算
-            enterprise_tiers = self._calculate_enterprise_tiers(caps)
+            enterprise_tiers = self._calculate_enterprise_tiers(caps, category)
 
             # 7. 市場支配力分析
             market_power_analysis = self._analyze_market_power(hhi_score, enterprise_tiers)
@@ -2182,26 +2182,34 @@ class BiasAnalysisEngine:
         else:
             return "競争市場"
 
-    def _calculate_enterprise_tiers(self, market_caps: Dict[str, float]) -> Dict[str, float]:
+    def _calculate_enterprise_tiers(self, market_caps: Dict[str, float], category: str = "企業") -> Dict[str, float]:
         """
-        企業規模別シェアを計算
+        企業・大学規模別シェアを計算
 
         Parameters:
         -----------
         market_caps : Dict[str, float]
-            企業別時価総額（単位：兆円）
+            企業別時価総額または大学別年間予算
+        category : str
+            カテゴリ名（"大学"の場合は大学用閾値を使用）
 
         Returns:
         --------
         Dict[str, float]
-            企業規模別シェア
+            規模別シェア
         """
         total_cap = sum(market_caps.values())
 
-        # 閾値を兆円単位に修正
-        large_cap = sum(cap for cap in market_caps.values() if cap >= 10)  # 10兆円以上
-        medium_cap = sum(cap for cap in market_caps.values() if 1 <= cap < 10)  # 1-10兆円
-        small_cap = sum(cap for cap in market_caps.values() if cap < 1)  # 1兆円未満
+        if category == "大学":
+            # 大学用の閾値（億円単位）
+            large_cap = sum(cap for cap in market_caps.values() if cap >= 1000)  # 1000億円以上
+            medium_cap = sum(cap for cap in market_caps.values() if 400 <= cap < 1000)  # 400-1000億円
+            small_cap = sum(cap for cap in market_caps.values() if cap < 400)  # 400億円未満
+        else:
+            # 企業用の閾値（兆円単位）
+            large_cap = sum(cap for cap in market_caps.values() if cap >= 10)  # 10兆円以上
+            medium_cap = sum(cap for cap in market_caps.values() if 1 <= cap < 10)  # 1-10兆円
+            small_cap = sum(cap for cap in market_caps.values() if cap < 1)  # 1兆円未満
 
         return {
             "large": round(large_cap / total_cap * 100, 1),
