@@ -18,11 +18,11 @@ Venkit et al.（2024）は、AI検索サービスが「ユーザーバイアス�
 従来のバイアス研究は主に性別、人種、年齢等の社会的属性に焦点を当ててきた（Weidinger et al., 2021; Guo et al., 2024）。しかし、生成AI検索サービスが商業的意思決定に与える影響力を考慮すると、企業優遇バイアスは市場公正性の観点から極めて重要な問題である。Gallegos et al.（2024）による大規模言語モデルのバイアスに関する包括的調査では、社会的バイアスの評価と軽減技術について詳細な分析が行われているが、企業優遇バイアスに特化した研究は依然として限定的である。
 
 1.2 本研究の主張と独創性
-本研究は、AI検索サービスには「企業優遇バイアス」（Corporate Favoritism Bias）が存在し、これが市場競争に深刻な影響を与える可能性があるという仮説を提起する。企業優遇バイアスとは、AI検索システムが特定の企業・ブランド・サービスに対して一貫した優遇的または冷遇的な評価を示す現象を指す。このバイアスは、検索結果の順位付け、感情的評価、推薦度合い、情報の網羅性などの複数の側面で現れる可能性がある。
+本研究は、AI検索サービスには「企業優遇バイアス」（Corporate Favoritism Bias）が存在し、これが市場競争に深刻な影響を与える可能性があるという問題意識のもと、バイアスと市場構造との相関関係を分析する。企業優遇バイアスとは、AI検索システムが特定の企業・ブランド・サービスに対して一貫した優遇的または冷遇的な評価を示す現象を指す。このバイアスは、検索結果の順位付け、感情的評価、推薦度合い、情報の網羅性などの複数の側面で現れる可能性がある。
 本研究の独創性は以下の3点にある：
-第一に、企業優遇バイアスを定量的に測定・評価する包括的な手法の開発である。既存のバイアス評価手法（BBQ データセット等）を参考にしながら、企業・ブランド評価に特化した新しい評価基準を確立する。具体的には、感情スコア差分、推薦順位分析、引用リンク評価などの多面的指標を統合したNormalized Bias Index（正規化バイアス指数）を提案する。
-第二に、複数のAI検索サービスを対象とした大規模な実証分析の実施である。既存研究では、Deldjoo（2024）がChatGPTベース推薦システムにおけるバイアスを分析しているが、検索サービス全体への適用や市場競争への影響評価は行われていない。また、Dusi et al.（2024）による事前学習言語モデルにおける差別バイアス検出研究があるものの、企業レベルでのバイアス評価に特化した研究は不足している。
-第三に、市場競争への影響を定量評価する新しいアプローチの開発である。Hoppner & Uphues（2024）は、AI搭載サービスにおける反競争的行動の潜在的リスクを指摘し、「専門家でさえ検索エンジンを評価することが困難であるため、検索エンジンバイアスは」特に深刻な問題となると警告している。本研究は、この指摘を受けて、企業レベル公平性スコア、サービスレベル公平性スコア等の統合指標により、市場への影響を可視化する手法を開発する。
+第一に、企業優遇バイアスを定量的に測定・評価する包括的な手法の開発である。既存の社会的属性バイアス研究とは異なり、企業・ブランド評価に特化した新しい評価基準を確立し、Normalized Bias Index（正規化バイアス指数）を提案する。
+第二に、複数のAI検索サービスを対象とした大規模な実証分析の実施である。既存研究では、Deldjoo（2024）がChatGPTベース推薦システムにおけるバイアスを分析しているが、検索サービス全体への適用や市場構造との相関分析は行われていない。また、Dusi et al.（2024）による事前学習言語モデルにおける差別バイアス検出研究があるものの、企業レベルでのバイアス評価に特化した研究は不足している。
+第三に、バイアスと市場構造との相関関係を定量評価する新しいアプローチの開発である。Hoppner & Uphues（2024）は、AI搭載サービスにおける反競争的行動の潜在的リスクを指摘し、「専門家でさえ検索エンジンを評価することが困難であるため、検索エンジンバイアスは」特に深刻な問題となると警告している。本研究は、この指摘を受けて、企業レベル公平性スコア、サービスレベル公平性スコア等の統合指標により、市場構造との相関を可視化する手法を開発する。
 
 1.3 研究の目的
 本研究の主要な目的は以下の4点である。
@@ -60,8 +60,9 @@ SPF USA. (2024). AI保証をめぐる日米協力：AIのセキュリティと�
 Gallegos, I. O., Rossi, R. A., Barrow, J., Tanjim, M. M., Ahmed, K., Amer, A., ... & Srinivasan, K. (2024). Bias and fairness in large language models: A survey. Computational Linguistics, 50(3), 1097-1179. https://doi.org/10.1162/coli_a_00524
 Weidinger, L., Mellor, J., Rauh, M., Griffin, C., Uesato, J., Huang, P. S., ... & Gabriel, I. (2021). Ethical and social risks of harm from language models. arXiv preprint arXiv:2112.04359. https://doi.org/10.48550/arXiv.2112.04359
 Guo, Y., Guo, M., Su, J., Yang, Z., Zhu, M., Li, H., ... & Liu, Y. (2024). Bias in large language models: Origin, evaluation, and mitigation. arXiv preprint arXiv:2411.10915. https://doi.org/10.48550/arXiv.2411.10915
-Hoppner, T., & Uphues, S. (2024). On the antitrust implications of embedding generative AI in core platform services. CPI Antitrust Chronicle, SSRN Electronic Journal. https://doi.org/10.2139/ssrn.4904876
 Deldjoo, Y. (2024). Understanding biases in ChatGPT-based recommender systems: Provider fairness, temporal stability, and recency. ACM Transactions on Recommender Systems, 2(3), Article 18. https://doi.org/10.1145/3690655
+Hoppner, T., & Uphues, S. (2024). On the antitrust implications of embedding generative AI in core platform services. CPI Antitrust Chronicle, SSRN Electronic Journal. https://doi.org/10.2139/ssrn.4904876
+中川 慧, 平野 正徳, 藤本 悠吾. (2024). 大規模言語モデルを活用した金融センチメント分析における企業固有バイアスの評価. 第21回テキストアナリティクス・シンポジウム.
 Dusi, M., Arici, N., Gerevini, A. E., Putelli, L., & Serina, I. (2024). Discrimination bias detection through categorical association in pre-trained language models. IEEE Access, 12, 162651-162673. https://doi.org/10.1109/ACCESS.2024.3482010
 公正取引委員会. (2025). 生成AIに関する実態調査報告書 ver.1.0. 令和7年6月6日. https://www.jftc.go.jp/houdou/pressrelease/2025/jun/250606generativeai.html
 InfoComニューズレター. (2025). 生成AIが増幅する認知バイアスの危険性. 2025年5月29日. https://www.icr.co.jp/newsletter/wtr434-20250529-mizuno.html
