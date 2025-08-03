@@ -20,6 +20,7 @@ from src.utils.plot_utils import plot_severity_radar, plot_pvalue_heatmap, plot_
 import os
 from src.utils.storage_config import get_base_paths
 import plotly.graph_objects as go
+import time
 
 # 認証機能のインポート（一時的に無効化）
 # from src.components.auth_ui import render_auth_page, show_dashboard_header
@@ -89,11 +90,14 @@ def get_dashboard_data_async(_loader, selected_date):
             end_time = datetime.now()
             load_time = (end_time - start_time).total_seconds()
 
-            # キャッシュ情報をサイドバーに表示
+            # 読み込み情報をセッション状態に保存
+            if "load_status" not in st.session_state:
+                st.session_state.load_status = []
+
             if load_time < 0.1:  # キャッシュから取得された場合
-                st.sidebar.success(f"💾 キャッシュから読み込み: {selected_date}")
+                st.session_state.load_status.append(f"💾 キャッシュから読み込み: {selected_date}")
             else:
-                st.sidebar.info(f"📥 新規読み込み: {selected_date} ({load_time:.2f}秒)")
+                st.session_state.load_status.append(f"📥 新規読み込み: {selected_date} ({load_time:.2f}秒)")
 
             if not data:
                 st.error(f"❌ データ取得失敗: {selected_date}")
@@ -105,6 +109,74 @@ def get_dashboard_data_async(_loader, selected_date):
             st.error(f"❌ データ取得エラー: {selected_date} (読み込み時間: {load_time:.2f}秒)")
             st.error(f"エラー詳細: {str(e)}")
             return None
+
+def render_load_status(expanded=False, key_prefix="", simplified=False):
+    """
+    読み込み状況を表示する共通関数
+
+    Parameters:
+    -----------
+    expanded : bool
+        エクスパンダーの初期展開状態
+    key_prefix : str
+        ページネーション用のキープレフィックス
+    simplified : bool
+        簡素化表示モード（単日分析用）
+    """
+    if hasattr(st.session_state, 'load_status') and st.session_state.load_status:
+        if simplified:
+            # 簡素化表示：最新の読み込み情報のみを緑色で直接表示（エクスパンダーなし）
+            latest_item = st.session_state.load_status[-1]
+            st.sidebar.success(latest_item)
+        else:
+            # 通常表示：エクスパンダー付きで統計情報とページネーション
+            with st.sidebar.expander("📊 読み込み状況", expanded=expanded):
+                # 統計情報を表示
+                total_loads = len(st.session_state.load_status)
+                new_loads = sum(1 for item in st.session_state.load_status if "新規読み込み" in item)
+                cache_loads = sum(1 for item in st.session_state.load_status if "キャッシュ" in item)
+                st.caption(f"📈 総読み込み: {total_loads}件 (新規: {new_loads}件, キャッシュ: {cache_loads}件)")
+
+                # ページネーション設定
+                items_per_page = 8
+                total_pages = (len(st.session_state.load_status) + items_per_page - 1) // items_per_page
+
+                if total_pages > 1:
+                    # ページ選択
+                    current_page = st.selectbox(
+                        "ページ選択",
+                        range(1, total_pages + 1),
+                        key=f"{key_prefix}load_status_page_selector"
+                    )
+
+                    # 表示範囲を計算
+                    start_idx = (current_page - 1) * items_per_page
+                    end_idx = min(start_idx + items_per_page, len(st.session_state.load_status))
+                    display_items = st.session_state.load_status[start_idx:end_idx]
+
+                    st.caption(f"ページ {current_page}/{total_pages} ({start_idx + 1}-{end_idx}件)")
+                else:
+                    display_items = st.session_state.load_status
+
+                # 読み込みリストを表示
+                for item in display_items:
+                    if "新規読み込み" in item:
+                        st.info(item)
+                    else:
+                        st.success(item)
+
+                # 全件表示ボタン
+                if total_pages > 1:
+                    if st.button("全件表示", key=f"{key_prefix}show_all_load_status"):
+                        st.session_state[f"{key_prefix}show_all_load_status"] = True
+
+                    if st.session_state.get(f"{key_prefix}show_all_load_status", False):
+                        st.write("**全件表示:**")
+                        for item in st.session_state.load_status:
+                            if "新規読み込み" in item:
+                                st.info(item)
+                            else:
+                                st.success(item)
 
 # 環境変数の読み込み
 # load_dotenv() # 削除
@@ -419,6 +491,9 @@ if viz_type == "時系列分析":
     progress_bar.empty()
     status_text.empty()
 
+    # 読み込み状況を表示（統合版）
+    render_load_status(expanded=False, key_prefix="")
+
     available_dates = sorted(best_data_by_date.keys())
         # ここから追加
     status_list = []
@@ -434,40 +509,123 @@ if viz_type == "時系列分析":
         status = 'OK' if data is not None else '取得失敗'
         status_list.append(f"{date}｜{source}｜{status}｜{path}")
 
+        # ページネーション機能付きデータ取得状況表示
     with st.sidebar.expander("📊 データ取得状況", expanded=False):
         if status_list:
-            for s in status_list:
+            # 統計情報を表示
+            total_files = len(status_list)
+            success_count = sum(1 for s in status_list if "OK" in s)
+            st.caption(f"📈 取得状況: {success_count}/{total_files} 件成功")
+
+            # ページネーション設定
+            items_per_page = 10
+            total_pages = (len(status_list) + items_per_page - 1) // items_per_page
+
+            if total_pages > 1:
+                # ページ選択
+                current_page = st.selectbox(
+                    "ページ選択",
+                    range(1, total_pages + 1),
+                    key="status_page_selector"
+                )
+
+                # 表示範囲を計算
+                start_idx = (current_page - 1) * items_per_page
+                end_idx = min(start_idx + items_per_page, len(status_list))
+                display_items = status_list[start_idx:end_idx]
+
+                st.caption(f"ページ {current_page}/{total_pages} ({start_idx + 1}-{end_idx}件)")
+            else:
+                display_items = status_list
+
+            # ファイルリストを表示
+            for s in display_items:
                 if "OK" in s:
-                    st.success(s)
+                    st.success(f"✅ {s}")
                 elif "失敗" in s or "エラー" in s:
-                    st.error(s)
+                    st.error(f"❌ {s}")
                 else:
-                    st.info(s)
+                    st.info(f"ℹ️ {s}")
+
+            # 全件表示ボタン
+            if total_pages > 1:
+                if st.button("全件表示", key="show_all_status"):
+                    st.session_state.show_all_status = True
+
+                if st.session_state.get("show_all_status", False):
+                    st.write("**全件表示:**")
+                    for s in status_list:
+                        if "OK" in s:
+                            st.success(f"✅ {s}")
+                        elif "失敗" in s or "エラー" in s:
+                            st.error(f"❌ {s}")
+                        else:
+                            st.info(f"ℹ️ {s}")
         else:
             st.info("データ取得状況がありません")
-    # ここまで追加
-    period_options = {
-        "1ヶ月": 4,
-        "3ヶ月": 12,
-        "半年": 24,
-        "1年": 52,
-        "全期間": None
-    }
-    selected_period = st.sidebar.selectbox(
-        "表示期間を選択",
-        list(period_options.keys()),
-        index=2,
-        key="ts_period_selector"
-    )
+    # 表示期間選択とファイル検索機能
+    col1, col2 = st.sidebar.columns([2, 1])
+
+    with col1:
+        period_options = {
+            "1ヶ月": 4,
+            "3ヶ月": 12,
+            "半年": 24,
+            "1年": 52,
+            "全期間": None
+        }
+        selected_period = st.selectbox(
+            "表示期間を選択",
+            list(period_options.keys()),
+            index=2,
+            key="ts_period_selector"
+        )
+
+    with col2:
+        # ファイル検索機能
+        search_term = st.text_input("検索", placeholder="YYYYMMDD", key="file_search")
+
     period_n = period_options[selected_period]
     sorted_dates = sorted(available_dates, reverse=True)
-    if period_n is not None:
-        selected_dates = sorted(sorted_dates[:period_n], reverse=False)
+
+    # 検索フィルタリング
+    if search_term:
+        filtered_dates = [d for d in sorted_dates if search_term in d]
+        if filtered_dates:
+            selected_dates = sorted(filtered_dates, reverse=False)
+        else:
+            st.sidebar.warning(f"'{search_term}'に一致するファイルが見つかりません")
+            selected_dates = sorted(sorted_dates[:period_n] if period_n else sorted_dates, reverse=False)
     else:
-        selected_dates = sorted(available_dates)
+        if period_n is not None:
+            selected_dates = sorted(sorted_dates[:period_n], reverse=False)
+        else:
+            selected_dates = sorted(available_dates)
     if not selected_dates:
         st.info("利用可能なデータがありません")
         st.stop()
+
+    # 選択されたファイルの情報を表示
+    st.sidebar.markdown("""
+        <style>
+        .selected-files-info {
+            background-color: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    with st.sidebar.expander(f"📋 選択されたファイル ({len(selected_dates)}件)", expanded=False):
+        st.markdown('<div class="selected-files-info">', unsafe_allow_html=True)
+        for i, date in enumerate(selected_dates):
+            data, source = best_data_by_date[date]
+            status_icon = "✅" if data is not None else "❌"
+            st.markdown(f"{status_icon} {date} ({source})", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     latest_date = max(selected_dates)
     dashboard_data, source = best_data_by_date[latest_date]
     if dashboard_data is None:
@@ -958,6 +1116,9 @@ elif viz_type == "単日分析":
     if not analysis_data:
         st.error(f"分析データの読み込みに失敗しました: {selected_date}")
         st.stop()
+
+    # 単日分析でも読み込み状況を表示（簡素化表示）
+    render_load_status(expanded=True, key_prefix="single_", simplified=True)
 
     # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
     viz_type_options = ["感情スコア分析", "おすすめランキング分析結果", "Perplexity-Google比較", "統合分析"]
