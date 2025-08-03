@@ -2387,7 +2387,215 @@ print(f'分析結果: {len(results)}項目生成')
 ---
 
 ### 9. 今後の重点開発方針
-# ... 既存の内容 ...
+
+#### 9.1 現在の実装状況
+- ✅ 単日データによる包括的バイアス分析
+- ✅ 7つの統計指標による総合評価
+- ✅ 信頼性レベル判定とメタデータ生成
+- ✅ 可視化システム（5種類・15-50枚の詳細可視化）
+- ⚠️ **市場影響度測定機能は一時的に無効化**（妥当性の問題により）
+
+#### 9.1.1 市場影響度測定機能の無効化について
+
+**無効化の理由**
+- 単日データによる市場影響度測定の妥当性が極めて限定的
+- 静的市場データと仮想的シミュレーションによる現実との乖離
+- 統計的検出力の不足と信頼区間の広さ
+- 政策判断への誤解を招く可能性
+
+**無効化の内容**
+```python
+# 一時的に無効化された機能
+competition_impact_analysis = {
+    "available": False,
+    "error": "市場影響度測定機能は一時的に無効化されています（妥当性の問題により）",
+    "note": "時系列分析システム実装後に再検討予定"
+}
+```
+
+**再実装の条件**
+- 時系列データの蓄積（最低3ヶ月以上のデータ）
+- 動的市場モデルの実装
+- 統計的妥当性の確保
+- 信頼区間の計算機能
+
+#### 9.2 Phase 3: 時系列分析システムの実装
+
+##### 9.2.1 時系列データ統合機能
+
+**複数日データ読み込み機能**
+```python
+class TimeSeriesDataLoader:
+    """時系列データローダー"""
+
+    def load_date_range(self, start_date: str, end_date: str) -> Dict[str, Any]:
+        """指定期間のデータを読み込み"""
+
+    def load_multiple_dates(self, date_list: List[str]) -> Dict[str, Any]:
+        """複数日付のデータを読み込み"""
+
+    def validate_time_series_consistency(self, data: Dict[str, Any]) -> List[str]:
+        """時系列データの一貫性を検証"""
+```
+
+**時系列データ前処理**
+- 欠損値の補完（線形補間、移動平均）
+- 異常値の検出・処理
+- データ正規化・標準化
+
+##### 9.2.2 時系列バイアス分析エンジン
+
+**累積バイアス効果分析**
+```python
+class TimeSeriesBiasAnalyzer:
+    """時系列バイアス分析器"""
+
+    def calculate_cumulative_bias_effect(self, bias_series: Dict[str, List[float]]) -> Dict[str, Any]:
+        """累積バイアス効果の計算"""
+
+    def analyze_bias_trends(self, bias_series: Dict[str, List[float]]) -> Dict[str, Any]:
+        """バイアストレンド分析"""
+
+    def detect_bias_regime_changes(self, bias_series: Dict[str, List[float]]) -> List[Dict[str, Any]]:
+        """バイアス体制変化の検出"""
+```
+
+**動的市場影響度シミュレーション**
+```python
+class DynamicMarketSimulator:
+    """動的市場シミュレーター"""
+
+    def simulate_market_dynamics(self, bias_series: Dict[str, List[float]],
+                               market_data: Dict[str, Any]) -> Dict[str, Any]:
+        """動的市場シミュレーション"""
+
+    def model_competitor_response(self, bias_series: Dict[str, List[float]]) -> Dict[str, Any]:
+        """競合反応モデル"""
+
+    def model_user_behavior(self, bias_series: Dict[str, List[float]]) -> Dict[str, Any]:
+        """ユーザー行動モデル"""
+
+    def calculate_market_equilibrium(self, bias_series: Dict[str, List[float]],
+                                   competitor_response: Dict[str, Any],
+                                   user_behavior: Dict[str, Any]) -> Dict[str, Any]:
+        """市場均衡計算"""
+```
+
+##### 9.2.3 統計的妥当性の向上
+
+**信頼区間計算**
+```python
+def calculate_impact_confidence_interval(self, simulation_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """影響度の信頼区間計算"""
+
+    # ブートストラップ法による信頼区間計算
+    bootstrap_samples = self.bootstrap_simulation(simulation_results)
+    confidence_interval = np.percentile(bootstrap_samples, [2.5, 97.5])
+
+    return {
+        "mean_impact": np.mean(bootstrap_samples),
+        "confidence_interval": confidence_interval,
+        "statistical_power": self.calculate_statistical_power(bootstrap_samples),
+        "effect_size": self.calculate_effect_size(bootstrap_samples)
+    }
+```
+
+**統計的検出力分析**
+- サンプルサイズの最適化
+- 効果量の計算
+- 多重比較補正の適用
+
+##### 9.2.4 時系列可視化システム
+
+**トレンド可視化**
+- バイアストレンドチャート
+- 市場影響度の時系列変化
+- 累積効果の可視化
+
+**インタラクティブダッシュボード**
+- 期間選択機能
+- リアルタイム分析結果表示
+- 予測機能
+
+##### 9.2.5 予測モデルの実装
+
+**バイアス予測モデル**
+```python
+class BiasPredictionModel:
+    """バイアス予測モデル"""
+
+    def train_prediction_model(self, historical_data: Dict[str, Any]) -> Any:
+        """予測モデルの学習"""
+
+    def predict_future_bias(self, current_data: Dict[str, Any],
+                          forecast_period: int) -> Dict[str, Any]:
+        """将来バイアスの予測"""
+
+    def evaluate_prediction_accuracy(self, predictions: Dict[str, Any],
+                                   actual_data: Dict[str, Any]) -> Dict[str, float]:
+        """予測精度の評価"""
+```
+
+**市場影響予測**
+- バイアス変化による市場影響の予測
+- シナリオ分析機能
+- リスク評価モデル
+
+#### 9.3 実装スケジュール
+
+**Phase 3.1: 時系列データ基盤（2-3週間）**
+- 複数日データ読み込み機能
+- 時系列データ前処理
+- データ品質検証
+
+**Phase 3.2: 時系列分析エンジン（3-4週間）**
+- 累積バイアス効果分析
+- 動的市場シミュレーション
+- 統計的妥当性向上
+
+**Phase 3.3: 可視化・予測システム（2-3週間）**
+- 時系列可視化
+- 予測モデル実装
+- インタラクティブダッシュボード
+
+**Phase 3.4: 統合・テスト（1-2週間）**
+- システム統合
+- 性能テスト
+- ドキュメント更新
+
+#### 9.4 期待される効果
+
+**分析精度の向上**
+- 統計的検出力の大幅向上
+- 信頼性の高い市場影響度評価
+- 予測精度の向上
+
+**実用性の向上**
+- 長期的なバイアス傾向の把握
+- 政策立案への貢献
+- 競争環境の継続的監視
+
+**研究価値の向上**
+- 学術的価値の高い分析結果
+- 国際的な研究コミュニティへの貢献
+- 政策提言への活用
+
+#### 9.5 技術的考慮事項
+
+**データストレージ**
+- 時系列データの効率的な保存
+- データベース設計の最適化
+- バックアップ・復旧戦略
+
+**計算リソース**
+- 大規模データ処理の最適化
+- 並列計算の活用
+- クラウドリソースの効率的利用
+
+**セキュリティ**
+- 機密データの保護
+- アクセス制御の強化
+- 監査ログの実装
 
 #### 【将来拡張】AIバイアスの市場影響因果推論
 - 現状はAI/検索エンジンのバイアスと現実市場構造の"乖離"や"相関"を定量化することが主目的ですが、**将来的には「AIバイアスが実際の市場に与える影響（因果関係）」の調査・分析も研究対象とする予定です。**

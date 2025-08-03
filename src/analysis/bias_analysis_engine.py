@@ -1774,7 +1774,8 @@ class BiasAnalysisEngine:
 
                     # 6. 統合相対評価（market_dominance_analysisに統合済み）
                     integrated_relative_evaluation = self._generate_enhanced_integrated_evaluation(
-                        bias_inequality, market_share_correlation, market_dominance_analysis
+                        bias_inequality, market_share_correlation, market_dominance_analysis,
+                        entities, market_shares
                     )
 
                     # 7. 市場集中度分析（HHI分析機能追加）
@@ -2713,7 +2714,8 @@ class BiasAnalysisEngine:
             return {"correlation_available": False, "note": "データ不足（2社以上の市場シェア・バイアス指標が必要）"}
 
     def _generate_enhanced_integrated_evaluation(self, bias_inequality: Dict,
-                                               market_share_correlation: Dict, market_dominance_analysis: Dict) -> Dict[str, Any]:
+                                               market_share_correlation: Dict, market_dominance_analysis: Dict,
+                                               entities: Dict[str, Any] = None, market_shares: Dict[str, Any] = None) -> Dict[str, Any]:
         """強化された統合相対評価（企業レベル + サービスレベル統合）"""
 
         evaluation_scores = {}
@@ -2797,6 +2799,14 @@ class BiasAnalysisEngine:
         # 8. 改善提案の生成
         improvement_recommendations = self._generate_improvement_recommendations(evaluation_scores, market_dominance_analysis)
 
+        # 9. 市場競争影響分析（一時的に無効化 - 妥当性の問題により）
+        # competition_impact_analysis = self._analyze_market_competition_impact(entities, market_shares) if entities and market_shares else {"available": False, "error": "データ不足"}
+        competition_impact_analysis = {
+            "available": False,
+            "error": "市場影響度測定機能は一時的に無効化されています（妥当性の問題により）",
+            "note": "時系列分析システム実装後に再検討予定"
+        }
+
         return {
             "overall_score": round(overall_score, 3),
             "evaluation_level": evaluation_level,
@@ -2804,10 +2814,12 @@ class BiasAnalysisEngine:
             "component_scores": evaluation_scores,
             "insights": insights,
             "improvement_recommendations": improvement_recommendations,
+            "competition_impact_analysis": competition_impact_analysis,
             "analysis_coverage": {
                 "enterprise_level": market_dominance_analysis.get("enterprise_level", {}).get("available", False),
                 "service_level": market_dominance_analysis.get("service_level", {}).get("available", False),
-                "traditional_metrics": bool(confidence_factors)
+                "traditional_metrics": bool(confidence_factors),
+                "competition_impact": False  # 一時的に無効化
             }
         }
 
@@ -5384,6 +5396,176 @@ class BiasAnalysisEngine:
         equal_opportunity_score = max(0, 1.0 - bias_variance)
 
         return round(equal_opportunity_score, 3)
+
+    def _analyze_market_competition_impact(self, entities: Dict[str, Any],
+                                         market_shares: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        市場競争への影響分析（新機能）
+
+        AIバイアスが市場競争に与える定量的影響をシミュレーションします。
+        """
+        try:
+            from src.utils.metrics_utils import apply_bias_to_share_enhanced
+
+            competition_impact_results = {}
+
+            for category, services in market_shares.items():
+                if not isinstance(services, dict):
+                    continue
+
+                # カテゴリ内の企業データを準備
+                category_entities = {}
+                category_shares = {}
+
+                for service_name, service_data in services.items():
+                    if isinstance(service_data, dict):
+                        share_value = service_data.get("market_share", 0)
+                        enterprise_name = service_data.get("enterprise")
+                    else:
+                        share_value = service_data
+                        enterprise_name = None
+
+                    # エンティティ検索
+                    entity_key, entity_data = self._find_entity_by_service_or_enterprise(service_name, entities)
+
+                    if entity_key and entity_data:
+                        bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+                        category_entities[service_name] = bias_index
+                        category_shares[service_name] = share_value
+
+                if not category_entities or not category_shares:
+                    continue
+
+                # 市場競争影響シミュレーション実行
+                simulation_result = apply_bias_to_share_enhanced(
+                    market_share=category_shares,
+                    bias_indices=category_entities,
+                    weight=0.1,  # デフォルト重み
+                    bias_type="normalized_bias"
+                )
+
+                # 結果の解釈とインサイト生成
+                insights = self._generate_competition_insights(simulation_result, category)
+
+                competition_impact_results[category] = {
+                    "simulation_result": simulation_result,
+                    "insights": insights,
+                    "risk_assessment": self._assess_competition_risk(simulation_result),
+                    "policy_recommendations": self._generate_competition_policy_recommendations(simulation_result)
+                }
+
+            return {
+                "available": bool(competition_impact_results),
+                "categories_analyzed": len(competition_impact_results),
+                "results": competition_impact_results,
+                "overall_impact_score": self._calculate_overall_competition_impact(competition_impact_results)
+            }
+
+        except Exception as e:
+            logger.error(f"市場競争影響分析エラー: {e}")
+            return {"available": False, "error": str(e)}
+
+    def _generate_competition_insights(self, simulation_result: Dict[str, Any], category: str) -> List[str]:
+        """競争影響のインサイト生成"""
+        insights = []
+
+        market_impact = simulation_result.get("market_impact_score", 0)
+        competition_effects = simulation_result.get("competition_effects", {})
+        share_changes = simulation_result.get("share_changes", {})
+
+        # 市場影響度に基づくインサイト
+        if market_impact > 0.3:
+            insights.append(f"{category}市場でAIバイアスによる大きな市場構造変化が予測される")
+        elif market_impact > 0.1:
+            insights.append(f"{category}市場でAIバイアスによる中程度の市場影響が予測される")
+        else:
+            insights.append(f"{category}市場ではAIバイアスの市場影響は軽微と予測される")
+
+        # 競争効果に基づくインサイト
+        winners = competition_effects.get("winners", [])
+        losers = competition_effects.get("losers", [])
+
+        if winners:
+            insights.append(f"AIバイアスにより{winners[0]}など{len(winners)}社が競争優位を得る可能性")
+        if losers:
+            insights.append(f"AIバイアスにより{losers[0]}など{len(losers)}社が競争劣位に陥る可能性")
+
+        # 市場集中度の変化
+        concentration_change = competition_effects.get("concentration_change", 0)
+        if concentration_change > 0.05:
+            insights.append(f"市場集中度が{concentration_change:.1%}増加し、競争環境が悪化する可能性")
+        elif concentration_change < -0.05:
+            insights.append(f"市場集中度が{abs(concentration_change):.1%}減少し、競争環境が改善する可能性")
+
+        return insights
+
+    def _assess_competition_risk(self, simulation_result: Dict[str, Any]) -> Dict[str, Any]:
+        """競争リスクの評価"""
+        market_impact = simulation_result.get("market_impact_score", 0)
+        competition_effects = simulation_result.get("competition_effects", {})
+
+        # リスクレベルの判定
+        if market_impact > 0.5:
+            risk_level = "high"
+            risk_description = "高い競争リスク"
+        elif market_impact > 0.2:
+            risk_level = "medium"
+            risk_description = "中程度の競争リスク"
+        else:
+            risk_level = "low"
+            risk_description = "低い競争リスク"
+
+        # 具体的なリスク要因
+        risk_factors = []
+        if competition_effects.get("market_instability", 0) > 3:
+            risk_factors.append("市場の不安定性")
+        if competition_effects.get("concentration_change", 0) > 0.1:
+            risk_factors.append("市場集中度の急激な変化")
+
+        return {
+            "risk_level": risk_level,
+            "risk_description": risk_description,
+            "risk_factors": risk_factors,
+            "market_impact_score": market_impact
+        }
+
+    def _generate_competition_policy_recommendations(self, simulation_result: Dict[str, Any]) -> List[str]:
+        """競争政策の推奨事項生成"""
+        recommendations = []
+        market_impact = simulation_result.get("market_impact_score", 0)
+        competition_effects = simulation_result.get("competition_effects", {})
+
+        if market_impact > 0.3:
+            recommendations.append("AIバイアス監視の強化が必要")
+            recommendations.append("競争法執行機関への情報提供を検討")
+
+        if competition_effects.get("concentration_change", 0) > 0.05:
+            recommendations.append("市場集中度の継続的監視が必要")
+            recommendations.append("独占禁止法違反の可能性を調査")
+
+        if competition_effects.get("market_instability", 0) > 3:
+            recommendations.append("市場安定化のための政策介入を検討")
+
+        if not recommendations:
+            recommendations.append("現時点では特別な政策介入は不要")
+
+        return recommendations
+
+    def _calculate_overall_competition_impact(self, competition_results: Dict[str, Any]) -> float:
+        """全体の競争影響度スコア計算"""
+        if not competition_results.get("results"):
+            return 0.0
+
+        impact_scores = []
+        for category_result in competition_results["results"].values():
+            simulation_result = category_result.get("simulation_result", {})
+            impact_score = simulation_result.get("market_impact_score", 0)
+            impact_scores.append(impact_score)
+
+        if not impact_scores:
+            return 0.0
+
+        return round(np.mean(impact_scores), 3)
 
 
 def main():
