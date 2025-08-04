@@ -1667,3 +1667,142 @@ def plot_entity_stability_analysis(rank_variance):
     except Exception as e:
         print(f"Error in plot_entity_stability_analysis: {str(e)}")
         return None
+
+def plot_sentiment_ranking_correlation_scatter(sentiment_data, ranking_data, title="感情-ランキング相関分析"):
+    """
+    感情スコアとランキング順位の相関を散布図で可視化
+
+    Args:
+        sentiment_data: 感情分析データ（normalized_bias_indexを含む）
+        ranking_data: ランキング分析データ（avg_rankを含む）
+        title: グラフタイトル
+
+    Returns:
+        plotly.graph_objects.Figure: 散布図
+    """
+    import plotly.graph_objects as go
+    import plotly.express as px
+
+    # データの準備
+    entities = []
+    bias_values = []
+    rank_values = []
+
+    # 共通エンティティの抽出とデータの準備
+    for entity in sentiment_data:
+        if entity in ranking_data:
+            bias_index = sentiment_data[entity].get("normalized_bias_index", 0)
+            avg_rank = ranking_data[entity].get("avg_rank", 0)
+
+            if bias_index is not None and avg_rank is not None:
+                entities.append(entity)
+                bias_values.append(bias_index)
+                rank_values.append(avg_rank)
+
+    if len(entities) < 2:
+        # データ不足の場合は空のグラフを返す
+        fig = go.Figure()
+        fig.add_annotation(
+            text="相関分析に必要なデータが不足しています（最低2つのエンティティが必要）",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=14, color="gray")
+        )
+        fig.update_layout(
+            title=title,
+            xaxis_title="正規化バイアス指標",
+            yaxis_title="平均ランキング順位",
+            showlegend=False
+        )
+        return fig
+
+    # ランキング値の逆転（数値が大きいほど上位になるように）
+    max_rank = max(rank_values)
+    inverted_rank_values = [max_rank - rank + 1 for rank in rank_values]
+
+    # 散布図の作成
+    fig = go.Figure()
+
+    # データポイントの追加
+    fig.add_trace(go.Scatter(
+        x=bias_values,
+        y=inverted_rank_values,
+        mode='markers+text',
+        text=entities,
+        textposition="bottom center",  # 位置を下に変更して相関係数表示と重ならないように
+        textfont=dict(color="white", size=10),  # ダークモード対応で白文字に変更
+        marker=dict(
+            size=10,
+            color=bias_values,
+            colorscale='RdBu',
+            colorbar=dict(title="バイアス指標"),
+            showscale=True
+        ),
+        hovertemplate='<b>%{text}</b><br>' +
+                     'バイアス指標: %{x:.3f}<br>' +
+                     '逆転ランキング: %{y:.1f}<br>' +
+                     '<extra></extra>',
+        name="企業"
+    ))
+
+    # 回帰直線の追加
+    if len(bias_values) >= 2:
+        import numpy as np
+        from scipy import stats
+
+        # 線形回帰（Pearson相関係数）
+        slope, intercept, r_value, p_value, std_err = stats.linregress(bias_values, inverted_rank_values)
+
+        # Spearman相関係数
+        spearman_corr, spearman_p = stats.spearmanr(bias_values, inverted_rank_values)
+
+        # 回帰直線のプロット
+        x_range = np.linspace(min(bias_values), max(bias_values), 100)
+        y_pred = slope * x_range + intercept
+
+        fig.add_trace(go.Scatter(
+            x=x_range,
+            y=y_pred,
+            mode='lines',
+            line=dict(color='red', width=2, dash='dash'),
+            name=f'回帰直線 (r={r_value:.3f})',
+            hovertemplate='回帰直線<br>' +
+                         f'相関係数: {r_value:.3f}<br>' +
+                         f'p値: {p_value:.3f}<br>' +
+                         '<extra></extra>'
+        ))
+
+        # 相関係数の表示（グラフ外の右上に配置）
+        fig.add_annotation(
+            text=f"<b>相関係数</b><br>Pearson: {r_value:.3f}<br>p値: {p_value:.3f}<br>Spearman: {spearman_corr:.3f}<br>p値: {spearman_p:.3f}",
+            xref="paper", yref="paper",
+            x=1.02, y=1.02, showarrow=False,
+            bgcolor="rgba(255,255,255,0.95)",
+            bordercolor="black",
+            borderwidth=2,
+            xanchor="left",
+            yanchor="bottom",
+            font=dict(size=10, color="black", family="Arial, sans-serif")
+        )
+
+    # レイアウトの設定
+    fig.update_layout(
+        title=title,
+        xaxis_title="正規化バイアス指標 (NBI)",
+        yaxis_title="逆転ランキング順位 (数値が大きいほど上位)",
+        hovermode='closest',
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01
+        ),
+        margin=dict(l=80, r=120, t=80, b=80)  # 右マージンを増やしてグラフ外表示のスペースを確保
+    )
+
+    # グリッド線の追加
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+
+    return fig

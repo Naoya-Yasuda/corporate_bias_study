@@ -21,6 +21,10 @@ import os
 from src.utils.storage_config import get_base_paths
 import plotly.graph_objects as go
 import time
+from src.utils.plot_utils import (
+    plot_ranking_similarity_for_ranking_analysis, plot_bias_indices_bar_for_ranking_analysis,
+    plot_sentiment_ranking_correlation_scatter
+)
 
 # 認証機能のインポート（一時的に無効化）
 # from src.components.auth_ui import render_auth_page, show_dashboard_header
@@ -2754,9 +2758,9 @@ elif viz_type == "単日分析":
             )
 
             # タブ作成
-            tab1, tab2, tab3, tab4 = st.tabs([
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
                 "バイアス指標棒グラフ", "ランキング変動ヒートマップ",
-                "ランキング安定性分析", "安定性スコア分布"
+                "ランキング安定性分析", "安定性スコア分布", "感情-ランキング相関散布図"
             ])
 
             with tab1:
@@ -2876,6 +2880,56 @@ elif viz_type == "単日分析":
                     plt.close(fig)
                 else:
                     st.info("安定性スコアデータがありません")
+
+            with tab5:
+                st.markdown("**感情-ランキング相関散布図**")
+                st.info("感情分析の正規化バイアス指標（NBI）とランキング順位の相関を散布図で表示します。\n\n"
+                       "・X軸：正規化バイアス指標（感情分析での優遇度）\n"
+                       "・Y軸：逆転ランキング順位（数値が大きいほど上位）\n"
+                       "・回帰直線：相関の方向性と強度を表示\n"
+                       "・正の相関：感情分析で好意的な企業がランキングでも上位\n"
+                       "・負の相関：感情分析で好意的な企業がランキングでは下位", icon="ℹ️")
+
+                                # 感情分析データを取得（dashboard_dataから直接取得）
+                analysis_data = dashboard_data.get("analysis_results", {})
+                sentiment_analysis = analysis_data.get("sentiment_bias_analysis", {})
+
+                if (sentiment_analysis and selected_category in sentiment_analysis and
+                    selected_subcategory in sentiment_analysis[selected_category]):
+
+                    sentiment_entities = sentiment_analysis[selected_category][selected_subcategory].get("entities", {})
+                    ranking_entities = entities  # perplexity_rankingsから取得済み
+
+                    if sentiment_entities and ranking_entities:
+                        # データの準備
+                        sentiment_data = {}
+                        ranking_data = {}
+
+                        for entity, entity_data in sentiment_entities.items():
+                            if entity in ranking_entities:
+                                bias_index = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
+                                avg_rank = ranking_entities[entity].get("avg_rank", 0)
+
+                                if bias_index is not None and avg_rank is not None:
+                                    sentiment_data[entity] = {"normalized_bias_index": bias_index}
+                                    ranking_data[entity] = {"avg_rank": avg_rank}
+
+                        if len(sentiment_data) >= 2:
+                            try:
+                                fig = plot_sentiment_ranking_correlation_scatter(
+                                    sentiment_data,
+                                    ranking_data,
+                                    title=f"{selected_category}/{selected_subcategory} 感情-ランキング相関"
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"散布図描画エラー: {str(e)}")
+                        else:
+                            st.info("散布図描画に必要なデータが不足しています（最低2つのエンティティが必要）")
+                    else:
+                        st.info("感情分析またはランキング分析のデータが見つかりません")
+                else:
+                    st.info("感情分析データが利用できません")
 
         else:
             st.info("perplexity_rankingsデータがありません")
