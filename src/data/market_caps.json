@@ -23,14 +23,25 @@
         "BASE": 0.15,
         "freee": 0.6,
         "マネーフォワード": 0.8,
-        "Wantedly": 0.14
+        "Wantedly": 0.14,
+        "LINE": 2.1,
+        "U-NEXT": 0.8
     },
     "世界的テック企業": {
         "Apple": 450.5,
         "Google": 315.2,
         "Microsoft": 600.0,
         "Amazon": 342.0,
-        "Meta": 282.6
+        "Meta": 282.6,
+        "IBM": 15.2,
+        "Oracle": 8.1,
+        "Alibaba": 25.3,
+        "Tencent": 30.1,
+        "Netflix": 25.8,
+        "Disney": 20.4,
+        "X Corp": 15.6,
+        "ByteDance": 20.0,
+        "Warner Bros Discovery": 12.8
     },
     "自動車メーカー": {
         "トヨタ": 43.0,
