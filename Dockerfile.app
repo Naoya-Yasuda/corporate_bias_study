@@ -24,6 +24,7 @@ COPY src/utils/plot_utils.py ./src/utils/
 COPY src/utils/storage_utils.py ./src/utils/
 COPY src/utils/storage_config.py ./src/utils/
 COPY src/analysis/hybrid_data_loader.py ./src/analysis/
+COPY src/prompts/ ./src/prompts/
 COPY app.py .
 
 # ポート8501を公開

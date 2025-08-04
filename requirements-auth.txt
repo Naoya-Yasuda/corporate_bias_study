@@ -14,6 +14,9 @@ streamlit-oauth>=0.0.1
 # 基本的なHTTP通信
 requests>=2.31.0
 
+# YAML設定ファイル処理
+PyYAML>=6.0
+
 # AWS S3関連
 boto3>=1.34.0
 

@@ -1087,7 +1087,19 @@ elif viz_type == "単日分析":
         masked_prompt = subcat_data.get("masked_prompt")
         if masked_prompt:
             with st.expander("プロンプト", expanded=False):
+                st.markdown("**マスクありプロンプト:**")
                 st.markdown(masked_prompt)
+
+                # マスクなしプロンプトも表示
+                if selected_entities:
+                    st.markdown("---")
+                    st.markdown("**マスクなしプロンプト:**")
+                    from src.prompts.sentiment_prompts import get_unmasked_prompt
+                    # 最初のエンティティのみでマスクなしプロンプトを表示
+                    first_entity = selected_entities[0]
+                    unmasked_prompt = get_unmasked_prompt(selected_subcategory, first_entity)
+                    # st.markdown(f"**{first_entity}用:**")
+                    st.markdown(unmasked_prompt)
         if table_rows:
             df_sentiment = pd.DataFrame(table_rows)
             st.dataframe(df_sentiment)
