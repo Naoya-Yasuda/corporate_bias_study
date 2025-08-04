@@ -2742,14 +2742,14 @@ class BiasAnalysisEngine:
             evaluation_scores["enterprise_neutrality"] = neutrality_score
             confidence_factors.append("market_dominance_analysis")
         else:
-            evaluation_scores["enterprise_neutrality"] = 0.5
+            evaluation_scores["enterprise_neutrality"] = 0.0
             confidence_factors.append("market_dominance_analysis")
 
         # 3. 統合市場公平性スコア（新指標）
         market_dominance = market_dominance_analysis
         if not market_dominance.get("error"):
             integrated_fairness = market_dominance.get("integrated_fairness", {})
-            market_fairness_score = integrated_fairness.get("integrated_score", 0.5)
+            market_fairness_score = integrated_fairness.get("integrated_score", 0.0)
             evaluation_scores["market_fairness"] = market_fairness_score
             confidence_factors.append("market_dominance")
 
@@ -2764,12 +2764,12 @@ class BiasAnalysisEngine:
             # フォールバック: 従来の市場シェア相関
             if market_share_correlation.get("correlation_available", False):
                 fairness_analysis = market_share_correlation.get("fairness_analysis", {})
-                fallback_score = fairness_analysis.get("overall_fairness_score", 0.5)
+                fallback_score = fairness_analysis.get("overall_fairness_score", 0.0)
                 evaluation_scores["market_fairness"] = fallback_score
                 confidence_factors.append("market_share_correlation")
                 insights.append("サービスレベルの市場シェア分析のみ利用可能")
             else:
-                evaluation_scores["market_fairness"] = 0.5
+                evaluation_scores["market_fairness"] = 0.0
                 insights.append("市場データ不足のため中立評価")
 
         # 4. 多次元公平性評価
@@ -2885,21 +2885,21 @@ class BiasAnalysisEngine:
         recommendations = []
 
         # 基本公平性の改善
-        if component_scores.get("basic_fairness", 0.5) < 0.6:
+        if component_scores.get("basic_fairness", 0.0) < 0.6:
             recommendations.append("バイアス不平等指標の改善: 企業間格差の縮小が必要")
 
         # 企業規模中立性の改善
-        if component_scores.get("enterprise_neutrality", 0.5) < 0.6:
+        if component_scores.get("enterprise_neutrality", 0.0) < 0.6:
             recommendations.append("企業規模による優遇の是正: 大企業・中小企業間の公平性向上")
 
         # 市場公平性の改善
-        if component_scores.get("market_fairness", 0.5) < 0.6:
+        if component_scores.get("market_fairness", 0.0) < 0.6:
             market_analysis = market_dominance_analysis.get("service_level", {})
             if market_analysis.get("available", False):
                 category_fairness = market_analysis.get("category_fairness", {})
                 if isinstance(category_fairness, dict):
                     unfair_categories = [cat for cat, data in category_fairness.items()
-                                       if isinstance(data, dict) and data.get("fairness_score", 0.5) < 0.5]
+                                       if isinstance(data, dict) and data.get("fairness_score", 0.0) < 0.5]
                     if unfair_categories:
                         recommendations.append(f"市場カテゴリ別改善: {', '.join(unfair_categories)}での公平性向上")
                     else:
@@ -2910,7 +2910,7 @@ class BiasAnalysisEngine:
                 recommendations.append("市場データの拡充によるより精密な公平性分析")
 
         # 次元バランスの改善
-        if component_scores.get("dimensional_balance", 0.5) < 0.6:
+        if component_scores.get("dimensional_balance", 0.0) < 0.6:
             recommendations.append("多次元公平性のバランス調整: 特定次元への偏重の是正")
 
         # 統合分析に基づく特別提案
@@ -3796,7 +3796,7 @@ class BiasAnalysisEngine:
                             subcategory_score["consistency_score"] = 1.0
                             subcategory_score["reliability"] = "high"
                         elif pearson_corr > 0.4:
-                            subcategory_score["consistency_score"] = 0.5
+                            subcategory_score["consistency_score"] = 0.0
                             subcategory_score["reliability"] = "medium"
 
                         category_scores.append(subcategory_score)
@@ -4401,7 +4401,7 @@ class BiasAnalysisEngine:
             "enterprise_count": len(enterprise_bias_data),
             "tier_analysis": tier_analysis,
             "correlation_analysis": correlation_analysis,
-            "fairness_score": tier_analysis.get("integrated_fairness_score", 0.5)
+            "fairness_score": tier_analysis.get("integrated_fairness_score")
         }
 
     def _analyze_service_level_bias(self, entities: Dict[str, Any],
@@ -4595,16 +4595,16 @@ class BiasAnalysisEngine:
 
         # 企業レベル公平性スコア
         if enterprise_analysis.get("available", False):
-            enterprise_score = enterprise_analysis.get("fairness_score", 0.5)
+            enterprise_score = enterprise_analysis.get("fairness_score", 0.0)
             scores.append(enterprise_score)
 
         # サービスレベル公平性スコア
         if service_analysis.get("available", False):
-            service_score = service_analysis.get("equal_opportunity_score", 0.5)
+            service_score = service_analysis.get("equal_opportunity_score", 0.0)
             scores.append(service_score)
 
         if not scores:
-            return {"integrated_score": 0.5, "confidence": "low", "interpretation": "データ不足"}
+            return {"integrated_score": 0.0, "confidence": "low", "interpretation": "データ不足"}
 
         # 統合スコア計算
         integrated_score = statistics.mean(scores)
@@ -4706,6 +4706,16 @@ class BiasAnalysisEngine:
             # 全体的な格差指標
             tier_gaps["max_min_gap"] = max(tier_means.values()) - min(tier_means.values())
             tier_gaps["variance"] = statistics.variance(list(tier_means.values())) if len(tier_means) > 1 else 0
+        else:
+            # 単一階層の場合：階層内での格差を計算
+            for tier, stats in tier_stats.items():
+                if stats["count"] > 1:
+                    tier_gaps["max_min_gap"] = stats["max_bias"] - stats["min_bias"]
+                    tier_gaps["variance"] = stats["std_bias"] ** 2 if stats["std_bias"] > 0 else 0
+                else:
+                    # 単一企業の場合
+                    tier_gaps["max_min_gap"] = 0.0
+                    tier_gaps["variance"] = 0.0
 
         # 優遇タイプを判定
         favoritism_analysis = self._determine_favoritism_type_from_tiers(tier_stats, tier_gaps)
@@ -4861,56 +4871,75 @@ class BiasAnalysisEngine:
 
 
     def _calculate_enterprise_fairness_score(self, tier_analysis: Dict) -> float:
-        """企業レベル公平性スコアの計算（データタイプ対応版）"""
+        """企業レベル公平性スコアの計算（論文定義準拠版）"""
 
-        # 統合分析結果から公平性スコアを取得
-        if tier_analysis.get("available", False):
-            return tier_analysis.get("integrated_fairness_score", 0.5)
-
-        # フォールバック計算
+        # データの検証
         if not tier_analysis.get("available", False):
-            return 0.5
+            return 0.0  # データがない場合は0.0
 
-        tier_stats = tier_analysis.get("tier_statistics", {})
-        tier_gaps = tier_analysis.get("tier_gaps", {})
+        # 論文定義に基づく計算を実行
+        return self._calculate_enterprise_fairness_score_actual(tier_analysis)
 
-        # 重み係数
+    def _calculate_enterprise_fairness_score_actual(self, tier_analysis: Dict) -> float:
+        """実際の企業レベル公平性スコア計算（論文定義準拠）"""
+
+        # tier_analysisの中のtier_analysisからデータを取得
+        tier_analysis_data = tier_analysis.get("tier_analysis", {})
+        tier_stats = tier_analysis_data.get("tier_stats", {})
+        tier_gaps = tier_analysis_data.get("tier_gaps", {})
+
+        # 論文定義に基づく重み係数
         WEIGHTS = {
-            "gap_fairness_1": 0.35,    # mega_enterprise vs mid_enterprise格差
-            "gap_fairness_2": 0.35,    # large_enterprise vs mid_enterprise格差
-            "variance_fairness": 0.30  # 全体的な分散
+            "mega_vs_mid_gap": 0.35,    # 大企業vs小企業格差による公平性
+            "large_vs_mid_gap": 0.35,   # 中企業vs小企業格差による公平性
+            "variance_fairness": 0.30   # 全企業のバイアス分散による公平性
         }
 
-        # エラーハンドリング
-        if not self._validate_tier_data_enhanced(tier_stats):
-            return 0.5
+        # 各階層の平均バイアスを取得
+        tier_means = {}
+        for tier, stats in tier_stats.items():
+            if stats.get("count", 0) > 0:
+                tier_means[tier] = stats["mean_bias"]
 
-        # 格差による公平性スコア計算
-        gap_mega_vs_mid = tier_gaps.get("mega_vs_mid", 0.0)
-        gap_large_vs_mid = tier_gaps.get("large_vs_mid", 0.0)
+        # 1. 大企業vs小企業格差による公平性スコア（35%）
+        mega_vs_mid_gap = 0.0
+        if "mega_enterprise" in tier_means and "mid_enterprise" in tier_means:
+            mega_vs_mid_gap = abs(tier_means["mega_enterprise"] - tier_means["mid_enterprise"])
+        elif "mega_enterprise" in tier_means and "large_enterprise" in tier_means:
+            # 中企業がない場合は大企業vs中企業の格差を使用
+            mega_vs_mid_gap = abs(tier_means["mega_enterprise"] - tier_means["large_enterprise"])
 
-        gap_fairness_1 = self._calculate_gap_fairness_enhanced(gap_mega_vs_mid)
-        gap_fairness_2 = self._calculate_gap_fairness_enhanced(gap_large_vs_mid)
+        mega_vs_mid_fairness = self._calculate_gap_fairness_enhanced(mega_vs_mid_gap)
 
-        # 分散による公平性スコア計算
+        # 2. 中企業vs小企業格差による公平性スコア（35%）
+        large_vs_mid_gap = 0.0
+        if "large_enterprise" in tier_means and "mid_enterprise" in tier_means:
+            large_vs_mid_gap = abs(tier_means["large_enterprise"] - tier_means["mid_enterprise"])
+        elif "mega_enterprise" in tier_means and "large_enterprise" in tier_means:
+            # 小企業がない場合は大企業vs中企業の格差を使用
+            large_vs_mid_gap = abs(tier_means["mega_enterprise"] - tier_means["large_enterprise"])
+
+        large_vs_mid_fairness = self._calculate_gap_fairness_enhanced(large_vs_mid_gap)
+
+        # 3. 分散による公平性スコア計算（30%）
         all_entities_bias = []
         for tier, stats in tier_stats.items():
-            if stats["count"] > 0:
+            if stats.get("count", 0) > 0:
                 all_entities_bias.extend([stats["mean_bias"]] * stats["count"])
 
         variance_fairness = self._calculate_variance_fairness_enhanced(all_entities_bias)
 
-        # 重み付け統合スコア計算
+        # 論文定義に基づく重み付け統合
         final_score = (
-            WEIGHTS["gap_fairness_1"] * gap_fairness_1 +
-            WEIGHTS["gap_fairness_2"] * gap_fairness_2 +
+            WEIGHTS["mega_vs_mid_gap"] * mega_vs_mid_fairness +
+            WEIGHTS["large_vs_mid_gap"] * large_vs_mid_fairness +
             WEIGHTS["variance_fairness"] * variance_fairness
         )
 
         return round(final_score, 3)
 
     def _calculate_enterprise_fairness_score_enhanced(self, tier_analysis: Dict) -> float:
-        """拡張企業レベル公平性スコアの計算（データタイプ対応版）
+        """拡張企業レベル公平性スコアの計算（論文定義準拠版）
 
         Args:
             tier_analysis: 階層分析結果の辞書
@@ -4918,100 +4947,14 @@ class BiasAnalysisEngine:
         Returns:
             拡張公平性スコア（0.0～1.0）
         """
-        # 統合分析結果から公平性スコアを取得
-        if tier_analysis.get("available", False):
-            return tier_analysis.get("integrated_fairness_score", 0.5)
-
-        # フォールバック計算
+        # データの検証
         if not tier_analysis.get("available", False):
-            return 0.5
+            return 0.0  # データがない場合は0.0
 
-        tier_stats = tier_analysis.get("tier_statistics", {})
-        tier_gaps = tier_analysis.get("tier_gaps", {})
+        # 論文定義に基づく計算を実行
+        return self._calculate_enterprise_fairness_score_actual(tier_analysis)
 
-        # 重み係数（データタイプ別に調整可能）
-        WEIGHTS = {
-            "gap_fairness_1": 0.35,    # mega_enterprise vs mid_enterprise格差
-            "gap_fairness_2": 0.35,    # large_enterprise vs mid_enterprise格差
-            "variance_fairness": 0.30  # 全体的な分散
-        }
 
-        # エラーハンドリング
-        if not self._validate_tier_data_enhanced(tier_stats):
-            return 0.5
-
-        # 格差による公平性スコア計算
-        gap_mega_vs_mid = tier_gaps.get("mega_vs_mid", 0.0)
-        gap_large_vs_mid = tier_gaps.get("large_vs_mid", 0.0)
-
-        gap_fairness_1 = self._calculate_gap_fairness_enhanced(gap_mega_vs_mid)
-        gap_fairness_2 = self._calculate_gap_fairness_enhanced(gap_large_vs_mid)
-
-        # 分散による公平性スコア計算
-        all_entities_bias = []
-        for tier, stats in tier_stats.items():
-            if stats["count"] > 0:
-                all_entities_bias.extend([stats["mean_bias"]] * stats["count"])
-
-        variance_fairness = self._calculate_variance_fairness_enhanced(all_entities_bias)
-
-        # 重み付け統合スコア計算
-        final_score = (
-            WEIGHTS["gap_fairness_1"] * gap_fairness_1 +
-            WEIGHTS["gap_fairness_2"] * gap_fairness_2 +
-            WEIGHTS["variance_fairness"] * variance_fairness
-        )
-
-        return round(final_score, 3)
-
-    def _calculate_enterprise_fairness_score(self, tier_analysis: Dict) -> float:
-        """企業レベル公平性スコアの計算（データタイプ対応版）"""
-
-        # 統合分析結果から公平性スコアを取得
-        if tier_analysis.get("available", False):
-            return tier_analysis.get("integrated_fairness_score", 0.5)
-
-        # フォールバック計算
-        if not tier_analysis.get("available", False):
-            return 0.5
-
-        tier_stats = tier_analysis.get("tier_statistics", {})
-        tier_gaps = tier_analysis.get("tier_gaps", {})
-
-        # 重み係数
-        WEIGHTS = {
-            "gap_fairness_1": 0.35,    # mega_enterprise vs mid_enterprise格差
-            "gap_fairness_2": 0.35,    # large_enterprise vs mid_enterprise格差
-            "variance_fairness": 0.30  # 全体的な分散
-        }
-
-        # エラーハンドリング
-        if not self._validate_tier_data_enhanced(tier_stats):
-            return 0.5
-
-        # 格差による公平性スコア計算
-        gap_mega_vs_mid = tier_gaps.get("mega_vs_mid", 0.0)
-        gap_large_vs_mid = tier_gaps.get("large_vs_mid", 0.0)
-
-        gap_fairness_1 = self._calculate_gap_fairness_enhanced(gap_mega_vs_mid)
-        gap_fairness_2 = self._calculate_gap_fairness_enhanced(gap_large_vs_mid)
-
-        # 分散による公平性スコア計算
-        all_entities_bias = []
-        for tier, stats in tier_stats.items():
-            if stats["count"] > 0:
-                all_entities_bias.extend([stats["mean_bias"]] * stats["count"])
-
-        variance_fairness = self._calculate_variance_fairness_enhanced(all_entities_bias)
-
-        # 重み付け統合スコア計算
-        final_score = (
-            WEIGHTS["gap_fairness_1"] * gap_fairness_1 +
-            WEIGHTS["gap_fairness_2"] * gap_fairness_2 +
-            WEIGHTS["variance_fairness"] * variance_fairness
-        )
-
-        return round(final_score, 3)
 
 
 
@@ -5041,7 +4984,7 @@ class BiasAnalysisEngine:
         """拡張分散公平性スコア計算"""
 
         if len(all_bias_values) < 2:
-            return 0.5
+            return 1.0  # データが1つ以下の場合は完全公平
 
         # 分散が小さいほど高スコア
         variance = statistics.variance(all_bias_values)
@@ -5148,7 +5091,7 @@ class BiasAnalysisEngine:
             min_val = min(numeric_values)
             max_val = max(numeric_values)
             if max_val == min_val:
-                return [0.5] * len(numeric_values)  # 全値が同じ場合は中立値
+                return [1.0] * len(numeric_values)  # 全値が同じ場合は完全公平
             return [(v - min_val) / (max_val - min_val) for v in numeric_values]
 
         elif method == "z_score":
@@ -5159,7 +5102,7 @@ class BiasAnalysisEngine:
             min_z = min(z_scores)
             max_z = max(z_scores)
             if max_z == min_z:
-                return [0.5] * len(numeric_values)
+                return [1.0] * len(numeric_values)  # 全値が同じ場合は完全公平
             return [(z - min_z) / (max_z - min_z) for z in z_scores]
 
         elif method == "log_normal":
@@ -5168,7 +5111,7 @@ class BiasAnalysisEngine:
             min_log = min(log_values)
             max_log = max(log_values)
             if max_log == min_log:
-                return [0.5] * len(numeric_values)
+                return [1.0] * len(numeric_values)  # 全値が同じ場合は完全公平
             return [(log_v - min_log) / (max_log - min_log) for log_v in log_values]
 
         else:
@@ -5357,13 +5300,13 @@ class BiasAnalysisEngine:
     def _calculate_equal_opportunity_score_enhanced(self, service_bias_data: List[Dict]) -> float:
         """機会均等スコア計算（拡張版）"""
         if not service_bias_data:
-            return 0.5
+            return 0.0  # データがない場合は0.0
 
         # バイアス指標の分散を基に機会均等性を評価
         bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data]
 
         if len(bias_indices) < 2:
-            return 0.5
+            return 1.0  # データが1つの場合は完全公平
 
         bias_variance = statistics.variance(bias_indices)
         # 分散が小さいほど機会均等性が高い
