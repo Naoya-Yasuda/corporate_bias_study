@@ -1181,13 +1181,30 @@ def plot_ranking_similarity_for_ranking_analysis(similarity_data):
 
         ax.set_title("ランキング類似度分析", fontsize=14, pad=20)
         ax.set_ylabel("類似度スコア", fontsize=12)
-        ax.set_ylim(0, 1)
 
-        # 値ラベル追加
+        # Y軸範囲を動的に調整（Kendall Tauは-1から1の範囲）
+        min_val = min(values) if values else 0
+        max_val = max(values) if values else 1
+        y_margin = 0.1  # 上下のマージン
+
+        # マイナス値がある場合はY軸範囲を調整
+        if min_val < 0:
+            ax.set_ylim(min_val - y_margin, max_val + y_margin)
+            # ゼロラインを追加
+            ax.axhline(y=0, color='black', linestyle='-', alpha=0.3, linewidth=0.5)
+        else:
+            ax.set_ylim(0, max_val + y_margin)
+
+        # 値ラベル追加（マイナス値も考慮）
         for bar, value in zip(bars, values):
             if value is not None:
-                ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.02,
-                        f'{value:.3f}', ha='center', va='bottom', fontweight='bold')
+                # マイナス値の場合はバーの下に、プラス値の場合はバーの上にラベルを配置
+                if value < 0:
+                    ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() - 0.05,
+                            f'{value:.3f}', ha='center', va='top', fontweight='bold')
+                else:
+                    ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.02,
+                            f'{value:.3f}', ha='center', va='bottom', fontweight='bold')
 
         # グリッド追加
         ax.grid(axis='y', alpha=0.3)
