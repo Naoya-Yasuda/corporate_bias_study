@@ -24,6 +24,8 @@ boto3>=1.34.0
 pandas>=2.2.0
 numpy>=1.24.0
 scipy>=1.10.0
+statsmodels>=0.14.0
+tqdm>=4.65.0
 
 # 可視化ライブラリ
 matplotlib>=3.7.0

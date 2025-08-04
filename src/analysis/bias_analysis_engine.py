@@ -1749,20 +1749,8 @@ class BiasAnalysisEngine:
                     bias_inequality = self._calculate_bias_inequality(entities)
 
                     # 2. 企業優遇度分析（market_dominance_analysisに統合済み）
-                    # 3. 統合市場支配力分析（企業レベル/サービスレベル分岐）
-                    if category == "企業":
-                        enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps, market_shares)
-                        service_analysis = {}
-                    else:
-                        enterprise_analysis = {}
-                        service_analysis = self._analyze_service_level_bias(entities, market_shares)
-                    integrated_score = self._calculate_integrated_market_fairness(enterprise_analysis, service_analysis)
-                    market_dominance_analysis = {
-                        "enterprise_level": enterprise_analysis,
-                        "service_level": service_analysis,
-                        "integrated_fairness": integrated_score,
-                        "analysis_type": "comprehensive_market_dominance"
-                    }
+                    # 3. 統合市場支配力分析（カテゴリ別適応版）
+                    market_dominance_analysis = self._analyze_market_dominance_bias(entities, category, subcategory)
 
                     # 4. 互換性のための従来分析（段階的移行用）
                     market_share_correlation = self._analyze_market_share_correlation(
@@ -4323,19 +4311,35 @@ class BiasAnalysisEngine:
             "interpretation": interpretation
         }
 
-    def _analyze_market_dominance_bias(self, entities: Dict[str, Any]) -> Dict[str, Any]:
-        """市場支配力とバイアスの統合分析（企業レベル + サービスレベル）"""
+    def _analyze_market_dominance_bias(self, entities: Dict[str, Any], category: str = None, subcategory: str = None) -> Dict[str, Any]:
+        """市場支配力とバイアスの統合分析（カテゴリ別適応版）"""
         try:
             market_caps = self.market_data.get("market_caps", {}) if self.market_data else {}
             market_shares = self.market_data.get("market_shares", {}) if self.market_data else {}
 
-            # 1. 企業レベル分析
-            enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps, market_shares)
+            # カテゴリに応じて適切な分析を実行
+            if category == "企業":
+                # 企業カテゴリ: 企業レベル分析のみ（時価総額ベース）
+                enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps, market_shares, subcategory)
+                service_analysis = {"available": False, "reason": "企業カテゴリのためサービスレベル分析は不要"}
+                analysis_type = "enterprise_only"
+            elif category == "デジタルサービス":
+                # デジタルサービスカテゴリ: サービスレベル分析のみ（市場シェアベース）
+                enterprise_analysis = {"available": False, "reason": "サービスカテゴリのため企業レベル分析は不要"}
+                service_analysis = self._analyze_service_level_bias(entities, market_shares)
+                analysis_type = "service_only"
+            elif category == "大学" or subcategory == "日本の大学":
+                # 大学カテゴリ: 企業レベル分析のみ（年間予算ベース）
+                enterprise_analysis = self._analyze_enterprise_level_bias(entities, market_caps, market_shares, subcategory)
+                service_analysis = {"available": False, "reason": "大学カテゴリのためサービスレベル分析は不要"}
+                analysis_type = "enterprise_only"
+            else:
+                # その他のカテゴリ: どちらも実行しない
+                enterprise_analysis = {"available": False, "reason": f"{category}カテゴリのため企業レベル分析は不要"}
+                service_analysis = {"available": False, "reason": f"{category}カテゴリのためサービスレベル分析は不要"}
+                analysis_type = "none"
 
-            # 2. サービスレベル分析
-            service_analysis = self._analyze_service_level_bias(entities, market_shares)
-
-            # 3. 統合評価
+            # 統合評価
             integrated_score = self._calculate_integrated_market_fairness(
                 enterprise_analysis, service_analysis
             )
@@ -4344,7 +4348,7 @@ class BiasAnalysisEngine:
                 "enterprise_level": enterprise_analysis,
                 "service_level": service_analysis,
                 "integrated_fairness": integrated_score,
-                "analysis_type": "comprehensive_market_dominance"
+                "analysis_type": analysis_type
             }
 
         except Exception as e:
@@ -4353,7 +4357,8 @@ class BiasAnalysisEngine:
 
     def _analyze_enterprise_level_bias(self, entities: Dict[str, Any],
                                      market_caps: Dict[str, Any],
-                                     market_shares: Dict[str, Any]) -> Dict[str, Any]:
+                                     market_shares: Dict[str, Any],
+                                     subcategory: str = None) -> Dict[str, Any]:
         """企業レベルのバイアス分析（データタイプ対応版）"""
 
         # 重複除去のため企業の統合時価総額を計算
@@ -4383,7 +4388,7 @@ class BiasAnalysisEngine:
                     "enterprise": enterprise_name,
                     "normalized_bias_index": bi,
                     "market_cap": enterprise_caps[enterprise_name],
-                    "enterprise_tier": self._get_enterprise_tier(enterprise_caps[enterprise_name]),
+                    "enterprise_tier": self._get_enterprise_tier(enterprise_caps[enterprise_name], subcategory),
                     "data_type": data_type
                 })
 
@@ -4550,14 +4555,25 @@ class BiasAnalysisEngine:
 
         return round(final_score, 3)
 
-    def _get_enterprise_tier(self, market_cap: float) -> str:
-        """企業の階層分類（3段階）"""
-        if market_cap >= 100:  # 100兆円以上
-            return "mega_enterprise"
-        elif market_cap >= 10:  # 10兆円以上
-            return "large_enterprise"
+    def _get_enterprise_tier(self, market_cap: float, subcategory: str = None) -> str:
+        """企業・大学の階層分類（3段階）"""
+
+        # 大学用の閾値判定（億円単位）
+        if subcategory == "日本の大学":
+            if market_cap >= 1000:  # 1000億円以上
+                return "mega_enterprise"
+            elif market_cap >= 400:  # 400億円以上
+                return "large_enterprise"
+            else:
+                return "mid_enterprise"
         else:
-            return "mid_enterprise"
+            # 企業用の閾値（兆円単位）
+            if market_cap >= 100:  # 100兆円以上
+                return "mega_enterprise"
+            elif market_cap >= 10:  # 10兆円以上
+                return "large_enterprise"
+            else:
+                return "mid_enterprise"
 
     def _calculate_fair_share_ratio(self, bias_index: float, market_share: float) -> float:
         """公正シェア比率の計算（データタイプ対応版）"""
