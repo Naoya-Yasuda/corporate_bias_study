@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y \
 # GitHub Actions用のrequirements.txtをコピー
 COPY requirements-github-actions.txt .
 
-# Pythonパッケージをインストール
-RUN pip install --no-cache-dir -r requirements-github-actions.txt
+# Pythonパッケージをインストール（依存関係競合を回避）
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-github-actions.txt --use-pep517
 
 # アプリケーションコードをコピー
 COPY src/ ./src/
