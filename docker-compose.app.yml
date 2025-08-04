@@ -20,13 +20,12 @@ services:
     volumes:
       # 開発用：必要なファイルをマウント
       - ./src/auth:/app/src/auth
-      - ./src/components/auth_ui.py:/app/src/components/auth_ui.py
-      - ./src/utils/auth_utils.py:/app/src/utils/auth_utils.py
-      - ./src/utils/plot_utils.py:/app/src/utils/plot_utils.py
-      - ./src/utils/storage_utils.py:/app/src/utils/storage_utils.py
-      - ./src/utils/storage_config.py:/app/src/utils/storage_config.py
-      - ./src/analysis/hybrid_data_loader.py:/app/src/analysis/hybrid_data_loader.py
+      - ./src/components:/app/src/components
+      - ./src/utils:/app/src/utils
+      - ./src/analysis:/app/src/analysis
       - ./app.py:/app/app.py
+      # データディレクトリのマウント追加
+      - ./corporate_bias_datasets:/app/corporate_bias_datasets
     restart: unless-stopped
     # 簡素化されたヘルスチェック
     healthcheck:
