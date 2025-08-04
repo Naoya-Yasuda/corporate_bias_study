@@ -1,4 +1,4 @@
-# 認証機能専用軽量requirements.txt
+# アプリ全体用requirements.txt
 
 # 基本ライブラリ
 streamlit>=1.32.0

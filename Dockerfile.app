@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 軽量版requirements.txtをコピー
-COPY requirements-auth.txt .
+# アプリ用requirements.txtをコピー
+COPY requirements-app.txt .
 
 # Pythonパッケージをインストール
-RUN pip install --no-cache-dir -r requirements-auth.txt
+RUN pip install --no-cache-dir -r requirements-app.txt
 
 # 必要なファイルをコピー
 COPY src/auth/ ./src/auth/
