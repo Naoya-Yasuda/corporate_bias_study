@@ -4672,19 +4672,46 @@ class BiasAnalysisEngine:
                     "max_bias": max(biases)
                 }
 
-        # 階層間の格差を計算
+        # 階層間の格差を計算（企業レベル公平性スコア用）
         if len(tier_stats) > 1:
             tier_means = {tier: stats["mean_bias"] for tier, stats in tier_stats.items()}
-            tier_gaps = {
-                "max_min_gap": max(tier_means.values()) - min(tier_means.values()),
-                "variance": statistics.variance(list(tier_means.values())) if len(tier_means) > 1 else 0
-            }
+
+            # 階層名の正規化（mega_enterprise, large_enterprise, mid_enterprise）
+            normalized_tiers = {}
+            for tier, mean_bias in tier_means.items():
+                if "mega" in tier.lower() or tier in ["large_enterprise", "大企業"]:
+                    normalized_tiers["mega_enterprise"] = mean_bias
+                elif "large" in tier.lower() or tier in ["medium_enterprise", "中企業"]:
+                    normalized_tiers["large_enterprise"] = mean_bias
+                elif "small" in tier.lower() or tier in ["small_enterprise", "小企業"]:
+                    normalized_tiers["mid_enterprise"] = mean_bias
+                else:
+                    # デフォルト分類
+                    if mean_bias > 0.5:
+                        normalized_tiers["mega_enterprise"] = mean_bias
+                    elif mean_bias > 0.2:
+                        normalized_tiers["large_enterprise"] = mean_bias
+                    else:
+                        normalized_tiers["mid_enterprise"] = mean_bias
+
+            # 企業レベル公平性スコア用の格差計算
+            tier_gaps = {}
+            if "mega_enterprise" in normalized_tiers and "large_enterprise" in normalized_tiers:
+                tier_gaps["mega_vs_large"] = normalized_tiers["mega_enterprise"] - normalized_tiers["large_enterprise"]
+            if "mega_enterprise" in normalized_tiers and "mid_enterprise" in normalized_tiers:
+                tier_gaps["mega_vs_mid"] = normalized_tiers["mega_enterprise"] - normalized_tiers["mid_enterprise"]
+            if "large_enterprise" in normalized_tiers and "mid_enterprise" in normalized_tiers:
+                tier_gaps["large_vs_mid"] = normalized_tiers["large_enterprise"] - normalized_tiers["mid_enterprise"]
+
+            # 全体的な格差指標
+            tier_gaps["max_min_gap"] = max(tier_means.values()) - min(tier_means.values())
+            tier_gaps["variance"] = statistics.variance(list(tier_means.values())) if len(tier_means) > 1 else 0
 
         # 優遇タイプを判定
         favoritism_analysis = self._determine_favoritism_type_from_tiers(tier_stats, tier_gaps)
 
         # 統合公平性スコアを計算
-        integrated_fairness_score = self._calculate_enterprise_fairness_score_enhanced({
+        integrated_fairness_score = self._calculate_enterprise_fairness_score({
             "tier_stats": tier_stats,
             "favoritism_analysis": favoritism_analysis
         })
@@ -4986,60 +5013,7 @@ class BiasAnalysisEngine:
 
         return round(final_score, 3)
 
-    def _calculate_enterprise_fairness_score_enhanced(self, tier_analysis: Dict) -> float:
-        """拡張企業レベル公平性スコアの計算（データタイプ対応版）
 
-        Args:
-            tier_analysis: 階層分析結果の辞書
-
-        Returns:
-            拡張公平性スコア（0.0～1.0）
-        """
-        # 統合分析結果から公平性スコアを取得
-        if tier_analysis.get("available", False):
-            return tier_analysis.get("integrated_fairness_score", 0.5)
-
-        # フォールバック計算
-        if not tier_analysis.get("available", False):
-            return 0.5
-
-        tier_stats = tier_analysis.get("tier_statistics", {})
-        tier_gaps = tier_analysis.get("tier_gaps", {})
-
-        # 重み係数（データタイプ別に調整可能）
-        WEIGHTS = {
-            "gap_fairness_1": 0.35,    # mega_enterprise vs mid_enterprise格差
-            "gap_fairness_2": 0.35,    # large_enterprise vs mid_enterprise格差
-            "variance_fairness": 0.30  # 全体的な分散
-        }
-
-        # エラーハンドリング
-        if not self._validate_tier_data_enhanced(tier_stats):
-            return 0.5
-
-        # 格差による公平性スコア計算
-        gap_mega_vs_mid = tier_gaps.get("mega_vs_mid", 0.0)
-        gap_large_vs_mid = tier_gaps.get("large_vs_mid", 0.0)
-
-        gap_fairness_1 = self._calculate_gap_fairness_enhanced(gap_mega_vs_mid)
-        gap_fairness_2 = self._calculate_gap_fairness_enhanced(gap_large_vs_mid)
-
-        # 分散による公平性スコア計算
-        all_entities_bias = []
-        for tier, stats in tier_stats.items():
-            if stats["count"] > 0:
-                all_entities_bias.extend([stats["mean_bias"]] * stats["count"])
-
-        variance_fairness = self._calculate_variance_fairness_enhanced(all_entities_bias)
-
-        # 重み付け統合スコア計算
-        final_score = (
-            WEIGHTS["gap_fairness_1"] * gap_fairness_1 +
-            WEIGHTS["gap_fairness_2"] * gap_fairness_2 +
-            WEIGHTS["variance_fairness"] * variance_fairness
-        )
-
-        return round(final_score, 3)
 
     def _validate_tier_data_enhanced(self, tier_stats: Dict) -> bool:
         """拡張階層データの検証"""
