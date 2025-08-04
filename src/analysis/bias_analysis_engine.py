@@ -1794,7 +1794,7 @@ class BiasAnalysisEngine:
     def _analyze_market_concentration(self, market_shares: Dict[str, Any], market_caps: Dict[str, Any],
                                     category: str, subcategory: str, entities: Dict[str, Any]) -> Dict[str, Any]:
         """
-        市場集中度分析（HHI分析）
+        市場集中度分析（HHI分析）- カテゴリ別最適化版
 
         Parameters:
         -----------
@@ -1819,19 +1819,29 @@ class BiasAnalysisEngine:
             # データセットのカテゴリ名を市場データのカテゴリ名に変換
             market_category = self._map_category_to_market_data(category, subcategory)
 
-            # サービスレベルHHI算出
-            service_hhi = self._calculate_service_hhi(market_shares, market_category, subcategory)
+            # カテゴリに応じて適切なHHI分析を実行
+            if category == "デジタルサービス":
+                # デジタルサービスカテゴリ: サービスレベルHHI分析のみ
+                service_hhi = self._calculate_service_hhi(market_shares, market_category, subcategory)
+                enterprise_hhi = self._create_empty_hhi_result("サービスカテゴリのため企業レベルHHI分析は不要")
+            elif category == "企業" or category == "大学" or subcategory == "日本の大学":
+                # 企業・大学カテゴリ: 企業レベルHHI分析のみ
+                service_hhi = self._create_empty_hhi_result("企業カテゴリのためサービスレベルHHI分析は不要")
+                enterprise_hhi = self._calculate_enterprise_hhi(market_caps, market_category, subcategory)
+            else:
+                # その他のカテゴリ: どちらも実行しない
+                service_hhi = self._create_empty_hhi_result(f"{category}カテゴリのためサービスレベルHHI分析は不要")
+                enterprise_hhi = self._create_empty_hhi_result(f"{category}カテゴリのため企業レベルHHI分析は不要")
 
-            # 企業レベルHHI算出
-            enterprise_hhi = self._calculate_enterprise_hhi(market_caps, market_category, subcategory)
-
-            # 集中度-バイアス相関分析
-            concentration_correlation = self._analyze_concentration_bias_correlation(
-                service_hhi, enterprise_hhi, entities
+            # 集中度-バイアス相関分析（カテゴリ別最適化版）
+            concentration_correlation = self._analyze_concentration_bias_correlation_optimized(
+                service_hhi, enterprise_hhi, entities, category
             )
 
-            # 市場構造インサイト生成
-            market_insights = self._generate_market_structure_insights(service_hhi, enterprise_hhi)
+            # 市場構造インサイト生成（カテゴリ別最適化版）
+            market_insights = self._generate_market_structure_insights_optimized(
+                service_hhi, enterprise_hhi, category
+            )
 
             return {
                 "service_hhi": service_hhi,
@@ -2014,10 +2024,11 @@ class BiasAnalysisEngine:
         except Exception as e:
             return self._create_empty_hhi_result(f"企業HHI計算エラー: {str(e)}")
 
-    def _analyze_concentration_bias_correlation(self,
-                                              service_hhi: Dict[str, Any],
-                                              enterprise_hhi: Dict[str, Any],
-                                              entities: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_concentration_bias_correlation_optimized(self,
+                                                        service_hhi: Dict[str, Any],
+                                                        enterprise_hhi: Dict[str, Any],
+                                                        entities: Dict[str, Any],
+                                                        category: str) -> Dict[str, Any]:
         """
         集中度-バイアス相関分析
 
@@ -2060,9 +2071,9 @@ class BiasAnalysisEngine:
                 service_correlation, enterprise_correlation, correlation_significance
             )
 
-            # 6. 集中度レベル別分析
-            concentration_level_analysis = self._analyze_by_concentration_level(
-                service_hhi, enterprise_hhi, bias_indices
+            # 6. 集中度レベル別分析（カテゴリ別最適化版）
+            concentration_level_analysis = self._analyze_by_concentration_level_optimized(
+                service_hhi, enterprise_hhi, bias_indices, category
             )
 
             return {
@@ -2078,9 +2089,10 @@ class BiasAnalysisEngine:
         except Exception as e:
             return self._create_empty_correlation_result(f"相関分析エラー: {str(e)}")
 
-    def _generate_market_structure_insights(self,
-                                          service_hhi: Dict[str, Any],
-                                          enterprise_hhi: Dict[str, Any]) -> List[str]:
+    def _generate_market_structure_insights_optimized(self,
+                                                    service_hhi: Dict[str, Any],
+                                                    enterprise_hhi: Dict[str, Any],
+                                                    category: str) -> List[str]:
         """
         市場構造インサイト生成
 
@@ -2096,48 +2108,53 @@ class BiasAnalysisEngine:
         List[str]
             市場構造インサイトリスト
         """
-        insights = []
-
         try:
-            service_score = service_hhi.get("hhi_score", 0)
-            enterprise_score = enterprise_hhi.get("hhi_score", 0)
-            service_level = service_hhi.get("concentration_level", "不明")
-            enterprise_level = enterprise_hhi.get("concentration_level", "不明")
+            insights = []
 
-            # 1. 市場集中度の全体的評価
-            if service_score >= 2500 and enterprise_score >= 2500:
-                insights.append("高集中市場構造により競争制限的なバイアスが発生")
-            elif service_score >= 1500 or enterprise_score >= 1500:
-                insights.append("中程度の市場集中により一部企業へのバイアスが観察される")
+            # カテゴリに応じて適切な分析のみを実行
+            if category == "デジタルサービス":
+                # デジタルサービスカテゴリ: サービスレベルHHI分析からのインサイトのみ
+                service_score = service_hhi.get("hhi_score", 0)
+                service_level = service_hhi.get("concentration_level", "不明")
+
+                if service_score >= 2500:
+                    insights.append("サービス市場の高集中により競争制限的なバイアスが発生")
+                elif service_score >= 1500:
+                    insights.append("サービス市場の中程度集中により一部企業へのバイアスが観察される")
+                else:
+                    insights.append("サービス市場の集中度は低いが、他の要因によるバイアスが存在")
+
+                if service_score >= 2500:
+                    insights.append("サービス市場の寡占構造が特定サービスへの露出を促進")
+                if service_score >= 2000:
+                    insights.append("サービス市場集中度の低下によりバイアス軽減が期待される")
+
+            elif category == "企業" or category == "大学" or subcategory == "日本の大学":
+                # 企業・大学カテゴリ: 企業レベルHHI分析からのインサイトのみ
+                enterprise_score = enterprise_hhi.get("hhi_score", 0)
+                enterprise_level = enterprise_hhi.get("concentration_level", "不明")
+
+                if enterprise_score >= 2500:
+                    insights.append("企業市場の高集中により大企業優遇のリスク")
+                elif enterprise_score >= 1500:
+                    insights.append("企業市場の中程度集中により企業規模による市場支配力が観察される")
+                else:
+                    insights.append("企業市場の集中度は低いが、他の要因によるバイアスが存在")
+
+                if enterprise_score >= 2500:
+                    insights.append("大企業の市場支配力が検索結果の偏りを助長")
+                elif enterprise_score >= 1500:
+                    insights.append("企業規模による市場支配力がバイアスに影響")
+                if enterprise_score >= 2000:
+                    insights.append("企業市場集中度の低下によりバイアス軽減が期待される")
             else:
-                insights.append("市場集中度は低いが、他の要因によるバイアスが存在")
+                # その他のカテゴリ: インサイトなし
+                pass
 
-            # 2. 企業支配力の影響
-            if enterprise_score >= 2500:
-                insights.append("大企業の市場支配力が検索結果の偏りを助長")
-            elif enterprise_score >= 1500:
-                insights.append("企業規模による市場支配力がバイアスに影響")
-
-            # 3. サービス集中の影響
-            if service_score >= 2500:
-                insights.append("サービス市場の寡占構造が特定サービスへの露出を促進")
-
-            # 4. 改善提案
-            if service_score >= 2000 or enterprise_score >= 2000:
-                insights.append("市場集中度の低下によりバイアス軽減が期待される")
-
-            # 5. 公平性への影響
-            if service_score >= 2500 and enterprise_score >= 2500:
-                insights.append("上位企業への過度な露出が公平性を損なう可能性")
-
-            # 6. 構造的改善の必要性
-            if service_score >= 3000 or enterprise_score >= 3000:
-                insights.append("市場構造の改善がバイアス軽減の鍵となる")
-
-            return insights
+            return insights if insights else ["市場集中度分析から特筆すべきインサイトは見つかりませんでした"]
 
         except Exception as e:
-            return [f"インサイト生成エラー: {str(e)}"]
+            return [f"市場構造インサイト生成エラー: {str(e)}"]
 
     # ヘルパーメソッド群
     def _interpret_hhi_level(self, hhi_score: float) -> str:
@@ -2417,8 +2434,8 @@ class BiasAnalysisEngine:
         else:
             return "市場集中度とバイアスに負の相関"
 
-    def _analyze_by_concentration_level(self, service_hhi: Dict[str, Any], enterprise_hhi: Dict[str, Any],
-                                      bias_indices: List[float]) -> Dict[str, Any]:
+    def _analyze_by_concentration_level_optimized(self, service_hhi: Dict[str, Any], enterprise_hhi: Dict[str, Any],
+                                                bias_indices: List[float], category: str) -> Dict[str, Any]:
         """
         集中度レベル別分析
 
@@ -2442,16 +2459,24 @@ class BiasAnalysisEngine:
 
             avg_bias = sum(bias_indices) / len(bias_indices) if bias_indices else 0
 
-            by_concentration_level = {
-                "service_level": {
+            # カテゴリに応じて適切な分析のみを実行
+            by_concentration_level = {}
+
+            if category == "デジタルサービス":
+                # デジタルサービスカテゴリ: サービスレベル分析のみ
+                by_concentration_level["service_level"] = {
                     "level": service_level,
                     "bias_intensity": round(avg_bias, 3)
-                },
-                "enterprise_level": {
+                }
+            elif category == "企業" or category == "大学" or subcategory == "日本の大学":
+                # 企業・大学カテゴリ: 企業レベル分析のみ
+                by_concentration_level["enterprise_level"] = {
                     "level": enterprise_level,
                     "bias_intensity": round(avg_bias, 3)
                 }
-            }
+            else:
+                # その他のカテゴリ: どちらも実行しない
+                pass
 
             key_insights = []
             if service_level == "高集中市場" or enterprise_level == "高集中市場":
