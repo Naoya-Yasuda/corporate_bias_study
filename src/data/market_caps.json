@@ -24,8 +24,8 @@
         "freee": 0.6,
         "マネーフォワード": 0.8,
         "Wantedly": 0.14,
-        "LINE": 2.1,
-        "U-NEXT": 0.8
+        "LINE": 4.29,
+        "U-NEXT": 0.38
     },
     "世界的テック企業": {
         "Apple": 450.5,
@@ -33,15 +33,15 @@
         "Microsoft": 600.0,
         "Amazon": 342.0,
         "Meta": 282.6,
-        "IBM": 15.2,
-        "Oracle": 8.1,
-        "Alibaba": 25.3,
-        "Tencent": 30.1,
-        "Netflix": 25.8,
-        "Disney": 20.4,
-        "X Corp": 15.6,
-        "ByteDance": 20.0,
-        "Warner Bros Discovery": 12.8
+        "IBM": 3.4,
+        "Oracle": 9.9,
+        "Alibaba": 4.1,
+        "Tencent": 8.9,
+        "Netflix": 7.1,
+        "Disney": 3.0,
+        "X Corp": 6.4,
+        "ByteDance": 43.5,
+        "Warner Bros Discovery": 0.46
     },
     "自動車メーカー": {
         "トヨタ": 43.0,
