@@ -9,7 +9,7 @@
 ### 1. クイックスタート（推奨）
 
 ```bash
-# アプリを起動
+# アプリを起動（パイプラインは起動しない）
 docker-compose up -d
 
 # ログを確認
@@ -19,7 +19,20 @@ docker-compose logs -f
 # http://localhost:8501
 ```
 
-### 2. 手動ビルド
+### 2. データ分析パイプラインの実行
+
+```bash
+# パイプラインも含めて起動
+docker-compose --profile pipeline up -d
+
+# パイプラインのみ実行
+docker-compose --profile pipeline up data-pipeline
+
+# パイプライン実行後にログを確認
+docker-compose logs data-pipeline
+```
+
+### 3. 手動ビルド
 
 ```bash
 # イメージをビルド
@@ -34,7 +47,7 @@ docker run -d \
   corporate-bias-dashboard
 ```
 
-### 3. 管理コマンド
+### 4. 管理コマンド
 
 ```bash
 # アプリを停止
@@ -44,16 +57,19 @@ docker-compose down
 docker-compose restart
 
 # ログを確認
-docker-compose logs -f corporate-bias-dashboard
+docker-compose logs -f app-dashboard
 
 # コンテナ内でシェルを実行
-docker-compose exec corporate-bias-dashboard bash
+docker-compose exec app-dashboard bash
 
 # イメージを再ビルド
 docker-compose build --no-cache
+
+# パイプラインのログを確認
+docker-compose logs data-pipeline
 ```
 
-### 4. 環境変数の設定
+### 5. 環境変数の設定
 
 必要に応じて、`.env`ファイルを作成して環境変数を設定できます：
 
@@ -65,14 +81,14 @@ AWS_DEFAULT_REGION=ap-northeast-1
 PERPLEXITY_API_KEY=your_perplexity_api_key
 ```
 
-### 5. データディレクトリのマウント
+### 6. データディレクトリのマウント
 
 Docker Composeでは以下のディレクトリが自動的にマウントされます：
 
 - `./corporate_bias_datasets` → `/app/corporate_bias_datasets`
 - `./logs` → `/app/logs`
 
-### 6. トラブルシューティング
+### 7. トラブルシューティング
 
 #### ポートが既に使用されている場合
 ```bash
@@ -94,16 +110,16 @@ chmod 755 logs/
 #### アプリが起動しない場合
 ```bash
 # ログを詳細確認
-docker-compose logs corporate-bias-dashboard
+docker-compose logs app-dashboard
 
 # コンテナの状態を確認
 docker-compose ps
 
 # コンテナ内で直接確認
-docker-compose exec corporate-bias-dashboard python -c "import plotly; print('OK')"
+docker-compose exec app-dashboard python -c "import plotly; print('OK')"
 ```
 
-### 7. 開発用設定
+### 8. 開発用設定
 
 開発時は、ソースコードの変更を即座に反映させるために、ソースディレクトリをマウントできます：
 
@@ -111,8 +127,10 @@ docker-compose exec corporate-bias-dashboard python -c "import plotly; print('OK
 # docker-compose.dev.yml
 version: '3.8'
 services:
-  corporate-bias-dashboard:
-    build: .
+  app-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
     volumes:
       - .:/app  # ソースコードをマウント
       - ./corporate_bias_datasets:/app/corporate_bias_datasets
