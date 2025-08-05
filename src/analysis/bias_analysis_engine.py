@@ -3665,7 +3665,7 @@ class BiasAnalysisEngine:
             return "非常に低い上位重複度"
 
     def _determine_overall_similarity_level(self, kendall_tau: float, rbo: float, overlap_ratio: float) -> str:
-        """総合的な類似度レベルを判定"""
+        """Perplexity-Google整合性スコアを評価"""
         # 重み付き平均で総合スコアを計算
         tau_weight = 0.4  # 順位相関の重み
         rbo_weight = 0.4  # 上位重複の重み
@@ -3806,7 +3806,6 @@ class BiasAnalysisEngine:
             "sentiment_ranking_correlation": {},
             "consistent_leaders": [],
             "consistent_laggards": [],
-            "google_citations_alignment": "unknown",
             "overall_bias_pattern": {},
             "cross_platform_consistency": {},
             "analysis_coverage": {
@@ -3906,37 +3905,6 @@ class BiasAnalysisEngine:
 
             insights["consistent_leaders"] = list(leaders)
             insights["consistent_laggards"] = list(laggards)
-
-        # 3. Google検索と引用の一致度を評価（改善）
-        if citations_comparison:
-            alignment_scores = []
-
-            for category in citations_comparison:
-                for subcategory in citations_comparison[category]:
-                    data = citations_comparison[category][subcategory]
-
-                    if "ranking_similarity" in data:
-                        metrics = data["ranking_similarity"]
-                        kendall_tau = metrics.get("kendall_tau", 0)
-                        rbo_score = metrics.get("rbo_score", 0)
-                        overlap_ratio = metrics.get("overlap_ratio", 0)
-
-                        # メトリクスの重み付けを改善
-                        if metrics.get("metrics_validation", {}).get("is_mathematically_consistent", False):
-                            score = (
-                                0.4 * abs(kendall_tau) +    # 順位相関
-                                0.4 * rbo_score +           # 上位重視の類似度
-                                0.2 * overlap_ratio         # カバレッジ
-                            )
-                            alignment_scores.append(score)
-
-            if alignment_scores:
-                avg_score = sum(alignment_scores) / len(alignment_scores)
-                insights["google_citations_alignment"] = self._determine_overall_similarity_level(
-                    kendall_tau=kendall_tau,
-                    rbo=rbo_score,
-                    overlap_ratio=overlap_ratio
-                )
 
         # 4. 全体的なバイアスパターンを特定（改善）
         if sentiment_analysis:
