@@ -170,15 +170,30 @@
     },
     "AI検索サービス": {
         "data_type": "市場シェア（%）",
-        "region": "グローバル",
+        "region": "日本",
         "ChatGPT": {
-            "market_share": 0.597,
+            "market_share": 0.8224,
             "enterprise": "OpenAI"
         },
-        "その他AI検索": {
-            "market_share": 0.403,
-            "enterprise": "Various",
-            "note": "Perplexity、Microsoft Copilot等の詳細シェアは信頼できるデータ不足"
+        "Perplexity": {
+            "market_share": 0.0618,
+            "enterprise": "Perplexity"
+        },
+        "Gemini": {
+            "market_share": 0.0533,
+            "enterprise": "Google"
+        },
+        "Microsoft Copilot": {
+            "market_share": 0.0497,
+            "enterprise": "Microsoft"
+        },
+        "Claude": {
+            "market_share": 0.0070,
+            "enterprise": "Anthropic"
+        },
+        "Deepseek": {
+            "market_share": 0.0058,
+            "enterprise": "DeepSeek"
         }
     }
 }

@@ -4592,11 +4592,11 @@ class BiasAnalysisEngine:
                 if isinstance(service_data, dict):
                     raw_share = self._extract_share_value(service_data)
                     enterprise_name = service_data.get("enterprise")
-                    normalized_share = normalized_shares.get(service_name, 0.0)
+                    normalized_share = normalized_shares.get(service_name, None)
                 else:
                     raw_share = service_data
                     enterprise_name = None
-                    normalized_share = normalized_shares.get(service_name, 0.0)
+                    normalized_share = normalized_shares.get(service_name, None)
 
                 # エンティティ検索とバイアス計算
                 entity_key, entity_data = self._find_entity_by_service_or_enterprise(service_name, entities)
@@ -4654,10 +4654,10 @@ class BiasAnalysisEngine:
         if not type_data:
             return {"available": False, "reason": "データなし"}
 
-        # 基本統計
-        shares = [item["normalized_share"] for item in type_data]
-        biases = [item["normalized_bias_index"] for item in type_data]
-        fair_ratios = [item["fair_share_ratio"] for item in type_data]
+        # 基本統計（市場シェアデータが不足している項目は除外）
+        shares = [item["normalized_share"] for item in type_data if item.get("normalized_share") is not None]
+        biases = [item["normalized_bias_index"] for item in type_data if item.get("normalized_share") is not None]
+        fair_ratios = [item["fair_share_ratio"] for item in type_data if item.get("normalized_share") is not None]
 
         # 相関分析
         if len(shares) > 1:
@@ -5375,9 +5375,9 @@ class BiasAnalysisEngine:
         if not service_bias_data:
             return {"available": False, "reason": "データなし"}
 
-        # バイアス指標の抽出
-        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data]
-        shares = [item.get("normalized_share", 0) for item in service_bias_data]
+        # バイアス指標の抽出（市場シェアデータが不足している項目は除外）
+        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data if item.get("normalized_share") is not None]
+        shares = [item.get("normalized_share", 0) for item in service_bias_data if item.get("normalized_share") is not None]
 
         # 基本統計
         mean_bias = statistics.mean(bias_indices) if bias_indices else 0
@@ -5409,9 +5409,9 @@ class BiasAnalysisEngine:
         if not service_bias_data:
             return {"available": False, "reason": "データなし"}
 
-        # バイアス指標とシェアの抽出
-        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data]
-        shares = [item.get("normalized_share", 0) for item in service_bias_data]
+        # バイアス指標とシェアの抽出（市場シェアデータが不足している項目は除外）
+        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data if item.get("normalized_share") is not None]
+        shares = [item.get("normalized_share", 0) for item in service_bias_data if item.get("normalized_share") is not None]
 
         if len(bias_indices) < 2 or len(shares) < 2:
             return {"available": False, "reason": "データ不足"}
@@ -5431,16 +5431,20 @@ class BiasAnalysisEngine:
         """サービスレベル公平性スコア計算（論文記載のFair Share Ratioベース）"""
 
         if not service_bias_data:
-            return 0.0
+            return None
 
         fairness_scores = []
+        valid_data_count = 0
 
         for item in service_bias_data:
             bias_index = item.get("normalized_bias_index", 0)
-            market_share = item.get("normalized_share", 0)
+            market_share = item.get("normalized_share", None)
 
-            if market_share <= 0:
+            # 市場シェアデータが不足している場合はスキップ
+            if market_share is None or market_share <= 0:
                 continue
+
+            valid_data_count += 1
 
             # 論文記載の計算式
             # 1. 期待露出度 = 市場シェア × (1 + NBI)
@@ -5454,8 +5458,9 @@ class BiasAnalysisEngine:
             fairness_scores.append(fairness)
 
         # 4. サービスレベル公平性スコア = 全サービスの公平性値の平均
-        if not fairness_scores:
-            return 0.0
+        # 有効なデータが不足している場合はnullを返す
+        if valid_data_count < 2:
+            return None
 
         return round(statistics.mean(fairness_scores), 3)
 
