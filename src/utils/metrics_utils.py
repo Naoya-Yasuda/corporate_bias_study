@@ -227,8 +227,8 @@ def apply_bias_to_share_enhanced(market_share: Dict[str, float],
         "bias_type": bias_type,
         "companies_analyzed": len([c for c in market_share if c in bias_indices]),
         "total_companies": len(market_share),
-        "max_share_change": max(abs(v) for v in share_changes.values()) if share_changes else 0,
-        "avg_share_change": np.mean([abs(v) for v in share_changes.values()]) if share_changes else 0
+        "max_share_change": max(abs(v) for v in share_changes.values() if v is not None) if share_changes else 0,
+        "avg_share_change": np.mean([abs(v) for v in share_changes.values() if v is not None]) if share_changes else 0
     }
 
     return {
@@ -251,17 +251,19 @@ def _calculate_market_impact_score(share_changes: Dict[str, float],
         return 0.0
 
     # 1. シェア変化の絶対値の平均
-    avg_change = np.mean([abs(change) for change in share_changes.values()])
+    valid_changes = [change for change in share_changes.values() if change is not None]
+    avg_change = np.mean([abs(change) for change in valid_changes]) if valid_changes else 0
 
     # 2. シェア変化の分散（市場の不安定性）
-    change_variance = np.var(list(share_changes.values())) if len(share_changes) > 1 else 0
+    valid_changes = [change for change in share_changes.values() if change is not None]
+    change_variance = np.var(valid_changes) if len(valid_changes) > 1 else 0
 
     # 3. 大企業への影響度（市場シェアで重み付け）
     weighted_impact = 0.0
     total_share = sum(original_shares.values())
 
     for company, change in share_changes.items():
-        if company in original_shares and total_share > 0:
+        if company in original_shares and total_share > 0 and change is not None:
             weight = original_shares[company] / total_share
             weighted_impact += abs(change) * weight
 

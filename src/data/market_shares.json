@@ -60,6 +60,14 @@
         "その他": {
             "market_share": 0.0424,
             "enterprise": "Various"
+        },
+        "Yahoo Japan": {
+            "market_share": 0.0133,
+            "enterprise": "Yahoo"
+        },
+        "Baidu": {
+            "market_share": 0.0062,
+            "enterprise": "Baidu"
         }
     },
     "動画ストリーミング": {
@@ -79,6 +87,10 @@
         },
         "Disney+": {
             "market_share": 0.089,
+            "enterprise": "Disney"
+        },
+        "Hulu": {
+            "market_share": 0.063,
             "enterprise": "Disney"
         }
     },
@@ -104,6 +116,10 @@
         "auPAYマーケット": {
             "gmv": 3155,
             "enterprise": "au"
+        },
+        "メルカリ": {
+            "gmv": 8460,
+            "enterprise": "メルカリ"
         }
     },
     "SNS": {
@@ -118,7 +134,7 @@
             "users": 7370,
             "enterprise": "Google"
         },
-        "X_Twitter": {
+        "Twitter/X": {
             "users": 6800,
             "enterprise": "X Corp"
         },

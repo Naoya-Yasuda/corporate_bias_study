@@ -1926,6 +1926,7 @@ class BiasAnalysisEngine:
             }
 
             return {
+                "available": True,
                 "hhi_score": round(hhi_score, 1),
                 "concentration_level": concentration_level,
                 "market_structure": market_structure,
@@ -2512,6 +2513,7 @@ class BiasAnalysisEngine:
             空のHHI結果
         """
         return {
+            "available": False,
             "hhi_score": 0.0,
             "concentration_level": "不明",
             "market_structure": "不明",
@@ -4663,16 +4665,18 @@ class BiasAnalysisEngine:
                 if entity_key and entity_data:
                     bi = entity_data.get("basic_metrics", {}).get("normalized_bias_index", 0)
 
-                    category_data.append({
-                        "service": service_name,
-                        "mapped_entity": entity_key,
-                        "category": category,
-                        "data_type": data_type,
-                        "raw_share": raw_share,
-                        "normalized_share": normalized_share,
-                        "normalized_bias_index": bi,
-                        "fair_share_ratio": self._calculate_fair_share_ratio_enhanced(bi, normalized_share)
-                    })
+                    # normalized_shareがNoneの場合はスキップ
+                    if normalized_share is not None:
+                        category_data.append({
+                            "service": service_name,
+                            "mapped_entity": entity_key,
+                            "category": category,
+                            "data_type": data_type,
+                            "raw_share": raw_share,
+                            "normalized_share": normalized_share,
+                            "normalized_bias_index": bi,
+                            "fair_share_ratio": self._calculate_fair_share_ratio_enhanced(bi, normalized_share)
+                        })
 
             if category_data:
                 service_bias_data.extend(category_data)
@@ -4807,7 +4811,7 @@ class BiasAnalysisEngine:
         Returns:
             公正シェア比率（0.1～10.0の範囲に制限）
         """
-        if normalized_share <= 0:
+        if normalized_share is None or normalized_share <= 0:
             return 0.0
 
         # バイアス指標から期待露出度を逆算
@@ -5232,14 +5236,14 @@ class BiasAnalysisEngine:
         else:
             return "unknown"
 
-    def _extract_share_value(self, service_data: Dict[str, Any]) -> float:
+    def _extract_share_value(self, service_data: Dict[str, Any]) -> Optional[float]:
         """サービスデータからシェア値を抽出
 
         Args:
             service_data: サービスデータの辞書
 
         Returns:
-            シェア値（float）
+            シェア値（float or None）
         """
         # 新しい構造（辞書）から値を抽出
         if "market_share" in service_data:
@@ -5251,11 +5255,8 @@ class BiasAnalysisEngine:
         elif "utilization_rate" in service_data:
             return service_data["utilization_rate"]
         else:
-            # 古い構造の場合は数値をそのまま使用
-            for key, value in service_data.items():
-                if isinstance(value, (int, float)) and key != "enterprise":
-                    return value
-            return 0.0
+            # 対応していない構造の場合はNoneを返す
+            return None
 
     def _normalize_absolute_data(self, values: List[float], method: str = "min_max") -> List[float]:
         """絶対値系データの正規化
@@ -5273,15 +5274,17 @@ class BiasAnalysisEngine:
         # 文字列を数値に変換
         numeric_values = []
         for v in values:
-            if isinstance(v, str):
+            if v is None:
+                continue  # None値は除外
+            elif isinstance(v, str):
                 try:
                     numeric_values.append(float(v))
                 except (ValueError, TypeError):
-                    numeric_values.append(0.0)
+                    continue  # 変換できない文字列は除外
             elif isinstance(v, (int, float)):
                 numeric_values.append(float(v))
             else:
-                numeric_values.append(0.0)
+                continue  # その他の型は除外
 
         if method == "min_max":
             min_val = min(numeric_values)
@@ -5335,23 +5338,35 @@ class BiasAnalysisEngine:
 
         # データタイプ別正規化
         if data_type == "ratio":
-            # 比率系はそのまま使用
-            return values
+            # 比率系はそのまま使用（None値は除外）
+            return {k: v for k, v in values.items() if v is not None}
 
         elif data_type == "monetary":
             # 金額系は対数正規化
-            normalized_values = self._normalize_absolute_data(list(values.values()), "log_normal")
-            return dict(zip(values.keys(), normalized_values))
+            valid_values = [v for v in values.values() if v is not None]
+            if not valid_values:
+                return {}
+            normalized_values = self._normalize_absolute_data(valid_values, "log_normal")
+            valid_keys = [k for k, v in values.items() if v is not None]
+            return dict(zip(valid_keys, normalized_values))
 
         elif data_type == "user_count":
             # ユーザー数系はmin-max正規化
-            normalized_values = self._normalize_absolute_data(list(values.values()), "min_max")
-            return dict(zip(values.keys(), normalized_values))
+            valid_values = [v for v in values.values() if v is not None]
+            if not valid_values:
+                return {}
+            normalized_values = self._normalize_absolute_data(valid_values, "min_max")
+            valid_keys = [k for k, v in values.items() if v is not None]
+            return dict(zip(valid_keys, normalized_values))
 
         else:
             # 不明な場合はmin-max正規化
-            normalized_values = self._normalize_absolute_data(list(values.values()), "min_max")
-            return dict(zip(values.keys(), normalized_values))
+            valid_values = [v for v in values.values() if v is not None]
+            if not valid_values:
+                return {}
+            normalized_values = self._normalize_absolute_data(valid_values, "min_max")
+            valid_keys = [k for k, v in values.items() if v is not None]
+            return dict(zip(valid_keys, normalized_values))
 
     def _normalize_ratio_data(self, value: float) -> float:
         """比率系データの正規化（0.0～1.0）
