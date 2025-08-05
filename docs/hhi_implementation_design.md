@@ -43,11 +43,11 @@ def _calculate_service_hhi(self, market_shares: Dict[str, Any], category: str, s
         if not subcategory_data:
             return self._create_empty_hhi_result("サービス市場シェアデータが不足")
 
-        # 2. 市場シェアをパーセンテージから小数に変換
+        # 2. 市場シェアを抽出（データは既に小数形式）
         shares = {}
         for service, share in subcategory_data.items():
             if isinstance(share, (int, float)) and share > 0:
-                shares[service] = float(share) / 100.0  # パーセンテージを小数に変換
+                shares[service] = float(share)  # データは既に小数形式
 
         if not shares:
             return self._create_empty_hhi_result("有効な市場シェアデータがありません")

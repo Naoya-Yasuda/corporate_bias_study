@@ -1880,28 +1880,25 @@ class BiasAnalysisEngine:
             if not subcategory_data:
                 return self._create_empty_hhi_result("サービス市場シェアデータが不足")
 
-            # 2. 市場シェアデータの構造を確認して適切に処理
-            shares = {}
-            for service, data in subcategory_data.items():
-                if isinstance(data, dict) and 'market_share' in data:
-                    # 新しい構造: {service: {"market_share": value, "enterprise": name}}
-                    share_value = data['market_share']
-                    if isinstance(share_value, (int, float)) and share_value > 0:
-                        shares[service] = float(share_value)  # 既に小数形式
-                elif isinstance(data, (int, float)) and data > 0:
-                    # 古い構造: {service: value} (パーセンテージ形式)
-                    shares[service] = float(data) / 100.0  # パーセンテージを小数に変換
+            # 2. データタイプを判定（data_typeフィールドから直接判定）
+            data_type_str = subcategory_data.get("data_type", "")
+            if "市場シェア" in data_type_str or "シェア" in data_type_str:
+                data_type = "ratio"
+                shares = self._extract_ratio_data(subcategory_data)
+            else:  # 流通総額、ユーザー数など
+                data_type = "absolute"
+                shares = self._extract_absolute_data(subcategory_data)
 
             if not shares:
                 return self._create_empty_hhi_result("有効な市場シェアデータがありません")
 
-            # 3. HHI計算: Σ(市場シェア_i)^2 * 10000
+            # 4. HHI計算: Σ(市場シェア_i)^2 * 10000
             hhi_score = sum(share ** 2 for share in shares.values()) * 10000
 
-            # 4. 集中度レベル判定
+            # 5. 集中度レベル判定
             concentration_level = self._interpret_hhi_level(hhi_score)
 
-            # 5. 上位サービス抽出（シェア順）
+            # 6. 上位サービス抽出（シェア順）
             sorted_services = sorted(shares.items(), key=lambda x: x[1], reverse=True)
             top_services = []
             for i, (service, share) in enumerate(sorted_services[:5], 1):  # 上位5社
@@ -1923,7 +1920,9 @@ class BiasAnalysisEngine:
                 "effective_competitors": self._count_effective_competitors(shares),
                 "largest_share": round(max(shares.values()) * 100, 1),
                 "smallest_share": round(min(shares.values()) * 100, 1),
-                "share_variance": round(np.var(list(shares.values())) * 10000, 2) if len(shares) > 1 else 0
+                "share_variance": round(np.var(list(shares.values())) * 10000, 2) if len(shares) > 1 else 0,
+                "data_type": data_type,
+                "processing_method": "ratio" if data_type == "ratio" else "normalized_absolute"
             }
 
             return {
@@ -2568,6 +2567,66 @@ class BiasAnalysisEngine:
             "concentration_bias_correlation": self._create_empty_correlation_result(error_message),
             "market_structure_insights": [f"分析エラー: {error_message}"]
         }
+
+    def _extract_ratio_data(self, subcategory_data: Dict[str, Any]) -> Dict[str, float]:
+        """
+        比率データ（パーセンテージ）を抽出・正規化
+
+        Parameters:
+        -----------
+        subcategory_data : Dict[str, Any]
+            サブカテゴリデータ
+
+        Returns:
+        --------
+        Dict[str, float]: サービス名 -> 正規化されたシェア（0-1）
+        """
+        shares = {}
+
+        for service, data in subcategory_data.items():
+            if service in ["data_type", "region"]:
+                continue
+
+            if isinstance(data, dict) and 'market_share' in data:
+                share_value = data['market_share']
+                if isinstance(share_value, (int, float)) and share_value > 0:
+                    # データは既に小数形式（0.8954）なのでそのまま使用
+                    shares[service] = float(share_value)
+
+        return shares
+
+    def _extract_absolute_data(self, subcategory_data: Dict[str, Any]) -> Dict[str, float]:
+        """
+        絶対値データを抽出・正規化
+
+        Parameters:
+        -----------
+        subcategory_data : Dict[str, Any]
+            サブカテゴリデータ
+
+        Returns:
+        --------
+        Dict[str, float]: サービス名 -> 正規化されたシェア（0-1）
+        """
+        raw_values = {}
+
+        for service, data in subcategory_data.items():
+            if service in ["data_type", "region"]:
+                continue
+
+            if isinstance(data, dict):
+                # 各種絶対値を抽出
+                if 'gmv' in data:
+                    raw_values[service] = data['gmv']
+                elif 'users' in data:
+                    raw_values[service] = data['users']
+
+        # 相対シェアに正規化
+        if raw_values:
+            total_value = sum(raw_values.values())
+            return {service: value / total_value for service, value in raw_values.items()}
+
+        return {}
 
     def _count_effective_competitors(self, shares: Dict[str, float]) -> int:
         """
