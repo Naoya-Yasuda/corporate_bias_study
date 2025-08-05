@@ -4497,14 +4497,14 @@ class BiasAnalysisEngine:
                 analysis_type = "none"
 
             # 統合評価
-            integrated_score = self._calculate_integrated_market_fairness(
+            integrated_fairness_result = self._calculate_integrated_market_fairness(
                 enterprise_analysis, service_analysis
             )
 
             return {
                 "enterprise_level": enterprise_analysis,
                 "service_level": service_analysis,
-                "integrated_fairness": integrated_score,
+                "integrated_fairness": integrated_fairness_result,
                 "analysis_type": analysis_type
             }
 
@@ -4768,7 +4768,7 @@ class BiasAnalysisEngine:
 
         # 企業レベル公平性スコア
         if enterprise_analysis.get("available", False):
-            enterprise_score = enterprise_analysis.get("fairness_score", 0.0)
+            enterprise_score = enterprise_analysis.get("integrated_fairness_score", 0.0)
             scores.append(enterprise_score)
 
         # サービスレベル公平性スコア
@@ -4852,8 +4852,11 @@ class BiasAnalysisEngine:
 
         # 統合公平性スコアを計算
         integrated_fairness_score = self._calculate_enterprise_fairness_score({
-            "tier_stats": tier_stats,
-            "favoritism_analysis": favoritism_analysis
+            "available": True,
+            "tier_analysis": {
+                "tier_stats": tier_stats,
+                "tier_gaps": tier_gaps
+            }
         })
 
         return {
@@ -5000,17 +5003,17 @@ class BiasAnalysisEngine:
 
 
 
-    def _calculate_enterprise_fairness_score(self, tier_analysis: Dict) -> float:
+    def _calculate_enterprise_fairness_score(self, tier_analysis: Dict) -> Optional[float]:
         """企業レベル公平性スコアの計算（論文定義準拠版）"""
 
         # データの検証
         if not tier_analysis.get("available", False):
-            return 0.0  # データがない場合は0.0
+            return None  # データがない場合はnull
 
         # 論文定義に基づく計算を実行
         return self._calculate_enterprise_fairness_score_actual(tier_analysis)
 
-    def _calculate_enterprise_fairness_score_actual(self, tier_analysis: Dict) -> float:
+    def _calculate_enterprise_fairness_score_actual(self, tier_analysis: Dict) -> Optional[float]:
         """実際の企業レベル公平性スコア計算（論文定義準拠）"""
 
         # tier_analysisの中のtier_analysisからデータを取得
@@ -5018,18 +5021,22 @@ class BiasAnalysisEngine:
         tier_stats = tier_analysis_data.get("tier_stats", {})
         tier_gaps = tier_analysis_data.get("tier_gaps", {})
 
+        # 各階層の平均バイアスを取得
+        tier_means = {}
+        for tier, stats in tier_stats.items():
+            if stats.get("count", 0) > 0:
+                tier_means[tier] = stats["mean_bias"]
+
+        # 複数の階層がない場合はnullを返す（比較対象がないため）
+        if len(tier_means) < 2:
+            return None
+
         # 論文定義に基づく重み係数
         WEIGHTS = {
             "mega_vs_mid_gap": 0.35,    # 大企業vs小企業格差による公平性
             "large_vs_mid_gap": 0.35,   # 中企業vs小企業格差による公平性
             "variance_fairness": 0.30   # 全企業のバイアス分散による公平性
         }
-
-        # 各階層の平均バイアスを取得
-        tier_means = {}
-        for tier, stats in tier_stats.items():
-            if stats.get("count", 0) > 0:
-                tier_means[tier] = stats["mean_bias"]
 
         # 1. 大企業vs小企業格差による公平性スコア（35%）
         mega_vs_mid_gap = 0.0
@@ -5068,18 +5075,18 @@ class BiasAnalysisEngine:
 
         return round(final_score, 3)
 
-    def _calculate_enterprise_fairness_score_enhanced(self, tier_analysis: Dict) -> float:
+    def _calculate_enterprise_fairness_score_enhanced(self, tier_analysis: Dict) -> Optional[float]:
         """拡張企業レベル公平性スコアの計算（論文定義準拠版）
 
         Args:
             tier_analysis: 階層分析結果の辞書
 
         Returns:
-            拡張公平性スコア（0.0～1.0）
+            拡張公平性スコア（0.0～1.0）またはNone（比較対象がない場合）
         """
         # データの検証
         if not tier_analysis.get("available", False):
-            return 0.0  # データがない場合は0.0
+            return None  # データがない場合はnull
 
         # 論文定義に基づく計算を実行
         return self._calculate_enterprise_fairness_score_actual(tier_analysis)
