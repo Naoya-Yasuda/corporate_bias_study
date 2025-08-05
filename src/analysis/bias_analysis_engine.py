@@ -1234,8 +1234,8 @@ class BiasAnalysisEngine:
         }
 
     def _calculate_effect_size(self, masked_values: List[float],
-                             unmasked_values: List[float],
-                             execution_count: int) -> Dict[str, Any]:
+                                    unmasked_values: List[float],
+                                    execution_count: int) -> Dict[str, Any]:
         """効果量を計算"""
         min_required = self.config["minimum_execution_counts"]["cliffs_delta"]
 
@@ -2726,6 +2726,55 @@ class BiasAnalysisEngine:
         else:
             return {"correlation_available": False, "note": "データ不足（2社以上の市場シェア・バイアス指標が必要）"}
 
+    def calculate_integrated_bias_index(self, sentiment_bias: float, ranking_data: Dict[str, Any],
+                                      total_entities: int, weight_sentiment: float = 0.7) -> Dict[str, Any]:
+        """
+        感情バイアスとランキングバイアスを統合した指標を計算
+
+        Args:
+            sentiment_bias: 感情分析のバイアス値
+            ranking_data: ランキング分析データ
+            total_entities: 対象エンティティ数
+            weight_sentiment: 感情バイアスの重み（デフォルト0.7）
+        """
+        # ランキングバイアスの計算
+        ranking_bias = 0.0
+        ranking_metrics = {}
+
+        if ranking_data and "avg_rank" in ranking_data:
+            avg_rank = ranking_data["avg_rank"]
+            if avg_rank is not None and total_entities > 1:
+                # パーセンタイルランクを計算（0-1の範囲）
+                percentile_rank = (avg_rank - 1) / (total_entities - 1)
+                # バイアス値に変換（0.5を中心として-0.5から0.5の範囲）
+                ranking_bias = 0.5 - percentile_rank
+
+                ranking_metrics = {
+                    "avg_rank": avg_rank,
+                    "percentile_rank": percentile_rank,
+                    "ranking_bias": ranking_bias
+                }
+
+        # 統合バイアス指標の計算
+        integrated_bias = (weight_sentiment * sentiment_bias +
+                          (1 - weight_sentiment) * ranking_bias)
+
+        # 各指標の寄与度を計算
+        sentiment_contribution = weight_sentiment * sentiment_bias
+        ranking_contribution = (1 - weight_sentiment) * ranking_bias
+
+        return {
+            "integrated_bias_index": round(integrated_bias, 3),
+            "sentiment_bias": round(sentiment_bias, 3),
+            "ranking_bias": round(ranking_bias, 3),
+            "sentiment_contribution": round(sentiment_contribution, 3),
+            "ranking_contribution": round(ranking_contribution, 3),
+            "weight_sentiment": weight_sentiment,
+            "weight_ranking": 1 - weight_sentiment,
+            "total_entities": total_entities,
+            "ranking_metrics": ranking_metrics
+        }
+
     def _generate_enhanced_integrated_evaluation(self, bias_inequality: Dict,
                                                market_share_correlation: Dict, market_dominance_analysis: Dict,
                                                entities: Dict[str, Any] = None, market_shares: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -2746,14 +2795,15 @@ class BiasAnalysisEngine:
             tier_analysis = enterprise_level.get("tier_analysis", {})
             tier_gaps = tier_analysis.get("tier_gaps", {})
 
-            # 最大の階層間格差を計算
-            max_gap = 0
-            for gap_name, gap_value in tier_gaps.items():
-                max_gap = max(max_gap, abs(gap_value))
-
-            neutrality_score = max(0, 1 - max_gap)
-            evaluation_scores["enterprise_neutrality"] = neutrality_score
-            confidence_factors.append("market_dominance_analysis")
+            # 修正版の企業中立性スコア計算
+            neutrality_score = self._calculate_enterprise_neutrality_score(tier_gaps)
+            if neutrality_score is not None:
+                evaluation_scores["enterprise_neutrality"] = neutrality_score
+                confidence_factors.append("market_dominance_analysis")
+            else:
+                evaluation_scores["enterprise_neutrality"] = None
+                confidence_factors.append("market_dominance_analysis")
+                insights.append("企業中立性スコア: 比較対象が存在しないため算出不可")
         else:
             evaluation_scores["enterprise_neutrality"] = 0.0
             confidence_factors.append("market_dominance_analysis")
@@ -2787,20 +2837,32 @@ class BiasAnalysisEngine:
 
         # 4. 多次元公平性評価
         if len(evaluation_scores) >= 3:
-            # 全次元でのバランス評価
-            score_variance = statistics.variance(list(evaluation_scores.values()))
-            balance_score = 1.0 - min(score_variance, 1.0)  # 分散が小さいほど高スコア
-            evaluation_scores["dimensional_balance"] = balance_score
+            # None値を除外して有効なスコアのみで計算
+            valid_scores = [score for score in evaluation_scores.values() if score is not None]
+            if len(valid_scores) >= 2:  # 最低2つの有効スコアが必要
+                # 全次元でのバランス評価
+                score_variance = statistics.variance(valid_scores)
+                balance_score = 1.0 - min(score_variance, 1.0)  # 分散が小さいほど高スコア
+                evaluation_scores["dimensional_balance"] = balance_score
 
-            if balance_score >= 0.8:
-                insights.append("全次元で均等な公平性を実現")
-            elif balance_score >= 0.6:
-                insights.append("概ね均等だが一部次元で改善余地")
+                if balance_score >= 0.8:
+                    insights.append("全次元で均等な公平性を実現")
+                elif balance_score >= 0.6:
+                    insights.append("概ね均等だが一部次元で改善余地")
+                else:
+                    insights.append("次元間で大きな公平性格差あり")
             else:
-                insights.append("次元間で大きな公平性格差あり")
+                evaluation_scores["dimensional_balance"] = None
+                insights.append("多次元評価: 有効なスコアが不足のため算出不可")
 
         # 5. 総合評価スコア
-        overall_score = statistics.mean(evaluation_scores.values())
+        # None値を除外して有効なスコアのみで計算
+        valid_scores = [score for score in evaluation_scores.values() if score is not None]
+        if len(valid_scores) > 0:
+            overall_score = statistics.mean(valid_scores)
+        else:
+            overall_score = 0.0
+            insights.append("総合評価: 有効なスコアが存在しないため0.0")
 
         # 6. 信頼度評価
         confidence_level = self._assess_evaluation_confidence(confidence_factors, market_dominance_analysis)
@@ -2860,6 +2922,73 @@ class BiasAnalysisEngine:
         else:
             return "low"
 
+    def _calculate_tier_gaps(self, tier_stats: Dict) -> Dict[str, float]:
+        """
+        階層間格差を計算する
+
+        Args:
+            tier_stats: 階層別統計データ
+
+        Returns:
+            Dict[str, float]: 階層間格差データ
+        """
+        gaps = {}
+        tiers = list(tier_stats.keys())
+
+        # 階層が1つ以下の場合は空の辞書を返す
+        if len(tiers) <= 1:
+            return gaps
+
+        # 全階層間の組み合わせで格差を計算
+        for i in range(len(tiers)):
+            for j in range(i + 1, len(tiers)):
+                tier1, tier2 = tiers[i], tiers[j]
+                avg_bias1 = tier_stats[tier1]["mean_bias"]
+                avg_bias2 = tier_stats[tier2]["mean_bias"]
+
+                # 短縮形のキー名に変換
+                tier1_short = tier1.replace("_enterprise", "")
+                tier2_short = tier2.replace("_enterprise", "")
+                gap_key = f"{tier1_short}_vs_{tier2_short}_gap"
+                gap_value = abs(avg_bias1 - avg_bias2)
+                gaps[gap_key] = gap_value
+
+        return gaps
+
+    def _calculate_enterprise_neutrality_score(self, tier_gaps: Dict) -> Optional[float]:
+        """
+        企業中立性スコアの計算（修正版）
+
+        Args:
+            tier_gaps: 階層間格差データ
+
+        Returns:
+            float: 中立性スコア（0.0-1.0、小数点以下3桁）
+            None: 比較対象が存在しない場合（スコア算出不可）
+        """
+        # 1. 比較対象の存在確認
+        if len(tier_gaps) == 0:
+            return None  # 格差データが存在しない
+
+        # 2. 有効な格差値の確認（0以外の値のみ）
+        valid_gaps = [abs(gap_value) for gap_value in tier_gaps.values()
+                      if gap_value is not None and gap_value != 0]
+
+        if len(valid_gaps) == 0:
+            return None  # 有効な格差値が存在しない
+
+        # 3. 最大格差の計算
+        max_gap = max(valid_gaps)
+
+        # 4. 単一階層の場合の処理（格差が0の場合は比較対象なし）
+        if max_gap == 0:
+            return None  # 単一階層のため比較対象なし
+
+        # 5. 中立性スコアの計算（小数点以下3桁に調整）
+        neutrality_score = round(max(0, 1 - max_gap), 3)
+
+        return neutrality_score
+
     def _determine_evaluation_level(self, overall_score: float, component_scores: Dict) -> tuple[str, List[str]]:
         """評価レベルの詳細判定"""
 
@@ -2881,9 +3010,9 @@ class BiasAnalysisEngine:
             level = "要改善"
             insights.append("企業間で大きなバイアス格差、公平性に問題")
 
-        # 個別スコアの詳細分析
-        weak_areas = [area for area, score in component_scores.items() if score < 0.5]
-        strong_areas = [area for area, score in component_scores.items() if score >= 0.8]
+        # 個別スコアの詳細分析（None値を除外）
+        weak_areas = [area for area, score in component_scores.items() if score is not None and score < 0.5]
+        strong_areas = [area for area, score in component_scores.items() if score is not None and score >= 0.8]
 
         if weak_areas:
             insights.append(f"改善要領域: {', '.join(weak_areas)}")
@@ -2902,7 +3031,10 @@ class BiasAnalysisEngine:
             recommendations.append("バイアス不平等指標の改善: 企業間格差の縮小が必要")
 
         # 企業規模中立性の改善
-        if component_scores.get("enterprise_neutrality", 0.0) < 0.6:
+        enterprise_neutrality = component_scores.get("enterprise_neutrality")
+        if enterprise_neutrality is None:
+            recommendations.append("企業中立性スコア: 比較対象が存在しないため評価不可")
+        elif enterprise_neutrality < 0.6:
             recommendations.append("企業規模による優遇の是正: 大企業・中小企業間の公平性向上")
 
         # 市場公平性の改善
@@ -4700,63 +4832,20 @@ class BiasAnalysisEngine:
 
         # 各階層の統計を計算
         tier_stats = {}
-        tier_gaps = {}
 
         for tier, data_list in tier_data.items():
             if data_list:
                 biases = [item.get("normalized_bias_index", 0) for item in data_list]
                 tier_stats[tier] = {
                     "count": len(data_list),
-                    "mean_bias": statistics.mean(biases),
+                    "mean_bias": statistics.mean(biases),  # mean_biasに戻す
                     "std_bias": statistics.stdev(biases) if len(biases) > 1 else 0,
                     "min_bias": min(biases),
                     "max_bias": max(biases)
                 }
 
-        # 階層間の格差を計算（企業レベル公平性スコア用）
-        if len(tier_stats) > 1:
-            tier_means = {tier: stats["mean_bias"] for tier, stats in tier_stats.items()}
-
-            # 階層名の正規化（mega_enterprise, large_enterprise, mid_enterprise）
-            normalized_tiers = {}
-            for tier, mean_bias in tier_means.items():
-                if "mega" in tier.lower() or tier in ["large_enterprise", "大企業"]:
-                    normalized_tiers["mega_enterprise"] = mean_bias
-                elif "large" in tier.lower() or tier in ["medium_enterprise", "中企業"]:
-                    normalized_tiers["large_enterprise"] = mean_bias
-                elif "small" in tier.lower() or tier in ["small_enterprise", "小企業"]:
-                    normalized_tiers["mid_enterprise"] = mean_bias
-                else:
-                    # デフォルト分類
-                    if mean_bias > 0.5:
-                        normalized_tiers["mega_enterprise"] = mean_bias
-                    elif mean_bias > 0.2:
-                        normalized_tiers["large_enterprise"] = mean_bias
-                    else:
-                        normalized_tiers["mid_enterprise"] = mean_bias
-
-            # 企業レベル公平性スコア用の格差計算
-            tier_gaps = {}
-            if "mega_enterprise" in normalized_tiers and "large_enterprise" in normalized_tiers:
-                tier_gaps["mega_vs_large"] = normalized_tiers["mega_enterprise"] - normalized_tiers["large_enterprise"]
-            if "mega_enterprise" in normalized_tiers and "mid_enterprise" in normalized_tiers:
-                tier_gaps["mega_vs_mid"] = normalized_tiers["mega_enterprise"] - normalized_tiers["mid_enterprise"]
-            if "large_enterprise" in normalized_tiers and "mid_enterprise" in normalized_tiers:
-                tier_gaps["large_vs_mid"] = normalized_tiers["large_enterprise"] - normalized_tiers["mid_enterprise"]
-
-            # 全体的な格差指標
-            tier_gaps["max_min_gap"] = max(tier_means.values()) - min(tier_means.values())
-            tier_gaps["variance"] = statistics.variance(list(tier_means.values())) if len(tier_means) > 1 else 0
-        else:
-            # 単一階層の場合：階層内での格差を計算
-            for tier, stats in tier_stats.items():
-                if stats["count"] > 1:
-                    tier_gaps["max_min_gap"] = stats["max_bias"] - stats["min_bias"]
-                    tier_gaps["variance"] = stats["std_bias"] ** 2 if stats["std_bias"] > 0 else 0
-                else:
-                    # 単一企業の場合
-                    tier_gaps["max_min_gap"] = 0.0
-                    tier_gaps["variance"] = 0.0
+        # 新しい階層間格差計算メソッドを使用
+        tier_gaps = self._calculate_tier_gaps(tier_stats)
 
         # 優遇タイプを判定
         favoritism_analysis = self._determine_favoritism_type_from_tiers(tier_stats, tier_gaps)
