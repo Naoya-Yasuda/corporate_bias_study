@@ -63,56 +63,23 @@
         }
     },
     "動画ストリーミング": {
-        "data_type": "地域別市場シェア（%）",
-        "日本_市場シェア": {
-            "Netflix": {
-                "market_share": 0.217,
-                "enterprise": "Netflix"
-            },
-            "U-NEXT": {
-                "market_share": 0.15,
-                "enterprise": "U-NEXT"
-            },
-            "Amazon Prime Video": {
-                "market_share": 0.129,
-                "enterprise": "Amazon"
-            },
-            "Disney+": {
-                "market_share": 0.089,
-                "enterprise": "Disney"
-            }
+        "data_type": "市場シェア（%）",
+        "region": "日本",
+        "Netflix": {
+            "market_share": 0.217,
+            "enterprise": "Netflix"
         },
-        "米国_市場シェア": {
-            "Amazon Prime Video": {
-                "market_share": 0.22,
-                "enterprise": "Amazon"
-            },
-            "Netflix": {
-                "market_share": 0.21,
-                "enterprise": "Netflix"
-            },
-            "Max": {
-                "market_share": 0.13,
-                "enterprise": "Warner Bros Discovery"
-            },
-            "Disney+": {
-                "market_share": 0.12,
-                "enterprise": "Disney"
-            }
+        "U-NEXT": {
+            "market_share": 0.15,
+            "enterprise": "U-NEXT"
         },
-        "日本_利用率": {
-            "Amazon Prime Video": {
-                "utilization_rate": 0.662,
-                "enterprise": "Amazon"
-            },
-            "Netflix": {
-                "utilization_rate": 0.36,
-                "enterprise": "Netflix"
-            },
-            "Disney+": {
-                "utilization_rate": 0.093,
-                "enterprise": "Disney"
-            }
+        "Amazon Prime Video": {
+            "market_share": 0.129,
+            "enterprise": "Amazon"
+        },
+        "Disney+": {
+            "market_share": 0.089,
+            "enterprise": "Disney"
         }
     },
     "オンラインショッピング": {
