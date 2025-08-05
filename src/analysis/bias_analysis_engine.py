@@ -4483,7 +4483,12 @@ class BiasAnalysisEngine:
             elif category == "デジタルサービス":
                 # デジタルサービスカテゴリ: サービスレベル分析のみ（市場シェアベース）
                 enterprise_analysis = {"available": False, "reason": "サービスカテゴリのため企業レベル分析は不要"}
-                service_analysis = self._analyze_service_level_bias(entities, market_shares)
+
+                # HHI値を計算
+                service_hhi_result = self._calculate_service_hhi(market_shares, category, subcategory)
+                hhi_score = service_hhi_result.get("hhi_score") if service_hhi_result.get("available") else None
+
+                service_analysis = self._analyze_service_level_bias_enhanced(entities, market_shares, hhi_score)
                 analysis_type = "service_only"
             elif category == "大学" or subcategory == "日本の大学":
                 # 大学カテゴリ: 企業レベル分析のみ（年間予算ベース）
@@ -4566,15 +4571,10 @@ class BiasAnalysisEngine:
             "fairness_score": tier_analysis.get("integrated_fairness_score")
         }
 
-    def _analyze_service_level_bias(self, entities: Dict[str, Any],
-                                  market_shares: Dict[str, Any]) -> Dict[str, Any]:
-        """サービスレベルのバイアス分析（データタイプ対応版）"""
 
-        # 拡張サービスレベルバイアス分析を使用
-        return self._analyze_service_level_bias_enhanced(entities, market_shares)
 
     def _analyze_service_level_bias_enhanced(self, entities: Dict[str, Any],
-                                           market_shares: Dict[str, Any]) -> Dict[str, Any]:
+                                           market_shares: Dict[str, Any], hhi_score: float = None) -> Dict[str, Any]:
         """拡張サービスレベルバイアス分析（データタイプ対応版）"""
 
         service_bias_data = []
@@ -4618,9 +4618,9 @@ class BiasAnalysisEngine:
             if category_data:
                 service_bias_data.extend(category_data)
 
-        return self._process_service_bias_analysis_enhanced(service_bias_data)
+        return self._process_service_bias_analysis_enhanced(service_bias_data, hhi_score)
 
-    def _process_service_bias_analysis_enhanced(self, service_bias_data: List[Dict]) -> Dict[str, Any]:
+    def _process_service_bias_analysis_enhanced(self, service_bias_data: List[Dict], hhi_score: float = None) -> Dict[str, Any]:
         """拡張サービスバイアス分析の処理"""
 
         if not service_bias_data:
@@ -4645,7 +4645,7 @@ class BiasAnalysisEngine:
             "analysis_by_data_type": analysis_by_type,
             "category_fairness": category_fairness,
             "overall_correlation": overall_correlation,
-            "equal_opportunity_score": self._calculate_service_level_fairness_score(service_bias_data)
+            "equal_opportunity_score": self._calculate_service_level_fairness_score(service_bias_data, hhi_score)
         }
 
     def _analyze_service_type_data(self, type_data: List[Dict]) -> Dict[str, Any]:
@@ -5434,42 +5434,96 @@ class BiasAnalysisEngine:
         except:
             return {"available": False, "reason": "相関計算エラー"}
 
-    def _calculate_service_level_fairness_score(self, service_bias_data: List[Dict]) -> float:
-        """サービスレベル公平性スコア計算（論文記載のFair Share Ratioベース）"""
+    def _calculate_integrated_service_fairness_score(self, service_bias_data: List[Dict], hhi_score: float) -> float:
+        """
+        NBIとHHIを統合したサービスレベル公平性スコア計算
 
-        if not service_bias_data:
+        Parameters:
+        -----------
+        service_bias_data : List[Dict]
+            サービスバイアスデータ
+        hhi_score : float
+            HHI値
+
+        Returns:
+        --------
+        float
+            統合サービスレベル公平性スコア
+        """
+        if not service_bias_data or hhi_score <= 0:
             return None
 
-        fairness_scores = []
-        valid_data_count = 0
+        # NBI公平性成分の計算
+        nbi_fairness_scores = []
+        bias_indices = []
 
         for item in service_bias_data:
             bias_index = item.get("normalized_bias_index", 0)
-            market_share = item.get("normalized_share", None)
+            nbi_fairness = max(0, 1.0 - abs(bias_index))
+            nbi_fairness_scores.append(nbi_fairness)
+            bias_indices.append(bias_index)
 
-            # 市場シェアデータが不足している場合はスキップ
-            if market_share is None or market_share <= 0:
-                continue
-
-            valid_data_count += 1
-
-            # 論文記載の計算式
-            # 1. 期待露出度 = 市場シェア × (1 + NBI)
-            expected_exposure = market_share * (1 + bias_index)
-
-            # 2. Fair Share Ratio = 期待露出度 / 市場シェア = 1 + NBI
-            fair_share_ratio = expected_exposure / market_share
-
-            # 3. 公平性値 = max(0, 1.0 - |Fair Share Ratio - 1.0|)
-            fairness = max(0, 1.0 - abs(fair_share_ratio - 1.0))
-            fairness_scores.append(fairness)
-
-        # 4. サービスレベル公平性スコア = 全サービスの公平性値の平均
-        # 有効なデータが不足している場合はnullを返す
-        if valid_data_count < 2:
+        if not nbi_fairness_scores:
             return None
 
-        return round(statistics.mean(fairness_scores), 3)
+        avg_nbi_fairness = statistics.mean(nbi_fairness_scores)
+
+        # HHI市場構造補正係数の計算
+        def calculate_hhi_correction(hhi_score: float) -> float:
+            if hhi_score < 1500:  # 非集中市場
+                return 1.0  # 補正なし
+            elif hhi_score < 2500:  # 中程度集中市場
+                return 0.9  # 軽微な補正
+            else:  # 高集中市場
+                return 0.7  # 強い補正
+
+        hhi_correction = calculate_hhi_correction(hhi_score)
+
+        # 集中度リスク調整の計算
+        def calculate_concentration_risk_adjustment(hhi_score: float, bias_indices: List[float]) -> float:
+            # HHIが高いほど、バイアスの影響が大きくなる
+            concentration_factor = min(1.0, hhi_score / 10000)
+
+            # バイアスの分散を考慮
+            bias_variance = statistics.variance(bias_indices) if len(bias_indices) > 1 else 0
+
+            # リスク調整係数
+            risk_adjustment = 1.0 - (concentration_factor * bias_variance * 0.5)
+            return max(0.5, risk_adjustment)
+
+        risk_adjustment = calculate_concentration_risk_adjustment(hhi_score, bias_indices)
+
+        # 統合スコアの計算
+        integrated_score = avg_nbi_fairness * hhi_correction * risk_adjustment
+
+        return round(integrated_score, 3)
+
+    def _calculate_service_level_fairness_score(self, service_bias_data: List[Dict], hhi_score: float = None) -> float:
+        """
+        サービスレベル公平性スコア計算（NBI-HHI統合版）
+
+        Parameters:
+        -----------
+        service_bias_data : List[Dict]
+            サービスバイアスデータ
+        hhi_score : float, optional
+            HHI値（提供された場合は統合スコアを計算）
+
+        Returns:
+        --------
+        float
+            サービスレベル公平性スコア
+        """
+        if not service_bias_data:
+            return None
+
+                # HHI値が提供されている場合は統合スコアを計算
+        if hhi_score is not None and hhi_score > 0:
+            return self._calculate_integrated_service_fairness_score(service_bias_data, hhi_score)
+
+        # HHI値が提供されていない場合は計測不能としてNoneを返す
+        logger.warning("HHI値が提供されていないため、サービスレベル公平性スコアを計算できません。")
+        return None
 
     def _analyze_market_competition_impact(self, entities: Dict[str, Any],
                                          market_shares: Dict[str, Any]) -> Dict[str, Any]:
