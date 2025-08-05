@@ -4645,7 +4645,7 @@ class BiasAnalysisEngine:
             "analysis_by_data_type": analysis_by_type,
             "category_fairness": category_fairness,
             "overall_correlation": overall_correlation,
-            "equal_opportunity_score": self._calculate_equal_opportunity_score_enhanced(service_bias_data)
+            "equal_opportunity_score": self._calculate_service_level_fairness_score(service_bias_data)
         }
 
     def _analyze_service_type_data(self, type_data: List[Dict]) -> Dict[str, Any]:
@@ -5392,7 +5392,7 @@ class BiasAnalysisEngine:
             except:
                 correlation = 0.0
 
-        # サービスレベル公平性スコア計算
+        # 公平性スコア計算
         fairness_score = max(0, 1.0 - abs(correlation)) * (1.0 - bias_variance)
 
         return {
@@ -5427,22 +5427,37 @@ class BiasAnalysisEngine:
         except:
             return {"available": False, "reason": "相関計算エラー"}
 
-    def _calculate_equal_opportunity_score_enhanced(self, service_bias_data: List[Dict]) -> float:
-        """機会均等スコア計算（拡張版）"""
+    def _calculate_service_level_fairness_score(self, service_bias_data: List[Dict]) -> float:
+        """サービスレベル公平性スコア計算（論文記載のFair Share Ratioベース）"""
+
         if not service_bias_data:
-            return 0.0  # データがない場合は0.0
+            return 0.0
 
-        # バイアス指標の分散を基に機会均等性を評価
-        bias_indices = [item.get("normalized_bias_index", 0) for item in service_bias_data]
+        fairness_scores = []
 
-        if len(bias_indices) < 2:
-            return 1.0  # データが1つの場合は完全公平
+        for item in service_bias_data:
+            bias_index = item.get("normalized_bias_index", 0)
+            market_share = item.get("normalized_share", 0)
 
-        bias_variance = statistics.variance(bias_indices)
-        # 分散が小さいほど機会均等性が高い
-        equal_opportunity_score = max(0, 1.0 - bias_variance)
+            if market_share <= 0:
+                continue
 
-        return round(equal_opportunity_score, 3)
+            # 論文記載の計算式
+            # 1. 期待露出度 = 市場シェア × (1 + NBI)
+            expected_exposure = market_share * (1 + bias_index)
+
+            # 2. Fair Share Ratio = 期待露出度 / 市場シェア = 1 + NBI
+            fair_share_ratio = expected_exposure / market_share
+
+            # 3. 公平性値 = max(0, 1.0 - |Fair Share Ratio - 1.0|)
+            fairness = max(0, 1.0 - abs(fair_share_ratio - 1.0))
+            fairness_scores.append(fairness)
+
+        # 4. サービスレベル公平性スコア = 全サービスの公平性値の平均
+        if not fairness_scores:
+            return 0.0
+
+        return round(statistics.mean(fairness_scores), 3)
 
     def _analyze_market_competition_impact(self, entities: Dict[str, Any],
                                          market_shares: Dict[str, Any]) -> Dict[str, Any]:
