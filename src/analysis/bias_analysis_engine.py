@@ -5392,7 +5392,7 @@ class BiasAnalysisEngine:
             except:
                 correlation = 0.0
 
-        # 公平性スコア計算
+        # サービスレベル公平性スコア計算
         fairness_score = max(0, 1.0 - abs(correlation)) * (1.0 - bias_variance)
 
         return {
