@@ -25,5 +25,5 @@ COPY pyproject.toml .
 # 環境変数を設定
 ENV PYTHONPATH=/app
 
-# デフォルトコマンド（データ収集スクリプト実行）
-CMD ["python", "-m", "scripts.run_bias_analysis"]
+# デフォルトコマンドは削除（意図しない分析実行を防ぐ）
+# 分析実行時は明示的にコマンドを指定する

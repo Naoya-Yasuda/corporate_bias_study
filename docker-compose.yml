@@ -50,7 +50,7 @@ services:
       - ./logs:/app/logs
       - ./.env:/app/.env
     restart: "no"
-    # データ収集完了後にコンテナを停止
-    command: ["python", "-m", "scripts.run_bias_analysis"]
+    # デフォルトコマンドは削除（意図しない分析実行を防ぐ）
+    # 分析実行時は明示的にコマンドを指定する
     profiles:
       - pipeline  # 必要時のみ起動
