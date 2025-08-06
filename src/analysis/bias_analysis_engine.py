@@ -3811,7 +3811,7 @@ class BiasAnalysisEngine:
             "analysis_coverage": {
                 "sentiment_analysis_available": bool(sentiment_analysis),
                 "ranking_analysis_available": bool(ranking_analysis),
-                "citations_comparison_available": bool(citations_comparison)
+                "citations_google_comparison_available": bool(citations_comparison)
             }
         }
 
