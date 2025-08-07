@@ -28,13 +28,17 @@ class SimpleContentGenerator:
 
         # 投稿テンプレート
         self.templates = {
-            "header": "🔍 企業優遇バイアス分析結果の変化を検知しました\n\n",
+            "header": "企業優遇バイアス分析結果の変化を検知しました\n\n",
             "footer": "\n詳細分析: [URL]\n#企業バイアス #AI分析 #企業優遇 #バイアス監視",
             "no_changes": "📊 企業優遇バイアス分析を実行しましたが、大きな変化は検知されませんでした。\n\n詳細分析: [URL]\n#企業バイアス #AI分析"
         }
 
         # 指標名の日本語マッピング
         self.metric_names = {
+            "normalized_bias_index": "バイアス指標",
+            "avg_rank": "平均順位",
+            "service_fairness": "サービス公平性",
+            "enterprise_fairness": "企業公平性",
             "bias_score": "バイアススコア",
             "sentiment_score": "センチメントスコア",
             "ranking": "ランキング",
@@ -83,17 +87,30 @@ class SimpleContentGenerator:
 
             # 分析日付を追加
             if analysis_date:
-                content += f"📅 分析日: {analysis_date}\n\n"
+                content += f"分析日: {analysis_date}\n\n"
 
-            # 各変化をリストアップ
-            for i, change in enumerate(limited_changes, 1):
-                change_text = self._format_change(change, i)
-                content += change_text + "\n"
+            # 指標別に変化をグループ化
+            metric_groups = {}
+            for change in limited_changes:
+                metric = change.get("metric", "unknown")
+                if metric not in metric_groups:
+                    metric_groups[metric] = []
+                metric_groups[metric].append(change)
+
+            # 各指標グループを表示
+            for metric, metric_changes in metric_groups.items():
+                metric_jp = self.metric_names.get(metric, metric)
+                content += f"{metric_jp}の変化:\n"
+
+                for i, change in enumerate(metric_changes, 1):
+                    change_text = self._format_change_compact(change, i)
+                    content += change_text + "\n"
+                content += "\n"
 
             # 変化数が制限を超えた場合の注記
             if len(changes) > self.max_changes_per_post:
                 remaining = len(changes) - self.max_changes_per_post
-                content += f"\n... 他{remaining}件の変化があります\n"
+                content += f"... 他{remaining}件の変化があります\n"
 
             # フッターを追加
             content += self.templates["footer"]
@@ -189,6 +206,58 @@ class SimpleContentGenerator:
                 current_str = str(current_value)
 
             return f"{index}. {significance_icon} {entity} - {metric_jp} {previous_str}→{current_str} ({change_rate}%{change_type_jp})"
+
+    def _format_change_compact(self, change: Dict, index: int) -> str:
+        """
+        個別の変化をコンパクトにフォーマット
+
+        Parameters:
+        -----------
+        change : Dict
+            変化データ
+        index : int
+            インデックス番号
+
+        Returns:
+        --------
+        str
+            フォーマットされた変化テキスト（コンパクト版）
+        """
+        entity = change.get("entity", "不明")
+        change_type = change.get("type", "unknown")
+        change_rate = change.get("change_rate", 0)
+        significance = change.get("significance", "low")
+
+        # エンティティ名を短縮（長すぎる場合）
+        if len(entity) > 15:
+            entity = entity[:12] + "..."
+
+        # 変化タイプを日本語に変換
+        change_type_jp = self.change_types.get(change_type, change_type)
+
+        # 重要度に応じたアイコン
+        significance_icon = self._get_significance_icon(significance)
+
+        # コンパクトな変化テキストを生成
+        if change_type == "new_entity":
+            return f"  {significance_icon} {entity} (新規)"
+
+        else:
+            previous_value = change.get("previous_value", 0)
+            current_value = change.get("current_value", 0)
+
+            # 値のフォーマット（より簡潔に）
+            if isinstance(previous_value, float):
+                previous_str = f"{previous_value:.1f}"
+            else:
+                previous_str = str(previous_value)
+
+            if isinstance(current_value, float):
+                current_str = f"{current_value:.1f}"
+            else:
+                current_str = str(current_value)
+
+            return f"  {significance_icon} {entity}: {previous_str}→{current_str} ({change_rate:.0f}%)"
 
     def _get_significance_icon(self, significance: str) -> str:
         """
