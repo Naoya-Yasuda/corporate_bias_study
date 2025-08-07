@@ -82,8 +82,8 @@ jobs:
       # ストレージモード設定（バイアス分析用）
       STORAGE_MODE: auto
       # SNS投稿機能設定
-      TWITTER_POSTING_ENABLED: ${{ secrets.TWITTER_POSTING_ENABLED || 'false' }}
-      SNS_MONITORING_ENABLED: ${{ secrets.SNS_MONITORING_ENABLED || 'false' }}
+      TWITTER_POSTING_ENABLED: ${{ secrets.TWITTER_POSTING_ENABLED || 'true' }}
+      SNS_MONITORING_ENABLED: ${{ secrets.SNS_MONITORING_ENABLED || 'true' }}
       TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
       TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
       TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
