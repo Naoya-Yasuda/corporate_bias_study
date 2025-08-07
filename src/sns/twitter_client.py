@@ -108,25 +108,58 @@ class TwitterClient:
                 text = text[:277] + "..."
                 logger.warning("投稿テキストが文字数制限を超えたため、切り詰めました")
 
-            # 実際のX API投稿を実行
-            response = self.client.create_tweet(text=text)
+            # API v2を使用した投稿を試行
+            try:
+                response = self.client.create_tweet(text=text)
 
-            if response and response.data:
-                tweet_id = response.data['id']
-                logger.info(f"X投稿成功: {tweet_id}")
+                if response and response.data:
+                    tweet_id = response.data['id']
+                    logger.info(f"X投稿成功 (API v2): {tweet_id}")
 
-                return {
-                    "success": True,
-                    "tweet_id": str(tweet_id),
-                    "text": text,
-                    "created_at": datetime.now()
-                }
-            else:
-                logger.error("X API投稿レスポンスが不正です")
-                return {
-                    "success": False,
-                    "error": "投稿レスポンスが不正です"
-                }
+                    return {
+                        "success": True,
+                        "tweet_id": str(tweet_id),
+                        "text": text,
+                        "created_at": datetime.now(),
+                        "api_version": "v2"
+                    }
+                else:
+                    logger.error("X API v2投稿レスポンスが不正です")
+                    return {
+                        "success": False,
+                        "error": "投稿レスポンスが不正です"
+                    }
+
+            except Exception as v2_error:
+                logger.warning(f"API v2投稿失敗: {v2_error}")
+
+                # API v1.1にフォールバック（Proプラン以上が必要）
+                try:
+                    response = self.api.update_status(text)
+                    tweet_id = response.id
+                    logger.info(f"X投稿成功 (API v1.1): {tweet_id}")
+
+                    return {
+                        "success": True,
+                        "tweet_id": str(tweet_id),
+                        "text": text,
+                        "created_at": datetime.now(),
+                        "api_version": "v1.1"
+                    }
+
+                except Exception as v1_error:
+                    logger.error(f"API v1.1投稿失敗: {v1_error}")
+
+                    # エラーメッセージから詳細情報を抽出
+                    error_msg = str(v1_error)
+                    if "453" in error_msg or "access level" in error_msg.lower():
+                        error_msg = "X APIのアクセスレベルが不足しています。Proプラン以上が必要です。"
+
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "api_version": "v1.1"
+                    }
 
         except Exception as e:
             logger.error(f"X投稿失敗: {e}")

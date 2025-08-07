@@ -17,7 +17,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.sns import SimplePostingSystem
+from src.sns.integrated_posting_system import IntegratedPostingSystem
 
 # ログ設定
 logging.basicConfig(
@@ -47,16 +47,16 @@ def main():
             logger.info("SNS投稿機能が無効のためスキップします")
             return 0
 
-        # SimplePostingSystemを初期化（S3DataLoader統合版）
-        logger.info("SimplePostingSystemを初期化中...")
-        posting_system = SimplePostingSystem(storage_mode='auto')
+        # IntegratedPostingSystemを初期化（S3DataLoader統合版）
+        logger.info("IntegratedPostingSystemを初期化中...")
+        posting_system = IntegratedPostingSystem(storage_mode='auto')
 
         # システム状態を確認
         status = posting_system.get_system_status()
         logger.info(f"システム状態: {status}")
 
         # 利用可能な分析日付を確認
-        available_dates = posting_system.get_available_dates()
+        available_dates = posting_system.list_available_dates()
         logger.info(f"利用可能な分析日付数: {len(available_dates)}")
 
         if available_dates:
