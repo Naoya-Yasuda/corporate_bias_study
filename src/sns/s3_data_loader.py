@@ -223,72 +223,50 @@ class S3DataLoader:
                     for subcategory, data in subcategories.items():
                         if "entities" in data:
                             for entity, entity_data in data["entities"].items():
-                                metrics = {}
+                                if entity not in entity_metrics:
+                                    entity_metrics[entity] = {}
 
-                                # 基本指標
+                                # 正規化センチメントスコア
                                 if "basic_metrics" in entity_data:
                                     basic = entity_data["basic_metrics"]
                                     if "normalized_bias_index" in basic:
-                                        metrics["bias_score"] = basic["normalized_bias_index"]
+                                        entity_metrics[entity]["normalized_bias_index"] = basic["normalized_bias_index"]
 
-                                # ランキング
-                                if "bias_rank" in entity_data:
-                                    metrics["ranking"] = entity_data["bias_rank"]
+            # ranking_bias_analysisから平均順位を抽出
+            if "ranking_bias_analysis" in analysis_results:
+                for category, subcategories in analysis_results["ranking_bias_analysis"].items():
+                    for subcategory, data in subcategories.items():
+                        if "entities" in data:
+                            for entity, entity_data in data["entities"].items():
+                                if entity not in entity_metrics:
+                                    entity_metrics[entity] = {}
 
-                                # 統計的有意性
-                                if "statistical_significance" in entity_data:
-                                    stats = entity_data["statistical_significance"]
-                                    if "sign_test_p_value" in stats:
-                                        metrics["p_value"] = stats["sign_test_p_value"]
+                                # 平均順位
+                                if "avg_rank" in entity_data:
+                                    entity_metrics[entity]["avg_rank"] = entity_data["avg_rank"]
 
-                                # 効果量
-                                if "effect_size" in entity_data:
-                                    effect = entity_data["effect_size"]
-                                    if "cliffs_delta" in effect:
-                                        metrics["cliffs_delta"] = effect["cliffs_delta"]
+            # relative_bias_analysisから公平性スコアを抽出
+            if "relative_bias_analysis" in analysis_results:
+                for category, subcategories in analysis_results["relative_bias_analysis"].items():
+                    for subcategory, data in subcategories.items():
+                        if "market_dominance_analysis" in data:
+                            market_data = data["market_dominance_analysis"]
+                            if "integrated_fairness" in market_data:
+                                integrated_fairness = market_data["integrated_fairness"]
+                                if "component_scores" in integrated_fairness:
+                                    component_scores = integrated_fairness["component_scores"]
 
-                                # 重篤度スコア
-                                if "severity_score" in entity_data:
-                                    severity = entity_data["severity_score"]
-                                    if "severity_score" in severity:
-                                        metrics["severity_score"] = severity["severity_score"]
+                                    # サービス公平性スコア（カテゴリレベル）
+                                    if "service_fairness" in component_scores and component_scores["service_fairness"] is not None:
+                                        for entity in entity_metrics.keys():
+                                            entity_metrics[entity]["service_fairness"] = component_scores["service_fairness"]
 
-                                # 安定性指標
-                                if "stability_metrics" in entity_data:
-                                    stability = entity_data["stability_metrics"]
-                                    if "stability_score" in stability:
-                                        metrics["stability_score"] = stability["stability_score"]
+                                    # 企業公平性スコア（カテゴリレベル）
+                                    if "enterprise_fairness" in component_scores and component_scores["enterprise_fairness"] is not None:
+                                        for entity in entity_metrics.keys():
+                                            entity_metrics[entity]["enterprise_fairness"] = component_scores["enterprise_fairness"]
 
-                                if metrics:
-                                    entity_metrics[entity] = metrics
 
-            # 従来のentity_analysis形式も対応（後方互換性）
-            elif "entity_analysis" in analysis_results:
-                for entity, data in analysis_results["entity_analysis"].items():
-                    metrics = {}
-
-                    # バイアススコア
-                    if "bias_score" in data:
-                        metrics["bias_score"] = data["bias_score"]
-
-                    # センチメントスコア
-                    if "sentiment_score" in data:
-                        metrics["sentiment_score"] = data["sentiment_score"]
-
-                    # ランキング
-                    if "ranking" in data:
-                        metrics["ranking"] = data["ranking"]
-
-                    # 公平性スコア
-                    if "fairness_score" in data:
-                        metrics["fairness_score"] = data["fairness_score"]
-
-                    # 中立性スコア
-                    if "neutrality_score" in data:
-                        metrics["neutrality_score"] = data["neutrality_score"]
-
-                    if metrics:
-                        entity_metrics[entity] = metrics
 
             logger.info(f"エンティティ指標抽出: {len(entity_metrics)}件")
             return entity_metrics

@@ -26,11 +26,10 @@ class SimpleChangeDetector:
         """
         # デフォルト閾値
         self.thresholds = thresholds or {
-            "bias_score": 0.1,      # バイアススコアの変化閾値
-            "sentiment_score": 0.15, # センチメントスコアの変化閾値
-            "ranking_change": 3,     # ランキング変化閾値
-            "fairness_score": 0.1,   # 公平性スコアの変化閾値
-            "neutrality_score": 0.1  # 中立性スコアの変化閾値
+            "normalized_bias_index": 0.1,  # 正規化センチメントスコアの変化閾値
+            "avg_rank": 1.0,               # 平均順位の変化閾値
+            "service_fairness": 0.1,       # サービス公平性スコアの変化閾値
+            "enterprise_fairness": 0.1     # 企業公平性スコアの変化閾値
         }
 
         logger.info(f"変化検知閾値を設定しました: {self.thresholds}")
@@ -105,56 +104,45 @@ class SimpleChangeDetector:
         """
         changes = []
 
-        # バイアススコアの変化チェック
-        if "bias_score" in current_metrics and "bias_score" in previous_metrics:
+        # 正規化センチメントスコアの変化チェック
+        if "normalized_bias_index" in current_metrics and "normalized_bias_index" in previous_metrics:
             change = self._calculate_change(
-                entity_id, "bias_score",
-                previous_metrics["bias_score"],
-                current_metrics["bias_score"],
-                self.thresholds["bias_score"]
+                entity_id, "normalized_bias_index",
+                previous_metrics["normalized_bias_index"],
+                current_metrics["normalized_bias_index"],
+                self.thresholds["normalized_bias_index"]
             )
             if change:
                 changes.append(change)
 
-        # センチメントスコアの変化チェック
-        if "sentiment_score" in current_metrics and "sentiment_score" in previous_metrics:
-            change = self._calculate_change(
-                entity_id, "sentiment_score",
-                previous_metrics["sentiment_score"],
-                current_metrics["sentiment_score"],
-                self.thresholds["sentiment_score"]
-            )
-            if change:
-                changes.append(change)
-
-        # ランキングの変化チェック
-        if "ranking" in current_metrics and "ranking" in previous_metrics:
+        # 平均順位の変化チェック
+        if "avg_rank" in current_metrics and "avg_rank" in previous_metrics:
             change = self._calculate_ranking_change(
                 entity_id,
-                previous_metrics["ranking"],
-                current_metrics["ranking"]
+                previous_metrics["avg_rank"],
+                current_metrics["avg_rank"]
             )
             if change:
                 changes.append(change)
 
-        # 公平性スコアの変化チェック
-        if "fairness_score" in current_metrics and "fairness_score" in previous_metrics:
+        # サービス公平性スコアの変化チェック
+        if "service_fairness" in current_metrics and "service_fairness" in previous_metrics:
             change = self._calculate_change(
-                entity_id, "fairness_score",
-                previous_metrics["fairness_score"],
-                current_metrics["fairness_score"],
-                self.thresholds["fairness_score"]
+                entity_id, "service_fairness",
+                previous_metrics["service_fairness"],
+                current_metrics["service_fairness"],
+                self.thresholds["service_fairness"]
             )
             if change:
                 changes.append(change)
 
-        # 中立性スコアの変化チェック
-        if "neutrality_score" in current_metrics and "neutrality_score" in previous_metrics:
+        # 企業公平性スコアの変化チェック
+        if "enterprise_fairness" in current_metrics and "enterprise_fairness" in previous_metrics:
             change = self._calculate_change(
-                entity_id, "neutrality_score",
-                previous_metrics["neutrality_score"],
-                current_metrics["neutrality_score"],
-                self.thresholds["neutrality_score"]
+                entity_id, "enterprise_fairness",
+                previous_metrics["enterprise_fairness"],
+                current_metrics["enterprise_fairness"],
+                self.thresholds["enterprise_fairness"]
             )
             if change:
                 changes.append(change)
@@ -212,45 +200,45 @@ class SimpleChangeDetector:
             logger.error(f"変化計算エラー ({entity_id}, {metric_name}): {e}")
             return None
 
-    def _calculate_ranking_change(self, entity_id: str, previous_ranking: int, current_ranking: int) -> Optional[Dict]:
+    def _calculate_ranking_change(self, entity_id: str, previous_ranking: float, current_ranking: float) -> Optional[Dict]:
         """
-        ランキングの変化を計算
+        平均順位の変化を計算
 
         Parameters:
         -----------
         entity_id : str
             エンティティID
-        previous_ranking : int
-            前回のランキング
-        current_ranking : int
-            今回のランキング
+        previous_ranking : float
+            前回の平均順位
+        current_ranking : float
+            今回の平均順位
 
         Returns:
         --------
         Optional[Dict]
-            ランキング変化データ（閾値を超えた場合のみ）
+            平均順位変化データ（閾値を超えた場合のみ）
         """
         try:
             ranking_change = abs(current_ranking - previous_ranking)
 
             # 閾値を超えた場合のみ変化として記録
-            if ranking_change >= self.thresholds["ranking_change"]:
+            if ranking_change >= self.thresholds["avg_rank"]:
                 change_type = "improved" if current_ranking < previous_ranking else "declined"
 
                 return {
                     "entity": entity_id,
                     "type": change_type,
-                    "metric": "ranking",
+                    "metric": "avg_rank",
                     "previous_value": previous_ranking,
                     "current_value": current_ranking,
                     "change_rate": ranking_change,
-                    "significance": self._get_significance_level(ranking_change * 10)  # ランキング変化をスケール調整
+                    "significance": self._get_significance_level(ranking_change * 10)  # 平均順位変化をスケール調整
                 }
 
             return None
 
         except Exception as e:
-            logger.error(f"ランキング変化計算エラー ({entity_id}): {e}")
+            logger.error(f"平均順位変化計算エラー ({entity_id}): {e}")
             return None
 
     def _get_significance_level(self, change_rate: float) -> str:
