@@ -55,6 +55,11 @@ on:
         required: false
         default: true
         type: boolean
+      run_sns_posting:
+        description: 'SNS投稿機能を実行'
+        required: false
+        default: true
+        type: boolean
 
 
 jobs:
@@ -76,6 +81,14 @@ jobs:
       RUNS_COUNT: ${{ github.event.inputs.runs_count || '15' }}
       # ストレージモード設定（バイアス分析用）
       STORAGE_MODE: auto
+      # SNS投稿機能設定
+      TWITTER_POSTING_ENABLED: ${{ secrets.TWITTER_POSTING_ENABLED || 'false' }}
+      SNS_MONITORING_ENABLED: ${{ secrets.SNS_MONITORING_ENABLED || 'false' }}
+      TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+      TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+      TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+      TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+      TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -87,6 +100,8 @@ jobs:
           pip install -r requirements-github-actions.txt
           # CloudWatch連携用のAWS SDKをインストール
           pip install boto3 watchtower
+          # SNS投稿機能用の依存関係
+          pip install tweepy
       - name: Add src to PYTHONPATH
         run: |
           echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
@@ -103,6 +118,7 @@ jobs:
           echo "実行環境: GitHub Actions" >> logs/execution.log
           echo "日付: ${{ env.TODAY_DATE }}" >> logs/execution.log
           echo "実行回数: ${{ env.RUNS_COUNT }}" >> logs/execution.log
+          echo "SNS投稿機能: ${{ env.TWITTER_POSTING_ENABLED }}" >> logs/execution.log
           echo "----------------------------------------" >> logs/execution.log
           # エラー追跡用ファイルを作成
           echo "0" > logs/error_count.txt
@@ -222,55 +238,37 @@ jobs:
 
         continue-on-error: true
 
+      # SNS投稿機能ステップ（分析完了後の最後のステップ）
+      - name: Run SNS posting for bias changes
+        id: run_sns_posting
+        if: ${{ (github.event_name == 'schedule' || github.event.inputs.run_sns_posting == 'true') && steps.run_bias_analysis.outcome == 'success' }}
+        run: |
+          echo "開始: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
+          echo "=== SNS投稿機能設定 ===" | tee -a logs/sns_posting.log
+          echo "TWITTER_POSTING_ENABLED: ${{ env.TWITTER_POSTING_ENABLED }}" | tee -a logs/sns_posting.log
+          echo "SNS_MONITORING_ENABLED: ${{ env.SNS_MONITORING_ENABLED }}" | tee -a logs/sns_posting.log
+          echo "分析日付: ${{ env.TODAY_DATE }}" | tee -a logs/sns_posting.log
+          echo "=== SNS投稿機能実行 ===" | tee -a logs/sns_posting.log
 
+          # SNS投稿機能のテスト実行
+          if python scripts/test_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
+            echo "完了: SNS投稿機能テスト ($(date))" | tee -a logs/execution.log
 
-      # # Phase1可視化テスト
-      # - name: Run Phase1 visualization tests
-      #   run: |
-      #     echo "開始: Phase1可視化テスト ($(date))" | tee -a logs/execution.log
-      #     if python scripts/test_generate_visuals_phase1.py 2>&1 | tee -a logs/phase1_visual_test.log; then
-      #       echo "完了: Phase1可視化テスト ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: Phase1可視化テストに失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #   continue-on-error: false
-
-      # # Phase2可視化テスト
-      # - name: Run Phase2 visualization tests
-      #   run: |
-      #     echo "開始: Phase2可視化テスト ($(date))" | tee -a logs/execution.log
-      #     if python scripts/test_generate_visuals_phase2.py 2>&1 | tee -a logs/phase2_visual_test.log; then
-      #       echo "完了: Phase2可視化テスト ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: Phase2可視化テストに失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #   continue-on-error: false
-
-      # # Phase3インタラクティブ可視化テスト
-      # - name: Run Phase3 interactive visualization tests
-      #   run: |
-      #     echo "開始: Phase3インタラクティブ可視化テスト ($(date))" | tee -a logs/execution.log
-      #     if python scripts/test_generate_visuals_phase3.py 2>&1 | tee -a logs/phase3_interactive_test.log; then
-      #       echo "完了: Phase3インタラクティブ可視化テスト ($(date))" | tee -a logs/execution.log
-      #     else
-      #       echo "エラー: Phase3インタラクティブ可視化テストに失敗しました ($(date))" | tee -a logs/execution.log
-      #       echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-      #       exit 1
-      #     fi
-      #   continue-on-error: false
-
-      # 🗑️ 削除済み分析ステップ (2025年1月4日統合完了)
-      # 以下の分析は全て bias_analysis_engine.py に統合済み:
-      # - bias_sentiment_metrics → bias_analysis_engine.py
-      # - ranking_metrics → bias_analysis_engine.py
-      # - serp_metrics → bias_analysis_engine.py
-      # - integrated_metrics → bias_analysis_engine.py
-      # - bias_ranking_pipeline → bias_analysis_engine.py
-      # 統合後は scripts/run_bias_analysis.py 経由で全分析を実行
+                         # 実際のSNS投稿機能実行（テスト成功時のみ）
+             echo "=== 実際のSNS投稿機能実行 ===" | tee -a logs/sns_posting.log
+             if python -c "import sys; sys.path.append('.'); from src.sns.bias_monitor import BiasMonitor; from src.utils.storage_utils import load_json_from_s3_integrated; import logging; logging.basicConfig(level=logging.INFO); logger = logging.getLogger(__name__); current_date = '${{ env.TODAY_DATE }}'; current_data = load_json_from_s3_integrated(current_date, 'bias_analysis_results.json'); monitor = BiasMonitor() if current_data else None; changes = monitor.monitor_changes(current_date, current_data) if monitor else []; print(f'監視完了: {len(changes)}件の変化を検知'); [print(f'変化 {i+1}: {change.get(\"type\")} - {change.get(\"entity\")}') for i, change in enumerate(changes)]" 2>&1 | tee -a logs/sns_posting.log; then
+              echo "完了: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
+            else
+              echo "エラー: SNS投稿機能実行に失敗しました ($(date))" | tee -a logs/execution.log
+              echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+              exit 1
+            fi
+          else
+            echo "エラー: SNS投稿機能テストに失敗しました ($(date))" | tee -a logs/execution.log
+            echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
+            exit 1
+          fi
+        continue-on-error: true
 
       # ログをCloudWatchにアップロード
       - name: Upload logs to CloudWatch

@@ -2,332 +2,263 @@
 # coding: utf-8
 
 """
-S3データ読み込みクラス
+S3データローダー
 
-直前の分析データをS3から取得し、変化検知のための比較データを提供します。
+SNS投稿機能で使用するためのS3データ読み込み機能を提供します。
+既存のHybridDataLoaderを活用してS3から分析結果を読み込みます。
 """
 
-import os
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Optional, List
-from pathlib import Path
+from typing import Dict, List, Optional
+from datetime import datetime
 
-from src.utils.storage_utils import load_json_from_s3_integrated
-from src.utils.storage_config import is_s3_enabled
+from src.analysis.hybrid_data_loader import HybridDataLoader
 
 logger = logging.getLogger(__name__)
 
 
 class S3DataLoader:
-    """S3から分析データを読み込むクラス"""
+    """S3データローダー（SNS投稿機能用）"""
 
-    def __init__(self, fallback_days: int = 3):
+    def __init__(self, storage_mode: str = "auto"):
         """
         Parameters:
         -----------
-        fallback_days : int
-            データが見つからない場合の遡及日数（デフォルト: 3日）
+        storage_mode : str
+            ストレージモード（"local", "s3", "auto"）
         """
-        self.fallback_days = fallback_days
-        self.s3_enabled = is_s3_enabled()
+        self.hybrid_loader = HybridDataLoader(storage_mode)
+        self.storage_mode = storage_mode
 
-        if not self.s3_enabled:
-            logger.warning("S3が無効です。環境変数を確認してください。")
+        logger.info(f"S3DataLoader初期化: mode={storage_mode}")
 
-    def get_previous_data(self, current_date: str) -> Optional[Dict]:
+    def load_analysis_results(self, date: str) -> Optional[Dict]:
         """
-        直前の分析データをS3から取得（今回の一つ前のデータ）
-
-        Parameters:
-        -----------
-        current_date : str
-            現在の分析日（YYYYMMDD形式）
-
-        Returns:
-        --------
-        Optional[Dict]
-            直前の分析データ。取得できない場合はNone
-        """
-        if not self.s3_enabled:
-            logger.error("S3が無効のため、直前データを取得できません")
-            return None
-
-        try:
-            # 直前データを取得（1日前から遡及）
-            current_dt = datetime.strptime(current_date, "%Y%m%d")
-
-            # 1日前から遡及して直前のデータを探す
-            for days_back in range(1, self.fallback_days + 1):
-                target_date = current_dt - timedelta(days=days_back)
-                target_date_str = target_date.strftime("%Y%m%d")
-
-                logger.info(f"直前データを取得中: {target_date_str} ({days_back}日前)")
-
-                data = load_json_from_s3_integrated(target_date_str, "bias_analysis_results.json")
-
-                if data:
-                    logger.info(f"直前データ取得成功: {target_date_str}")
-                    return data
-
-            logger.warning(f"直前{self.fallback_days}日間でデータが見つかりません")
-            return None
-
-        except Exception as e:
-            logger.error(f"直前データ取得エラー: {e}")
-            return None
-
-    def get_specific_previous_data(self, current_date: str, days_back: int) -> Optional[Dict]:
-        """
-        指定日前の分析データをS3から取得
-
-        Parameters:
-        -----------
-        current_date : str
-            現在の分析日（YYYYMMDD形式）
-        days_back : int
-            何日前のデータを取得するか
-
-        Returns:
-        --------
-        Optional[Dict]
-            指定日前の分析データ。取得できない場合はNone
-        """
-        if not self.s3_enabled:
-            logger.error("S3が無効のため、過去データを取得できません")
-            return None
-
-        try:
-            # 指定日前の日付を計算
-            current_dt = datetime.strptime(current_date, "%Y%m%d")
-            target_date = current_dt - timedelta(days=days_back)
-            target_date_str = target_date.strftime("%Y%m%d")
-
-            logger.info(f"{days_back}日前のデータを取得中: {target_date_str}")
-
-            data = load_json_from_s3_integrated(target_date_str, "bias_analysis_results.json")
-
-            if data:
-                logger.info(f"{days_back}日前のデータ取得成功: {target_date_str}")
-                return data
-            else:
-                logger.warning(f"{days_back}日前のデータが見つかりません: {target_date_str}")
-                return self._get_fallback_data(current_date, days_back)
-
-        except Exception as e:
-            logger.error(f"{days_back}日前のデータ取得エラー: {e}")
-            return self._get_fallback_data(current_date, days_back)
-
-    def _get_fallback_data(self, current_date: str, target_days_back: int) -> Optional[Dict]:
-        """
-        フォールバックデータを取得（指定日付の前後で遡及）
-
-        Parameters:
-        -----------
-        current_date : str
-            現在の分析日（YYYYMMDD形式）
-        target_days_back : int
-            目標の遡及日数
-
-        Returns:
-        --------
-        Optional[Dict]
-            フォールバックデータ。取得できない場合はNone
-        """
-        current_dt = datetime.strptime(current_date, "%Y%m%d")
-
-        # 目標日付の前後でデータを探す
-        search_range = max(1, self.fallback_days // 2)
-
-        for offset in range(-search_range, search_range + 1):
-            days_back = target_days_back + offset
-            if days_back < 1:
-                continue
-
-            fallback_date = current_dt - timedelta(days=days_back)
-            fallback_date_str = fallback_date.strftime("%Y%m%d")
-
-            try:
-                logger.info(f"フォールバックデータを取得中: {fallback_date_str} ({days_back}日前)")
-
-                data = load_json_from_s3_integrated(fallback_date_str, "bias_analysis_results.json")
-
-                if data:
-                    logger.info(f"フォールバックデータ取得成功: {fallback_date_str}")
-                    return data
-
-            except Exception as e:
-                logger.warning(f"フォールバックデータ取得失敗 {fallback_date_str}: {e}")
-                continue
-
-        logger.error(f"フォールバックデータを取得できませんでした（{target_days_back}日前の前後{search_range}日間）")
-        return None
-
-    def get_comparison_data(self, current_date: str, comparison_days: int = 1) -> Optional[Dict]:
-        """
-        比較用の過去データを取得
-
-        Parameters:
-        -----------
-        current_date : str
-            現在の分析日（YYYYMMDD形式）
-        comparison_days : int
-            比較対象の日数（デフォルト: 1日前）
-
-        Returns:
-        --------
-        Optional[Dict]
-            比較用データ。取得できない場合はNone
-        """
-        return self.get_specific_previous_data(current_date, comparison_days)
-
-    def get_historical_data(self, date: str) -> Optional[Dict]:
-        """
-        指定日の分析データを取得
+        指定日付の分析結果を読み込み
 
         Parameters:
         -----------
         date : str
-            取得したい日付（YYYYMMDD形式）
+            日付（YYYYMMDD形式）
 
         Returns:
         --------
         Optional[Dict]
-            指定日の分析データ。取得できない場合はNone
+            分析結果データ（読み込み失敗時はNone）
         """
-        if not self.s3_enabled:
-            logger.error("S3が無効のため、履歴データを取得できません")
+        try:
+            results = self.hybrid_loader.load_analysis_results(date)
+            logger.info(f"分析結果読み込み成功: {date}")
+            return results
+        except Exception as e:
+            logger.error(f"分析結果読み込み失敗: {date}, エラー: {e}")
             return None
 
+    def load_integrated_data(self, date: str) -> Optional[Dict]:
+        """
+        指定日付の統合データを読み込み
+
+        Parameters:
+        -----------
+        date : str
+            日付（YYYYMMDD形式）
+
+        Returns:
+        --------
+        Optional[Dict]
+            統合データ（読み込み失敗時はNone）
+        """
         try:
-            logger.info(f"履歴データを取得中: {date}")
+            data = self.hybrid_loader.load_integrated_data(date)
+            logger.info(f"統合データ読み込み成功: {date}")
+            return data
+        except Exception as e:
+            logger.error(f"統合データ読み込み失敗: {date}, エラー: {e}")
+            return None
 
-            data = load_json_from_s3_integrated(date, "bias_analysis_results.json")
+    def list_available_dates(self) -> List[str]:
+        """
+        利用可能な日付のリストを取得
 
-            if data:
-                logger.info(f"履歴データ取得成功: {date}")
-                return data
+        Returns:
+        --------
+        List[str]
+            利用可能な日付のリスト（YYYYMMDD形式）
+        """
+        try:
+            dates = self.hybrid_loader.list_available_dates()
+            logger.info(f"利用可能日付数: {len(dates)}件")
+            return dates
+        except Exception as e:
+            logger.error(f"利用可能日付取得失敗: {e}")
+            return []
+
+    def get_latest_analysis_date(self) -> Optional[str]:
+        """
+        最新の分析日付を取得
+
+        Returns:
+        --------
+        Optional[str]
+            最新の分析日付（YYYYMMDD形式、取得失敗時はNone）
+        """
+        try:
+            dates = self.list_available_dates()
+            if dates:
+                latest_date = max(dates)
+                logger.info(f"最新分析日付: {latest_date}")
+                return latest_date
             else:
-                logger.warning(f"履歴データが見つかりません: {date}")
+                logger.warning("利用可能な分析日付が見つかりません")
+                return None
+        except Exception as e:
+            logger.error(f"最新分析日付取得失敗: {e}")
+            return None
+
+    def get_previous_analysis_date(self, current_date: str) -> Optional[str]:
+        """
+        指定日付の前回の分析日付を取得
+
+        Parameters:
+        -----------
+        current_date : str
+            現在の日付（YYYYMMDD形式）
+
+        Returns:
+        --------
+        Optional[str]
+            前回の分析日付（YYYYMMDD形式、取得失敗時はNone）
+        """
+        try:
+            dates = self.list_available_dates()
+            if not dates:
+                return None
+
+            # 現在日付より前の日付をフィルタリング
+            previous_dates = [d for d in dates if d < current_date]
+
+            if previous_dates:
+                previous_date = max(previous_dates)
+                logger.info(f"前回分析日付: {previous_date} (現在: {current_date})")
+                return previous_date
+            else:
+                logger.info(f"前回の分析日付が見つかりません: {current_date}")
                 return None
 
         except Exception as e:
-            logger.error(f"履歴データ取得エラー {date}: {e}")
+            logger.error(f"前回分析日付取得失敗: {e}")
             return None
 
-    def get_available_dates(self, start_date: str, end_date: str) -> List[str]:
+    def load_comparison_data(self, current_date: str) -> Optional[Dict]:
         """
-        指定期間内で利用可能な日付のリストを取得
+        比較用のデータ（前回と今回）を読み込み
 
         Parameters:
         -----------
-        start_date : str
-            開始日（YYYYMMDD形式）
-        end_date : str
-            終了日（YYYYMMDD形式）
+        current_date : str
+            現在の分析日付（YYYYMMDD形式）
 
         Returns:
         --------
-        List[str]
-            利用可能な日付のリスト
+        Optional[Dict]
+            比較データ {"previous": {...}, "current": {...}}
         """
-        if not self.s3_enabled:
-            logger.error("S3が無効のため、利用可能日付を取得できません")
-            return []
-
         try:
-            start_dt = datetime.strptime(start_date, "%Y%m%d")
-            end_dt = datetime.strptime(end_date, "%Y%m%d")
+            # 現在のデータを読み込み
+            current_data = self.load_analysis_results(current_date)
+            if not current_data:
+                logger.error(f"現在の分析結果を読み込めません: {current_date}")
+                return None
 
-            available_dates = []
-            current_dt = start_dt
+            # 前回の日付を取得
+            previous_date = self.get_previous_analysis_date(current_date)
+            if not previous_date:
+                logger.info(f"前回の分析日付が見つからないため、比較データなし: {current_date}")
+                return {
+                    "previous": None,
+                    "current": current_data
+                }
 
-            while current_dt <= end_dt:
-                date_str = current_dt.strftime("%Y%m%d")
+            # 前回のデータを読み込み
+            previous_data = self.load_analysis_results(previous_date)
+            if not previous_data:
+                logger.warning(f"前回の分析結果を読み込めません: {previous_date}")
+                return {
+                    "previous": None,
+                    "current": current_data
+                }
 
-                try:
-                    data = load_json_from_s3_integrated(date_str, "bias_analysis_results.json")
-                    if data:
-                        available_dates.append(date_str)
-                except:
-                    pass
-
-                current_dt += timedelta(days=1)
-
-            logger.info(f"利用可能日付数: {len(available_dates)} ({start_date} - {end_date})")
-            return available_dates
+            logger.info(f"比較データ読み込み成功: {previous_date} → {current_date}")
+            return {
+                "previous": previous_data,
+                "current": current_data,
+                "previous_date": previous_date,
+                "current_date": current_date
+            }
 
         except Exception as e:
-            logger.error(f"利用可能日付取得エラー: {e}")
-            return []
+            logger.error(f"比較データ読み込み失敗: {e}")
+            return None
 
-    def get_recent_available_dates(self, days: int = 7) -> List[str]:
+    def extract_entity_metrics(self, analysis_results: Dict) -> Dict:
         """
-        直近の利用可能な日付のリストを取得
+        分析結果からエンティティ別の指標を抽出
 
         Parameters:
         -----------
-        days : int
-            遡及する日数（デフォルト: 7日）
+        analysis_results : Dict
+            分析結果データ
 
         Returns:
         --------
-        List[str]
-            直近の利用可能な日付のリスト
+        Dict
+            エンティティ別指標データ
         """
-        end_date = datetime.now().strftime("%Y%m%d")
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        try:
+            entity_metrics = {}
 
-        return self.get_available_dates(start_date, end_date)
+            # 分析結果からエンティティ別データを抽出
+            if "entity_analysis" in analysis_results:
+                for entity, data in analysis_results["entity_analysis"].items():
+                    metrics = {}
 
-    def validate_data_structure(self, data: Dict) -> bool:
+                    # バイアススコア
+                    if "bias_score" in data:
+                        metrics["bias_score"] = data["bias_score"]
+
+                    # センチメントスコア
+                    if "sentiment_score" in data:
+                        metrics["sentiment_score"] = data["sentiment_score"]
+
+                    # ランキング
+                    if "ranking" in data:
+                        metrics["ranking"] = data["ranking"]
+
+                    # 公平性スコア
+                    if "fairness_score" in data:
+                        metrics["fairness_score"] = data["fairness_score"]
+
+                    # 中立性スコア
+                    if "neutrality_score" in data:
+                        metrics["neutrality_score"] = data["neutrality_score"]
+
+                    if metrics:
+                        entity_metrics[entity] = metrics
+
+            logger.info(f"エンティティ指標抽出: {len(entity_metrics)}件")
+            return entity_metrics
+
+        except Exception as e:
+            logger.error(f"エンティティ指標抽出失敗: {e}")
+            return {}
+
+    def get_storage_mode(self) -> str:
         """
-        データ構造の妥当性を検証
-
-        Parameters:
-        -----------
-        data : Dict
-            検証するデータ
+        現在のストレージモードを取得
 
         Returns:
         --------
-        bool
-            妥当な場合はTrue、そうでなければFalse
+        str
+            ストレージモード
         """
-        if not data:
-            return False
-
-        # 必須フィールドの存在チェック
-        required_fields = ["metadata", "categories"]
-        for field in required_fields:
-            if field not in data:
-                logger.warning(f"必須フィールドが存在しません: {field}")
-                return False
-
-        # カテゴリデータの存在チェック
-        categories = data.get("categories", {})
-        if not categories:
-            logger.warning("カテゴリデータが存在しません")
-            return False
-
-        # 各カテゴリにサブカテゴリとエンティティが存在するかチェック
-        for category_name, category_data in categories.items():
-            if not isinstance(category_data, dict):
-                continue
-
-            subcategories = category_data.get("subcategories", {})
-            if not subcategories:
-                logger.warning(f"カテゴリ {category_name} にサブカテゴリが存在しません")
-                continue
-
-            for subcategory_name, subcategory_data in subcategories.items():
-                if not isinstance(subcategory_data, dict):
-                    continue
-
-                entities = subcategory_data.get("entities", [])
-                if not entities:
-                    logger.warning(f"サブカテゴリ {subcategory_name} にエンティティが存在しません")
-                    continue
-
-        logger.info("データ構造の妥当性検証を通過しました")
-        return True
+        return self.storage_mode

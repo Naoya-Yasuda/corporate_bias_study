@@ -5,7 +5,7 @@
 X/Twitter API連携クラス
 
 X（旧Twitter）APIを使用した投稿機能を提供します。
-現在はプレースホルダー実装で、将来的にX APIを統合します。
+tweepyライブラリを使用した実際のAPI連携を実装しています。
 """
 
 import os
@@ -55,17 +55,29 @@ class TwitterClient:
             logger.warning("X API認証情報が不完全です。環境変数を確認してください。")
 
     def _authenticate(self):
-        """X API認証（将来的に実装）"""
+        """X API認証"""
         try:
-            # 将来的にtweepyライブラリを使用した認証を実装
-            # import tweepy
-            # auth = tweepy.OAuthHandler(self.api_key, self.api_secret)
-            # auth.set_access_token(self.access_token, self.access_token_secret)
-            # self.api = tweepy.API(auth)
-            # self.client = tweepy.Client(...)
+            import tweepy
 
-            logger.info("X API認証成功（シミュレーション）")
+            # OAuth 1.0a認証（投稿用）
+            auth = tweepy.OAuthHandler(self.api_key, self.api_secret)
+            auth.set_access_token(self.access_token, self.access_token_secret)
+            self.api = tweepy.API(auth)
 
+            # OAuth 2.0認証（読み取り用）
+            self.client = tweepy.Client(
+                bearer_token=self.bearer_token,
+                consumer_key=self.api_key,
+                consumer_secret=self.api_secret,
+                access_token=self.access_token,
+                access_token_secret=self.access_token_secret
+            )
+
+            logger.info("X API認証成功")
+
+        except ImportError:
+            logger.error("tweepyライブラリがインストールされていません。pip install tweepy を実行してください。")
+            self.is_authenticated = False
         except Exception as e:
             logger.error(f"X API認証失敗: {e}")
             self.is_authenticated = False
@@ -96,18 +108,25 @@ class TwitterClient:
                 text = text[:277] + "..."
                 logger.warning("投稿テキストが文字数制限を超えたため、切り詰めました")
 
-            # 将来的に実際のX API投稿を実装
-            # response = self.client.create_tweet(text=text)
+            # 実際のX API投稿を実行
+            response = self.client.create_tweet(text=text)
 
-            # 現在はシミュレーション
-            logger.info(f"X投稿実行（シミュレーション）: {text[:50]}...")
+            if response and response.data:
+                tweet_id = response.data['id']
+                logger.info(f"X投稿成功: {tweet_id}")
 
-            return {
-                "success": True,
-                "tweet_id": f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "text": text,
-                "created_at": datetime.now()
-            }
+                return {
+                    "success": True,
+                    "tweet_id": str(tweet_id),
+                    "text": text,
+                    "created_at": datetime.now()
+                }
+            else:
+                logger.error("X API投稿レスポンスが不正です")
+                return {
+                    "success": False,
+                    "error": "投稿レスポンスが不正です"
+                }
 
         except Exception as e:
             logger.error(f"X投稿失敗: {e}")
@@ -151,20 +170,32 @@ class TwitterClient:
                     "error": f"画像ファイルが見つかりません: {image_path}"
                 }
 
-            # 将来的に実際のX API画像投稿を実装
-            # media = self.api.media_upload(image_path)
-            # response = self.client.create_tweet(text=text, media_ids=[media.media_id])
+            # 画像をアップロード
+            media = self.api.media_upload(image_path)
 
-            # 現在はシミュレーション
-            logger.info(f"X画像投稿実行（シミュレーション）: {text[:50]}... + {image_path}")
+            # 画像付きツイートを投稿
+            response = self.client.create_tweet(
+                text=text,
+                media_ids=[media.media_id]
+            )
 
-            return {
-                "success": True,
-                "tweet_id": f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "text": text,
-                "image_path": image_path,
-                "created_at": datetime.now()
-            }
+            if response and response.data:
+                tweet_id = response.data['id']
+                logger.info(f"X画像投稿成功: {tweet_id}")
+
+                return {
+                    "success": True,
+                    "tweet_id": str(tweet_id),
+                    "text": text,
+                    "image_path": image_path,
+                    "created_at": datetime.now()
+                }
+            else:
+                logger.error("X API画像投稿レスポンスが不正です")
+                return {
+                    "success": False,
+                    "error": "画像投稿レスポンスが不正です"
+                }
 
         except Exception as e:
             logger.error(f"X画像投稿失敗: {e}")
@@ -207,21 +238,37 @@ class TwitterClient:
                     text = text[:277] + "..."
                 validated_texts.append(text)
 
-            # 将来的に実際のX APIスレッド投稿を実装
-            # tweet_ids = []
-            # for text in validated_texts:
-            #     response = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_ids[-1] if tweet_ids else None)
-            #     tweet_ids.append(response.data['id'])
+            # スレッド投稿を実行
+            tweet_ids = []
+            in_reply_to_tweet_id = None
 
-            # 現在はシミュレーション
-            logger.info(f"Xスレッド投稿実行（シミュレーション）: {len(validated_texts)}件")
+            for text in validated_texts:
+                response = self.client.create_tweet(
+                    text=text,
+                    in_reply_to_tweet_id=in_reply_to_tweet_id
+                )
 
-            return {
-                "success": True,
-                "tweet_ids": [f"sim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}" for i in range(len(validated_texts))],
-                "texts": validated_texts,
-                "created_at": datetime.now()
-            }
+                if response and response.data:
+                    tweet_id = response.data['id']
+                    tweet_ids.append(str(tweet_id))
+                    in_reply_to_tweet_id = tweet_id
+                else:
+                    logger.error(f"スレッド投稿の一部が失敗: {text[:50]}...")
+                    break
+
+            if tweet_ids:
+                logger.info(f"Xスレッド投稿成功: {len(tweet_ids)}件")
+                return {
+                    "success": True,
+                    "tweet_ids": tweet_ids,
+                    "texts": validated_texts,
+                    "created_at": datetime.now()
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "スレッド投稿に失敗しました"
+                }
 
         except Exception as e:
             logger.error(f"Xスレッド投稿失敗: {e}")
@@ -246,18 +293,25 @@ class TwitterClient:
             }
 
         try:
-            # 将来的に実際のX APIユーザー情報取得を実装
-            # user = self.client.get_me()
+            # 実際のX APIユーザー情報取得を実行
+            user = self.client.get_me()
 
-            # 現在はシミュレーション
-            return {
-                "success": True,
-                "user_id": "sim_user_id",
-                "username": "sim_username",
-                "name": "Corporate Bias Monitor",
-                "followers_count": 0,
-                "following_count": 0
-            }
+            if user and user.data:
+                user_data = user.data
+                return {
+                    "success": True,
+                    "user_id": str(user_data.id),
+                    "username": user_data.username,
+                    "name": user_data.name,
+                    "followers_count": getattr(user_data, 'public_metrics', {}).get('followers_count', 0),
+                    "following_count": getattr(user_data, 'public_metrics', {}).get('following_count', 0)
+                }
+            else:
+                logger.error("X APIユーザー情報取得レスポンスが不正です")
+                return {
+                    "success": False,
+                    "error": "ユーザー情報レスポンスが不正です"
+                }
 
         except Exception as e:
             logger.error(f"ユーザー情報取得失敗: {e}")
@@ -282,15 +336,21 @@ class TwitterClient:
             }
 
         try:
-            # 将来的に実際のX APIレート制限チェックを実装
-            # rate_limit_status = self.api.rate_limit_status()
+            # 実際のX APIレート制限チェックを実行
+            rate_limit_status = self.api.rate_limit_status()
 
-            # 現在はシミュレーション
+            # 投稿関連のレート制限を取得
+            post_limits = rate_limit_status.get('resources', {}).get('statuses', {}).get('/statuses/update', {})
+
+            remaining_requests = post_limits.get('remaining', 0)
+            reset_time = post_limits.get('reset', 0)
+            limit = post_limits.get('limit', 0)
+
             return {
                 "success": True,
-                "remaining_requests": 100,
-                "reset_time": datetime.now().timestamp() + 900,  # 15分後
-                "limit": 300
+                "remaining_requests": remaining_requests,
+                "reset_time": reset_time,
+                "limit": limit
             }
 
         except Exception as e:

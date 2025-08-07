@@ -1,0 +1,44 @@
+# シンプルSNS投稿機能設定ファイル
+
+# 変化検知の閾値設定
+change_thresholds:
+  bias_score: 0.1        # バイアススコアの変化閾値（10%）
+  sentiment_score: 0.15  # センチメントスコアの変化閾値（15%）
+  ranking_change: 3      # ランキング変化閾値（3位以上）
+  fairness_score: 0.1    # 公平性スコアの変化閾値（10%）
+  neutrality_score: 0.1  # 中立性スコアの変化閾値（10%）
+
+# 投稿設定
+posting:
+  enabled: true                    # 投稿機能の有効/無効
+  max_changes_per_post: 5          # 1投稿あたりの最大変化数
+  force_post_on_no_changes: false  # 変化がない場合の強制投稿
+
+# 投稿テンプレート設定
+templates:
+  header: "🔍 企業優遇バイアス分析結果の変化を検知しました\n\n"
+  footer: "\n詳細分析: [URL]\n#企業バイアス #AI分析 #企業優遇 #バイアス監視"
+  no_changes: "📊 企業優遇バイアス分析を実行しましたが、大きな変化は検知されませんでした。\n\n詳細分析: [URL]\n#企業バイアス #AI分析"
+
+# 指標名の日本語マッピング
+metric_names:
+  bias_score: "バイアススコア"
+  sentiment_score: "センチメントスコア"
+  ranking: "ランキング"
+  fairness_score: "公平性スコア"
+  neutrality_score: "中立性スコア"
+  new: "新規追加"
+
+# 変化タイプの日本語マッピング
+change_types:
+  increase: "増加"
+  decrease: "減少"
+  improved: "改善"
+  declined: "悪化"
+  new_entity: "新規追加"
+
+# 重要度レベルの閾値
+significance_thresholds:
+  high: 50    # 50%以上の変化を高重要度
+  medium: 20  # 20%以上の変化を中重要度
+  low: 0      # それ以外を低重要度
