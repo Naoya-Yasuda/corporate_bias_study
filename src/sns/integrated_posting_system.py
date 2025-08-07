@@ -2,10 +2,10 @@
 # coding: utf-8
 
 """
-シンプルな統合投稿システム
+統合投稿システム
 
-変化検知→コンテンツ生成→投稿実行を統合します。
-S3DataLoaderを統合して、実際の分析データを自動取得します。
+S3DataLoaderを統合して、実際の分析データを自動取得し、
+変化検知→コンテンツ生成→投稿実行を行う統合システムです。
 """
 
 import logging
@@ -13,16 +13,16 @@ import os
 from typing import Dict, List, Optional
 from datetime import datetime
 
+from .s3_data_loader import S3DataLoader
 from .simple_change_detector import SimpleChangeDetector
 from .simple_content_generator import SimpleContentGenerator
 from .twitter_client import TwitterClient
-from .s3_data_loader import S3DataLoader
 
 logger = logging.getLogger(__name__)
 
 
-class SimplePostingSystem:
-    """シンプルな統合投稿システム（S3DataLoader統合版）"""
+class IntegratedPostingSystem:
+    """統合投稿システム（S3DataLoader統合版）"""
 
     def __init__(self, storage_mode: str = "auto", thresholds: Optional[Dict] = None, max_changes_per_post: int = 5):
         """
@@ -112,14 +112,14 @@ class SimplePostingSystem:
                 "error": str(e)
             }
 
-    def post_changes_for_date(self, target_date: str, force_post: bool = False) -> Dict:
+    def post_specific_date_changes(self, target_date: str, force_post: bool = False) -> Dict:
         """
         指定日付の分析結果の変化を検知して投稿
 
         Parameters:
         -----------
         target_date : str
-            対象の分析日付（YYYYMMDD形式）
+            対象日付（YYYYMMDD形式）
         force_post : bool
             強制投稿フラグ（変化がなくても投稿する場合）
 
@@ -238,78 +238,7 @@ class SimplePostingSystem:
                 "error": str(e)
             }
 
-    def post_changes(self, previous_data: Dict, current_data: Dict,
-                    analysis_date: Optional[str] = None, force_post: bool = False) -> Dict:
-        """
-        変化を検知して投稿（従来のメソッド - 互換性のため保持）
-
-        Parameters:
-        -----------
-        previous_data : Dict
-            前回の分析結果データ
-        current_data : Dict
-            今回の分析結果データ
-        analysis_date : Optional[str]
-            分析日付（省略時は現在日時）
-        force_post : bool
-            強制投稿フラグ（変化がなくても投稿する場合）
-
-        Returns:
-        --------
-        Dict
-            投稿結果
-        """
-        try:
-            logger.info("変化検知・投稿処理を開始")
-
-            # 1. 変化検知
-            changes = self.detector.detect_changes(previous_data, current_data)
-            logger.info(f"変化検知結果: {len(changes)}件の変化を検出")
-
-            # 2. コンテンツ生成
-            if changes:
-                content = self.generator.generate_post_content(changes, analysis_date)
-                post_type = "changes"
-            elif force_post:
-                content = self.generator.generate_no_changes_content(analysis_date)
-                post_type = "no_changes"
-            else:
-                logger.info("変化が検知されず、強制投稿も指定されていないため投稿をスキップ")
-                return {
-                    "success": True,
-                    "posted": False,
-                    "reason": "no_changes_detected",
-                    "changes_count": 0
-                }
-
-            if not content:
-                logger.error("コンテンツ生成に失敗しました")
-                return {
-                    "success": False,
-                    "posted": False,
-                    "error": "content_generation_failed"
-                }
-
-            # 3. 投稿実行
-            if self.posting_enabled and self.twitter_client.is_authenticated:
-                result = self._execute_actual_post(content, changes, post_type, analysis_date)
-            else:
-                result = self._execute_simulation_post(content, changes, post_type, analysis_date)
-
-            # 4. 結果を記録
-            self._log_posting_result(result, changes, post_type, analysis_date)
-
-            return result
-
-        except Exception as e:
-            logger.error(f"投稿処理エラー: {e}")
-            return {
-                "success": False,
-                "posted": False,
-                "error": str(e)
-            }
-
-    def _execute_actual_post(self, content: str, changes: List[Dict], post_type: str, analysis_date: Optional[str] = None) -> Dict:
+    def _execute_actual_post(self, content: str, changes: List[Dict], post_type: str, analysis_date: str) -> Dict:
         """
         実際のX API投稿を実行
 
@@ -321,7 +250,7 @@ class SimplePostingSystem:
             検知された変化
         post_type : str
             投稿タイプ
-        analysis_date : Optional[str]
+        analysis_date : str
             分析日付
 
         Returns:
@@ -358,7 +287,7 @@ class SimplePostingSystem:
             # エラー時はシミュレーションモードにフォールバック
             return self._execute_simulation_post(content, changes, post_type, analysis_date)
 
-    def _execute_simulation_post(self, content: str, changes: List[Dict], post_type: str, analysis_date: Optional[str] = None) -> Dict:
+    def _execute_simulation_post(self, content: str, changes: List[Dict], post_type: str, analysis_date: str) -> Dict:
         """
         シミュレーション投稿を実行
 
@@ -370,7 +299,7 @@ class SimplePostingSystem:
             検知された変化
         post_type : str
             投稿タイプ
-        analysis_date : Optional[str]
+        analysis_date : str
             分析日付
 
         Returns:
@@ -394,7 +323,7 @@ class SimplePostingSystem:
             "posted_at": datetime.now()
         }
 
-    def _log_posting_result(self, result: Dict, changes: List[Dict], post_type: str, analysis_date: Optional[str] = None):
+    def _log_posting_result(self, result: Dict, changes: List[Dict], post_type: str, analysis_date: str):
         """
         投稿結果をログに記録
 
@@ -406,14 +335,12 @@ class SimplePostingSystem:
             検知された変化
         post_type : str
             投稿タイプ
-        analysis_date : Optional[str]
+        analysis_date : str
             分析日付
         """
         try:
             if result.get("success") and result.get("posted"):
-                logger.info(f"投稿完了: {result.get('tweet_id')} ({post_type})")
-                if analysis_date:
-                    logger.info(f"分析日付: {analysis_date}")
+                logger.info(f"投稿完了: {result.get('tweet_id')} ({post_type}) - 分析日: {analysis_date}")
                 logger.info(f"変化数: {len(changes)}件")
 
                 # 重要な変化をログに記録
@@ -429,6 +356,24 @@ class SimplePostingSystem:
 
         except Exception as e:
             logger.error(f"投稿結果ログ記録エラー: {e}")
+
+    def get_system_status(self) -> Dict:
+        """
+        システム状態を取得
+
+        Returns:
+        --------
+        Dict
+            システム状態
+        """
+        return {
+            "posting_enabled": self.posting_enabled,
+            "twitter_authenticated": self.twitter_client.is_authenticated,
+            "storage_mode": self.s3_loader.get_storage_mode(),
+            "thresholds": self.detector.get_thresholds(),
+            "max_changes_per_post": self.generator.max_changes_per_post,
+            "templates": self.generator.get_templates()
+        }
 
     def test_connection(self) -> Dict:
         """
@@ -467,75 +412,9 @@ class SimplePostingSystem:
                 "error": str(e)
             }
 
-    def get_system_status(self) -> Dict:
+    def list_available_dates(self) -> List[str]:
         """
-        システム状態を取得
-
-        Returns:
-        --------
-        Dict
-            システム状態
-        """
-        return {
-            "posting_enabled": self.posting_enabled,
-            "twitter_authenticated": self.twitter_client.is_authenticated,
-            "storage_mode": self.s3_loader.get_storage_mode(),
-            "thresholds": self.detector.get_thresholds(),
-            "max_changes_per_post": self.generator.max_changes_per_post,
-            "templates": self.generator.get_templates()
-        }
-
-    def update_thresholds(self, new_thresholds: Dict):
-        """
-        閾値を更新
-
-        Parameters:
-        -----------
-        new_thresholds : Dict
-            新しい閾値設定
-        """
-        self.detector.update_thresholds(new_thresholds)
-        logger.info("閾値を更新しました")
-
-    def update_templates(self, new_templates: Dict):
-        """
-        テンプレートを更新
-
-        Parameters:
-        -----------
-        new_templates : Dict
-            新しいテンプレート設定
-        """
-        self.generator.update_templates(new_templates)
-        logger.info("テンプレートを更新しました")
-
-    def update_metric_names(self, new_names: Dict):
-        """
-        指標名マッピングを更新
-
-        Parameters:
-        -----------
-        new_names : Dict
-            新しい指標名マッピング
-        """
-        self.generator.update_metric_names(new_names)
-        logger.info("指標名マッピングを更新しました")
-
-    def update_change_types(self, new_types: Dict):
-        """
-        変化タイプマッピングを更新
-
-        Parameters:
-        -----------
-        new_types : Dict
-            新しい変化タイプマッピング
-        """
-        self.generator.update_change_types(new_types)
-        logger.info("変化タイプマッピングを更新しました")
-
-    def get_available_dates(self) -> List[str]:
-        """
-        利用可能な分析日付を取得
+        利用可能な分析日付のリストを取得
 
         Returns:
         --------

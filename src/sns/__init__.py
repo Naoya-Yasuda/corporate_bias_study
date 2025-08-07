@@ -15,11 +15,13 @@ from .simple_change_detector import SimpleChangeDetector
 from .simple_content_generator import SimpleContentGenerator
 from .simple_posting_system import SimplePostingSystem
 from .s3_data_loader import S3DataLoader
+from .integrated_posting_system import IntegratedPostingSystem
 
 __all__ = [
     "TwitterClient",
     "SimpleChangeDetector",
     "SimpleContentGenerator",
     "SimplePostingSystem",
-    "S3DataLoader"
+    "S3DataLoader",
+    "IntegratedPostingSystem"
 ]

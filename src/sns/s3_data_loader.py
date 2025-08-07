@@ -217,8 +217,53 @@ class S3DataLoader:
         try:
             entity_metrics = {}
 
-            # 分析結果からエンティティ別データを抽出
-            if "entity_analysis" in analysis_results:
+            # sentiment_bias_analysisからエンティティ別データを抽出
+            if "sentiment_bias_analysis" in analysis_results:
+                for category, subcategories in analysis_results["sentiment_bias_analysis"].items():
+                    for subcategory, data in subcategories.items():
+                        if "entities" in data:
+                            for entity, entity_data in data["entities"].items():
+                                metrics = {}
+
+                                # 基本指標
+                                if "basic_metrics" in entity_data:
+                                    basic = entity_data["basic_metrics"]
+                                    if "normalized_bias_index" in basic:
+                                        metrics["bias_score"] = basic["normalized_bias_index"]
+
+                                # ランキング
+                                if "bias_rank" in entity_data:
+                                    metrics["ranking"] = entity_data["bias_rank"]
+
+                                # 統計的有意性
+                                if "statistical_significance" in entity_data:
+                                    stats = entity_data["statistical_significance"]
+                                    if "sign_test_p_value" in stats:
+                                        metrics["p_value"] = stats["sign_test_p_value"]
+
+                                # 効果量
+                                if "effect_size" in entity_data:
+                                    effect = entity_data["effect_size"]
+                                    if "cliffs_delta" in effect:
+                                        metrics["cliffs_delta"] = effect["cliffs_delta"]
+
+                                # 重篤度スコア
+                                if "severity_score" in entity_data:
+                                    severity = entity_data["severity_score"]
+                                    if "severity_score" in severity:
+                                        metrics["severity_score"] = severity["severity_score"]
+
+                                # 安定性指標
+                                if "stability_metrics" in entity_data:
+                                    stability = entity_data["stability_metrics"]
+                                    if "stability_score" in stability:
+                                        metrics["stability_score"] = stability["stability_score"]
+
+                                if metrics:
+                                    entity_metrics[entity] = metrics
+
+            # 従来のentity_analysis形式も対応（後方互換性）
+            elif "entity_analysis" in analysis_results:
                 for entity, data in analysis_results["entity_analysis"].items():
                     metrics = {}
 
