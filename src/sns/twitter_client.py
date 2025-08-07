@@ -149,41 +149,86 @@ class TwitterClient:
                     }
 
             except Exception as v2_error:
-                logger.warning(f"API v2投稿失敗: {v2_error}")
-
-                # API v1.1にフォールバック（Proプラン以上が必要）
-                try:
-                    response = self.api.update_status(text)
-                    tweet_id = response.id
-                    logger.info(f"X投稿成功 (API v1.1): {tweet_id}")
-
-                    return {
-                        "success": True,
-                        "tweet_id": str(tweet_id),
-                        "text": text,
-                        "created_at": datetime.now(),
-                        "api_version": "v1.1"
-                    }
-
-                except Exception as v1_error:
-                    logger.error(f"API v1.1投稿失敗: {v1_error}")
-
-                    # エラーメッセージから詳細情報を抽出
-                    error_msg = str(v1_error)
-                    if "453" in error_msg or "access level" in error_msg.lower():
-                        error_msg = "X APIのアクセスレベルが不足しています。Proプラン以上が必要です。"
-
+                # 429エラーの場合、レート制限情報を取得
+                if "429" in str(v2_error):
+                    rate_limit_info = self._extract_rate_limit_info(v2_error)
                     return {
                         "success": False,
-                        "error": error_msg,
-                        "api_version": "v1.1"
+                        "error": f"レート制限に達しました",
+                        "rate_limit_info": rate_limit_info,
+                        "api_version": "v2"
                     }
+
+                # その他のエラーの場合
+                return {
+                    "success": False,
+                    "error": f"X API v2投稿失敗: {v2_error}",
+                    "api_version": "v2"
+                }
 
         except Exception as e:
             logger.error(f"X投稿失敗: {e}")
             return {
                 "success": False,
                 "error": str(e)
+            }
+
+    def _extract_rate_limit_info(self, error) -> Dict:
+        """
+        エラーからレート制限情報を抽出
+
+        Parameters:
+        -----------
+        error : Exception
+            エラーオブジェクト
+
+        Returns:
+        --------
+        Dict
+            レート制限情報
+        """
+        try:
+            logger.info(f"エラーオブジェクトの型: {type(error)}")
+            logger.info(f"エラーメッセージ: {str(error)}")
+
+            # tweepyのエラーオブジェクトからレスポンス情報を取得
+            if hasattr(error, 'response') and error.response:
+                logger.info(f"レスポンスオブジェクト: {error.response}")
+
+                if hasattr(error.response, 'headers'):
+                    headers = error.response.headers
+                    logger.info(f"レスポンスヘッダー: {headers}")
+
+                    # HTTPヘッダーをそのまま返す
+                    return {
+                        "http_headers": dict(headers),
+                        "rate_limit_headers": {
+                            "x-rate-limit-limit": headers.get('x-rate-limit-limit'),
+                            "x-rate-limit-remaining": headers.get('x-rate-limit-remaining'),
+                            "x-rate-limit-reset": headers.get('x-rate-limit-reset')
+                        }
+                    }
+                else:
+                    logger.info("レスポンスにheaders属性がありません")
+
+            # エラーメッセージから429を検出
+            if "429" in str(error):
+                logger.info("エラーメッセージから429を検出")
+                return {
+                    "error_type": "429 Too Many Requests",
+                    "message": str(error)
+                }
+
+            return {
+                "error_type": "unknown",
+                "message": str(error)
+            }
+
+        except Exception as e:
+            logger.error(f"レート制限情報抽出エラー: {e}")
+            return {
+                "error_type": "extraction_error",
+                "message": str(e)
             }
 
     def post_with_image(self, text: str, image_path: str) -> Dict:
