@@ -200,12 +200,12 @@ def test_simple_posting_system():
         logger.info("指定日付での投稿テスト開始")
         test_data, previous_data = create_test_data()
 
-        # テストデータを直接使用して投稿テスト
+        # テストデータを直接使用して投稿テスト（シミュレーションのみ）
         result = posting_system.post_changes(
             previous_data=previous_data,
             current_data=test_data,
             analysis_date=datetime.now().strftime("%Y%m%d"),
-            force_post=True
+            force_post=False  # 強制投稿を無効化
         )
 
         logger.info(f"テスト投稿結果: {result}")

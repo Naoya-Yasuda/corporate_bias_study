@@ -28,9 +28,9 @@ class SimpleContentGenerator:
 
         # 投稿テンプレート
         self.templates = {
-            "header": "企業優遇バイアス分析結果の変化を検知しました\n\n",
-            "footer": "\n詳細分析: [URL]\n#企業バイアス #AI分析 #企業優遇 #バイアス監視",
-            "no_changes": "📊 企業優遇バイアス分析を実行しましたが、大きな変化は検知されませんでした。\n\n詳細分析: [URL]\n#企業バイアス #AI分析"
+            "header": "🔍 企業優遇バイアス分析結果の変化を検知しました\n\n",
+            "footer": "\n#企業バイアス #AI分析 #企業優遇 #バイアス監視",
+            "no_changes": "📊 企業優遇バイアス分析を実行しましたが、大きな変化は検知されませんでした。\n\n#企業バイアス #AI分析"
         }
 
         # 指標名の日本語マッピング
@@ -85,10 +85,6 @@ class SimpleContentGenerator:
             # コンテンツを生成
             content = self.templates["header"]
 
-            # 分析日付を追加
-            if analysis_date:
-                content += f"分析日: {analysis_date}\n\n"
-
             # 指標別に変化をグループ化
             metric_groups = {}
             for change in limited_changes:
@@ -139,12 +135,7 @@ class SimpleContentGenerator:
         str
             生成された投稿コンテンツ
         """
-        content = self.templates["no_changes"]
-
-        if analysis_date:
-            content = content.replace("詳細分析: [URL]", f"📅 分析日: {analysis_date}\n詳細分析: [URL]")
-
-        return content
+        return self.templates["no_changes"]
 
     def _format_change(self, change: Dict, index: int) -> str:
         """

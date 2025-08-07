@@ -205,7 +205,7 @@ class IntegratedPostingSystem:
                 except Exception as e:
                     logger.error(f"変化検知時のコンテンツ生成エラー: {e}")
                     # フォールバック：シンプルなコンテンツを生成
-                    content = f"🔍 企業優遇バイアス分析結果の変化を検知しました\n\n📅 分析日: {analysis_date}\n\n{len(changes)}件の変化が検知されました\n\n詳細分析: [URL]\n#企業バイアス #AI分析"
+                    content = f"🔍 企業優遇バイアス分析結果の変化を検知しました\n\n{len(changes)}件の変化が検知されました\n\n#企業バイアス #AI分析"
 
             elif force_post:
                 try:
@@ -214,7 +214,7 @@ class IntegratedPostingSystem:
                 except Exception as e:
                     logger.error(f"強制投稿時のコンテンツ生成エラー: {e}")
                     # フォールバック：シンプルなコンテンツを生成
-                    content = f"📊 企業優遇バイアス分析を実行しました\n\n📅 分析日: {analysis_date}\n\n大きな変化は検知されませんでした\n\n詳細分析: [URL]\n#企業バイアス #AI分析"
+                    content = f"📊 企業優遇バイアス分析を実行しました\n\n大きな変化は検知されませんでした\n\n#企業バイアス #AI分析"
             else:
                 logger.info("変化が検知されず、強制投稿も指定されていないため投稿をスキップ")
                 return {
