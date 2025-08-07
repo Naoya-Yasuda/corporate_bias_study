@@ -251,7 +251,7 @@ def test_bias_monitor():
         # BiasMonitorを初期化
         monitor = BiasMonitor(config)
 
-        # 先週データをS3DataLoaderに設定（テスト用）
+        # 直前データをS3DataLoaderに設定（テスト用）
         monitor.s3_loader._test_previous_data = previous_data
 
         # 変化監視テスト
@@ -287,7 +287,7 @@ def test_integration():
         # BiasMonitorを初期化
         monitor = BiasMonitor(config)
 
-        # 先週データをS3DataLoaderに設定（テスト用）
+        # 直前データをS3DataLoaderに設定（テスト用）
         monitor.s3_loader._test_previous_data = previous_data
 
         # 統合テスト実行

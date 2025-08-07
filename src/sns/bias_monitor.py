@@ -86,10 +86,10 @@ class BiasMonitor:
             logger.error("現在のデータ構造が不正です")
             return []
 
-        # 先週データを取得
-        previous_data = self.s3_loader.get_previous_week_data(current_date)
+        # 直前データを取得
+        previous_data = self.s3_loader.get_previous_data(current_date)
         if not previous_data:
-            logger.warning("先週データを取得できませんでした")
+            logger.warning("直前データを取得できませんでした")
             return []
 
         # 変化を検知
@@ -115,7 +115,7 @@ class BiasMonitor:
         current_data : Dict
             現在の分析データ
         previous_data : Dict
-            先週の分析データ
+            直前の分析データ
 
         Returns:
         --------
