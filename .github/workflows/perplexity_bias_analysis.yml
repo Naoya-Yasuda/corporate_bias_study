@@ -241,7 +241,7 @@ jobs:
       # SNS投稿機能ステップ（分析完了後の最後のステップ）
       - name: Run SNS posting for bias changes
         id: run_sns_posting
-        if: ${{ (github.event_name == 'schedule' || github.inputs.run_sns_posting == 'true') && steps.run_bias_analysis.outcome == 'success' }}
+        if: ${{ (github.event_name == 'schedule' || github.event.inputs.run_sns_posting == 'true') && steps.run_bias_analysis.outcome == 'success' }}
         run: |
           echo "開始: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
           echo "=== SNS投稿機能設定 ===" | tee -a logs/sns_posting.log
