@@ -393,16 +393,253 @@
 
 ### 8.3 長期拡張（1年以内）
 - **AI自動化**
-  - 完全自動投稿システム
-  - インテリジェントな内容生成
+  - 投稿内容の自動最適化
+  - エンゲージメント予測AI
+  - 自動応答機能
 
-- **エコシステム構築**
-  - 他研究機関との連携
-  - オープンソース化
+---
+
+## 9. 詳細設計仕様（2025年1月27日追加）
+
+### 9.1 監視対象指標の詳細
+
+#### 9.1.1 NBI（Normalized Bias Index）監視
+- **変化率閾値**: ±20%以上の変化
+- **計算方法**: (current_nbi - previous_nbi) / previous_nbi * 100
+- **統計的有意性**: p < 0.05 かつ |Cliff's Delta| ≥ 0.33
+- **監視対象**: 全カテゴリの全エンティティ
+
+#### 9.1.2 おすすめランキング順位監視
+- **変化閾値**:
+  - 上位3位以内の順位変動
+  - または±3位以上の急激な変化
+- **監視対象**: Google検索ランキング、Perplexityランキング
+- **統計的有意性**: RBO < 0.7 または Kendall Tau < 0.5
+
+#### 9.1.3 サービスレベル公平性スコア監視
+- **変化率閾値**: ±15%以上の変化
+- **計算方法**: (current_score - previous_score) / previous_score * 100
+- **監視対象**: 全カテゴリのサービスレベル公平性スコア
+- **統計的有意性**: 信頼区間95%での有意性
+
+#### 9.1.4 企業レベル公平性スコア監視
+- **変化率閾値**: ±15%以上の変化
+- **計算方法**: (current_score - previous_score) / previous_score * 100
+- **監視対象**: 全カテゴリの企業レベル公平性スコア
+- **統計的有意性**: 信頼区間95%での有意性
+
+### 9.2 時系列データ参照ロジック
+
+#### 9.2.1 先週データ参照方式
+- **参照データ**: S3に保存された先週の分析結果
+- **データパス**: `s3://{bucket}/corporate_bias_datasets/integrated/{YYYYMMDD}/bias_analysis_results.json`
+- **比較期間**: 現在の分析日と先週の分析日（7日前）
+- **フォールバック**: 先週データが存在しない場合は2週間前、3週間前と遡及
+
+#### 9.2.2 データ取得処理
+```python
+def get_previous_week_data(current_date: str) -> Dict:
+    """先週の分析データをS3から取得"""
+    # 先週の日付を計算
+    current_dt = datetime.strptime(current_date, "%Y%m%d")
+    previous_week = current_dt - timedelta(days=7)
+    previous_date = previous_week.strftime("%Y%m%d")
+
+    # S3から先週データを取得
+    s3_key = f"corporate_bias_datasets/integrated/{previous_date}/bias_analysis_results.json"
+    return load_json_from_s3(s3_key)
+```
+
+#### 9.2.3 変化検知ロジック
+```python
+def detect_significant_changes(current_data: Dict, previous_data: Dict) -> List[Dict]:
+    """顕著な変化を検知"""
+    changes = []
+
+    for category in current_data.get("categories", {}):
+        for subcategory in category.get("subcategories", {}):
+            for entity in subcategory.get("entities", []):
+                # 先週データから対応するエンティティを検索
+                previous_entity = find_previous_entity(entity, previous_data)
+
+                if previous_entity:
+                    # 各指標の変化を計算
+                    nbi_change = calculate_nbi_change(entity, previous_entity)
+                    ranking_change = calculate_ranking_change(entity, previous_entity)
+                    fairness_change = calculate_fairness_change(entity, previous_entity)
+
+                    # 閾値超過をチェック
+                    if abs(nbi_change) >= 20.0:
+                        changes.append({
+                            "type": "nbi_change",
+                            "entity": entity["name"],
+                            "category": category["name"],
+                            "change_rate": nbi_change,
+                            "threshold": 20.0
+                        })
+
+    return changes
+```
+
+### 9.3 投稿テンプレート（md記法なし）
+
+#### 9.3.1 基本テンプレート
+```
+🚨【企業優遇バイアス変化検知】
+
+📊 検知内容: NBI急激な変化
+🏢 対象企業: {企業名}
+📈 変化率: {変化率}%
+📋 詳細: 感情スコアが大幅に{上昇/下降}
+
+🔍 分析詳細: {URL}
+#企業優遇バイアス #AI分析 #透明性
+```
+
+#### 9.3.2 ランキング変化テンプレート
+```
+📈【検索ランキング変化検知】
+
+🏢 対象企業: {企業名}
+📊 プラットフォーム: {Google/Perplexity}
+📈 順位変化: {前回順位}位 → {現在順位}位 ({上昇/下降})
+📋 詳細: 検索結果での露出度が変化
+
+🔍 分析詳細: {URL}
+#企業優遇バイアス #検索分析 #ランキング
+```
+
+#### 9.3.3 公平性スコア変化テンプレート
+```
+⚖️【公平性スコア変化検知】
+
+🏢 対象企業: {企業名}
+📊 スコア種別: {サービスレベル/企業レベル}公平性スコア
+📈 変化率: {変化率}%
+📋 詳細: 市場における公平性評価が{向上/低下}
+
+🔍 分析詳細: {URL}
+#企業優遇バイアス #公平性 #市場分析
+```
+
+### 9.4 システム構成詳細
+
+#### 9.4.1 モジュール構成
+```
+src/
+├── sns/
+│   ├── __init__.py
+│   ├── twitter_client.py          # X API連携
+│   ├── bias_monitor.py            # バイアス変化監視
+│   ├── content_generator.py       # 投稿コンテンツ生成
+│   ├── posting_manager.py         # 投稿管理
+│   ├── timeseries_db.py           # 時系列データ管理
+│   └── s3_data_loader.py          # S3データ読み込み
+```
+
+#### 9.4.2 主要クラス設計
+```python
+class BiasMonitor:
+    """バイアス変化監視クラス"""
+    def __init__(self):
+        self.s3_loader = S3DataLoader()
+        self.change_detector = ChangeDetector()
+        self.posting_manager = PostingManager()
+
+    def monitor_changes(self, current_date: str, current_data: Dict):
+        """変化を監視して投稿をトリガー"""
+        # 先週データを取得
+        previous_data = self.s3_loader.get_previous_week_data(current_date)
+
+        # 変化を検知
+        changes = self.change_detector.detect_changes(current_data, previous_data)
+
+        # 投稿を実行
+        for change in changes:
+            self.posting_manager.post_change(change)
+
+class S3DataLoader:
+    """S3データ読み込みクラス"""
+    def get_previous_week_data(self, current_date: str) -> Dict:
+        """先週の分析データを取得"""
+
+    def get_historical_data(self, date: str) -> Dict:
+        """指定日の分析データを取得"""
+
+class ChangeDetector:
+    """変化検知クラス"""
+    def detect_changes(self, current: Dict, previous: Dict) -> List[Dict]:
+        """顕著な変化を検知"""
+
+    def calculate_change_rate(self, current: float, previous: float) -> float:
+        """変化率を計算"""
+
+class PostingManager:
+    """投稿管理クラス"""
+    def post_change(self, change: Dict):
+        """変化を投稿"""
+
+    def check_duplicate(self, entity: str, change_type: str) -> bool:
+        """重複投稿をチェック"""
+```
+
+### 9.5 設定ファイル
+
+#### 9.5.1 監視設定
+```yaml
+# config/sns_monitoring_config.yml
+sns_monitoring:
+  # 監視対象指標の閾値
+  thresholds:
+    nbi_change: 20.0          # NBI変化率閾値（%）
+    ranking_change: 3         # ランキング変化閾値（位）
+    fairness_score_change: 15.0  # 公平性スコア変化率閾値（%）
+
+  # 統計的有意性閾値
+  statistical_thresholds:
+    p_value: 0.05            # p値閾値
+    cliffs_delta: 0.33       # Cliff's Delta閾値
+    rbo_threshold: 0.7       # RBO閾値
+    kendall_tau_threshold: 0.5  # Kendall Tau閾値
+
+  # 投稿制御設定
+  posting_control:
+    max_daily_posts: 10      # 1日最大投稿数
+    duplicate_prevention_hours: 24  # 重複防止時間（時間）
+    posting_time_range:
+      start: "09:00"         # 投稿開始時間
+      end: "21:00"           # 投稿終了時間
+
+  # S3設定
+  s3:
+    bucket_name: "your-bucket-name"
+    base_path: "corporate_bias_datasets/integrated"
+    fallback_days: 3         # データが見つからない場合の遡及日数
+```
+
+### 9.6 実装スケジュール（詳細版）
+
+#### 9.6.1 Week 1: S3データ読み込み基盤
+- S3DataLoaderクラスの実装
+- 先週データ取得機能
+- フォールバック機能
+
+#### 9.6.2 Week 2: 変化検知機能
+- ChangeDetectorクラスの実装
+- 各指標の変化率計算
+- 閾値判定機能
+
+#### 9.6.3 Week 3: X API連携
+- TwitterClientクラスの実装
+- 投稿機能
+- 認証・エラーハンドリング
+
+#### 9.6.4 Week 4: 統合・テスト
+- BiasMonitorクラスの統合
+- エンドツーエンドテスト
+- パフォーマンス最適化
 
 ---
 
 **作成日**: 2025年1月27日
-**作成者**: AI Assistant
-**バージョン**: 1.0
-**承認者**: 未定
+**更新日**: 2025年1月27日（詳細設計仕様追加）

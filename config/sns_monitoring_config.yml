@@ -1,0 +1,61 @@
+# SNS投稿機能設定ファイル
+# 企業優遇バイアス分析結果の自動X/Twitter投稿機能の設定
+
+sns_monitoring:
+  # 監視対象指標の閾値
+  thresholds:
+    nbi_change_percent: 20.0          # NBI変化率閾値（%）
+    ranking_change_positions: 3       # ランキング変化閾値（位）
+    fairness_score_change_percent: 15.0  # 公平性スコア変化率閾値（%）
+
+  # 統計的有意性閾値
+  statistical_thresholds:
+    p_value: 0.05            # p値閾値
+    cliffs_delta: 0.33       # Cliff's Delta閾値
+    rbo_threshold: 0.7       # RBO閾値
+    kendall_tau_threshold: 0.5  # Kendall Tau閾値
+
+  # 投稿制御設定
+  posting:
+    max_daily_posts: 10      # 1日最大投稿数
+    duplicate_prevention_hours: 24  # 重複防止時間（時間）
+    time_range:
+      start: "09:00"         # 投稿開始時間
+      end: "21:00"           # 投稿終了時間
+    time_zone: "Asia/Tokyo"  # タイムゾーン
+
+  # データアクセス設定
+  data:
+    base_path: "corporate_bias_datasets/integrated"  # 分析データのベースパス
+    fallback_days: 3         # データが見つからない場合の遡及日数
+
+  # 投稿コンテンツ設定
+  content:
+    base_url: "https://your-domain.com/analysis"  # 分析詳細ページのベースURL
+    max_character_count: 280 # 投稿テキストの最大文字数
+    include_hashtags: true   # ハッシュタグの追加
+    include_analysis_url: true  # 分析URLの追加
+    hashtags:
+      - "#企業優遇バイアス"
+      - "#AI分析"
+      - "#透明性"
+      - "#公平性"
+      - "#市場分析"
+
+  # 監視設定
+  monitoring:
+    check_interval_minutes: 60  # 監視チェック間隔（分）
+    auto_cleanup_days: 30    # 自動クリーンアップ対象日数
+
+  # ログ設定
+  logging:
+    level: "INFO"            # ログレベル
+    file_path: "logs/sns_monitoring.log"  # ログファイルパス
+    max_file_size: "10MB"    # ログファイルの最大サイズ
+    backup_count: 5          # バックアップファイル数
+
+  # エラーハンドリング設定
+  error_handling:
+    max_retry_count: 3       # 最大リトライ回数
+    retry_delay_seconds: 60  # リトライ間隔（秒）
+    error_notification: true # エラー通知の有効化
