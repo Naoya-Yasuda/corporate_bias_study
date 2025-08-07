@@ -241,7 +241,7 @@ jobs:
       # SNS投稿機能ステップ（分析完了後の最後のステップ）
       - name: Run SNS posting for bias changes
         id: run_sns_posting
-        if: ${{ (github.event_name == 'schedule' || github.event.inputs.run_sns_posting == 'true') && steps.run_bias_analysis.outcome == 'success' }}
+        if: ${{ (github.event_name == 'schedule' || github.inputs.run_sns_posting == 'true') && steps.run_bias_analysis.outcome == 'success' }}
         run: |
           echo "開始: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
           echo "=== SNS投稿機能設定 ===" | tee -a logs/sns_posting.log
@@ -254,9 +254,9 @@ jobs:
           if python scripts/test_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
             echo "完了: SNS投稿機能テスト ($(date))" | tee -a logs/execution.log
 
-                         # 実際のSNS投稿機能実行（テスト成功時のみ）
-             echo "=== 実際のSNS投稿機能実行 ===" | tee -a logs/sns_posting.log
-             if python -c "import sys; sys.path.append('.'); from src.sns.bias_monitor import BiasMonitor; from src.utils.storage_utils import load_json_from_s3_integrated; import logging; logging.basicConfig(level=logging.INFO); logger = logging.getLogger(__name__); current_date = '${{ env.TODAY_DATE }}'; current_data = load_json_from_s3_integrated(current_date, 'bias_analysis_results.json'); monitor = BiasMonitor() if current_data else None; changes = monitor.monitor_changes(current_date, current_data) if monitor else []; print(f'監視完了: {len(changes)}件の変化を検知'); [print(f'変化 {i+1}: {change.get(\"type\")} - {change.get(\"entity\")}') for i, change in enumerate(changes)]" 2>&1 | tee -a logs/sns_posting.log; then
+            # 実際のSNS投稿機能実行（テスト成功時のみ）
+            echo "=== 実際のSNS投稿機能実行 ===" | tee -a logs/sns_posting.log
+            if python scripts/github_actions_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
               echo "完了: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
             else
               echo "エラー: SNS投稿機能実行に失敗しました ($(date))" | tee -a logs/execution.log
