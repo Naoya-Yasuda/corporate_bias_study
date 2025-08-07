@@ -12,6 +12,7 @@ import os
 import logging
 from typing import Dict, Optional
 from datetime import datetime
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,9 @@ class TwitterClient:
 
     def __init__(self):
         """X API認証情報を初期化"""
+        # 環境変数を確実に読み込み
+        load_dotenv()
+
         self.api_key = os.getenv('TWITTER_API_KEY')
         self.api_secret = os.getenv('TWITTER_API_SECRET')
         self.bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
@@ -47,12 +51,26 @@ class TwitterClient:
             self.access_token_secret
         ]
 
+        # 各認証情報の存在を個別にチェック
+        missing_credentials = []
+        if not self.api_key:
+            missing_credentials.append("TWITTER_API_KEY")
+        if not self.api_secret:
+            missing_credentials.append("TWITTER_API_SECRET")
+        if not self.bearer_token:
+            missing_credentials.append("TWITTER_BEARER_TOKEN")
+        if not self.access_token:
+            missing_credentials.append("TWITTER_ACCESS_TOKEN")
+        if not self.access_token_secret:
+            missing_credentials.append("TWITTER_ACCESS_TOKEN_SECRET")
+
         if all(required_credentials):
             self.is_authenticated = True
             logger.info("X API認証情報が設定されています")
         else:
             self.is_authenticated = False
-            logger.warning("X API認証情報が不完全です。環境変数を確認してください。")
+            logger.warning(f"X API認証情報が不完全です。不足している項目: {', '.join(missing_credentials)}")
+            logger.info("環境変数ファイル(.env)の設定を確認してください。")
 
     def _authenticate(self):
         """X API認証"""

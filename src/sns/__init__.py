@@ -7,6 +7,12 @@ SNS投稿機能パッケージ
 企業優遇バイアス分析結果の自動SNS投稿機能を提供します。
 """
 
+import os
+from dotenv import load_dotenv
+
+# 環境変数を読み込み
+load_dotenv()
+
 __version__ = "1.0.0"
 __author__ = "Corporate Bias Study Team"
 

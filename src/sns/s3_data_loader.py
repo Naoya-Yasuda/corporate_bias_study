@@ -215,6 +215,11 @@ class S3DataLoader:
             エンティティ別指標データ
         """
         try:
+            # None型チェックを追加
+            if analysis_results is None:
+                logger.warning("分析結果データがNoneのため、空の指標データを返します")
+                return {}
+
             entity_metrics = {}
 
             # sentiment_bias_analysisからエンティティ別データを抽出

@@ -195,12 +195,26 @@ class IntegratedPostingSystem:
             logger.info(f"変化検知結果: {len(changes)}件の変化を検出")
 
             # 2. コンテンツ生成
+            content = None
+            post_type = None
+
             if changes:
-                content = self.generator.generate_post_content(changes, analysis_date)
-                post_type = "changes"
+                try:
+                    content = self.generator.generate_post_content(changes, analysis_date)
+                    post_type = "changes"
+                except Exception as e:
+                    logger.error(f"変化検知時のコンテンツ生成エラー: {e}")
+                    # フォールバック：シンプルなコンテンツを生成
+                    content = f"🔍 企業優遇バイアス分析結果の変化を検知しました\n\n📅 分析日: {analysis_date}\n\n{len(changes)}件の変化が検知されました\n\n詳細分析: [URL]\n#企業バイアス #AI分析"
+
             elif force_post:
-                content = self.generator.generate_no_changes_content(analysis_date)
-                post_type = "no_changes"
+                try:
+                    content = self.generator.generate_no_changes_content(analysis_date)
+                    post_type = "no_changes"
+                except Exception as e:
+                    logger.error(f"強制投稿時のコンテンツ生成エラー: {e}")
+                    # フォールバック：シンプルなコンテンツを生成
+                    content = f"📊 企業優遇バイアス分析を実行しました\n\n📅 分析日: {analysis_date}\n\n大きな変化は検知されませんでした\n\n詳細分析: [URL]\n#企業バイアス #AI分析"
             else:
                 logger.info("変化が検知されず、強制投稿も指定されていないため投稿をスキップ")
                 return {
@@ -211,6 +225,7 @@ class IntegratedPostingSystem:
                     "analysis_date": analysis_date
                 }
 
+            # コンテンツ生成の最終チェック
             if not content:
                 logger.error("コンテンツ生成に失敗しました")
                 return {
@@ -218,6 +233,12 @@ class IntegratedPostingSystem:
                     "posted": False,
                     "error": "content_generation_failed"
                 }
+
+            # 文字数制限の最終チェック
+            if len(content) > 280:
+                logger.warning(f"投稿コンテンツが文字数制限を超えています: {len(content)}文字")
+                # 文字数制限を適用
+                content = content[:277] + "..."
 
             # 3. 投稿実行
             if self.posting_enabled and self.twitter_client.is_authenticated:

@@ -299,24 +299,69 @@ class SimpleContentGenerator:
         if len(content) <= limit:
             return content
 
-        # フッターを除いた部分で制限を適用
-        header_footer_length = len(self.templates["header"]) + len(self.templates["footer"])
-        available_length = limit - header_footer_length - 10  # 余裕を持たせる
+        logger.warning(f"投稿コンテンツが文字数制限を超えています: {len(content)}文字（制限: {limit}文字）")
 
-        # コンテンツ部分を切り詰め
+        # より確実な文字数制限処理
+        # ヘッダーとフッターの長さを計算
+        header_length = len(self.templates["header"])
+        footer_length = len(self.templates["footer"])
+
+        # 利用可能な文字数を計算（余裕を持たせる）
+        available_length = limit - header_length - footer_length - 20  # 20文字の余裕
+
+        # コンテンツを分割
         content_parts = content.split("\n")
-        header = content_parts[0]  # ヘッダー
-        footer = content_parts[-1]  # フッター
 
-        # 変化リスト部分を調整
-        changes_part = "\n".join(content_parts[1:-1])
-        if len(changes_part) > available_length:
-            changes_part = changes_part[:available_length-3] + "..."
+        # ヘッダー部分を保持
+        header_part = content_parts[0] if content_parts else ""
+
+        # フッター部分を保持
+        footer_part = content_parts[-1] if len(content_parts) > 1 else ""
+
+        # 中間部分（変化リスト）を調整
+        middle_parts = content_parts[1:-1] if len(content_parts) > 2 else []
+
+        # 中間部分の文字数を制限
+        adjusted_middle = []
+        current_length = 0
+
+        for part in middle_parts:
+            if current_length + len(part) + 1 <= available_length:  # +1 for newline
+                adjusted_middle.append(part)
+                current_length += len(part) + 1
+            else:
+                # 残り文字数で何文字まで表示可能か計算
+                remaining = available_length - current_length
+                if remaining > 10:  # 最低10文字は残す
+                    # 部分を切り詰めて追加
+                    truncated_part = part[:remaining-3] + "..."
+                    adjusted_middle.append(truncated_part)
+                break
+
+        # 変化数が制限を超えた場合の注記を追加
+        if len(middle_parts) > len(adjusted_middle):
+            remaining_changes = len(middle_parts) - len(adjusted_middle)
+            if current_length + 20 <= available_length:  # 注記用の余裕
+                adjusted_middle.append(f"... 他{remaining_changes}件の変化があります")
 
         # 再構築
-        adjusted_content = f"{header}\n{changes_part}\n{footer}"
+        if adjusted_middle:
+            adjusted_content = f"{header_part}\n" + "\n".join(adjusted_middle) + f"\n{footer_part}"
+        else:
+            # 中間部分が空の場合は最小限の内容
+            adjusted_content = f"{header_part}\n変化が検知されました\n{footer_part}"
 
-        logger.warning(f"投稿コンテンツが文字数制限を超えたため、切り詰めました: {len(content)} → {len(adjusted_content)}文字")
+        # 最終的な文字数チェック
+        if len(adjusted_content) > limit:
+            # 最後の手段：フッターを短縮
+            max_header_middle = limit - 50  # フッター用に50文字確保
+            if len(header_part) + 20 <= max_header_middle:
+                adjusted_content = f"{header_part}\n変化が検知されました\n{footer_part[:45]}..."
+            else:
+                # 最小限の内容
+                adjusted_content = f"{header_part[:limit-20]}...\n{footer_part[:limit-20]}..."
+
+        logger.info(f"投稿コンテンツを文字数制限内に調整しました: {len(content)} → {len(adjusted_content)}文字")
         return adjusted_content
 
     def update_templates(self, new_templates: Dict):
