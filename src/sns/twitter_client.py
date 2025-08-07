@@ -94,16 +94,15 @@ class TwitterClient:
             self.api = tweepy.API(auth)
             logger.info("OAuth 1.0a認証完了")
 
-            # OAuth 2.0認証（読み取り用）
-            logger.info("OAuth 2.0認証を開始...")
+            # OAuth 1.0a認証（投稿用）
+            logger.info("OAuth 1.0a認証を開始...")
             self.client = tweepy.Client(
-                bearer_token=self.bearer_token,
                 consumer_key=self.api_key,
                 consumer_secret=self.api_secret,
                 access_token=self.access_token,
                 access_token_secret=self.access_token_secret
             )
-            logger.info("OAuth 2.0認証完了")
+            logger.info("OAuth 1.0a認証完了")
 
             logger.info("X API認証成功")
 
