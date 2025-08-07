@@ -64,6 +64,14 @@ class TwitterClient:
         if not self.access_token_secret:
             missing_credentials.append("TWITTER_ACCESS_TOKEN_SECRET")
 
+        # 詳細ログを追加
+        logger.info("=== X API認証情報チェック ===")
+        logger.info(f"TWITTER_API_KEY: {'設定済み' if self.api_key else '未設定'}")
+        logger.info(f"TWITTER_API_SECRET: {'設定済み' if self.api_secret else '未設定'}")
+        logger.info(f"TWITTER_BEARER_TOKEN: {'設定済み' if self.bearer_token else '未設定'}")
+        logger.info(f"TWITTER_ACCESS_TOKEN: {'設定済み' if self.access_token else '未設定'}")
+        logger.info(f"TWITTER_ACCESS_TOKEN_SECRET: {'設定済み' if self.access_token_secret else '未設定'}")
+
         if all(required_credentials):
             self.is_authenticated = True
             logger.info("X API認証情報が設定されています")
@@ -77,12 +85,17 @@ class TwitterClient:
         try:
             import tweepy
 
+            logger.info("=== X API認証処理開始 ===")
+
             # OAuth 1.0a認証（投稿用）
+            logger.info("OAuth 1.0a認証を開始...")
             auth = tweepy.OAuthHandler(self.api_key, self.api_secret)
             auth.set_access_token(self.access_token, self.access_token_secret)
             self.api = tweepy.API(auth)
+            logger.info("OAuth 1.0a認証完了")
 
             # OAuth 2.0認証（読み取り用）
+            logger.info("OAuth 2.0認証を開始...")
             self.client = tweepy.Client(
                 bearer_token=self.bearer_token,
                 consumer_key=self.api_key,
@@ -90,6 +103,7 @@ class TwitterClient:
                 access_token=self.access_token,
                 access_token_secret=self.access_token_secret
             )
+            logger.info("OAuth 2.0認証完了")
 
             logger.info("X API認証成功")
 
@@ -98,6 +112,7 @@ class TwitterClient:
             self.is_authenticated = False
         except Exception as e:
             logger.error(f"X API認証失敗: {e}")
+            logger.error(f"認証エラーの詳細: {type(e).__name__}")
             self.is_authenticated = False
 
     def post_text(self, text: str) -> Dict:
@@ -115,12 +130,16 @@ class TwitterClient:
             投稿結果
         """
         if not self.is_authenticated:
+            logger.error("X API認証が完了していません")
             return {
                 "success": False,
                 "error": "X API認証が完了していません"
             }
 
         try:
+            logger.info("=== X API投稿処理開始 ===")
+            logger.info(f"投稿テキスト長: {len(text)}文字")
+
             # 文字数制限チェック（280文字）
             if len(text) > 280:
                 text = text[:277] + "..."
@@ -128,6 +147,7 @@ class TwitterClient:
 
             # API v2を使用した投稿を試行
             try:
+                logger.info("API v2投稿を試行...")
                 response = self.client.create_tweet(text=text)
 
                 if response and response.data:
@@ -149,6 +169,9 @@ class TwitterClient:
                     }
 
             except Exception as v2_error:
+                logger.warning(f"API v2投稿失敗: {v2_error}")
+                logger.warning(f"API v2エラータイプ: {type(v2_error).__name__}")
+
                 # 429エラーの場合、レート制限情報を取得
                 if "429" in str(v2_error):
                     rate_limit_info = self._extract_rate_limit_info(v2_error)
@@ -168,6 +191,7 @@ class TwitterClient:
 
         except Exception as e:
             logger.error(f"X投稿失敗: {e}")
+            logger.error(f"投稿エラーの詳細: {type(e).__name__}")
             return {
                 "success": False,
                 "error": str(e)

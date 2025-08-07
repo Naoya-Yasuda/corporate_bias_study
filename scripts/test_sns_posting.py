@@ -170,6 +170,10 @@ def test_simple_posting_system():
     logger.info("=== SimplePostingSystemテスト開始 ===")
 
     try:
+        # 投稿機能を無効化してテスト（環境変数を一時的に変更）
+        original_posting_enabled = os.environ.get('TWITTER_POSTING_ENABLED', 'true')
+        os.environ['TWITTER_POSTING_ENABLED'] = 'false'
+
         # SimplePostingSystemを初期化
         posting_system = SimplePostingSystem(storage_mode="auto")
 
@@ -190,7 +194,7 @@ def test_simple_posting_system():
 
             if result.get("success"):
                 if result.get("posted"):
-                    logger.info("投稿が実行されました")
+                    logger.info("投稿が実行されました（シミュレーション）")
                 else:
                     logger.info("変化が検知されなかったため投稿はスキップされました")
             else:
@@ -210,11 +214,16 @@ def test_simple_posting_system():
 
         logger.info(f"テスト投稿結果: {result}")
 
+        # 環境変数を元に戻す
+        os.environ['TWITTER_POSTING_ENABLED'] = original_posting_enabled
+
         logger.info("SimplePostingSystemテスト完了")
         return True
 
     except Exception as e:
         logger.error(f"SimplePostingSystemテストエラー: {e}")
+        # 環境変数を元に戻す
+        os.environ['TWITTER_POSTING_ENABLED'] = original_posting_enabled
         return False
 
 
@@ -223,6 +232,10 @@ def test_integrated_posting_system():
     logger.info("=== IntegratedPostingSystemテスト開始 ===")
 
     try:
+        # 投稿機能を無効化してテスト（環境変数を一時的に変更）
+        original_posting_enabled = os.environ.get('TWITTER_POSTING_ENABLED', 'true')
+        os.environ['TWITTER_POSTING_ENABLED'] = 'false'
+
         # IntegratedPostingSystemを初期化
         posting_system = IntegratedPostingSystem(storage_mode="auto")
 
@@ -234,17 +247,22 @@ def test_integrated_posting_system():
 
         if result.get("success"):
             if result.get("posted"):
-                logger.info("投稿が実行されました")
+                logger.info("投稿が実行されました（シミュレーション）")
             else:
                 logger.info("変化が検知されなかったため投稿はスキップされました")
         else:
             logger.warning(f"投稿処理でエラーが発生: {result.get('error')}")
+
+        # 環境変数を元に戻す
+        os.environ['TWITTER_POSTING_ENABLED'] = original_posting_enabled
 
         logger.info("IntegratedPostingSystemテスト完了")
         return True
 
     except Exception as e:
         logger.error(f"IntegratedPostingSystemテストエラー: {e}")
+        # 環境変数を元に戻す
+        os.environ['TWITTER_POSTING_ENABLED'] = original_posting_enabled
         return False
 
 

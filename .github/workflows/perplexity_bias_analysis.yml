@@ -250,21 +250,11 @@ jobs:
           echo "分析日付: ${{ env.TODAY_DATE }}" | tee -a logs/sns_posting.log
           echo "=== SNS投稿機能実行 ===" | tee -a logs/sns_posting.log
 
-          # SNS投稿機能のテスト実行
-          if python scripts/test_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
-            echo "完了: SNS投稿機能テスト ($(date))" | tee -a logs/execution.log
-
-            # 実際のSNS投稿機能実行（テスト成功時のみ）
-            echo "=== 実際のSNS投稿機能実行 ===" | tee -a logs/sns_posting.log
-            if python scripts/github_actions_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
-              echo "完了: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
-            else
-              echo "エラー: SNS投稿機能実行に失敗しました ($(date))" | tee -a logs/execution.log
-              echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
-              exit 1
-            fi
+          # 実際のSNS投稿機能実行
+          if python scripts/github_actions_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
+            echo "完了: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
           else
-            echo "エラー: SNS投稿機能テストに失敗しました ($(date))" | tee -a logs/execution.log
+            echo "エラー: SNS投稿機能実行に失敗しました ($(date))" | tee -a logs/execution.log
             echo $(($(cat logs/error_count.txt) + 1)) > logs/error_count.txt
             exit 1
           fi
