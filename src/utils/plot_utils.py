@@ -1298,8 +1298,13 @@ def plot_bias_indices_bar_for_ranking_analysis(ranking_bias_data, selected_categ
         ax.set_xlabel("エンティティ", fontsize=12)
         ax.set_ylabel("バイアス指標（平均順位差）", fontsize=12)
 
-        # x軸ラベルを45度回転
-        plt.xticks(rotation=45, ha='right')
+                # エンティティ名を右側にシフト（位置を0.2だけ右にずらす）
+        x_positions = range(len(entities))
+        shifted_positions = [x + 0.2 for x in x_positions]
+        ax.set_xticks(shifted_positions)
+        ax.set_xticklabels(entities, rotation=45, ha='right', fontsize=14)
+
+        plt.subplots_adjust(bottom=0.25)
 
         # グリッド線を追加
         ax.grid(True, axis='y', alpha=0.3)

@@ -236,7 +236,14 @@ def plot_bias_indices_bar(bias_data, title, reliability_label=None):
     ax.axhline(0, color='k', linestyle='--', alpha=0.5)
     ax.set_ylabel("Normalized Bias Index (BI)")
     ax.set_title(title)
-    plt.xticks(rotation=30, ha="right")
+
+    # エンティティ名を右側にシフト（位置を0.2だけ右にずらす）
+    x_positions = range(len(entities))
+    shifted_positions = [x + 0.2 for x in x_positions]
+    ax.set_xticks(shifted_positions)
+    ax.set_xticklabels(entities, rotation=30, ha="right", fontsize=14)
+
+    plt.subplots_adjust(bottom=0.25)
     plt.tight_layout()
 
     # 信頼性ラベルを追加
