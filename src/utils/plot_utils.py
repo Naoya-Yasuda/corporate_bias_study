@@ -1728,12 +1728,12 @@ def plot_sentiment_ranking_correlation_scatter(sentiment_data, ranking_data, tit
             text="相関分析に必要なデータが不足しています（最低2つのエンティティが必要）",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=14, color="gray")
+            font=dict(size=16, color="gray")
         )
         fig.update_layout(
-            title=title,
-            xaxis_title="正規化バイアス指標",
-            yaxis_title="平均ランキング順位",
+            title=dict(text=title, font=dict(size=16)),
+            xaxis=dict(title=dict(text="正規化バイアス指標", font=dict(size=14))),
+            yaxis=dict(title=dict(text="平均ランキング順位", font=dict(size=14))),
             showlegend=False
         )
         return fig
@@ -1804,21 +1804,28 @@ def plot_sentiment_ranking_correlation_scatter(sentiment_data, ranking_data, tit
             borderwidth=2,
             xanchor="left",
             yanchor="bottom",
-            font=dict(size=10, color="black", family="Arial, sans-serif")
+            font=dict(size=12, color="black", family="Arial, sans-serif")
         )
 
     # レイアウトの設定
     fig.update_layout(
-        title=title,
-        xaxis_title="正規化バイアス指標 (NBI)",
-        yaxis_title="逆転ランキング順位 (数値が大きいほど上位)",
+        title=dict(text=title, font=dict(size=16)),
+        xaxis=dict(
+            title=dict(text="正規化バイアス指標 (NBI)", font=dict(size=14)),
+            tickfont=dict(size=12)
+        ),
+        yaxis=dict(
+            title=dict(text="逆転ランキング順位 (数値が大きいほど上位)", font=dict(size=14)),
+            tickfont=dict(size=12)
+        ),
         hovermode='closest',
         showlegend=True,
         legend=dict(
             yanchor="top",
             y=0.99,
             xanchor="left",
-            x=0.01
+            x=0.01,
+            font=dict(size=12)
         ),
         margin=dict(l=80, r=120, t=80, b=80)  # 右マージンを増やしてグラフ外表示のスペースを確保
     )
