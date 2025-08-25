@@ -1,0 +1,69 @@
+﻿# ===== secrets / credentials =====
+.env
+.env.*
+.envrc
+*.pem
+*.key
+*.p12
+*.keystore
+*.jks
+*.mobileprovision
+id_rsa
+id_ed25519
+.ssh/
+*.token
+*.secret
+credentials.*
+credentials.json
+**/service-account*.json
+**/serviceAccount*.json
+google-credentials*.json
+
+# Package managers / registries
+.npmrc
+.yarnrc
+.yarnrc.yml
+.pnpmrc
+.pypirc
+.pip/
+pip.conf
+poetry.toml
+# poetry.lock （秘匿値を入れる運用なら除外）
+
+# Cloud CLIs / SDK creds
+.aws/
+.azure/
+gcloud/
+.kube/
+.docker/
+
+# ===== framework specific =====
+# React / Svelte / SvelteKit (Vite)
+.vite/
+dist/
+build/
+.svelte-kit/
+.vercel/
+.netlify/
+.staticwebapps/
+wrangler.toml     # 変数に秘密を直書きする運用なら除外
+.dev.vars         # Cloudflare local secrets
+
+# Nest.js
+prisma/.env
+
+# Django
+**/settings_local.py
+**/local_settings.py
+**/.env
+**/.env.*
+
+# Mobile / signing keys（混在時）
+fastlane/*.json
+android/gradle.properties
+**/GoogleService-Info.plist
+**/google-services.json
+
+# Docker / compose（環境変数を含むことが多い）
+docker-compose.override.yml
+docker/.env
