@@ -234,7 +234,7 @@ jobs:
           echo "Installed packages:" | tee -a logs/bias_analysis.log
           pip list | grep -E "(statsmodels|numpy|scipy)" | tee -a logs/bias_analysis.log
           echo "=== 統合バイアス分析実行 ===" | tee -a logs/bias_analysis.log
-          python scripts/run_bias_analysis.py --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --verbose 2>&1 | tee -a logs/bias_analysis.log
+          python scripts/analysis/run_bias_analysis.py --date ${{ env.TODAY_DATE }} --runs ${{ env.RUNS_COUNT }} --verbose 2>&1 | tee -a logs/bias_analysis.log
 
         continue-on-error: true
 
@@ -251,7 +251,7 @@ jobs:
           echo "=== SNS投稿機能実行 ===" | tee -a logs/sns_posting.log
 
           # 実際のSNS投稿機能実行
-          if python scripts/github_actions_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
+          if python scripts/sns/github_actions_sns_posting.py 2>&1 | tee -a logs/sns_posting.log; then
             echo "完了: SNS投稿機能実行 ($(date))" | tee -a logs/execution.log
           else
             echo "エラー: SNS投稿機能実行に失敗しました ($(date))" | tee -a logs/execution.log

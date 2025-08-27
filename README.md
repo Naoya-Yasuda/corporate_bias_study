@@ -49,6 +49,22 @@ config/
     └── simple_sns_config.yml
 ```
 
+### スクリプト構成
+```
+scripts/
+├── analysis/
+│   └── run_bias_analysis.py     # 分析実行スクリプト
+├── data/
+│   ├── collect_data.py          # データ収集スクリプト
+│   └── integrate_data.py        # データ統合スクリプト
+├── sns/
+│   └── github_actions_sns_posting.py
+└── utils/
+    ├── config_manager.py        # 共通設定管理
+    ├── setup_environment.py     # 環境セットアップ
+    └── validate_data.py         # データ検証
+```
+
 ### ソースコード構成
 ```
 src/
@@ -123,13 +139,13 @@ cp .env_sample .env
 ### 1. 基本的な分析実行
 ```bash
 # 統合バイアス分析の実行
-python scripts/run_bias_analysis.py --date 20250127
+python scripts/analysis/run_bias_analysis.py --date 20250127
 
 # 詳細ログ付きで実行
-python scripts/run_bias_analysis.py --date 20250127 --verbose
+python scripts/analysis/run_bias_analysis.py --date 20250127 --verbose
 
 # 特定の実行回数で実行
-python scripts/run_bias_analysis.py --date 20250127 --runs 5
+python scripts/analysis/run_bias_analysis.py --date 20250127 --runs 5
 ```
 
 ### 2. 個別コンポーネントの実行
@@ -158,10 +174,34 @@ python -m src.analysis.bias_analysis_engine --date 20250127 --verbose
 streamlit run app.py
 ```
 
-### 4. SNS投稿機能の実行
+### 4. データ収集・統合・検証
+```bash
+# データ収集（全データタイプ）
+python scripts/data/collect_data.py --type all --runs 3
+
+# 特定データタイプの収集
+python scripts/data/collect_data.py --type sentiment --runs 5
+
+# データ統合
+python scripts/data/integrate_data.py --date 20250127 --validate
+
+# データ検証
+python scripts/utils/validate_data.py --date 20250127 --type all
+```
+
+### 5. 環境セットアップ・検証
+```bash
+# 環境セットアップ（不足ディレクトリの作成）
+python scripts/utils/setup_environment.py --create-dirs --verbose
+
+# 環境検証
+python scripts/utils/setup_environment.py --verbose
+```
+
+### 6. SNS投稿機能の実行
 ```bash
 # GitHub Actions用SNS投稿スクリプト
-python scripts/github_actions_sns_posting.py
+python scripts/sns/github_actions_sns_posting.py
 
 # 統合投稿システムのテスト
 python -c "from src.sns.integrated_posting_system import IntegratedPostingSystem; system = IntegratedPostingSystem(); result = system.post_latest_changes(); print(result)"
@@ -230,8 +270,14 @@ python -c "from src.sns.integrated_posting_system import IntegratedPostingSystem
 # テストディレクトリ: tests/ （空の状態）
 
 # 手動テスト
-python scripts/run_bias_analysis.py --date 20250127 --verbose
-python scripts/github_actions_sns_posting.py
+python scripts/analysis/run_bias_analysis.py --date 20250127 --verbose
+python scripts/sns/github_actions_sns_posting.py
+
+# 環境検証
+python scripts/utils/setup_environment.py --verbose
+
+# データ検証
+python scripts/utils/validate_data.py --date 20250127 --type all
 ```
 
 ### ログ確認

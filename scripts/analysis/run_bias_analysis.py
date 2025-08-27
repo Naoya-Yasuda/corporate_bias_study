@@ -19,25 +19,16 @@ from datetime import datetime
 from pathlib import Path
 
 # プロジェクトルートをPythonパスに追加
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+# 相対インポートのため、sys.pathに追加
+sys.path.insert(0, str(project_root / "scripts" / "utils"))
+from config_manager import setup_logging, get_config_manager
 from src.analysis.bias_analysis_engine import BiasAnalysisEngine
 from src.analysis.hybrid_data_loader import HybridDataLoader
 
-# ログ設定
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
-
-
-def setup_logging(verbose: bool = False):
-    """ログレベルの設定"""
-    if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logging.getLogger('src').setLevel(logging.DEBUG)
 
 
 def run_bias_analysis(date: str, storage_mode: str = None, verbose: bool = False, runs: int = None) -> bool:
