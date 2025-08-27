@@ -4018,60 +4018,69 @@ class BiasAnalysisEngine:
                     consistency_scores.append(avg_score)
 
         # Google検索と引用の一貫性
-        if citations_comparison:
-            for category in citations_comparison:
-                if category not in result["by_category"]:
-                    result["by_category"][category] = {"subcategory_scores": {}}
+        if citations_comparison and isinstance(citations_comparison, dict):
+            # エラーケースのチェック
+            if "error" in citations_comparison:
+                logger.warning(f"citations_comparisonにエラーが含まれています: {citations_comparison['error']}")
+            else:
+                for category in citations_comparison:
+                    # カテゴリが辞書でない場合はスキップ
+                    if not isinstance(citations_comparison[category], dict):
+                        logger.warning(f"カテゴリ {category} が辞書ではありません: {type(citations_comparison[category])}")
+                        continue
 
-                for subcategory, data in citations_comparison[category].items():
-                    if "ranking_similarity" in data:
-                        metrics = data["ranking_similarity"]
+                    if category not in result["by_category"]:
+                        result["by_category"][category] = {"subcategory_scores": {}}
 
-                        # official_results_metricsとreputation_results_metricsの両方を処理
-                        alignment_scores = []
+                    for subcategory, data in citations_comparison[category].items():
+                        if "ranking_similarity" in data:
+                            metrics = data["ranking_similarity"]
 
-                        for metric_type in ["official_results_metrics", "reputation_results_metrics"]:
-                            if metric_type in metrics:
-                                metric_data = metrics[metric_type]
-                                kendall_tau = metric_data.get("kendall_tau", 0)
-                                rbo_score = metric_data.get("rbo_score", 0)
-                                overlap_ratio = metric_data.get("overlap_ratio", 0)
+                            # official_results_metricsとreputation_results_metricsの両方を処理
+                            alignment_scores = []
 
-                                # 数学的整合性チェックを緩和
-                                is_valid = (
-                                    metric_data.get("metrics_validation", {}).get("is_mathematically_consistent", False) or
-                                    (kendall_tau != 0 or rbo_score != 0 or overlap_ratio != 0)
-                                )
+                            for metric_type in ["official_results_metrics", "reputation_results_metrics"]:
+                                if metric_type in metrics:
+                                    metric_data = metrics[metric_type]
+                                    kendall_tau = metric_data.get("kendall_tau", 0)
+                                    rbo_score = metric_data.get("rbo_score", 0)
+                                    overlap_ratio = metric_data.get("overlap_ratio", 0)
 
-                                if is_valid:
-                                    alignment_score = (
-                                        0.4 * abs(kendall_tau) +
-                                        0.4 * rbo_score +
-                                        0.2 * overlap_ratio
+                                    # 数学的整合性チェックを緩和
+                                    is_valid = (
+                                        metric_data.get("metrics_validation", {}).get("is_mathematically_consistent", False) or
+                                        (kendall_tau != 0 or rbo_score != 0 or overlap_ratio != 0)
                                     )
-                                    alignment_scores.append(alignment_score)
 
-                        # 平均alignment_scoreを計算
-                        if alignment_scores:
-                            avg_alignment_score = sum(alignment_scores) / len(alignment_scores)
+                                    if is_valid:
+                                        alignment_score = (
+                                            0.4 * abs(kendall_tau) +
+                                            0.4 * rbo_score +
+                                            0.2 * overlap_ratio
+                                        )
+                                        alignment_scores.append(alignment_score)
 
-                            # 既存のサブカテゴリスコアに統合
-                            if subcategory in result["by_category"][category].get("subcategory_scores", {}):
-                                score = result["by_category"][category]["subcategory_scores"][subcategory]
-                                score["components"]["google_citations_alignment"] = avg_alignment_score
-                                score["consistency_score"] = (score["consistency_score"] + avg_alignment_score) / 2
-                            else:
-                                # 新しいサブカテゴリとして追加
-                                result["by_category"][category]["subcategory_scores"][subcategory] = {
-                                    "consistency_score": avg_alignment_score,
-                                    "reliability": "medium",
-                                    "components": {
-                                        "sentiment_ranking_correlation": 0.0,
-                                        "google_citations_alignment": avg_alignment_score
+                            # 平均alignment_scoreを計算
+                            if alignment_scores:
+                                avg_alignment_score = sum(alignment_scores) / len(alignment_scores)
+
+                                # 既存のサブカテゴリスコアに統合
+                                if subcategory in result["by_category"][category].get("subcategory_scores", {}):
+                                    score = result["by_category"][category]["subcategory_scores"][subcategory]
+                                    score["components"]["google_citations_alignment"] = avg_alignment_score
+                                    score["consistency_score"] = (score["consistency_score"] + avg_alignment_score) / 2
+                                else:
+                                    # 新しいサブカテゴリとして追加
+                                    result["by_category"][category]["subcategory_scores"][subcategory] = {
+                                        "consistency_score": avg_alignment_score,
+                                        "reliability": "medium",
+                                        "components": {
+                                            "sentiment_ranking_correlation": 0.0,
+                                            "google_citations_alignment": avg_alignment_score
+                                        }
                                     }
-                                }
 
-                            consistency_scores.append(avg_alignment_score)
+                                consistency_scores.append(avg_alignment_score)
 
         # 全体の評価
         if consistency_scores:

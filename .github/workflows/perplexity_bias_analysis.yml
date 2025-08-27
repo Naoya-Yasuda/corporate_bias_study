@@ -7,7 +7,7 @@ concurrency:
 
 on:
   schedule:
-    - cron: '0 21 * * 1'   # 毎週月曜日 06:00 JST (=21:00 UTC) に実行
+    - cron: '0 2 * * 1'   # 毎週月曜日 06:00 JST (=21:00 UTC) に実行
   workflow_dispatch:  # 手動実行も可能
     inputs:
       runs_count:
