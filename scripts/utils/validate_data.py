@@ -128,7 +128,7 @@ def validate_analysis_results(date: str, verbose: bool = False) -> bool:
     try:
         logger.info(f"分析結果検証開始: {date}")
 
-        analysis_dir = f"corporate_bias_datasets/analysis_visuals/{date}"
+        analysis_dir = f"corporate_bias_datasets/integrated/{date}"
         if not os.path.exists(analysis_dir):
             logger.warning(f"分析結果ディレクトリが見つかりません: {analysis_dir}")
             return True  # 分析結果は必須ではない
@@ -136,7 +136,7 @@ def validate_analysis_results(date: str, verbose: bool = False) -> bool:
         # 分析結果ファイルの確認
         result_files = [
             "bias_analysis_results.json",
-            "summary/bias_summary.json"
+            "analysis_metadata.json"
         ]
 
         found_files = []

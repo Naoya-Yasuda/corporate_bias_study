@@ -77,7 +77,6 @@ graph TB
 #### 現在の主要ディレクトリ構成（2025年7月時点）
 
 - corporate_bias_datasets/integrated/ … 元データ・分析結果（JSON）
-- corporate_bias_datasets/analysis_visuals/ … 可視化画像
 - corporate_bias_datasets/raw_data/ … 収集直後の生データ
 
 ---
@@ -124,7 +123,7 @@ graph TB
 - 統合ダッシュボード画像の作成
 
 #### 実行ファイル
-- **可視化エンジン**: `scripts/generate_analysis_visuals.py`
+- **可視化エンジン**: `scripts/generate_analysis_visuals.py`（未実装）
 
 #### 生成画像種類
 1. **感情バイアス画像** (4-8枚/カテゴリ)
@@ -338,7 +337,7 @@ corporate_bias_datasets/
 ├── integrated/YYYYMMDD/
 │   ├── bias_analysis_results.json    # Stage 1出力
 │   └── analysis_metadata.json        # Stage 1メタデータ
-└── analysis_visuals/YYYYMMDD/
+└── integrated/YYYYMMDD/（分析結果JSON）
     ├── sentiment_bias/
     │   ├── デジタルサービス_クラウド_bias_indices.png
     │   ├── デジタルサービス_クラウド_effect_significance.png

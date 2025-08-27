@@ -59,7 +59,7 @@ class DatasetIntegrator:
         log_analysis_step("DatasetIntegrator初期化", "initialization", success=True)
         logger.info(f"DatasetIntegrator初期化完了: {date_str}")
 
-    def create_integrated_dataset(self, force_recreate: bool = False, verbose: bool = True, runs: int = None) -> Dict[str, Any]:
+    def create_integrated_dataset(self, force_recreate: bool = False, verbose: bool = True, runs: int = None, storage_mode: str = None) -> Dict[str, Any]:
         """統合データセット作成メイン処理"""
         self.integration_metadata["start_time"] = datetime.now().isoformat()
 
@@ -130,11 +130,11 @@ class DatasetIntegrator:
             if verbose:
                 logger.info("ファイル保存中...")
 
-            self._save_integrated_files(integrated_dataset, dataset_schema, verbose)
+            self._save_integrated_files(integrated_dataset, dataset_schema, verbose, storage_mode)
 
             # 6. 収集サマリー生成
             collection_summary = self._create_collection_summary(raw_data, cleaned_data)
-            self._save_collection_summary(collection_summary)
+            self._save_collection_summary(collection_summary, storage_mode)
 
             # 7. データ品質情報は統合メタデータに含まれるため個別レポートは不要
 
@@ -145,13 +145,20 @@ class DatasetIntegrator:
                 logger.info(f"統合データセット作成完了: {self.integrated_dir}/corporate_bias_dataset.json")
                 logger.info(f"処理時間: {self._calculate_processing_time():.2f}秒")
 
-            return integrated_dataset
+            return {
+                'success': True,
+                'integrated_dataset_path': f"{self.integrated_dir}/corporate_bias_dataset.json",
+                'data': integrated_dataset
+            }
 
         except Exception as e:
             logger.error(f"統合データセット作成中にエラーが発生しました: {e}")
             self.integration_metadata["end_time"] = datetime.now().isoformat()
             self.integration_metadata["processing_summary"]["status"] = "ERROR"
-            raise
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
     def _extract_run_number(self, filename: str, prefix: str) -> int:
         """ファイル名からrun数を抽出
@@ -203,12 +210,25 @@ class DatasetIntegrator:
         import glob
         raw_data = {}
 
-        # Google検索データ
+        # 全データソースを読み込み
+        self._load_google_data(raw_data, verbose)
+        self._load_perplexity_sentiment_data(raw_data, verbose, runs)
+        self._load_perplexity_rankings_data(raw_data, verbose, runs)
+        self._load_perplexity_citations_data(raw_data, verbose, runs)
+
+
+
+    def _load_google_data(self, raw_data: Dict[str, Any], verbose: bool = True):
+        """Google検索データの読み込み"""
+        from src.utils.storage_utils import load_json
+        from src.utils.storage_config import get_s3_key
+
         google_local = os.path.join(self.paths["raw_data"]["google"], "custom_search.json")
         google_data = None
         found_local = os.path.exists(google_local)
         found_s3 = False
         google_s3 = get_s3_key("custom_search.json", self.date_str, "raw_data/google")
+
         # ローカルはcustom_search.jsonのみ
         if found_local:
             google_data = load_json(google_local, None)
@@ -231,12 +251,17 @@ class DatasetIntegrator:
                 else:
                     logger.warning(f"Googleデータがローカル・S3ともに取得できません: {google_local} / S3:{google_s3}")
 
-        # Perplexity感情データ
+    def _load_perplexity_sentiment_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None):
+        """Perplexity感情データの読み込み"""
+        from src.utils.storage_utils import load_json
+        from src.utils.storage_config import get_s3_key
+
         sentiment_local = os.path.join(self.paths["raw_data"]["perplexity"], "sentiment.json")
         sentiment_data = None
         found_local = os.path.exists(sentiment_local)
         found_s3 = False
         sentiment_s3 = get_s3_key("sentiment.json", self.date_str, "raw_data/perplexity")
+
         # ローカル: sentiment_{runs}runs.json → sentiment.json
         if runs is not None:
             sentiment_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"sentiment_{runs}runs.json")
@@ -270,12 +295,17 @@ class DatasetIntegrator:
                 else:
                     logger.warning(f"Perplexity感情データがローカル・S3ともに取得できません: {sentiment_local} / S3:{sentiment_s3}")
 
-        # Perplexityランキングデータ
+    def _load_perplexity_rankings_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None):
+        """Perplexityランキングデータの読み込み"""
+        from src.utils.storage_utils import load_json
+        from src.utils.storage_config import get_s3_key
+
         rankings_local = os.path.join(self.paths["raw_data"]["perplexity"], "rankings.json")
         rankings_data = None
         found_local = os.path.exists(rankings_local)
         found_s3 = False
         rankings_s3 = get_s3_key("rankings.json", self.date_str, "raw_data/perplexity")
+
         # ローカル: rankings_{runs}runs.json → rankings.json
         if runs is not None:
             rankings_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"rankings_{runs}runs.json")
@@ -309,12 +339,17 @@ class DatasetIntegrator:
                 else:
                     logger.warning(f"Perplexityランキングデータがローカル・S3ともに取得できません: {rankings_local} / S3:{rankings_s3}")
 
-        # Perplexity引用データ
+    def _load_perplexity_citations_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None):
+        """Perplexity引用データの読み込み"""
+        from src.utils.storage_utils import load_json
+        from src.utils.storage_config import get_s3_key
+
         citations_local = os.path.join(self.paths["raw_data"]["perplexity"], "citations.json")
         citations_data = None
         found_local = os.path.exists(citations_local)
         found_s3 = False
         citations_s3 = get_s3_key("citations.json", self.date_str, "raw_data/perplexity")
+
         # ローカル: citations_{runs}runs.json → citations.json
         if runs is not None:
             citations_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"citations_{runs}runs.json")
@@ -348,8 +383,6 @@ class DatasetIntegrator:
                 else:
                     logger.warning(f"Perplexity引用データがローカル・S3ともに取得できません: {citations_local} / S3:{citations_s3}")
 
-        return raw_data
-
     def _create_integrated_structure(self, cleaned_data: Dict[str, Any]) -> Dict[str, Any]:
         """統合データ構造の作成"""
         integrated_dataset = {
@@ -371,18 +404,34 @@ class DatasetIntegrator:
 
         return integrated_dataset
 
-    def _save_integrated_files(self, integrated_dataset: Dict[str, Any], dataset_schema: Dict[str, Any], verbose: bool = True):
+    def _save_integrated_files(self, integrated_dataset: Dict[str, Any], dataset_schema: Dict[str, Any], verbose: bool = True, storage_mode: str = None):
         """統合データセットとスキーマの保存"""
         # メインの統合データセット保存
         dataset_path = os.path.join(self.integrated_dir, "corporate_bias_dataset.json")
-        dataset_s3_key = get_s3_key("corporate_bias_dataset.json", self.date_str, "integrated")
+
+        # ストレージモードに基づいてS3キーを設定
+        if storage_mode == "local":
+            dataset_s3_key = None
+        elif storage_mode == "s3":
+            dataset_s3_key = get_s3_key("corporate_bias_dataset.json", self.date_str, "integrated")
+        else:  # auto or None
+            dataset_s3_key = get_s3_key("corporate_bias_dataset.json", self.date_str, "integrated")
+
         save_results(integrated_dataset, dataset_path, dataset_s3_key, verbose)
 
         # スキーマ保存（再生成された場合のみ）
         schema_regenerated = self.integration_metadata.get("schema_info", {}).get("schema_regenerated", True)
         if schema_regenerated:
             schema_path = os.path.join(self.integrated_dir, "dataset_schema.json")
-            schema_s3_key = get_s3_key("dataset_schema.json", self.date_str, "integrated")
+
+            # ストレージモードに基づいてS3キーを設定
+            if storage_mode == "local":
+                schema_s3_key = None
+            elif storage_mode == "s3":
+                schema_s3_key = get_s3_key("dataset_schema.json", self.date_str, "integrated")
+            else:  # auto or None
+                schema_s3_key = get_s3_key("dataset_schema.json", self.date_str, "integrated")
+
             save_results(dataset_schema, schema_path, schema_s3_key, verbose)
             if verbose:
                 logger.info(f"スキーマ保存: {schema_path}")
@@ -393,7 +442,15 @@ class DatasetIntegrator:
         # 統合メタデータ保存（品質情報も含む）
         comprehensive_metadata = self._create_comprehensive_metadata()
         metadata_path = os.path.join(self.integrated_dir, "integration_metadata.json")
-        metadata_s3_key = get_s3_key("integration_metadata.json", self.date_str, "integrated")
+
+        # ストレージモードに基づいてS3キーを設定
+        if storage_mode == "local":
+            metadata_s3_key = None
+        elif storage_mode == "s3":
+            metadata_s3_key = get_s3_key("integration_metadata.json", self.date_str, "integrated")
+        else:  # auto or None
+            metadata_s3_key = get_s3_key("integration_metadata.json", self.date_str, "integrated")
+
         save_results(comprehensive_metadata, metadata_path, metadata_s3_key, verbose)
 
         if verbose:
@@ -494,10 +551,18 @@ class DatasetIntegrator:
 
         return summary
 
-    def _save_collection_summary(self, summary: Dict[str, Any]):
+    def _save_collection_summary(self, summary: Dict[str, Any], storage_mode: str = None):
         """収集サマリーの保存"""
         summary_path = os.path.join(self.integrated_dir, "collection_summary.json")
-        summary_s3_key = get_s3_key("collection_summary.json", self.date_str, "integrated")
+
+        # ストレージモードに基づいてS3キーを設定
+        if storage_mode == "local":
+            summary_s3_key = None
+        elif storage_mode == "s3":
+            summary_s3_key = get_s3_key("collection_summary.json", self.date_str, "integrated")
+        else:  # auto or None
+            summary_s3_key = get_s3_key("collection_summary.json", self.date_str, "integrated")
+
         save_results(summary, summary_path, summary_s3_key, verbose=True)
         logger.info(f"収集サマリー保存: {summary_path}")
 

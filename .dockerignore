@@ -46,8 +46,7 @@ ehthumbs.db
 Thumbs.db
 
 # データファイル（必要に応じて調整）
-corporate_bias_datasets/raw_data/
-corporate_bias_datasets/analysis_visuals/
+corporate_bias_datasets/
 logs/
 tmp/
 test_outputs/

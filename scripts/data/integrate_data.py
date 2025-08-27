@@ -26,14 +26,14 @@ from src.integrator.dataset_integrator import DatasetIntegrator
 logger = logging.getLogger(__name__)
 
 
-def integrate_data(date: str, verbose: bool = False) -> bool:
+def integrate_data(date: str, verbose: bool = False, storage_mode: str = None) -> bool:
     """データ統合を実行"""
     try:
         logger.info(f"データ統合開始: {date}")
 
         # 統合データセット作成
-        integrator = DatasetIntegrator()
-        result = integrator.create_integrated_dataset(force_recreate=False, verbose=verbose)
+        integrator = DatasetIntegrator(date)
+        result = integrator.create_integrated_dataset(force_recreate=False, verbose=verbose, runs=1, storage_mode=storage_mode)
 
         if result.get('success'):
             logger.info("データ統合完了")
@@ -78,6 +78,9 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="詳細ログ出力")
     parser.add_argument("--validate", action="store_true", help="統合後にデータ検証を実行")
 
+    parser.add_argument("--storage-mode", choices=["local", "s3", "auto"],
+                        default="auto", help="ストレージモード（デフォルト: 環境変数STORAGE_MODE）")
+
     args = parser.parse_args()
 
     # ログ設定
@@ -91,7 +94,7 @@ def main():
     logger.info(f"環境設定: {env_config}")
 
     # データ統合実行
-    if integrate_data(args.date, args.verbose):
+    if integrate_data(args.date, args.verbose, args.storage_mode):
         logger.info("データ統合が成功しました")
 
         # 検証オプションが指定されている場合

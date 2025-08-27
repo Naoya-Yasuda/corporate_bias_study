@@ -245,7 +245,7 @@ echo $TWITTER_API_SECRET
 python -c "from src.sns.s3_data_loader import S3DataLoader; loader = S3DataLoader(); print(loader.list_available_dates())"
 
 # ローカルデータの確認
-ls -la corporate_bias_datasets/analysis_visuals/
+ls -la corporate_bias_datasets/integrated/
 ```
 
 #### 5. メモリ不足エラー

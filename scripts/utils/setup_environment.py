@@ -31,7 +31,6 @@ def check_required_directories() -> bool:
             "corporate_bias_datasets",
             "corporate_bias_datasets/raw_data",
             "corporate_bias_datasets/integrated",
-            "corporate_bias_datasets/analysis_visuals",
             "logs",
             "tmp"
         ]
@@ -60,7 +59,6 @@ def create_missing_directories() -> bool:
             "corporate_bias_datasets",
             "corporate_bias_datasets/raw_data",
             "corporate_bias_datasets/integrated",
-            "corporate_bias_datasets/analysis_visuals",
             "logs",
             "tmp"
         ]

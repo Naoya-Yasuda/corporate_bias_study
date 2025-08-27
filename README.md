@@ -125,7 +125,7 @@ cd corporate-bias-study
 ### 2. 依存関係のインストール
 ```bash
 # アプリケーション用
-pip install -r requirements-app.txt
+pip install -r requirements.txt
 
 # GitHub Actions用（CI/CD）
 pip install -r requirements-github-actions.txt
