@@ -31,6 +31,8 @@
 - **コンテンツ生成**: 自動的な投稿コンテンツ生成
 - **監視ログ**: 投稿履歴と監視状況の詳細ログ
 
+詳細な設定方法は [SNS投稿機能README](docs/sns_posting_guide.md) を参照してください。
+
 ## システム構成
 
 ```
@@ -154,63 +156,6 @@ python scripts/github_actions_sns_posting.py
 python -c "from src.sns.integrated_posting_system import IntegratedPostingSystem; system = IntegratedPostingSystem(); result = system.post_latest_changes(); print(result)"
 ```
 
-## SNS投稿機能の詳細
-
-### 監視対象指標と閾値
-| 指標                             | 閾値                            | 説明                         |
-| -------------------------------- | ------------------------------- | ---------------------------- |
-| **NBI（Normalized Bias Index）** | ±20%以上                        | 企業優遇バイアスの正規化指標 |
-| **おすすめランキング順位**       | 上位3位以内変動 または ±3位以上 | 検索結果の順位変化           |
-| **サービスレベル公平性スコア**   | ±15%以上                        | サービスカテゴリ全体の公平性 |
-| **企業レベル公平性スコア**       | ±15%以上                        | 個別企業の公平性評価         |
-
-### 投稿テンプレート例
-
-#### 1. NBI変化検知
-```
-🚨【企業優遇バイアス変化検知】
-
-📊 検知内容: NBI急激な変化
-🏢 対象企業: AWS
-📈 変化率: +25.3%
-📋 詳細: 感情スコアが大幅に上昇
-📅 検知日時: 2025-01-27 14:30
-
-🔍 分析詳細: https://your-domain.com/analysis
-#企業優遇バイアス #AI分析 #透明性
-```
-
-#### 2. ランキング変化検知
-```
-📊【検索ランキング変化検知】
-
-🏢 対象企業: Microsoft Azure
-📈 ランキング変化: 2位 → 5位 (-3位)
-📋 カテゴリ: クラウドコンピューティング
-📅 検知日時: 2025-01-27 15:45
-
-🔍 詳細分析: https://your-domain.com/ranking
-#検索ランキング #AI分析 #企業評価
-```
-
-#### 3. 公平性スコア変化検知
-```
-⚖️【公平性スコア変化検知】
-
-🏢 対象企業: Google Cloud
-📊 スコア変化: 0.78 → 0.65 (-16.7%)
-📋 評価項目: 企業レベル公平性
-📅 検知日時: 2025-01-27 16:20
-
-🔍 詳細分析: https://your-domain.com/fairness
-#公平性評価 #AI分析 #透明性
-```
-
-### 設定方法
-
-
-
-
 ## 設定ファイル
 
 ### 環境変数（.env）- 最優先設定
@@ -261,20 +206,6 @@ python -c "from src.sns.integrated_posting_system import IntegratedPostingSystem
       }
     }
   }
-}
-```
-
-### SNS投稿履歴データ
-```json
-{
-  "post_id": "unique_post_id",
-  "timestamp": "2025-01-27T14:30:00Z",
-  "change_type": "nbi_change",
-  "entity_name": "AWS",
-  "change_percentage": 25.3,
-  "post_content": "投稿内容...",
-  "status": "posted",
-  "tweet_id": "1234567890123456789"
 }
 ```
 
@@ -335,12 +266,7 @@ status = system.get_system_status()
 print(f"設定状況: {status}")
 ```
 
-## トラブルシューティング
-
-### よくある問題と解決方法
-
-
-### パフォーマンス最適化
+## パフォーマンス最適化
 
 #### 1. 監視間隔の調整
 ```yaml
@@ -363,8 +289,6 @@ parallel_processing:
   enabled: true
   max_workers: 4
 ```
-
-
 
 ### 開発ガイドライン
 1. 新しい機能追加時は必ずテストを作成
