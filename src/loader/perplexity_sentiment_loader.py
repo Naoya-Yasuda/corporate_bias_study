@@ -151,13 +151,14 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        logging.info("詳細ログモードが有効になりました")
+        setup_default_logging(verbose=True)
+        logger.info("詳細ログモードが有効になりました")
 
     # APIキーの事前チェック
-    if not PERPLEXITY_API_KEY or PERPLEXITY_API_KEY.startswith("your_"):
+    perplexity_api_key = api_config.get('perplexity_api_key', '')
+    if not perplexity_api_key or perplexity_api_key.startswith("your_"):
         print(f"エラー: 有効なPerplexity APIキーが設定されていません")
-        print(f"現在の値: {PERPLEXITY_API_KEY}")
+        print(f"現在の値: {perplexity_api_key}")
         print(f".envファイルでPERPLEXITY_API_KEYに実際のAPIキーを設定してください")
         exit(1)
 
@@ -167,15 +168,15 @@ def main():
 
     if args.runs > 1:
         print(f"Perplexity APIを使用して{args.runs}回の実行データを取得します")
-        result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, args.runs)
+        result = process_categories_with_multiple_runs(perplexity_api_key, categories, args.runs)
     else:
         print("Perplexity APIを使用して単一実行データを取得します")
-        result = process_categories_with_multiple_runs(PERPLEXITY_API_KEY, categories, 1)
+        result = process_categories_with_multiple_runs(perplexity_api_key, categories, 1)
 
     file_name = f"sentiment_{args.runs}runs.json"
     local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-    s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
-    save_results(result, local_path, s3_key, verbose=args.verbose)
+    # S3保存を無効化（ローカルテスト用）
+    save_results(result, local_path, None, verbose=args.verbose)
 
     print("データ取得処理が完了しました")
 

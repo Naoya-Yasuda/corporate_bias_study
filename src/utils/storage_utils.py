@@ -417,7 +417,7 @@ def save_results(data, local_path, s3_key=None, verbose=False):
     """
     結果データをローカルとS3に保存する共通関数
     - local_path: ローカル保存先パス
-    - s3_key: S3保存先キー（省略時はローカルパスから自動変換も可）
+    - s3_key: S3保存先キー（Noneの場合はS3保存をスキップ、空文字列の場合は自動生成）
     - verbose: Trueなら詳細ログ
     """
     try:
@@ -431,9 +431,9 @@ def save_results(data, local_path, s3_key=None, verbose=False):
         return None
 
     # S3保存
-    if is_s3_enabled():
-        if not s3_key:
-            # デフォルトでlocal_pathからS3キーを生成
+    if is_s3_enabled() and s3_key is not None:
+        if s3_key == "":
+            # 空文字列の場合はlocal_pathからS3キーを自動生成
             s3_key = local_path.replace("\\", "/")
         try:
             s3_client = get_s3_client()
@@ -443,9 +443,10 @@ def save_results(data, local_path, s3_key=None, verbose=False):
                 print(f"S3に保存しました: s3://{S3_BUCKET_NAME}/{s3_key}")
         except Exception as e:
             print(f"S3保存エラー: {e} s3://{S3_BUCKET_NAME}/{s3_key}")
-    else:
-        if verbose:
-            print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
+    elif s3_key is None and verbose:
+        print("S3保存をスキップしました（s3_key=None）")
+    elif not is_s3_enabled() and verbose:
+        print("S3認証情報が不足しています。AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAMEを環境変数で設定してください。")
     return local_path
 
 def load_json_from_s3_integrated(date_or_path: str, filename: str = "bias_analysis_results.json") -> dict:

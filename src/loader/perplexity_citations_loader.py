@@ -298,7 +298,8 @@ def collect_citation_rankings(categories: Dict[str, Any]) -> Dict[str, Any]:
             # 各サービスについて公式/非公式情報を取得
             for service in services:
                 query = f"{service}"
-                api = PerplexityAPI(PPLX_API_KEY)
+                perplexity_api_key = api_config.get('perplexity_api_key', '')
+                api = PerplexityAPI(perplexity_api_key)
                 answer, citations = api.call_perplexity_api(query)
                 if answer:
                     print(f"  Perplexityからの応答:\n{answer[:200]}...")
@@ -331,7 +332,8 @@ def collect_citation_rankings(categories: Dict[str, Any]) -> Dict[str, Any]:
 
             for service in services:
                 query = f"{service} 評判 口コミ"
-                api = PerplexityAPI(PPLX_API_KEY)
+                perplexity_api_key = api_config.get('perplexity_api_key', '')
+                api = PerplexityAPI(perplexity_api_key)
                 answer, citations = api.call_perplexity_api(query)
                 if answer:
                     print(f"  Perplexityからの応答:\n{answer[:200]}...")
@@ -407,7 +409,8 @@ def generate_summary(subcategory, services, all_answers):
 
     # APIで要約を生成
     try:
-        api = PerplexityAPI(PPLX_API_KEY)
+        perplexity_api_key = api_config.get('perplexity_api_key', '')
+        api = PerplexityAPI(perplexity_api_key)
         summary, _ = api.call_perplexity_api(prompt)
         return summary
     except Exception as e:
@@ -425,9 +428,8 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
-        import logging
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        logging.info("詳細ログモードが有効になりました")
+        setup_default_logging(verbose=True)
+        logger.info("詳細ログモードが有効になりました")
 
     # カテゴリとサービスの取得
     categories = get_categories()
@@ -442,17 +444,17 @@ def main():
         print("Perplexity APIを使用して単一実行引用リンク取得を実行します")
 
     if args.verbose:
-        logging.info(f"{args.runs}回の実行を開始します")
+        logger.info(f"{args.runs}回の実行を開始します")
 
     result = collect_citation_rankings(categories)
     file_name = f"citations_{args.runs}runs.json"
     local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-    s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
-    save_results(result, local_path, s3_key, verbose=args.verbose)
+    # S3保存を無効化（ローカルテスト用）
+    save_results(result, local_path, None, verbose=args.verbose)
 
     print("引用リンク取得処理が完了しました")
     if args.verbose:
-        logging.info("引用リンク取得処理が完了しました")
+        logger.info("引用リンク取得処理が完了しました")
 
 
 if __name__ == "__main__":

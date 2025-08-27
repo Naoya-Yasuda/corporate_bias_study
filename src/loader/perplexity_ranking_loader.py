@@ -170,8 +170,8 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        logging.info("詳細ログモードが有効になりました")
+        setup_default_logging(verbose=True)
+        logger.info("詳細ログモードが有効になりました")
 
     try:
         # カテゴリとサービスの取得
@@ -183,24 +183,26 @@ def main():
 
 
         if args.verbose:
-            logging.info(f"{args.runs}回の実行を開始します")
+            logger.info(f"{args.runs}回の実行を開始します")
 
-        result = collect_rankings(PERPLEXITY_API_KEY, categories, args.runs)
+        # APIキーの取得
+        perplexity_api_key = api_config.get('perplexity_api_key', '')
+        result = collect_rankings(perplexity_api_key, categories, args.runs)
 
         file_name = f"rankings_{args.runs}runs.json"
         local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-        s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity")
-        save_results(result, local_path, s3_key, verbose=args.verbose)
+        # S3保存を無効化（ローカルテスト用）
+        save_results(result, local_path, None, verbose=args.verbose)
 
         print("データ取得処理が完了しました")
         if args.verbose:
-            logging.info("データ取得処理が完了しました")
+            logger.info("データ取得処理が完了しました")
         print(f"結果は {local_path} に保存されました。")
 
     except Exception as e:
         print(f"エラーが発生しました: {str(e)}")
         if args.verbose:
-            logging.error(f"エラーが発生しました: {str(e)}", exc_info=True)
+            logger.error(f"エラーが発生しました: {str(e)}", exc_info=True)
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -216,9 +216,8 @@ def main():
 
     # 詳細ログの設定
     if args.verbose:
-        import logging
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        logging.info("詳細ログモードが有効になりました")
+        setup_default_logging(verbose=True)
+        logger.info("詳細ログモードが有効になりました")
 
     # カテゴリとサービスの取得
     categories = get_categories()
@@ -231,12 +230,12 @@ def main():
             limited_categories[cat] = subcat
         categories = limited_categories
         if args.verbose:
-            logging.info(f"カテゴリを{args.max}個に制限しました")
+            logger.info(f"カテゴリを{args.max}個に制限しました")
 
     # 日付を取得（指定がなければ今日の日付）
     perplexity_date = args.perplexity_date or datetime.datetime.now().strftime("%Y%m%d")
     if args.verbose:
-        logging.info(f"Perplexity分析日付: {perplexity_date}, データタイプ: {args.data_type}")
+        logger.info(f"Perplexity分析日付: {perplexity_date}, データタイプ: {args.data_type}")
 
     # Google検索結果を取得
     result = process_categories_with_search(categories, args.max)
@@ -246,11 +245,11 @@ def main():
     paths = get_results_paths(today_date)
     file_name = "custom_search.json"
     local_path = os.path.join(paths["raw_data"]["google"], file_name)
-    s3_key = get_s3_key(file_name, today_date, "raw_data/google")
-    save_results(result, local_path, s3_key, verbose=args.verbose)
+    # S3保存を無効化（ローカルテスト用）
+    save_results(result, local_path, None, verbose=args.verbose)
 
     if args.verbose:
-        logging.info(f"Google検索結果をファイルに保存しました: {local_path}")
+        logger.info(f"Google検索結果をファイルに保存しました: {local_path}")
 
 if __name__ == "__main__":
     main()
