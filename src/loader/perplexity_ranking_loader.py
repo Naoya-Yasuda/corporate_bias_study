@@ -191,8 +191,9 @@ def main():
 
         file_name = f"rankings_{args.runs}runs.json"
         local_path = os.path.join(paths["raw_data"]["perplexity"], file_name)
-        # S3保存を無効化（ローカルテスト用）
-        save_results(result, local_path, None, verbose=args.verbose)
+        # 環境変数STORAGE_MODEに基づいてS3保存を制御
+        s3_key = get_s3_key(file_name, today_date, "raw_data/perplexity") if os.getenv('STORAGE_MODE') in ['s3', 'both', 'auto'] else None
+        save_results(result, local_path, s3_key, verbose=args.verbose)
 
         print("データ取得処理が完了しました")
         if args.verbose:
