@@ -34,8 +34,7 @@ from ..utils import (
     APIError, DataError
 )
 
-# 感情分析機能をインポート
-from ..analysis.sentiment_analyzer import analyze_sentiments
+
 
 # ログ設定
 logger = get_logger(__name__)
@@ -390,62 +389,7 @@ def collect_citation_rankings(categories: Dict[str, Any]) -> Dict[str, Any]:
                     if url and url in metadata_dict:
                         result.update(metadata_dict[url])
 
-    # 感情分析を実行してsentiment属性を追加
-    print("\n感情分析を実行中...")
-    for category in results:
-        for subcategory in results[category]:
-            data = results[category][subcategory]
-            for entity, entity_data in data.get("entities", {}).items():
-                reputation_results = entity_data.get("reputation_results", [])
 
-                # titleとsnippetがあるもののみを感情分析対象とする
-                valid_results = [
-                    r for r in reputation_results
-                    if r.get("title") and r.get("snippet") and
-                    isinstance(r.get("title"), str) and isinstance(r.get("snippet"), str) and
-                    r.get("title").strip() and r.get("snippet").strip()
-                ]
-
-                # titleやsnippetが空のエントリーはsentiment="unknown"に設定
-                invalid_results = [
-                    r for r in reputation_results
-                    if not (r.get("title") and r.get("snippet") and
-                    isinstance(r.get("title"), str) and isinstance(r.get("snippet"), str) and
-                    r.get("title").strip() and r.get("snippet").strip())
-                ]
-
-                # titleやsnippetが空のエントリーにsentiment="unknown"を設定
-                for result in invalid_results:
-                    result["sentiment"] = "unknown"
-
-                # 有効な結果に対して感情分析を実行
-                if valid_results:
-                    print(f"  {entity}: {len(valid_results)}件の評判データを感情分析対象として処理")
-
-                    # 5件ずつバッチ処理
-                    for i in range(0, len(valid_results), 5):
-                        batch = valid_results[i:i+5]
-                        texts = [f"{result['title']} {result['snippet']}" for result in batch]
-                        print(f"    バッチ {i//5 + 1}: {len(texts)}件を処理中...")
-
-                        try:
-                            sentiments = analyze_sentiments(texts, verbose=False)
-                            for result, sentiment in zip(batch, sentiments):
-                                result["sentiment"] = sentiment
-                            print(f"    バッチ {i//5 + 1}: 感情分析完了")
-                        except Exception as e:
-                            print(f"    バッチ {i//5 + 1}: 感情分析エラー - {e}")
-                            # エラー時はすべてunknownに設定
-                            for result in batch:
-                                result["sentiment"] = "unknown"
-
-                        time.sleep(1.25)  # API制限対策
-
-                if invalid_results:
-                    print(f"  {entity}: {len(invalid_results)}件のエントリーをsentiment='unknown'に設定（titleやsnippetが不足）")
-
-                if not valid_results and not invalid_results:
-                    print(f"  {entity}: 感情分析対象のデータがありません")
 
     return results
 
