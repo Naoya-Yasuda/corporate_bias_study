@@ -50,6 +50,11 @@ def render_auth_page():
 
     # 中央揃えでログインボタンを表示
     with col2:
+        # デバッグ情報を表示
+        st.write("**デバッグ情報:**")
+        st.write(f"Client ID: {client_id[:10] if client_id else 'None'}...")
+        st.write(f"Redirect URI: {redirect_uri}")
+
         result = oauth2.authorize_button(
             name="Googleでログイン",
             redirect_uri=redirect_uri,
@@ -57,44 +62,64 @@ def render_auth_page():
             use_container_width=True
         )
 
+    # デバッグ情報を表示
+    with col2:
+        st.write("**Result Debug:**", result)
+
     if result and "token" in result:
         # トークンが取得できた場合、ユーザー情報を取得
         token = result["token"]
+        st.write("**Token Debug:**", token)
 
-        # Google User Info APIを使用してユーザー情報を取得
+        # トークンから直接ユーザー情報を取得
         try:
-            import requests
-            userinfo_response = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {token['access_token']}"}
-            )
+            # IDトークンからユーザー情報を取得
+            import jwt
+            import base64
 
-            if userinfo_response.status_code == 200:
-                user_info = userinfo_response.json()
-                email = user_info.get("email", "")
+            # IDトークンをデコード（署名検証なし）
+            id_token = token.get('id_token', '')
+            if id_token:
+                # JWTのペイロード部分を取得
+                parts = id_token.split('.')
+                if len(parts) == 3:
+                    # ペイロードをデコード
+                    payload = parts[1]
+                    # パディングを追加
+                    payload += '=' * (4 - len(payload) % 4)
+                    user_info = jwt.decode(id_token, options={"verify_signature": False})
 
-                if email.endswith("@cyber-u.ac.jp"):
-                    # 認証成功：セッション状態にユーザー情報を保存
-                    st.session_state.authenticated = True
-                    st.session_state.user_info = user_info
-                    st.session_state.token = token
+                    email = user_info.get("email", "")
+                    st.write("**User Info Debug:**", user_info)
 
-                    # 認証成功メッセージを表示
-                    with col2:
-                        st.success(f"ログイン成功: {email}")
-                        st.info("認証が完了しました。ダッシュボードの機能をご利用ください。")
+                    if email.endswith("@cyber-u.ac.jp"):
+                        # 認証成功：セッション状態にユーザー情報を保存
+                        st.session_state.authenticated = True
+                        st.session_state.user_info = user_info
+                        st.session_state.token = token
 
-                    # ページを再読み込みしてダッシュボードを表示
-                    st.rerun()
+                        # 認証成功メッセージを表示
+                        with col2:
+                            st.success(f"ログイン成功: {email}")
+                            st.info("認証が完了しました。ダッシュボードの機能をご利用ください。")
+
+                        # ページを再読み込みしてダッシュボードを表示
+                        st.rerun()
+                    else:
+                        with col2:
+                            st.error("cyber-u.ac.jpドメインのメールアドレスでログインしてください。")
                 else:
                     with col2:
-                        st.error("cyber-u.ac.jpドメインのメールアドレスでログインしてください。")
+                        st.error("IDトークンの形式が正しくありません。")
             else:
                 with col2:
-                    st.error(f"ユーザー情報取得エラー: {userinfo_response.status_code}")
+                    st.error("IDトークンが取得できませんでした。")
         except Exception as e:
             with col2:
                 st.error(f"ユーザー情報取得エラー: {e}")
+                st.write("**Exception Debug:**", str(e))
+                import traceback
+                st.write("**Traceback:**", traceback.format_exc())
     elif result:
         with col2:
             st.write("**デバッグ: resultはあるがtokenがない**", result)

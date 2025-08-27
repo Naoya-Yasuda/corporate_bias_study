@@ -62,7 +62,10 @@ class GoogleOAuthManager:
 
         # 許可ドメインの設定
         allowed_domains = os.getenv("ALLOWED_DOMAINS", "cyber-u.ac.jp").split(",")
-        self.domain_validator = DomainValidator(allowed_domains)
+        allowed_emails = os.getenv("ALLOWED_EMAILS", "").split(",") if os.getenv("ALLOWED_EMAILS") else []
+        # 空文字列を除去
+        allowed_emails = [email.strip() for email in allowed_emails if email.strip()]
+        self.domain_validator = DomainValidator(allowed_domains, allowed_emails)
 
         # セッションマネージャー
         self.session_manager = SessionManager()
@@ -332,6 +335,15 @@ class GoogleOAuthManager:
             list: 許可ドメインのリスト
         """
         return self.domain_validator.get_allowed_domains()
+
+    def get_allowed_emails(self) -> list:
+        """
+        許可されているメールアドレスのリストを取得
+
+        Returns:
+            list: 許可メールアドレスのリスト
+        """
+        return self.domain_validator.get_allowed_emails()
 
 
 def get_oauth_manager() -> GoogleOAuthManager:

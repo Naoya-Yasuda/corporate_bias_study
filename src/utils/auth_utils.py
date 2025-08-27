@@ -109,6 +109,21 @@ def get_allowed_domains() -> list:
         return ["cyber-u.ac.jp"]  # デフォルト
 
 
+def get_allowed_emails() -> list:
+    """
+    許可されているメールアドレスのリストを取得
+
+    Returns:
+        list: 許可メールアドレスのリスト
+    """
+    try:
+        oauth_manager = GoogleOAuthManager()
+        return oauth_manager.get_allowed_emails()
+    except Exception as e:
+        logger.error(f"許可メールアドレス取得エラー: {e}")
+        return []  # デフォルト
+
+
 def log_auth_event(event_type: str, user_info: Dict[str, Any] = None, success: bool = True, error: str = ""):
     """
     認証イベントのログ出力
@@ -155,6 +170,7 @@ def get_auth_debug_info() -> Dict[str, Any]:
             "client_secret_set": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
             "redirect_uri_set": bool(os.getenv("GOOGLE_REDIRECT_URI")),
             "allowed_domains": oauth_manager.get_allowed_domains(),
+            "allowed_emails": oauth_manager.get_allowed_emails(),
             "debug_mode": os.getenv("AUTH_DEBUG_MODE", "false").lower() == "true",
             "session_timeout": int(os.getenv("SESSION_TIMEOUT", "3600")),
             "jwt_secret_set": bool(os.getenv("JWT_SECRET_KEY")),

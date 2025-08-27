@@ -26,9 +26,9 @@ from src.utils.plot_utils import (
     plot_sentiment_ranking_correlation_scatter
 )
 
-# 認証機能のインポート（一時的に無効化）
-# from src.components.auth_ui import render_auth_page, show_dashboard_header
-# from src.utils.auth_utils import validate_auth_config, is_authenticated
+# 認証機能のインポート
+from src.components.auth_ui import render_auth_page, show_dashboard_header
+from src.utils.auth_utils import validate_auth_config, is_authenticated
 
 # ページ設定
 st.set_page_config(
@@ -38,14 +38,33 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 認証チェック（一時的に無効化）
+# 認証チェック
 def check_authentication():
     """認証状態をチェックし、未認証の場合は認証ページを表示"""
-    st.info("認証機能は一時的に無効化されています")
-    return
+    # OAuth認証フラグの確認
+    oauth_flag = os.getenv('OAUTH_FLAG', 'true').lower()
+    if oauth_flag in ['false', '0', 'no']:
+        st.info("認証機能は無効化されています")
+        return True
+
+    # 認証設定の検証
+    if not validate_auth_config():
+        st.error("認証設定が正しく設定されていません。管理者にお問い合わせください。")
+        return False
+
+    # 認証状態のチェック
+    if not is_authenticated():
+        render_auth_page()
+        st.stop()
+        return False
+
+    return True
 
 # 認証チェック実行
-check_authentication()
+if check_authentication():
+    # 認証成功時のみダッシュボードヘッダーを表示
+    if 'user_info' in st.session_state:
+        show_dashboard_header(st.session_state.user_info)
 
 # キャッシュ付きデータ取得関数
 @st.cache_data(ttl=3600)  # 1時間キャッシュ
