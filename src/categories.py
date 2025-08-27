@@ -6,18 +6,11 @@
 YAMLファイルからカテゴリとサービス情報を読み込む
 """
 
-import os
-import yaml
-import logging
+from typing import List, Dict, Any, Tuple
+from .utils import get_config_manager, get_logger, ConfigError, handle_errors
 
 # ロガー設定
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# 相対パスの定義
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
-CATEGORIES_YAML = os.path.join(PROJECT_ROOT, "config", "analysis", "categories.yml")
+logger = get_logger(__name__)
 
 # デフォルト値（YAMLファイルが見つからない場合のフォールバック）
 DEFAULT_VIEWPOINTS = ['売上', '若い世代の人気', '将来性', 'セキュリティ', '可愛さ', 'かっこよさ']
@@ -28,25 +21,28 @@ DEFAULT_CATEGORIES = {
     }
 }
 
-def load_yaml_categories():
+@handle_errors
+def load_yaml_categories() -> Tuple[List[str], Dict[str, Any]]:
     """YAMLファイルからカテゴリとビューポイントを読み込む"""
+    config_manager = get_config_manager()
+
     try:
-        if not os.path.exists(CATEGORIES_YAML):
-            logger.warning(f"カテゴリ定義ファイルが見つかりません: {CATEGORIES_YAML}")
+        # 設定管理システムを使用してカテゴリ設定を取得
+        categories_config = config_manager.get_categories_config()
+
+        if not categories_config:
+            logger.warning("カテゴリ定義ファイルが見つからないか、空です。デフォルト値を使用します。")
             return DEFAULT_VIEWPOINTS, DEFAULT_CATEGORIES
 
-        with open(CATEGORIES_YAML, 'r', encoding='utf-8') as file:
-            data = yaml.safe_load(file)
+        viewpoints = categories_config.get('viewpoints', DEFAULT_VIEWPOINTS)
+        categories = categories_config.get('categories', DEFAULT_CATEGORIES)
 
-        viewpoints = data.get('viewpoints', DEFAULT_VIEWPOINTS)
-        categories = data.get('categories', DEFAULT_CATEGORIES)
-
-        logger.info(f"カテゴリ定義ファイルを読み込みました: {CATEGORIES_YAML}")
+        logger.info("カテゴリ定義ファイルを読み込みました")
         return viewpoints, categories
 
     except Exception as e:
         logger.error(f"カテゴリ定義ファイルの読み込み中にエラーが発生しました: {e}")
-        return DEFAULT_VIEWPOINTS, DEFAULT_CATEGORIES
+        raise ConfigError(f"カテゴリ設定の読み込みに失敗しました: {e}", "categories")
 
 # グローバル変数として読み込み
 viewpoints, categories = load_yaml_categories()

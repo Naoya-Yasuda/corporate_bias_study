@@ -15,7 +15,6 @@ Usage:
 
 import os
 import json
-import logging
 from datetime import datetime
 import statistics
 import math
@@ -27,23 +26,24 @@ import itertools
 from tqdm import trange
 from src.analysis.hybrid_data_loader import HybridDataLoader
 from src.utils.storage_utils import load_json
-from dotenv import load_dotenv
 from src.utils.rank_utils import rbo, compute_tau, compute_delta_ranks
 from statsmodels.stats.multitest import multipletests
 from scipy.stats import kendalltau
 from collections import defaultdict
 from urllib.parse import urlparse
-import yaml
 from scipy.stats import ttest_ind, pearsonr, spearmanr
 import argparse
 import warnings
 
-# 環境変数を読み込み
-load_dotenv()
+# 新しいユーティリティをインポート
+from src.utils import (
+    get_config_manager, get_logger, setup_default_logging,
+    handle_errors, log_analysis_step, log_data_operation,
+    ConfigError, DataError, AnalysisError
+)
 
 # ログ設定
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SimpleRanking:
