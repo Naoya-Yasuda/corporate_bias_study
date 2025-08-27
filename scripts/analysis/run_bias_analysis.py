@@ -27,6 +27,7 @@ sys.path.insert(0, str(project_root / "scripts" / "utils"))
 from config_manager import setup_logging, get_config_manager
 from src.analysis.bias_analysis_engine import BiasAnalysisEngine
 from src.analysis.hybrid_data_loader import HybridDataLoader
+from src.utils import setup_default_logging, get_logger
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ def main():
     args = parser.parse_args()
 
     # ログ設定
-    setup_logging(args.verbose)
+    setup_default_logging(verbose=args.verbose)
 
     # バイアス分析実行
     success = run_bias_analysis(

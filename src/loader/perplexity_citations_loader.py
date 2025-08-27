@@ -13,7 +13,7 @@ import time
 import argparse
 import requests
 import re
-from dotenv import load_dotenv
+from typing import Dict, Any, List, Optional
 
 # 共通ユーティリティをインポート
 from ..utils import (
@@ -27,11 +27,20 @@ from ..categories import get_categories, get_all_categories
 from ..utils.perplexity_api import PerplexityAPI
 from ..prompts.prompt_manager import PromptManager
 
-# .envファイルから環境変数を読み込む
-load_dotenv()
+# 新しいユーティリティをインポート
+from ..utils import (
+    get_config_manager, get_logger, setup_default_logging,
+    handle_errors, log_api_call, log_data_operation,
+    APIError, DataError
+)
 
-# 環境変数から認証情報を取得
-PPLX_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+# ログ設定
+logger = get_logger(__name__)
+
+# 設定管理システムを使用
+config_manager = get_config_manager()
+api_config = config_manager.get_api_config()
+storage_config = config_manager.get_storage_config()
 
 # プロンプトマネージャーのインスタンスを作成
 prompt_manager = PromptManager()
@@ -233,7 +242,8 @@ def get_metadata_from_serp(urls):
         return {url: {"title": "", "snippet": ""} for url in urls}
 
 
-def collect_citation_rankings(categories):
+@handle_errors
+def collect_citation_rankings(categories: Dict[str, Any]) -> Dict[str, Any]:
     """
     各カテゴリ・サブカテゴリごとに引用リンクのランキングを取得
 
@@ -252,11 +262,14 @@ def collect_citation_rankings(categories):
     processed = 0
 
     # 試すモデル（成功するまで順に試す）
-    api = PerplexityAPI(PPLX_API_KEY)
+    api = PerplexityAPI(api_config.get('perplexity_api_key', ''))
     models_to_try = api.get_models_to_try()
 
     # 全URLを収集するリスト（評判情報用のみ）
     reputation_urls = []
+
+    log_data_operation("開始", "citations_analysis", data_size=len(categories))
+    logger.info(f"引用リンク分析処理開始: {len(categories)}カテゴリ")
 
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")

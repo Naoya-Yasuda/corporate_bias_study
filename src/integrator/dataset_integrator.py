@@ -7,7 +7,6 @@
 
 import os
 import json
-import logging
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import copy
@@ -17,16 +16,27 @@ from .schema_generator import SchemaGenerator
 from ..utils.storage_utils import save_results
 from ..utils.storage_config import get_base_paths, get_s3_key
 
-logger = logging.getLogger(__name__)
+# 新しいユーティリティをインポート
+from ..utils import (
+    get_config_manager, get_logger, setup_default_logging,
+    handle_errors, log_data_operation, log_analysis_step,
+    DataError, ConfigError
+)
+
+logger = get_logger(__name__)
 
 
 class DatasetIntegrator:
     """統合データセット作成クラス"""
 
+    @handle_errors
     def __init__(self, date_str: str):
         self.date_str = date_str
         self.validator = DataValidator()
         self.schema_generator = SchemaGenerator()
+
+        # 設定管理システムを使用
+        config_manager = get_config_manager()
 
         # 出力パス設定
         self.paths = get_base_paths(date_str)
@@ -45,6 +55,9 @@ class DatasetIntegrator:
             "schema_info": {},
             "data_quality_score": 0.0
         }
+
+        log_analysis_step("DatasetIntegrator初期化", "initialization", success=True)
+        logger.info(f"DatasetIntegrator初期化完了: {date_str}")
 
     def create_integrated_dataset(self, force_recreate: bool = False, verbose: bool = True, runs: int = None) -> Dict[str, Any]:
         """統合データセット作成メイン処理"""

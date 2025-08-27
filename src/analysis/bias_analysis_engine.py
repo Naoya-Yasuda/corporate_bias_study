@@ -278,6 +278,7 @@ class ReliabilityChecker:
 class BiasAnalysisEngine:
     """統合バイアス分析エンジン - データローダーとメトリクス計算を統合"""
 
+    @handle_errors
     def __init__(self, storage_mode: str = None):
         """BiasAnalysisEngine初期化
 
@@ -286,9 +287,15 @@ class BiasAnalysisEngine:
         storage_mode : str, optional
             ストレージモード ('local', 's3', 'auto')
         """
+        # 設定管理システムを使用
+        config_manager = get_config_manager()
+
         # ストレージモードの設定
-        self.storage_mode = storage_mode or os.getenv("STORAGE_MODE", "auto")
-        logger.info(f"環境変数STORAGE_MODEから取得: {self.storage_mode}")
+        storage_config = config_manager.get_storage_config()
+        self.storage_mode = storage_mode or storage_config.get('storage_mode', 'auto')
+
+        log_analysis_step("BiasAnalysisEngine初期化", "initialization", success=True)
+        logger.info(f"ストレージモード: {self.storage_mode}")
 
         # 信頼性チェック器の初期化
         self.reliability_checker = ReliabilityChecker()
@@ -320,19 +327,11 @@ class BiasAnalysisEngine:
             logger.warning(f"rank_utilsモジュールが利用できません: {e}")
             self.rank_utils_available = False
 
-        logger.info(f"BiasAnalysisEngine初期化: storage_mode={self.storage_mode}")
-        logger.info(f"market_data読み込み状況: {bool(self.market_data)}")
-        if self.market_data:
-            logger.info(f"market_shares: {len(self.market_data.get('market_shares', {}))} カテゴリ")
-            logger.info(f"market_caps: {len(self.market_data.get('market_caps', {}))} カテゴリ")
+        # 初期化完了ログ
+        log_data_operation("初期化", "market_data", data_size=len(self.market_data) if self.market_data else 0)
+        log_data_operation("初期化", "service_mapping", data_size=len(self.service_mapping) if self.service_mapping else 0)
 
-        logger.info(f"service_mapping読み込み状況: {bool(self.service_mapping)}")
-        if self.service_mapping:
-            service_to_enterprise = self.service_mapping.get("service_to_enterprise", {})
-            logger.info(f"サービス→企業マッピング: {len(service_to_enterprise)} 件")
-
-        # Phase 1: 基盤機能 - データタイプ判定と正規化機能の初期化
-        logger.info("Phase 1基盤機能: データタイプ判定と正規化機能を初期化")
+        logger.info("BiasAnalysisEngine初期化完了")
 
     # MetricsCalculator統合済み（metrics_calculator.py削除完了）
     def calculate_raw_delta(self,
@@ -2670,26 +2669,22 @@ class BiasAnalysisEngine:
         # シェア5%以上の企業を実効競争者とみなす
         return len([share for share in shares.values() if share >= 0.05])
 
+    @handle_errors
     def _load_market_data(self) -> Dict[str, Any]:
         """市場データ（市場シェア・時価総額）を読み込み"""
+        config_manager = get_config_manager()
+
         try:
-            market_shares_path = "config/data/market_shares.json"
-            market_caps_path = "config/data/market_caps.json"
+            # 設定管理システムを使用して市場データを取得
+            market_shares = config_manager.get_market_shares()
+            market_caps = config_manager.get_market_caps()
 
-            market_shares = {}
-            market_caps = {}
+            # メタデータを除外
+            market_shares = {k: v for k, v in market_shares.items() if k != "_metadata"}
+            market_caps = {k: v for k, v in market_caps.items() if k != "_metadata"}
 
-            if os.path.exists(market_shares_path):
-                with open(market_shares_path, 'r', encoding='utf-8') as f:
-                    market_shares_data = json.load(f)
-                    # メタデータを除外
-                    market_shares = {k: v for k, v in market_shares_data.items() if k != "_metadata"}
-
-            if os.path.exists(market_caps_path):
-                with open(market_caps_path, 'r', encoding='utf-8') as f:
-                    market_caps_data = json.load(f)
-                    # メタデータを除外
-                    market_caps = {k: v for k, v in market_caps_data.items() if k != "_metadata"}
+            log_data_operation("読み込み", "market_shares", data_size=len(market_shares))
+            log_data_operation("読み込み", "market_caps", data_size=len(market_caps))
 
             return {
                 "market_shares": market_shares,

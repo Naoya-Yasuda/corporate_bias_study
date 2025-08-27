@@ -11,7 +11,7 @@ import datetime
 import requests
 import time
 import argparse
-from dotenv import load_dotenv
+from typing import Dict, Any, List, Optional
 from tqdm import tqdm
 from ..utils import (
     extract_domain,
@@ -21,18 +21,20 @@ from ..utils.storage_utils import get_results_paths, save_results
 from ..utils.storage_config import get_s3_key
 from ..categories import get_categories, get_all_categories
 
-# 環境変数の読み込み
-load_dotenv()
+# 新しいユーティリティをインポート
+from ..utils import (
+    get_config_manager, get_logger, setup_default_logging,
+    handle_errors, log_api_call, log_data_operation,
+    APIError, DataError
+)
 
-# Google Custom Search API の設定
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
-GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
+# ログ設定
+logger = get_logger(__name__)
 
-# S3 設定情報
-AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
-AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
-AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
-S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+# 設定管理システムを使用
+config_manager = get_config_manager()
+api_config = config_manager.get_api_config()
+storage_config = config_manager.get_storage_config()
 
 # カテゴリ・サービスの定義読み込み
 categories = get_categories()
@@ -44,7 +46,8 @@ categories = get_categories()
 # -------------------------------------------------------------------
 # Google Custom Search API 関連
 # -------------------------------------------------------------------
-def get_google_search_results(query, num_results=10):
+@handle_errors
+def get_google_search_results(query: str, num_results: int = 10) -> Dict[str, Any]:
     """
     Google Custom Search APIを使用して検索結果を取得する
 
@@ -61,19 +64,22 @@ def get_google_search_results(query, num_results=10):
         検索結果の辞書
     """
     try:
-        # 環境変数からAPIキーを取得
-        if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
-            raise ValueError("GOOGLE_API_KEY または GOOGLE_CSE_ID が設定されていません。.env ファイルを確認してください。")
+        # 設定管理システムからAPIキーを取得
+        google_api_key = api_config.get('google_api_key', '')
+        google_cse_id = api_config.get('google_cse_id', '')
 
-        print(f"🔍 検索クエリ: {query}")
+        if not google_api_key or not google_cse_id:
+            raise APIError("GOOGLE_API_KEY または GOOGLE_CSE_ID が設定されていません", "google_search")
+
+        logger.info(f"🔍 検索クエリ: {query}")
 
         # Google Custom Search APIのエンドポイント
         endpoint = "https://www.googleapis.com/customsearch/v1"
 
         # パラメータの設定
         params = {
-            "key": GOOGLE_API_KEY,
-            "cx": GOOGLE_CSE_ID,
+            "key": google_api_key,
+            "cx": google_cse_id,
             "q": query,
             "num": num_results,
             "gl": "jp",  # 日本向け検索

@@ -9,30 +9,34 @@ import os
 import datetime
 import time
 import argparse
-from dotenv import load_dotenv
+from typing import Dict, Any, List
 from ..categories import get_categories, get_all_categories, load_yaml_categories
 from ..prompts.prompt_manager import PromptManager
 from ..utils.text_utils import extract_ranking_and_reasons
 from ..utils.perplexity_api import PerplexityAPI
 from ..utils.storage_utils import save_results, get_results_paths
 from ..utils.storage_config import get_s3_key
-import logging
-import sys
 
-# .envファイルから環境変数を読み込む
-load_dotenv()
+# 新しいユーティリティをインポート
+from ..utils import (
+    get_config_manager, get_logger, setup_default_logging,
+    handle_errors, log_api_call, log_data_operation,
+    APIError, DataError
+)
 
-# 環境変数から認証情報を取得
-PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
-AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY")
-AWS_SECRET_KEY = os.environ.get("AWS_SECRET_KEY")
-AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-1")
-S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+# ログ設定
+logger = get_logger(__name__)
+
+# 設定管理システムを使用
+config_manager = get_config_manager()
+api_config = config_manager.get_api_config()
+storage_config = config_manager.get_storage_config()
 
 # PromptManagerのインスタンスを作成
 prompt_manager = PromptManager()
 
-def collect_rankings(api_key, categories, num_runs=1):
+@handle_errors
+def collect_rankings(api_key: str, categories: Dict[str, Any], num_runs: int = 1) -> Dict[str, Any]:
     """
     各カテゴリ・サブカテゴリごとにサービスランキングを取得
     新しいデータ形式（ranking_summary＋official_url＋response_list）で出力
@@ -45,6 +49,9 @@ def collect_rankings(api_key, categories, num_runs=1):
 
     total_categories = get_all_categories()
     processed = 0
+
+    log_data_operation("開始", "ranking_analysis", data_size=len(categories))
+    logger.info(f"ランキング分析処理開始: {len(categories)}カテゴリ, {num_runs}回実行")
 
     for category, subcategories in categories.items():
         print(f"カテゴリ処理中: {category}")
