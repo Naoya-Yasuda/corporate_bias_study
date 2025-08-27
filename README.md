@@ -236,36 +236,6 @@ tail -f logs/sns_monitoring.log
 grep -i error logs/*.log
 ```
 
-### デバッグとトラブルシューティング
-
-#### 1. SNS投稿機能のデバッグ
-```python
-from src.sns.integrated_posting_system import IntegratedPostingSystem
-
-# システム状態の確認
-system = IntegratedPostingSystem()
-status = system.get_system_status()
-print(f"システム状態: {status}")
-
-# 接続テスト
-test_result = system.test_connection()
-print(f"接続テスト結果: {test_result}")
-
-# 利用可能な分析日付の確認
-available_dates = system.list_available_dates()
-print(f"利用可能な分析日付: {available_dates}")
-```
-
-#### 2. 設定の検証
-```python
-from src.sns.integrated_posting_system import IntegratedPostingSystem
-
-# システム状態の確認
-system = IntegratedPostingSystem()
-status = system.get_system_status()
-print(f"設定状況: {status}")
-```
-
 ## パフォーマンス最適化
 
 #### 1. 監視間隔の調整
