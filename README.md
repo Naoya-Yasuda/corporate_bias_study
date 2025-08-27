@@ -35,6 +35,21 @@
 
 ## システム構成
 
+### 設定ファイル構成
+```
+config/
+├── analysis/
+│   ├── analysis_config.yml      # バイアス分析設定
+│   └── categories.yml           # 分析対象カテゴリ・エンティティ
+├── data/
+│   ├── market_shares.json       # 市場シェアデータ
+│   └── market_caps.json         # 時価総額データ
+└── sns/
+    ├── sns_monitoring_config.yml
+    └── simple_sns_config.yml
+```
+
+### ソースコード構成
 ```
 src/
 ├── analysis/                 # バイアス分析エンジン
@@ -73,15 +88,11 @@ src/
 │   └── domain_validator.py       # ドメイン検証（128行）
 ├── components/              # Webアプリケーションコンポーネント
 │   └── auth_ui.py               # 認証UI（149行）
-├── prompts/                 # プロンプト管理
-│   ├── prompt_manager.py        # プロンプト管理（163行）
-│   ├── sentiment_prompts.py     # 感情分析プロンプト（81行）
-│   ├── ranking_prompts.py       # ランキング分析プロンプト（123行）
-│   └── prompt_config.yml        # プロンプト設定（85行）
-└── data/                    # データ定義
-    ├── categories.yml           # 分析対象カテゴリ・エンティティ
-    ├── market_shares.json       # 市場シェアデータ
-    └── market_caps.json         # 時価総額データ
+└── prompts/                 # プロンプト管理
+    ├── prompt_manager.py        # プロンプト管理（163行）
+    ├── sentiment_prompts.py     # 感情分析プロンプト（81行）
+    ├── ranking_prompts.py       # ランキング分析プロンプト（123行）
+    └── prompt_config.yml        # プロンプト設定（85行）
 ```
 
 ## インストール
@@ -165,13 +176,15 @@ python -c "from src.sns.integrated_posting_system import IntegratedPostingSystem
 
 ### 分析設定
 - `config/analysis_config.yml`: バイアス分析の設定（信頼性レベル、閾値等）
+- `config/analysis/categories.yml`: 分析対象カテゴリ・エンティティの定義
+
+### SNS設定
 - `config/sns_monitoring_config.yml`: SNS投稿機能の詳細設定
 - `config/simple_sns_config.yml`: シンプルSNS投稿機能の設定
 
 ### データ設定
-- `src/data/categories.yml`: 分析対象カテゴリ・エンティティの定義
-- `src/data/market_shares.json`: 市場シェアデータ
-- `src/data/market_caps.json`: 時価総額データ
+- `config/data/market_shares.json`: 市場シェアデータ
+- `config/data/market_caps.json`: 時価総額データ
 
 ### 設定の優先順位
 1. **環境変数（.env）**: 最優先（認証情報、基本制御）

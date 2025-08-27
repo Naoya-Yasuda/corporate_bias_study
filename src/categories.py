@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 # 相対パスの定義
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(CURRENT_DIR, "data")
-CATEGORIES_YAML = os.path.join(DATA_DIR, "categories.yml")
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+CATEGORIES_YAML = os.path.join(PROJECT_ROOT, "config", "analysis", "categories.yml")
 
 # デフォルト値（YAMLファイルが見つからない場合のフォールバック）
 DEFAULT_VIEWPOINTS = ['売上', '若い世代の人気', '将来性', 'セキュリティ', '可愛さ', 'かっこよさ']

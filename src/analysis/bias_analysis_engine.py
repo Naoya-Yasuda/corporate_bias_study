@@ -2673,8 +2673,8 @@ class BiasAnalysisEngine:
     def _load_market_data(self) -> Dict[str, Any]:
         """市場データ（市場シェア・時価総額）を読み込み"""
         try:
-            market_shares_path = "src/data/market_shares.json"
-            market_caps_path = "src/data/market_caps.json"
+            market_shares_path = "config/data/market_shares.json"
+            market_caps_path = "config/data/market_caps.json"
 
             market_shares = {}
             market_caps = {}
