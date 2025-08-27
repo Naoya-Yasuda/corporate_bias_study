@@ -8,7 +8,6 @@ S3DataLoaderを統合して、実際の分析データを自動取得し、
 変化検知→コンテンツ生成→投稿実行を行う統合システムです。
 """
 
-import logging
 import os
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -18,12 +17,20 @@ from .simple_change_detector import SimpleChangeDetector
 from .simple_content_generator import SimpleContentGenerator
 from .twitter_client import TwitterClient
 
-logger = logging.getLogger(__name__)
+# 新しいユーティリティをインポート
+from ..utils import (
+    get_config_manager, get_logger, setup_default_logging,
+    handle_errors, log_data_operation, log_analysis_step,
+    ConfigError, DataError
+)
+
+logger = get_logger(__name__)
 
 
 class IntegratedPostingSystem:
     """統合投稿システム（S3DataLoader統合版）"""
 
+    @handle_errors
     def __init__(self, storage_mode: str = "auto", thresholds: Optional[Dict] = None, max_changes_per_post: int = 5):
         """
         Parameters:
@@ -35,6 +42,10 @@ class IntegratedPostingSystem:
         max_changes_per_post : int
             1投稿あたりの最大変化数
         """
+        # 設定管理システムを使用
+        config_manager = get_config_manager()
+        sns_config = config_manager.get_sns_config()
+
         # 各コンポーネントを初期化
         self.s3_loader = S3DataLoader(storage_mode)
         self.detector = SimpleChangeDetector(thresholds)
@@ -42,8 +53,9 @@ class IntegratedPostingSystem:
         self.twitter_client = TwitterClient()
 
         # 投稿設定
-        self.posting_enabled = os.getenv('TWITTER_POSTING_ENABLED', 'true').lower() == 'true'
+        self.posting_enabled = sns_config.get('twitter_posting_enabled', 'true').lower() == 'true'
 
+        log_analysis_step("IntegratedPostingSystem初期化", "initialization", success=True)
         logger.info(f"統合投稿システムを初期化しました（ストレージモード: {storage_mode}, 投稿有効: {self.posting_enabled}）")
 
     def post_latest_changes(self, force_post: bool = False) -> Dict:

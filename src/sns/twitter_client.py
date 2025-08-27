@@ -9,27 +9,34 @@ tweepyライブラリを使用した実際のAPI連携を実装しています�
 """
 
 import os
-import logging
 from typing import Dict, Optional
 from datetime import datetime
-from dotenv import load_dotenv
 
-logger = logging.getLogger(__name__)
+# 新しいユーティリティをインポート
+from ..utils import (
+    get_config_manager, get_logger, setup_default_logging,
+    handle_errors, log_api_call, log_data_operation,
+    APIError, ConfigError
+)
+
+logger = get_logger(__name__)
 
 
 class TwitterClient:
     """X/Twitter API連携クラス"""
 
+    @handle_errors
     def __init__(self):
         """X API認証情報を初期化"""
-        # 環境変数を確実に読み込み
-        load_dotenv()
+        # 設定管理システムを使用
+        config_manager = get_config_manager()
+        api_config = config_manager.get_api_config()
 
-        self.api_key = os.getenv('TWITTER_API_KEY')
-        self.api_secret = os.getenv('TWITTER_API_SECRET')
-        self.bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
-        self.access_token = os.getenv('TWITTER_ACCESS_TOKEN')
-        self.access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
+        self.api_key = api_config.get('twitter_api_key', '')
+        self.api_secret = api_config.get('twitter_api_secret', '')
+        self.bearer_token = api_config.get('twitter_bearer_token', '')
+        self.access_token = api_config.get('twitter_access_token', '')
+        self.access_token_secret = api_config.get('twitter_access_token_secret', '')
 
         self.client = None
         self.api = None

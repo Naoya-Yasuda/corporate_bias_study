@@ -69,46 +69,49 @@ scripts/
 ```
 src/
 ├── analysis/                 # バイアス分析エンジン
-│   ├── bias_analysis_engine.py    # 統合分析エンジン（5,908行）
-│   ├── hybrid_data_loader.py      # ハイブリッドデータローダー（739行）
-│   └── sentiment_analyzer.py      # 感情分析処理（429行）
+│   ├── bias_analysis_engine.py    # 統合分析エンジン
+│   ├── hybrid_data_loader.py      # ハイブリッドデータローダー
+│   └── sentiment_analyzer.py      # 感情分析処理
 ├── loader/                   # データローダー
 │   ├── perplexity_sentiment_loader.py  # Perplexity感情分析データ取得
 │   ├── perplexity_citations_loader.py  # Perplexity引用データ取得
 │   ├── perplexity_ranking_loader.py    # Perplexityランキングデータ取得
 │   └── google_search_loader.py         # Google検索データ取得
 ├── integrator/              # データ統合処理
-│   ├── dataset_integrator.py     # データセット統合（633行）
+│   ├── dataset_integrator.py     # データセット統合
 │   ├── create_integrated_dataset.py  # 統合データセット作成
-│   ├── data_validator.py         # データ検証（490行）
-│   └── schema_generator.py       # スキーマ生成（568行）
+│   ├── data_validator.py         # データ検証
+│   └── schema_generator.py       # スキーマ生成
 ├── sns/                     # SNS投稿機能
-│   ├── integrated_posting_system.py  # 統合投稿システム（456行）
-│   ├── simple_posting_system.py      # シンプル投稿システム（556行）
-│   ├── simple_change_detector.py     # 変化検知（307行）
-│   ├── simple_content_generator.py   # コンテンツ生成（425行）
-│   ├── s3_data_loader.py            # S3データ読み込み（292行）
-│   └── twitter_client.py            # X API連携（517行）
+│   ├── integrated_posting_system.py  # 統合投稿システム
+│   ├── simple_posting_system.py      # シンプル投稿システム
+│   ├── simple_change_detector.py     # 変化検知
+│   ├── simple_content_generator.py   # コンテンツ生成
+│   ├── s3_data_loader.py            # S3データ読み込み
+│   └── twitter_client.py            # X API連携
 ├── utils/                   # ユーティリティ
-│   ├── plot_utils.py              # 可視化ユーティリティ（1,837行）
-│   ├── storage_utils.py           # ストレージユーティリティ（495行）
-│   ├── metrics_utils.py           # メトリクス計算（359行）
-│   ├── perplexity_api.py          # Perplexity API連携（133行）
-│   ├── storage_config.py          # ストレージ設定（122行）
-│   ├── auth_utils.py              # 認証ユーティリティ（212行）
-│   ├── text_utils.py              # テキスト処理（333行）
-│   └── rank_utils.py              # ランキング処理（147行）
+│   ├── plot_utils.py              # 可視化ユーティリティ
+│   ├── storage_utils.py           # ストレージユーティリティ
+│   ├── metrics_utils.py           # メトリクス計算
+│   ├── perplexity_api.py          # Perplexity API連携
+│   ├── storage_config.py          # ストレージ設定
+│   ├── auth_utils.py              # 認証ユーティリティ
+│   ├── text_utils.py              # テキスト処理
+│   ├── rank_utils.py              # ランキング処理
+│   ├── config_manager.py          # 統合設定管理
+│   ├── error_handler.py           # エラーハンドリング
+│   └── logger.py                  # 標準化ログ出力
 ├── auth/                    # 認証機能
-│   ├── google_oauth.py           # Google OAuth認証（344行）
-│   ├── session_manager.py        # セッション管理（228行）
-│   └── domain_validator.py       # ドメイン検証（128行）
+│   ├── google_oauth.py           # Google OAuth認証
+│   ├── session_manager.py        # セッション管理
+│   └── domain_validator.py       # ドメイン検証
 ├── components/              # Webアプリケーションコンポーネント
-│   └── auth_ui.py               # 認証UI（149行）
+│   └── auth_ui.py               # 認証UI
 └── prompts/                 # プロンプト管理
-    ├── prompt_manager.py        # プロンプト管理（163行）
-    ├── sentiment_prompts.py     # 感情分析プロンプト（81行）
-    ├── ranking_prompts.py       # ランキング分析プロンプト（123行）
-    └── prompt_config.yml        # プロンプト設定（85行）
+    ├── prompt_manager.py        # プロンプト管理
+    ├── sentiment_prompts.py     # 感情分析プロンプト
+    ├── ranking_prompts.py       # ランキング分析プロンプト
+    └── prompt_config.yml        # プロンプト設定
 ```
 
 ## インストール

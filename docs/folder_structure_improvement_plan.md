@@ -158,7 +158,9 @@ bin/                             # 新しいエントリーポイントディレ
 - [x] `src/loader/perplexity_citations_loader.py` - 設定管理、エラーハンドリング、ログ出力の統一
 - [x] `src/loader/google_search_loader.py` - 設定管理、エラーハンドリング、ログ出力の統一
 - [x] `src/integrator/dataset_integrator.py` - 設定管理、エラーハンドリング、ログ出力の統一
-- [ ] `src/sns/` - 設定管理とエラーハンドリングの統一（今後の拡張予定）
+- [x] `src/sns/integrated_posting_system.py` - 設定管理、エラーハンドリング、ログ出力の統一
+- [x] `src/sns/twitter_client.py` - 設定管理、エラーハンドリング、ログ出力の統一
+- [ ] `src/sns/` その他 - 設定管理とエラーハンドリングの統一（今後の拡張予定）
 
 ## 注意事項
 
