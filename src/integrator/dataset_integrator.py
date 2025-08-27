@@ -68,7 +68,7 @@ class DatasetIntegrator:
 
         try:
             # 1. 生データの読み込み
-            raw_data = self._load_raw_data(verbose, runs)
+            raw_data = self._load_raw_data(verbose, runs, storage_mode)
             if not raw_data:
                 logger.error("読み込み可能な生データが見つかりません")
                 return {}
@@ -204,21 +204,23 @@ class DatasetIntegrator:
 
         return os.path.join(directory, latest_file) if latest_file else None
 
-    def _load_raw_data(self, verbose: bool = True, runs: int = None) -> Dict[str, Any]:
+    def _load_raw_data(self, verbose: bool = True, runs: int = None, storage_mode: str = None) -> Dict[str, Any]:
         from src.utils.storage_utils import load_json
         from src.utils.storage_config import get_s3_key
         import glob
         raw_data = {}
 
         # 全データソースを読み込み
-        self._load_google_data(raw_data, verbose)
-        self._load_perplexity_sentiment_data(raw_data, verbose, runs)
-        self._load_perplexity_rankings_data(raw_data, verbose, runs)
-        self._load_perplexity_citations_data(raw_data, verbose, runs)
+        self._load_google_data(raw_data, verbose, storage_mode)
+        self._load_perplexity_sentiment_data(raw_data, verbose, runs, storage_mode)
+        self._load_perplexity_rankings_data(raw_data, verbose, runs, storage_mode)
+        self._load_perplexity_citations_data(raw_data, verbose, runs, storage_mode)
+
+        return raw_data
 
 
 
-    def _load_google_data(self, raw_data: Dict[str, Any], verbose: bool = True):
+    def _load_google_data(self, raw_data: Dict[str, Any], verbose: bool = True, storage_mode: str = None):
         """Google検索データの読み込み"""
         from src.utils.storage_utils import load_json
         from src.utils.storage_config import get_s3_key
@@ -229,14 +231,24 @@ class DatasetIntegrator:
         found_s3 = False
         google_s3 = get_s3_key("custom_search.json", self.date_str, "raw_data/google")
 
-        # ローカルはcustom_search.jsonのみ
-        if found_local:
-            google_data = load_json(google_local, None)
-        # S3 fallback: custom_search.json
-        if not google_data:
+        # ストレージモードに基づいて読み込み
+        if storage_mode == "local":
+            # ローカルのみ
+            if found_local:
+                google_data = load_json(google_local, None)
+        elif storage_mode == "s3":
+            # S3のみ
             google_data = load_json(None, google_s3)
             if google_data:
                 found_s3 = True
+        else:
+            # auto: ローカル優先、S3フォールバック
+            if found_local:
+                google_data = load_json(google_local, None)
+            if not google_data:
+                google_data = load_json(None, google_s3)
+                if google_data:
+                    found_s3 = True
         if google_data:
             raw_data["google_data"] = google_data
             self.integration_metadata["input_files"].append(google_local)
@@ -251,7 +263,7 @@ class DatasetIntegrator:
                 else:
                     logger.warning(f"Googleデータがローカル・S3ともに取得できません: {google_local} / S3:{google_s3}")
 
-    def _load_perplexity_sentiment_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None):
+    def _load_perplexity_sentiment_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None, storage_mode: str = None):
         """Perplexity感情データの読み込み"""
         from src.utils.storage_utils import load_json
         from src.utils.storage_config import get_s3_key
@@ -262,25 +274,45 @@ class DatasetIntegrator:
         found_s3 = False
         sentiment_s3 = get_s3_key("sentiment.json", self.date_str, "raw_data/perplexity")
 
-        # ローカル: sentiment_{runs}runs.json → sentiment.json
-        if runs is not None:
-            sentiment_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"sentiment_{runs}runs.json")
-            exists_local_runs = os.path.exists(sentiment_local_runs)
-            if exists_local_runs:
-                sentiment_data = load_json(sentiment_local_runs, None)
-        if not sentiment_data and found_local:
-            sentiment_data = load_json(sentiment_local, None)
-        # S3: runs付き優先
-        if not sentiment_data and runs is not None:
-            sentiment_s3_runs = get_s3_key(f"sentiment_{runs}runs.json", self.date_str, "raw_data/perplexity")
-            sentiment_data = load_json(None, sentiment_s3_runs)
-            if sentiment_data:
-                found_s3 = True
-        # S3 fallback: sentiment.json
-        if not sentiment_data:
-            sentiment_data = load_json(None, sentiment_s3)
-            if sentiment_data:
-                found_s3 = True
+        # ストレージモードに基づいて読み込み
+        if storage_mode == "local":
+            # ローカルのみ
+            if runs is not None:
+                sentiment_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"sentiment_{runs}runs.json")
+                exists_local_runs = os.path.exists(sentiment_local_runs)
+                if exists_local_runs:
+                    sentiment_data = load_json(sentiment_local_runs, None)
+            if not sentiment_data and found_local:
+                sentiment_data = load_json(sentiment_local, None)
+        elif storage_mode == "s3":
+            # S3のみ
+            if runs is not None:
+                sentiment_s3_runs = get_s3_key(f"sentiment_{runs}runs.json", self.date_str, "raw_data/perplexity")
+                sentiment_data = load_json(None, sentiment_s3_runs)
+                if sentiment_data:
+                    found_s3 = True
+            if not sentiment_data:
+                sentiment_data = load_json(None, sentiment_s3)
+                if sentiment_data:
+                    found_s3 = True
+        else:
+            # auto: ローカル優先、S3フォールバック
+            if runs is not None:
+                sentiment_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"sentiment_{runs}runs.json")
+                exists_local_runs = os.path.exists(sentiment_local_runs)
+                if exists_local_runs:
+                    sentiment_data = load_json(sentiment_local_runs, None)
+            if not sentiment_data and found_local:
+                sentiment_data = load_json(sentiment_local, None)
+            if not sentiment_data and runs is not None:
+                sentiment_s3_runs = get_s3_key(f"sentiment_{runs}runs.json", self.date_str, "raw_data/perplexity")
+                sentiment_data = load_json(None, sentiment_s3_runs)
+                if sentiment_data:
+                    found_s3 = True
+            if not sentiment_data:
+                sentiment_data = load_json(None, sentiment_s3)
+                if sentiment_data:
+                    found_s3 = True
         if sentiment_data:
             raw_data["perplexity_sentiment"] = sentiment_data
             self.integration_metadata["input_files"].append(sentiment_local)
@@ -295,7 +327,7 @@ class DatasetIntegrator:
                 else:
                     logger.warning(f"Perplexity感情データがローカル・S3ともに取得できません: {sentiment_local} / S3:{sentiment_s3}")
 
-    def _load_perplexity_rankings_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None):
+    def _load_perplexity_rankings_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None, storage_mode: str = None):
         """Perplexityランキングデータの読み込み"""
         from src.utils.storage_utils import load_json
         from src.utils.storage_config import get_s3_key
@@ -306,25 +338,45 @@ class DatasetIntegrator:
         found_s3 = False
         rankings_s3 = get_s3_key("rankings.json", self.date_str, "raw_data/perplexity")
 
-        # ローカル: rankings_{runs}runs.json → rankings.json
-        if runs is not None:
-            rankings_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"rankings_{runs}runs.json")
-            exists_local_runs = os.path.exists(rankings_local_runs)
-            if exists_local_runs:
-                rankings_data = load_json(rankings_local_runs, None)
-        if not rankings_data and found_local:
-            rankings_data = load_json(rankings_local, None)
-        # S3: runs付き優先
-        if not rankings_data and runs is not None:
-            rankings_s3_runs = get_s3_key(f"rankings_{runs}runs.json", self.date_str, "raw_data/perplexity")
-            rankings_data = load_json(None, rankings_s3_runs)
-            if rankings_data:
-                found_s3 = True
-        # S3 fallback: rankings.json
-        if not rankings_data:
-            rankings_data = load_json(None, rankings_s3)
-            if rankings_data:
-                found_s3 = True
+        # ストレージモードに基づいて読み込み
+        if storage_mode == "local":
+            # ローカルのみ
+            if runs is not None:
+                rankings_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"rankings_{runs}runs.json")
+                exists_local_runs = os.path.exists(rankings_local_runs)
+                if exists_local_runs:
+                    rankings_data = load_json(rankings_local_runs, None)
+            if not rankings_data and found_local:
+                rankings_data = load_json(rankings_local, None)
+        elif storage_mode == "s3":
+            # S3のみ
+            if runs is not None:
+                rankings_s3_runs = get_s3_key(f"rankings_{runs}runs.json", self.date_str, "raw_data/perplexity")
+                rankings_data = load_json(None, rankings_s3_runs)
+                if rankings_data:
+                    found_s3 = True
+            if not rankings_data:
+                rankings_data = load_json(None, rankings_s3)
+                if rankings_data:
+                    found_s3 = True
+        else:
+            # auto: ローカル優先、S3フォールバック
+            if runs is not None:
+                rankings_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"rankings_{runs}runs.json")
+                exists_local_runs = os.path.exists(rankings_local_runs)
+                if exists_local_runs:
+                    rankings_data = load_json(rankings_local_runs, None)
+            if not rankings_data and found_local:
+                rankings_data = load_json(rankings_local, None)
+            if not rankings_data and runs is not None:
+                rankings_s3_runs = get_s3_key(f"rankings_{runs}runs.json", self.date_str, "raw_data/perplexity")
+                rankings_data = load_json(None, rankings_s3_runs)
+                if rankings_data:
+                    found_s3 = True
+            if not rankings_data:
+                rankings_data = load_json(None, rankings_s3)
+                if rankings_data:
+                    found_s3 = True
         if rankings_data:
             raw_data["perplexity_rankings"] = rankings_data
             self.integration_metadata["input_files"].append(rankings_local)
@@ -339,7 +391,7 @@ class DatasetIntegrator:
                 else:
                     logger.warning(f"Perplexityランキングデータがローカル・S3ともに取得できません: {rankings_local} / S3:{rankings_s3}")
 
-    def _load_perplexity_citations_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None):
+    def _load_perplexity_citations_data(self, raw_data: Dict[str, Any], verbose: bool = True, runs: int = None, storage_mode: str = None):
         """Perplexity引用データの読み込み"""
         from src.utils.storage_utils import load_json
         from src.utils.storage_config import get_s3_key
@@ -350,25 +402,45 @@ class DatasetIntegrator:
         found_s3 = False
         citations_s3 = get_s3_key("citations.json", self.date_str, "raw_data/perplexity")
 
-        # ローカル: citations_{runs}runs.json → citations.json
-        if runs is not None:
-            citations_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"citations_{runs}runs.json")
-            exists_local_runs = os.path.exists(citations_local_runs)
-            if exists_local_runs:
-                citations_data = load_json(citations_local_runs, None)
-        if not citations_data and found_local:
-            citations_data = load_json(citations_local, None)
-        # S3: runs付き優先
-        if not citations_data and runs is not None:
-            citations_s3_runs = get_s3_key(f"citations_{runs}runs.json", self.date_str, "raw_data/perplexity")
-            citations_data = load_json(None, citations_s3_runs)
-            if citations_data:
-                found_s3 = True
-        # S3 fallback: citations.json
-        if not citations_data:
-            citations_data = load_json(None, citations_s3)
-            if citations_data:
-                found_s3 = True
+        # ストレージモードに基づいて読み込み
+        if storage_mode == "local":
+            # ローカルのみ
+            if runs is not None:
+                citations_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"citations_{runs}runs.json")
+                exists_local_runs = os.path.exists(citations_local_runs)
+                if exists_local_runs:
+                    citations_data = load_json(citations_local_runs, None)
+            if not citations_data and found_local:
+                citations_data = load_json(citations_local, None)
+        elif storage_mode == "s3":
+            # S3のみ
+            if runs is not None:
+                citations_s3_runs = get_s3_key(f"citations_{runs}runs.json", self.date_str, "raw_data/perplexity")
+                citations_data = load_json(None, citations_s3_runs)
+                if citations_data:
+                    found_s3 = True
+            if not citations_data:
+                citations_data = load_json(None, citations_s3)
+                if citations_data:
+                    found_s3 = True
+        else:
+            # auto: ローカル優先、S3フォールバック
+            if runs is not None:
+                citations_local_runs = os.path.join(self.paths["raw_data"]["perplexity"], f"citations_{runs}runs.json")
+                exists_local_runs = os.path.exists(citations_local_runs)
+                if exists_local_runs:
+                    citations_data = load_json(citations_local_runs, None)
+            if not citations_data and found_local:
+                citations_data = load_json(citations_local, None)
+            if not citations_data and runs is not None:
+                citations_s3_runs = get_s3_key(f"citations_{runs}runs.json", self.date_str, "raw_data/perplexity")
+                citations_data = load_json(None, citations_s3_runs)
+                if citations_data:
+                    found_s3 = True
+            if not citations_data:
+                citations_data = load_json(None, citations_s3)
+                if citations_data:
+                    found_s3 = True
         if citations_data:
             raw_data["perplexity_citations"] = citations_data
             self.integration_metadata["input_files"].append(citations_local)
