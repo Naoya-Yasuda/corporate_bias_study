@@ -9,9 +9,11 @@
 - **ランキング分析**: Google・Perplexity検索結果の順位比較
 - **公平性評価**: 企業レベル・サービスレベル公平性スコア算出
 - **統計的有意性検証**: p値、Cliff's Delta、信頼区間の計算
+- **信頼性評価**: 実行回数に基づく分析信頼性レベルの自動判定
 
 ### 2. 可視化機能
 - **ダッシュボード**: Streamlitベースのインタラクティブダッシュボード
+- **動的可視化**: 事前生成画像ではなく、リアルタイムでグラフを生成
 - **時系列分析**: バイアス指標の時系列推移表示
 - **比較分析**: 企業間・サービス間の比較分析
 - **統計レポート**: 詳細な統計分析レポート
@@ -22,8 +24,8 @@
 - **データ統合**: 複数データソースの統合処理
 - **バックアップ**: 自動バックアップ機能
 
-### 4. SNS投稿機能（新機能）
-- **自動変化監視**: NBI、ランキング、公平性スコアの変化を自動監視（直前データとの比較）
+### 4. SNS投稿機能
+- **自動変化監視**: NBI、ランキング、公平性スコアの変化を自動監視
 - **X/Twitter投稿**: 顕著な変化を検知した際の自動投稿
 - **投稿制御**: 重複防止、日次制限、時間帯制御
 - **コンテンツ生成**: 自動的な投稿コンテンツ生成
@@ -34,18 +36,50 @@
 ```
 src/
 ├── analysis/                 # バイアス分析エンジン
-│   ├── bias_analysis_engine.py    # 統合分析エンジン
-│   ├── hybrid_data_loader.py      # ハイブリッドデータローダー
-│   └── sentiment_analyzer.py      # 感情分析処理
+│   ├── bias_analysis_engine.py    # 統合分析エンジン（5,908行）
+│   ├── hybrid_data_loader.py      # ハイブリッドデータローダー（739行）
+│   └── sentiment_analyzer.py      # 感情分析処理（429行）
+├── loader/                   # データローダー
+│   ├── perplexity_sentiment_loader.py  # Perplexity感情分析データ取得
+│   ├── perplexity_citations_loader.py  # Perplexity引用データ取得
+│   ├── perplexity_ranking_loader.py    # Perplexityランキングデータ取得
+│   └── google_search_loader.py         # Google検索データ取得
 ├── integrator/              # データ統合処理
-├── sns/                     # SNS投稿機能（新規追加）
-│   ├── bias_monitor.py      # バイアス変化監視
-│   ├── content_generator.py # 投稿コンテンツ生成
-│   ├── posting_manager.py   # 投稿管理
-│   ├── s3_data_loader.py    # S3データ読み込み
-│   └── twitter_client.py    # X API連携
+│   ├── dataset_integrator.py     # データセット統合（633行）
+│   ├── create_integrated_dataset.py  # 統合データセット作成
+│   ├── data_validator.py         # データ検証（490行）
+│   └── schema_generator.py       # スキーマ生成（568行）
+├── sns/                     # SNS投稿機能
+│   ├── integrated_posting_system.py  # 統合投稿システム（456行）
+│   ├── simple_posting_system.py      # シンプル投稿システム（556行）
+│   ├── simple_change_detector.py     # 変化検知（307行）
+│   ├── simple_content_generator.py   # コンテンツ生成（425行）
+│   ├── s3_data_loader.py            # S3データ読み込み（292行）
+│   └── twitter_client.py            # X API連携（517行）
 ├── utils/                   # ユーティリティ
-└── components/              # Webアプリケーションコンポーネント
+│   ├── plot_utils.py              # 可視化ユーティリティ（1,837行）
+│   ├── storage_utils.py           # ストレージユーティリティ（495行）
+│   ├── metrics_utils.py           # メトリクス計算（359行）
+│   ├── perplexity_api.py          # Perplexity API連携（133行）
+│   ├── storage_config.py          # ストレージ設定（122行）
+│   ├── auth_utils.py              # 認証ユーティリティ（212行）
+│   ├── text_utils.py              # テキスト処理（333行）
+│   └── rank_utils.py              # ランキング処理（147行）
+├── auth/                    # 認証機能
+│   ├── google_oauth.py           # Google OAuth認証（344行）
+│   ├── session_manager.py        # セッション管理（228行）
+│   └── domain_validator.py       # ドメイン検証（128行）
+├── components/              # Webアプリケーションコンポーネント
+│   └── auth_ui.py               # 認証UI（149行）
+├── prompts/                 # プロンプト管理
+│   ├── prompt_manager.py        # プロンプト管理（163行）
+│   ├── sentiment_prompts.py     # 感情分析プロンプト（81行）
+│   ├── ranking_prompts.py       # ランキング分析プロンプト（123行）
+│   └── prompt_config.yml        # プロンプト設定（85行）
+└── data/                    # データ定義
+    ├── categories.yml           # 分析対象カテゴリ・エンティティ
+    ├── market_shares.json       # 市場シェアデータ
+    └── market_caps.json         # 時価総額データ
 ```
 
 ## インストール
@@ -71,34 +105,53 @@ cp .env_sample .env
 # .envファイルを編集して必要な設定を行ってください
 ```
 
-### 4. データベースの初期化
-```bash
-python scripts/init_database.py
-```
-
 ## 使用方法
 
 ### 1. 基本的な分析実行
 ```bash
-# 感情分析の実行
+# 統合バイアス分析の実行
 python scripts/run_bias_analysis.py --date 20250127
 
-# 統合分析の実行
-python scripts/run_bias_analysis.py --date 20250127 --mode integrated
+# 詳細ログ付きで実行
+python scripts/run_bias_analysis.py --date 20250127 --verbose
+
+# 特定の実行回数で実行
+python scripts/run_bias_analysis.py --date 20250127 --runs 5
 ```
 
-### 2. Webダッシュボードの起動
+### 2. 個別コンポーネントの実行
+```bash
+# Perplexity感情分析データ取得
+python -m src.loader.perplexity_sentiment_loader --runs 3 --verbose
+
+# Perplexityランキングデータ取得
+python -m src.loader.perplexity_ranking_loader --runs 3 --verbose
+
+# Perplexity引用データ取得
+python -m src.loader.perplexity_citations_loader --runs 3 --verbose
+
+# Google検索データ取得
+python -m src.loader.google_search_loader --verbose
+
+# 統合データセット作成
+python -m src.integrator.create_integrated_dataset --date 20250127 --verbose
+
+# バイアス分析エンジン直接実行
+python -m src.analysis.bias_analysis_engine --date 20250127 --verbose
+```
+
+### 3. Webダッシュボードの起動
 ```bash
 streamlit run app.py
 ```
 
-### 3. SNS投稿機能のテスト
+### 4. SNS投稿機能の実行
 ```bash
-# SNS投稿機能のテスト実行
-python scripts/test_sns_posting.py
+# GitHub Actions用SNS投稿スクリプト
+python scripts/github_actions_sns_posting.py
 
-# 監視機能のテスト
-python -c "from src.sns.bias_monitor import BiasMonitor; monitor = BiasMonitor(); monitor.check_for_significant_changes()"
+# 統合投稿システムのテスト
+python -c "from src.sns.integrated_posting_system import IntegratedPostingSystem; system = IntegratedPostingSystem(); result = system.post_latest_changes(); print(result)"
 ```
 
 ## SNS投稿機能の詳細
@@ -155,86 +208,8 @@ python -c "from src.sns.bias_monitor import BiasMonitor; monitor = BiasMonitor()
 
 ### 設定方法
 
-#### 1. 環境変数設定（.envファイル）
-**認証情報、インフラ設定、基本制御**：
-```bash
-# X API認証情報
-TWITTER_API_KEY=your_api_key
-TWITTER_API_SECRET=your_api_secret
-TWITTER_BEARER_TOKEN=your_bearer_token
-TWITTER_ACCESS_TOKEN=your_access_token
-TWITTER_ACCESS_TOKEN_SECRET=your_access_token_secret
 
-# S3設定（データアクセス用）
-S3_BUCKET_NAME=your_s3_bucket_name
-AWS_ACCESS_KEY=your_aws_access_key
-AWS_SECRET_KEY=your_aws_secret_key
-AWS_REGION=ap-northeast-1
 
-# 基本制御設定（最優先）
-TWITTER_POSTING_ENABLED=true    # 投稿機能の有効/無効
-SNS_MONITORING_ENABLED=true     # 監視機能の有効/無効
-```
-
-#### 2. 機能設定（YAMLファイル）
-**機能固有の詳細設定**（環境変数で制御された機能の動作パラメータ）：
-
-#### 3. 監視設定ファイル
-`config/sns_monitoring_config.yml`の設定例：
-```yaml
-sns_monitoring:
-  thresholds:
-    nbi_change_percent: 20.0
-    ranking_change_positions: 3
-    fairness_score_change_percent: 15.0
-
-  posting:
-    max_daily_posts: 10
-    duplicate_prevention_hours: 24
-    time_range:
-      start: "09:00"
-      end: "21:00"
-    time_zone: "Asia/Tokyo"
-
-  content:
-    include_hashtags: true
-    include_analysis_url: true
-    max_character_count: 280
-    base_url: "https://your-domain.com/analysis"
-
-  monitoring:
-    check_interval_minutes: 60
-```
-
-### 監視ログと履歴
-
-#### 1. 投稿履歴の確認
-```bash
-# 投稿履歴の表示
-python scripts/check_post_history.py
-
-# 特定日付の投稿履歴
-python scripts/check_post_history.py --date 20250127
-```
-
-#### 2. 監視ログの確認
-```bash
-# リアルタイムログ監視
-tail -f logs/sns_monitoring.log
-
-# エラーログの確認
-grep "ERROR" logs/sns_monitoring.log
-```
-
-#### 3. 監視状況の確認
-```python
-from src.sns.bias_monitor import BiasMonitor
-
-# 監視状況の確認
-monitor = BiasMonitor()
-status = monitor.get_monitoring_status()
-print(f"監視状況: {status}")
-```
 
 ## 設定ファイル
 
@@ -244,8 +219,9 @@ print(f"監視状況: {status}")
 - **基本制御**: 機能の有効/無効切り替え（`TWITTER_POSTING_ENABLED`, `SNS_MONITORING_ENABLED`）
 
 ### 分析設定
-- `config/analysis_config.yml`: バイアス分析の設定
-- `config/sns_monitoring_config.yml`: SNS投稿機能の詳細設定（閾値、投稿制御、コンテンツ設定など）
+- `config/analysis_config.yml`: バイアス分析の設定（信頼性レベル、閾値等）
+- `config/sns_monitoring_config.yml`: SNS投稿機能の詳細設定
+- `config/simple_sns_config.yml`: シンプルSNS投稿機能の設定
 
 ### データ設定
 - `src/data/categories.yml`: 分析対象カテゴリ・エンティティの定義
@@ -306,21 +282,19 @@ print(f"監視状況: {status}")
 
 ### テスト実行
 ```bash
-# 単体テスト
-python -m pytest tests/
+# 現在テストファイルは実装されていません
+# テストディレクトリ: tests/ （空の状態）
 
-# SNS投稿機能テスト
-python scripts/test_sns_posting.py
-
-# 統合テスト
-python scripts/run_integration_tests.py
-
-# Playwright E2Eテスト
-python -m pytest tests/ --headed --browser chromium
+# 手動テスト
+python scripts/run_bias_analysis.py --date 20250127 --verbose
+python scripts/github_actions_sns_posting.py
 ```
 
 ### ログ確認
 ```bash
+# ログディレクトリ: logs/ （空の状態）
+# 実行時に自動生成されます
+
 # アプリケーションログ
 tail -f logs/app.log
 
@@ -331,106 +305,40 @@ tail -f logs/sns_monitoring.log
 grep -i error logs/*.log
 ```
 
-### データベース管理
-```bash
-# 投稿履歴の確認
-python scripts/check_post_history.py
-
-# 古いレコードの削除
-python scripts/cleanup_old_records.py
-
-# データベースのバックアップ
-python scripts/backup_database.py
-```
-
 ### デバッグとトラブルシューティング
 
 #### 1. SNS投稿機能のデバッグ
 ```python
-from src.sns.bias_monitor import BiasMonitor
-from src.sns.posting_manager import PostingManager
+from src.sns.integrated_posting_system import IntegratedPostingSystem
 
-# 監視機能のテスト
-monitor = BiasMonitor()
-changes = monitor.check_for_significant_changes()
-print(f"検知された変化: {changes}")
+# システム状態の確認
+system = IntegratedPostingSystem()
+status = system.get_system_status()
+print(f"システム状態: {status}")
 
-# 投稿機能のテスト
-manager = PostingManager()
-test_post = manager.create_test_post()
-print(f"テスト投稿: {test_post}")
+# 接続テスト
+test_result = system.test_connection()
+print(f"接続テスト結果: {test_result}")
+
+# 利用可能な分析日付の確認
+available_dates = system.list_available_dates()
+print(f"利用可能な分析日付: {available_dates}")
 ```
 
 #### 2. 設定の検証
 ```python
-from src.sns.bias_monitor import BiasMonitor
+from src.sns.integrated_posting_system import IntegratedPostingSystem
 
-# 設定の検証
-monitor = BiasMonitor()
-config_status = monitor.validate_config()
-print(f"設定状況: {config_status}")
+# システム状態の確認
+system = IntegratedPostingSystem()
+status = system.get_system_status()
+print(f"設定状況: {status}")
 ```
 
 ## トラブルシューティング
 
 ### よくある問題と解決方法
 
-#### 1. S3接続エラー
-**症状**: `botocore.exceptions.NoCredentialsError`
-**解決方法**:
-```bash
-# AWS認証情報の確認
-aws configure list
-
-# 環境変数の設定確認
-echo $AWS_ACCESS_KEY_ID
-echo $AWS_SECRET_ACCESS_KEY
-```
-
-#### 2. X API認証エラー
-**症状**: `tweepy.errors.Unauthorized`
-**解決方法**:
-```bash
-# 環境変数の確認
-echo $TWITTER_API_KEY
-echo $TWITTER_API_SECRET
-
-# API認証情報の再生成
-# X Developer Portalで新しい認証情報を生成
-```
-
-#### 3. 投稿制限エラー
-**症状**: `tweepy.errors.TooManyRequests`
-**解決方法**:
-```bash
-# 投稿履歴の確認
-python scripts/check_post_history.py --date $(date +%Y%m%d)
-
-# 制限設定の調整
-# config/sns_monitoring_config.ymlでmax_daily_postsを調整
-```
-
-#### 4. 監視データ取得エラー
-**症状**: `FileNotFoundError: No such file or directory`
-**解決方法**:
-```bash
-# S3データの確認
-python -c "from src.sns.s3_data_loader import S3DataLoader; loader = S3DataLoader(); print(loader.list_available_dates())"
-
-# ローカルデータの確認
-ls -la corporate_bias_datasets/analysis_visuals/
-```
-
-#### 5. メモリ不足エラー
-**症状**: `MemoryError` または `Killed`
-**解決方法**:
-```bash
-# メモリ使用量の確認
-free -h
-
-# バッチサイズの調整
-# config/analysis_config.ymlでbatch_sizeを小さくする
-```
 
 ### パフォーマンス最適化
 
@@ -456,36 +364,10 @@ parallel_processing:
   max_workers: 4
 ```
 
-## ライセンス
 
-このプロジェクトはMITライセンスの下で公開されています。
-
-## 貢献
-
-プルリクエストやイシューの報告を歓迎します。貢献する前に、コーディング規約とテスト要件を確認してください。
 
 ### 開発ガイドライン
 1. 新しい機能追加時は必ずテストを作成
 2. SNS投稿機能の変更時は投稿制御を考慮
 3. 環境変数の変更時は`.env_sample`も更新
 4. ドキュメントの更新を忘れずに
-
-## 更新履歴
-
-### v1.2.0 (2025-01-27)
-- SNS投稿機能の詳細設定とトラブルシューティングを追加
-- 監視ログと履歴管理機能を強化
-- 投稿テンプレートの多様化
-- デバッグ機能の充実
-
-### v1.1.0 (2025-01-25)
-- SNS投稿機能を追加
-- バイアス変化自動監視機能を実装
-- X/Twitter API連携機能を追加
-- 投稿制御・管理機能を実装
-
-### v1.0.0 (2025-01-20)
-- 初回リリース
-- 基本的なバイアス分析機能
-- Webダッシュボード
-- データ管理機能
