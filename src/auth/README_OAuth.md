@@ -96,6 +96,7 @@ GOOGLE_REDIRECT_URI=http://localhost:8501
 
 # 認証設定
 ALLOWED_DOMAINS=cyber-u.ac.jp
+ALLOWED_EMAILS=test@gmail.com,test@example.com
 AUTH_DEBUG_MODE=false
 SESSION_TIMEOUT=3600
 
@@ -127,7 +128,7 @@ ENCRYPTION_KEY=your_encryption_key_change_this_in_production
 
 ### 3. 必要なライブラリ
 
-`requirements-app.txt`に以下のライブラリが含まれています：
+`requirements.txt`に以下のライブラリが含まれています：
 
 ```txt
 # OAuth認証関連
@@ -164,7 +165,21 @@ ALLOWED_DOMAINS=cyber-u.ac.jp
 ALLOWED_DOMAINS=cyber-u.ac.jp,example.com,test.org
 ```
 
-### 3. セッションタイムアウトの設定
+### 3. 許可メールアドレスの設定
+
+環境変数`ALLOWED_EMAILS`で特定のメールアドレスを許可できます：
+
+```bash
+# 単一メールアドレス
+ALLOWED_EMAILS=admin@cyber-u.ac.jp
+
+# 複数メールアドレス（カンマ区切り）
+ALLOWED_EMAILS=admin@cyber-u.ac.jp,test@example.com,user@test.org
+```
+
+**注意**: ドメイン一致が優先され、次にメールアドレス完全一致がチェックされます。
+
+### 4. セッションタイムアウトの設定
 
 環境変数`SESSION_TIMEOUT`でセッションタイムアウトを設定できます：
 
@@ -252,7 +267,7 @@ session_manager.destroy_session()
 2. **ドメイン制限エラー**
    ```
    エラー: ドメイン制限: example.comは許可されていません
-   対処法: ALLOWED_DOMAINSに該当ドメインを追加
+   対処法: ALLOWED_DOMAINSに該当ドメインを追加、またはALLOWED_EMAILSに該当メールアドレスを追加
    ```
 
 3. **セッションタイムアウト**
@@ -331,11 +346,13 @@ session_manager.destroy_session()
    ```bash
    # 現在の設定を確認
    echo $ALLOWED_DOMAINS
+   echo $ALLOWED_EMAILS
    ```
 
-2. **ドメイン形式の確認**
+2. **ドメイン・メールアドレス形式の確認**
    - ドメインは小文字で設定
    - カンマ区切りで複数ドメイン指定可能
+   - メールアドレスは完全な形式で設定
 
 ## 開発・テスト
 
@@ -357,6 +374,7 @@ streamlit run app.py
 OAUTH_FLAG=true
 AUTH_DEBUG_MODE=true
 ALLOWED_DOMAINS=cyber-u.ac.jp,test.com
+ALLOWED_EMAILS=admin@cyber-u.ac.jp,test@example.com
 SESSION_TIMEOUT=1800
 ```
 
