@@ -31,7 +31,36 @@ from src.components.auth_ui import render_auth_page, show_dashboard_header
 from src.utils.auth_utils import validate_auth_config, is_authenticated
 
 import streamlit.components.v1 as components
-import string
+
+# カスタムGTMコンポーネント
+def gtm_component(container_id):
+    """
+    Google Tag Managerを埋め込むカスタムコンポーネント
+
+    Parameters:
+    -----------
+    container_id : str
+        GTMコンテナID（GTM-XXXXXXXXX形式）
+    """
+    gtm_script = f"""
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){{w[l]=w[l]||[];w[l].push({{'gtm.start':
+    new Date().getTime(),event:'gtm.js'}});var f=d.getElementsByTagName(s),
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    }})(window,document,'script','dataLayer','{container_id}');</script>
+    <!-- End Google Tag Manager -->
+    """
+
+    # iframeを避けて直接HTMLとして埋め込み（完全に非表示）
+    st.markdown(
+        f"""
+        <div style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; visibility: hidden;">
+            {gtm_script}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # GTM Analytics 設定
 GTM_CONTAINER_ID = os.getenv('GTM_CONTAINER_ID')
@@ -40,26 +69,8 @@ GTM_ENABLED = os.getenv('GTM_ENABLED', 'false').lower() == 'true'
 # GTM トラッキング（設定が有効な場合のみ）
 if GTM_ENABLED and GTM_CONTAINER_ID:
     try:
-        # HTML ファイルからGTMテンプレートを読み込み
-        with open("ga4.html", "r") as f:
-            gtm_template = f.read()
-
-        # テンプレートに環境変数を埋め込み
-        gtm_js = string.Template(gtm_template).safe_substitute(
-            GTM_CONTAINER_ID=GTM_CONTAINER_ID
-        )
-
-        # スクリプトを埋め込み（完全に非表示）
-        st.markdown(
-            f"""
-            <div style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; visibility: hidden;">
-                {gtm_js}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    except FileNotFoundError:
-        st.warning("GTM設定ファイルが見つかりません")
+        # カスタムGTMコンポーネントを使用
+        gtm_component(GTM_CONTAINER_ID)
     except Exception as e:
         st.warning(f"GTM設定でエラーが発生しました: {e}")
 
