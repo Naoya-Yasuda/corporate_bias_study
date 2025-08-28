@@ -28,6 +28,21 @@ def render_auth_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("企業バイアス分析ダッシュボード")
+
+                # システム概要説明を英語で追加
+        st.markdown("""
+        ### System Overview
+
+        **Corporate Bias Analysis System** is a quantitative analysis platform for detecting and visualizing corporate bias in AI search services.
+
+        **Analysis Capabilities:**
+        - 😃 **Sentiment Scores**: Compare masked vs. real company sentiment
+        - 🏆 **Recommendation Rankings**: Analyze Perplexity AI ranking patterns
+        - 🔍 **Google Comparison**: Compare search results between Google and Perplexity
+        - 📈 **Trend Tracking**: Monitor bias patterns over time
+        **Purpose:** Academic research platform for analyzing corporate bias patterns in AI-powered search services.
+        """)
+
         st.markdown("---")
 
     # 技術記事通りのOAuth2Component実装
@@ -99,24 +114,42 @@ def render_auth_page():
                             # ページを再読み込みしてダッシュボードを表示
                             st.rerun()
                         else:
+                            # 認証失敗：ドメインが許可されていない
                             with col2:
-                                st.error(f"アクセスが許可されていません: {email}")
-                                st.info("管理者にお問い合わせください。")
+                                st.error(f"このメールアドレス（{email}）はアクセスが許可されていません。")
+                                st.error("許可されたドメインのメールアドレスでログインしてください。")
                     else:
                         with col2:
-                            st.error("IDトークンの形式が正しくありません。")
+                            st.error("ユーザー情報の取得に失敗しました。")
                 else:
                     with col2:
-                        st.error("IDトークンが取得できませんでした。")
+                        st.error("認証トークンの取得に失敗しました。")
             except Exception as e:
                 with col2:
-                    st.error(f"ユーザー情報取得エラー: {e}")
+                    st.error(f"認証処理中にエラーが発生しました: {str(e)}")
         elif result:
             with col2:
                 st.info("認証が完了しましたが、トークンの取得に失敗しました。")
         else:
             with col2:
                 st.info("Googleアカウントでログインしてください。")
+
+    # 連絡先情報を英語で表示
+    with col2:
+        st.markdown("---")
+        st.markdown("""
+        ### Contact Information
+
+        **For system access and login inquiries, please contact:**
+
+        📧 **Email:** 2301330039zz@cyber-u.ac.jp
+
+        **Note:** This system is restricted to authorized users only.
+        If you need access to the Corporate Bias Study Dashboard,
+        please contact the administrator with your request.
+
+        ---
+        """)
 
 
 def show_dashboard_header(user_info: dict):
