@@ -30,6 +30,9 @@ from src.utils.plot_utils import (
 from src.components.auth_ui import render_auth_page, show_dashboard_header
 from src.utils.auth_utils import validate_auth_config, is_authenticated
 
+# Google Analytics 4統合
+from src.utils.analytics_utils import render_ga4_tracking, is_ga4_enabled, get_ga4_status_info
+
 # ページ設定
 st.set_page_config(
     page_title="企業バイアス分析ダッシュボード",
@@ -37,6 +40,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Google Analytics 4 トラッキング初期化
+render_ga4_tracking()
 
 # 認証チェック
 def check_authentication():
@@ -409,6 +415,15 @@ st.markdown("AI検索サービスにおける企業優遇バイアスの可視�
 
 # --- サイドバー設定 ---
 st.sidebar.header("📊 データ選択")
+
+# Google Analytics 4 ステータス表示（デバッグ用）
+ga4_status = get_ga4_status_info()
+if ga4_status['enabled']:
+    st.sidebar.success(f"🔍 GA4: {ga4_status['status']}")
+else:
+    # 管理者向けに設定なし状態を表示（一般ユーザーには影響しない）
+    with st.sidebar.expander("🔍 Analytics", expanded=False):
+        st.caption(f"GA4: {ga4_status['message']}")
 
 # 可視化タイプ選択（単日分析・時系列分析）
 viz_type = st.sidebar.selectbox(
