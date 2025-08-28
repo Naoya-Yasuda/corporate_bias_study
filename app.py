@@ -49,8 +49,15 @@ if GA4_ENABLED and GA4_MEASUREMENT_ID:
             GA4_MEASUREMENT_ID=GA4_MEASUREMENT_ID
         )
 
-        # スクリプトを埋め込み（高さ 0 で表示上は非表示に）
-        components.html(ga4_js, height=0)
+        # スクリプトを埋め込み（完全に非表示）
+        st.markdown(
+            f"""
+            <div style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; visibility: hidden;">
+                {ga4_js}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     except FileNotFoundError:
         st.warning("GA4設定ファイルが見つかりません")
     except Exception as e:
