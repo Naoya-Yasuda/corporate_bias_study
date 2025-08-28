@@ -33,35 +33,35 @@ from src.utils.auth_utils import validate_auth_config, is_authenticated
 import streamlit.components.v1 as components
 import string
 
-# GA4 Analytics 設定
-GA4_MEASUREMENT_ID = os.getenv('GA4_MEASUREMENT_ID')
-GA4_ENABLED = os.getenv('GA4_ENABLED', 'false').lower() == 'true'
+# GTM Analytics 設定
+GTM_CONTAINER_ID = os.getenv('GTM_CONTAINER_ID')
+GTM_ENABLED = os.getenv('GTM_ENABLED', 'false').lower() == 'true'
 
-# GA4 トラッキング（設定が有効な場合のみ）
-if GA4_ENABLED and GA4_MEASUREMENT_ID:
+# GTM トラッキング（設定が有効な場合のみ）
+if GTM_ENABLED and GTM_CONTAINER_ID:
     try:
-        # HTML ファイルからGA4テンプレートを読み込み
+        # HTML ファイルからGTMテンプレートを読み込み
         with open("ga4.html", "r") as f:
-            ga4_template = f.read()
+            gtm_template = f.read()
 
         # テンプレートに環境変数を埋め込み
-        ga4_js = string.Template(ga4_template).safe_substitute(
-            GA4_MEASUREMENT_ID=GA4_MEASUREMENT_ID
+        gtm_js = string.Template(gtm_template).safe_substitute(
+            GTM_CONTAINER_ID=GTM_CONTAINER_ID
         )
 
         # スクリプトを埋め込み（完全に非表示）
         st.markdown(
             f"""
             <div style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; visibility: hidden;">
-                {ga4_js}
+                {gtm_js}
             </div>
             """,
             unsafe_allow_html=True
         )
     except FileNotFoundError:
-        st.warning("GA4設定ファイルが見つかりません")
+        st.warning("GTM設定ファイルが見つかりません")
     except Exception as e:
-        st.warning(f"GA4設定でエラーが発生しました: {e}")
+        st.warning(f"GTM設定でエラーが発生しました: {e}")
 
 # ページ設定
 st.set_page_config(
