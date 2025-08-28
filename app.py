@@ -30,6 +30,32 @@ from src.utils.plot_utils import (
 from src.components.auth_ui import render_auth_page, show_dashboard_header
 from src.utils.auth_utils import validate_auth_config, is_authenticated
 
+import streamlit.components.v1 as components
+import string
+
+# GA4 Analytics 設定
+GA4_MEASUREMENT_ID = os.getenv('GA4_MEASUREMENT_ID')
+GA4_ENABLED = os.getenv('GA4_ENABLED', 'false').lower() == 'true'
+
+# GA4 トラッキング（設定が有効な場合のみ）
+if GA4_ENABLED and GA4_MEASUREMENT_ID:
+    try:
+        # HTML ファイルからGA4テンプレートを読み込み
+        with open("ga4.html", "r") as f:
+            ga4_template = f.read()
+
+        # テンプレートに環境変数を埋め込み
+        ga4_js = string.Template(ga4_template).safe_substitute(
+            GA4_MEASUREMENT_ID=GA4_MEASUREMENT_ID
+        )
+
+        # スクリプトを埋め込み（高さ 0 で表示上は非表示に）
+        components.html(ga4_js, height=0)
+    except FileNotFoundError:
+        st.warning("GA4設定ファイルが見つかりません")
+    except Exception as e:
+        st.warning(f"GA4設定でエラーが発生しました: {e}")
+
 # ページ設定
 st.set_page_config(
     page_title="企業バイアス分析ダッシュボード",
