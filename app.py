@@ -136,39 +136,7 @@ def get_dashboard_data_async(_loader, selected_date):
             st.error(f"エラー詳細: {str(e)}")
             return None
 
-def render_load_status(expanded=False, key_prefix="", simplified=False):
-    """
-    読み込み状況を表示する共通関数
-
-    Parameters:
-    -----------
-    expanded : bool
-        エクスパンダーの初期展開状態
-    key_prefix : str
-        ページネーション用のキープレフィックス
-    simplified : bool
-        簡素化表示モード（単日分析用）
-    """
-    if hasattr(st.session_state, 'load_status') and st.session_state.load_status:
-        if simplified:
-            # 簡素化表示：最新の読み込み情報のみを緑色で直接表示（エクスパンダーなし）
-            latest_item = st.session_state.load_status[-1]
-            st.sidebar.success(latest_item)
-        else:
-            # 通常表示：エクスパンダー付きで統計情報とページネーション
-            with st.sidebar.expander("📊 読み込み状況", expanded=expanded):
-                # 統計情報を表示
-                total_loads = len(st.session_state.load_status)
-                new_loads = sum(1 for item in st.session_state.load_status if "新規読み込み" in item)
-                cache_loads = sum(1 for item in st.session_state.load_status if "キャッシュ" in item)
-                st.caption(f"📈 総読み込み: {total_loads}件 (新規: {new_loads}件, キャッシュ: {cache_loads}件)")
-
-                # 読み込みリストを表示（全件表示）
-                for item in st.session_state.load_status:
-                    if "新規読み込み" in item:
-                        st.info(item)
-                    else:
-                        st.success(item)
+# 読み込み状況表示関数はサイドバーコンポーネントに移動済み
 
 
 
@@ -387,85 +355,43 @@ def plot_effect_significance_scatter(effect_data, title, reliability_label=None)
 if not hasattr(st, 'session_state') or 'storage_mode' not in st.session_state:
     st.session_state['storage_mode'] = 'auto' # デフォルト値を設定
 
-# サイドバーでデータ取得元を選択（コマンドライン引数があればそれを優先）
-def get_storage_mode():
-    cli_mode = st.session_state.get('storage_mode', 'auto')
-    if 'storage_mode_sidebar' not in st.session_state:
-        st.session_state['storage_mode_sidebar'] = cli_mode
-    mode = st.sidebar.selectbox(
-        'データ取得元を選択',
-        ['auto', 'local', 's3'],
-        index=['auto', 'local', 's3'].index(cli_mode),
-        key='storage_mode_sidebar',
-        help='auto: ローカル優先、なければS3 / local: ローカルのみ / s3: S3のみ'
-    )
-    return mode
-
-storage_mode = get_storage_mode()
-
-# タイトル
-st.title("企業バイアス分析ダッシュボード")
-st.markdown("AI検索サービスにおける企業優遇バイアスの可視化")
-
-# --- サイドバー設定 ---
-st.sidebar.header("📊 データ選択")
-
-# 可視化タイプ選択（単日分析・時系列分析）
-viz_type = st.sidebar.selectbox(
-    "可視化タイプを選択",
-    ["単日分析", "時系列分析"],
-    key="analysis_type_selector"
+# サイドバーコンポーネントをインポート
+from src.components.sidebar import (
+    render_main_sidebar,
+    render_category_selectors,
+    render_entities_selector,
+    render_viz_type_detail_selector,
+    render_time_series_period_selector,
+    render_load_status
 )
 
-# --- データ取得元「auto」時のlocal/S3両方候補リスト表示 ---
-if storage_mode == "auto":
-    loader_local = HybridDataLoader("local")
-    loader_s3 = HybridDataLoader("s3")
-    dates_local = set(loader_local.list_available_dates(mode="local"))
-    dates_s3 = set(loader_s3.list_available_dates(mode="s3"))
-    all_dates = sorted(list(dates_local | dates_s3), reverse=True)
-    date_source_options = []
-    for d in all_dates:
-        if d in dates_local:
-            date_source_options.append(f"local: {d}")
-        if d in dates_s3:
-            date_source_options.append(f"S3: {d}")
-    if not date_source_options:
-        st.sidebar.error("分析データが見つかりません")
-        st.stop()
-    if viz_type == "単日分析":
-        selected_date_source = st.sidebar.selectbox(
-            "分析日付と取得元を選択",
-            date_source_options,
-            index=0,
-            key="date_source_selector"
-        )
-        # 選択に応じてloaderとdateを決定
-        if selected_date_source.startswith("local: "):
-            loader = loader_local
-            selected_date = selected_date_source.replace("local: ", "")
+# --- サイドバー設定 ---
+sidebar_data = render_main_sidebar()
+storage_mode = sidebar_data['storage_mode']
+viz_type = sidebar_data['viz_type']
+loader = sidebar_data['loader']
+selected_dates = sidebar_data['selected_dates']
+loader_local = sidebar_data['loader_local']
+loader_s3 = sidebar_data['loader_s3']
+
+
+
+# サイドバーから取得したデータを使用
+if viz_type == "単日分析":
+    # 単日分析の場合、selected_datesの最初の要素をselected_dateとして使用
+    if selected_dates and len(selected_dates) > 0:
+        # selected_datesが配列の場合、最初の要素を取得
+        if isinstance(selected_dates, list):
+            selected_date = selected_dates[0]
         else:
-            loader = loader_s3
-            selected_date = selected_date_source.replace("S3: ", "")
-        selected_dates = [selected_date]
-    # --- 時系列分析時はこのUIを表示しない ---
-else:
-    loader = HybridDataLoader(storage_mode)
-    available_dates = loader.list_available_dates(mode=storage_mode)
-    if not available_dates:
-        st.sidebar.error("分析データが見つかりません")
+            # selected_datesが辞書の場合、最初のキーの値を取得
+            selected_date = list(selected_dates.values())[0]
+    else:
+        st.error("日付が選択されていません")
         st.stop()
-    if viz_type == "単日分析":
-        selected_date = st.sidebar.selectbox(
-            "分析日付を選択",
-            available_dates,
-            index=0,
-            key="date_selector"
-        )
-        selected_dates = [selected_date]
+
 if viz_type == "時系列分析":
-    loader_local = HybridDataLoader("local")
-    loader_s3 = HybridDataLoader("s3")
+    # サイドバーから取得したloader_localとloader_s3を使用
     dates_local = set(loader_local.list_available_dates(mode="local"))
     dates_s3 = set(loader_s3.list_available_dates(mode="s3"))
     all_dates = sorted(list(dates_local | dates_s3))
@@ -514,33 +440,8 @@ if viz_type == "時系列分析":
     render_load_status(expanded=False, key_prefix="")
 
     available_dates = sorted(best_data_by_date.keys())
-    # 表示期間選択
-    period_options = {
-        "1ヶ月": 4,
-        "3ヶ月": 12,
-        "半年": 24,
-        "1年": 52,
-        "全期間": None
-    }
-    selected_period = st.sidebar.selectbox(
-        "表示期間を選択",
-        list(period_options.keys()),
-        index=2,
-        key="ts_period_selector"
-    )
-
-    period_n = period_options[selected_period]
-    sorted_dates = sorted(available_dates, reverse=True)
-
-    # 期間フィルタリング
-    if period_n is not None:
-        selected_dates = sorted(sorted_dates[:period_n], reverse=False)
-    else:
-        selected_dates = sorted(available_dates)
-    if not selected_dates:
-        st.info("利用可能なデータがありません")
-        st.stop()
-
+    # サイドバーコンポーネントを使用して期間選択
+    selected_dates = render_time_series_period_selector(available_dates)
 
     latest_date = max(selected_dates)
     dashboard_data, source = best_data_by_date[latest_date]
@@ -565,42 +466,10 @@ if viz_type == "時系列分析":
         st.stop()
     analysis_data = dashboard_data["analysis_results"]
     sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
-    all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
-    all_categories.sort()
-    if not all_categories:
-        st.info("カテゴリデータがありません")
-        st.stop()
-    selected_category = st.sidebar.selectbox(
-        "カテゴリを選択",
-        all_categories,
-        key="ts_category_selector",
-        index=0
-    )
-    all_subcategories = list(sentiment_data[selected_category].keys())
-    all_subcategories.sort()
-    if not all_subcategories:
-        st.info("サブカテゴリデータがありません")
-        st.stop()
-    selected_subcategory = st.sidebar.selectbox(
-        "サブカテゴリを選択",
-        all_subcategories,
-        key="ts_subcategory_selector",
-        index=0
-    )
+    # サイドバーコンポーネントを使用してカテゴリ・サブカテゴリ・エンティティ選択
+    selected_category, selected_subcategory = render_category_selectors(sentiment_data, viz_type, "ts_")
     entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
-    entities = list(entities_data.keys())
-    if not entities:
-        st.info("エンティティデータがありません")
-        st.stop()
-    selected_entities = st.sidebar.multiselect(
-        "エンティティを選択（複数選択可）",
-        entities,
-        default=entities,  # 全件をデフォルトで表示
-        key="ts_entities_selector"
-    )
-    if not selected_entities:
-        st.info("エンティティを選択してください")
-        st.stop()
+    selected_entities = render_entities_selector(entities_data, "ts_")
 
 
 
@@ -1037,41 +906,16 @@ elif viz_type == "単日分析":
     render_load_status(expanded=True, key_prefix="single_", simplified=True)
 
     # --- 詳細可視化タイプ選択（おすすめランキング分析結果を統合） ---
-    viz_type_options = ["感情スコア分析", "おすすめランキング分析結果", "Perplexity-Google比較", "統合分析"]
-    viz_type_detail = st.sidebar.selectbox(
-        "詳細可視化タイプを選択",
-        viz_type_options,
-        key="viz_type_selector",
-        index=0  # デフォルトで最初の項目を選択
-    )
+    viz_type_detail = render_viz_type_detail_selector()
 
     # --- メインダッシュボード（統合版） ---
     st.markdown('<div class="main-dashboard-area">', unsafe_allow_html=True)
 
     # --- 統一カテゴリリスト作成 ---
     sentiment_data = analysis_data.get("sentiment_bias_analysis", {})
-    all_categories = [c for c in sentiment_data.keys() if c not in ("全体", "all", "ALL", "All")]
-    all_categories.sort()
 
-    # 統一されたカテゴリ選択（全分析タイプで共通）
-    selected_category = st.sidebar.selectbox(
-        "カテゴリを選択",
-        all_categories,
-        key="category_selector",
-        index=0  # デフォルトで最初の項目を選択
-    )
-
-    # --- 統一サブカテゴリリスト作成 ---
-    all_subcategories = list(sentiment_data[selected_category].keys())
-    all_subcategories.sort()
-
-    # 統一されたサブカテゴリ選択（全分析タイプで共通）
-    selected_subcategory = st.sidebar.selectbox(
-        "サブカテゴリを選択",
-        all_subcategories,
-        key="subcategory_selector",
-        index=0  # デフォルトで最初の項目を選択
-    )
+    # サイドバーコンポーネントを使用してカテゴリ・サブカテゴリ選択
+    selected_category, selected_subcategory = render_category_selectors(sentiment_data, viz_type)
 
     # --- 詳細可視化タイプ分岐 ---
     if viz_type_detail == "感情スコア分析":
@@ -1081,13 +925,9 @@ elif viz_type == "単日分析":
             st.stop()
 
         entities_data = sentiment_data[selected_category][selected_subcategory].get("entities", {})
-        entities = list(entities_data.keys())
-        selected_entities = st.sidebar.multiselect(
-            "エンティティを選択（複数選択可）",
-            entities,
-            key="entities_selector",
-            default=entities  # 全件をデフォルトで表示
-        )
+
+        # サイドバーコンポーネントを使用してエンティティ選択
+        selected_entities = render_entities_selector(entities_data)
         # --- 表形式表示（常に上部に表示） ---
         sentiment_flat = dashboard_data.get("perplexity_sentiment_flat", [])
         filtered = [row for row in sentiment_flat if row["カテゴリ"] == selected_category and row["サブカテゴリ"] == selected_subcategory and (not selected_entities or row["エンティティ"] in selected_entities)]
