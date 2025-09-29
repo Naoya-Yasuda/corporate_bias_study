@@ -26,12 +26,32 @@ def extract_domain(url):
         抽出されたドメイン
     '''
     try:
+        if not url:
+            return ""
+
         parsed = urlparse(url)
         domain = parsed.netloc
+
+        # スキームが省略されたURL（"example.com/path"など）に対応
+        if not domain:
+            parsed = urlparse(f"//{url}")
+            domain = parsed.netloc or parsed.path
+
+        # パス要素が混ざっている場合はドメイン部分のみ取得
+        domain = domain.split('/')[0]
+
+        # ポート番号が付与されている場合は除去
+        if ':' in domain:
+            domain = domain.split(':', 1)[0]
+
+        # 大文字小文字のゆらぎをなくす
+        domain = domain.lower()
+
         if domain.startswith('www.'):
             domain = domain[4:]
+
         return domain
-    except:
+    except Exception:
         return ""
 
 def is_negative(title, snippet):
