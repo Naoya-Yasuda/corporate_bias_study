@@ -586,12 +586,14 @@ if viz_type == "時系列分析":
                 valid_values = [(i, v) for i, v in enumerate(values) if v is not None]
                 if valid_values:
                     x_indices, y_values = zip(*valid_values)
-                    x_dates = [date_labels[i] for i in x_indices]
+                    # 年を省略して月/日フォーマットに変換
+                    x_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in x_indices]
                     ax.plot(x_dates, y_values, marker="o", label=entity, linewidth=2, markersize=6)
 
             ax.set_xlabel("日付")
             ax.set_ylabel("BI値（normalized_bias_index）")
             ax.set_title(f"BI値の時系列推移（{selected_category} - {selected_subcategory}）")
+            plt.xticks(rotation=45, ha='right')
             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax.grid(True, alpha=0.3)
             # 0.0の基準線を追加
@@ -627,7 +629,7 @@ if viz_type == "時系列分析":
                 valid_values = [(i, v) for i, v in enumerate(values) if v is not None]
                 if valid_values:
                     x_indices, y_values = zip(*valid_values)
-                    x_dates = [date_labels[i] for i in x_indices]
+                    x_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in x_indices]
                     ax.plot(x_dates, y_values, marker="s", label=entity, linewidth=2, markersize=6)
 
             ax.set_xlabel("日付")
@@ -637,6 +639,7 @@ if viz_type == "時系列分析":
             ax.grid(True, alpha=0.3)
             # 0.0の基準線を追加
             ax.axhline(y=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+            plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
@@ -668,7 +671,7 @@ if viz_type == "時系列分析":
                 valid_values = [(i, v) for i, v in enumerate(values) if v is not None]
                 if valid_values:
                     x_indices, y_values = zip(*valid_values)
-                    x_dates = [date_labels[i] for i in x_indices]
+                    x_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in x_indices]
                     ax.plot(x_dates, y_values, marker="^", label=entity, linewidth=2, markersize=6)
 
             ax.set_xlabel("日付")
@@ -676,6 +679,7 @@ if viz_type == "時系列分析":
             ax.set_title(f"ランキングの時系列推移（{selected_category} - {selected_subcategory}）")
             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax.grid(True, alpha=0.3)
+            plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
@@ -710,19 +714,19 @@ if viz_type == "時系列分析":
             # RBOスコア
             if valid_rbo:
                 valid_indices = [i for i, v in enumerate(rbo_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_rbo, marker="o", label="RBO", linewidth=2, markersize=6, color="blue")
 
             # Kendall Tau
             if valid_kendall:
                 valid_indices = [i for i, v in enumerate(kendall_tau_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_kendall, marker="s", label="Kendall Tau", linewidth=2, markersize=6, color="orange")
 
             # Overlap Ratio
             if valid_overlap:
                 valid_indices = [i for i, v in enumerate(overlap_ratio_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_overlap, marker="^", label="Overlap Ratio", linewidth=2, markersize=6, color="green")
 
             ax.set_xlabel("日付")
@@ -731,6 +735,7 @@ if viz_type == "時系列分析":
             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax.grid(True, alpha=0.3)
             ax.set_ylim(0, 1)
+            plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
@@ -775,19 +780,19 @@ if viz_type == "時系列分析":
             # Google公式比率
             if valid_google_ratio:
                 valid_indices = [i for i, v in enumerate(google_official_ratio_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_google_ratio, marker="o", label="Google公式比率", linewidth=2, markersize=6, color="blue")
 
             # Citations公式比率
             if valid_citations_ratio:
                 valid_indices = [i for i, v in enumerate(citations_official_ratio_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_citations_ratio, marker="s", label="Citations公式比率", linewidth=2, markersize=6, color="orange")
 
             # バイアス差分
             if valid_bias_delta:
                 valid_indices = [i for i, v in enumerate(official_bias_delta_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_bias_delta, marker="^", label="バイアス差分", linewidth=2, markersize=6, color="red")
 
             ax.set_xlabel("日付")
@@ -798,6 +803,7 @@ if viz_type == "時系列分析":
             ax.set_ylim(-0.5, 1.0)
             # 0.0の基準線を追加
             ax.axhline(y=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+            plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
@@ -845,19 +851,19 @@ if viz_type == "時系列分析":
             # Googleポジティブ比率
             if valid_google_positive:
                 valid_indices = [i for i, v in enumerate(google_positive_ratio_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_google_positive, marker="o", label="Googleポジティブ比率", linewidth=2, markersize=6, color="blue")
 
             # Citationsポジティブ比率
             if valid_citations_positive:
                 valid_indices = [i for i, v in enumerate(citations_positive_ratio_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_citations_positive, marker="s", label="Citationsポジティブ比率", linewidth=2, markersize=6, color="orange")
 
             # ポジティブバイアス差分
             if valid_positive_bias_delta:
                 valid_indices = [i for i, v in enumerate(positive_bias_delta_timeseries) if v is not None]
-                valid_dates = [date_labels[i] for i in valid_indices]
+                valid_dates = [date_labels[i][5:] if len(date_labels[i]) >= 10 else date_labels[i] for i in valid_indices]
                 ax.plot(valid_dates, valid_positive_bias_delta, marker="^", label="ポジティブバイアス差分", linewidth=2, markersize=6, color="red")
 
             ax.set_xlabel("日付")
@@ -868,6 +874,7 @@ if viz_type == "時系列分析":
             ax.set_ylim(-1.0, 1.0)
             # 0.0の基準線を追加
             ax.axhline(y=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+            plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
